@@ -29,3 +29,6 @@
 import './index.css';
 
 console.log('👋 This message is being logged by "renderer.ts", included via Vite');
+var adapter = await navigator.gpu?.requestAdapter();
+const device = await adapter?.requestDevice();
+console.log(device)
