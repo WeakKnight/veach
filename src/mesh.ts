@@ -1,4 +1,7 @@
 import { GPUBufferWrapper } from './gpu-buffer';
+import { float2 } from './math/float2';
+import { float3 } from './math/float3';
+import { float4 } from './math/float4';
 
 /**
  * 顶点数据结构定义
@@ -6,11 +9,11 @@ import { GPUBufferWrapper } from './gpu-buffer';
  * 总共 14 个 float32 值 = 56 字节
  */
 export interface VertexData {
-  uv0: [number, number];           // 2 floats - 纹理坐标0
-  uv1: [number, number];           // 2 floats - 纹理坐标1
-  position: [number, number, number]; // 3 floats - 位置
-  normal: [number, number, number];   // 3 floats - 法线
-  tangent: [number, number, number, number]; // 4 floats - 切线(xyz + w符号位)
+  uv0: float2;           // 2 floats - 纹理坐标0
+  uv1: float2;           // 2 floats - 纹理坐标1
+  position: float3;      // 3 floats - 位置
+  normal: float3;        // 3 floats - 法线
+  tangent: float4;       // 4 floats - 切线(xyz + w符号位)
 }
 
 /**
@@ -75,28 +78,28 @@ export class Mesh {
       const offset = i * 14;
       
       // uv0 (2 floats)
-      packedData[offset + 0] = vertex.uv0[0];
-      packedData[offset + 1] = vertex.uv0[1];
+      packedData[offset + 0] = vertex.uv0.x;
+      packedData[offset + 1] = vertex.uv0.y;
       
       // uv1 (2 floats)
-      packedData[offset + 2] = vertex.uv1[0];
-      packedData[offset + 3] = vertex.uv1[1];
+      packedData[offset + 2] = vertex.uv1.x;
+      packedData[offset + 3] = vertex.uv1.y;
       
       // position (3 floats)
-      packedData[offset + 4] = vertex.position[0];
-      packedData[offset + 5] = vertex.position[1];
-      packedData[offset + 6] = vertex.position[2];
+      packedData[offset + 4] = vertex.position.x;
+      packedData[offset + 5] = vertex.position.y;
+      packedData[offset + 6] = vertex.position.z;
       
       // normal (3 floats)
-      packedData[offset + 7] = vertex.normal[0];
-      packedData[offset + 8] = vertex.normal[1];
-      packedData[offset + 9] = vertex.normal[2];
+      packedData[offset + 7] = vertex.normal.x;
+      packedData[offset + 8] = vertex.normal.y;
+      packedData[offset + 9] = vertex.normal.z;
       
       // tangent (4 floats)
-      packedData[offset + 10] = vertex.tangent[0];
-      packedData[offset + 11] = vertex.tangent[1];
-      packedData[offset + 12] = vertex.tangent[2];
-      packedData[offset + 13] = vertex.tangent[3];
+      packedData[offset + 10] = vertex.tangent.x;
+      packedData[offset + 11] = vertex.tangent.y;
+      packedData[offset + 12] = vertex.tangent.z;
+      packedData[offset + 13] = vertex.tangent.w;
     }
     
     return packedData;
@@ -161,11 +164,11 @@ export class Mesh {
     for (let i = 0; i < readCount; i++) {
       const floatOffset = i * 14;
       vertices.push({
-        uv0: [floatData[floatOffset + 0], floatData[floatOffset + 1]],
-        uv1: [floatData[floatOffset + 2], floatData[floatOffset + 3]],
-        position: [floatData[floatOffset + 4], floatData[floatOffset + 5], floatData[floatOffset + 6]],
-        normal: [floatData[floatOffset + 7], floatData[floatOffset + 8], floatData[floatOffset + 9]],
-        tangent: [floatData[floatOffset + 10], floatData[floatOffset + 11], floatData[floatOffset + 12], floatData[floatOffset + 13]]
+        uv0: new float2(floatData[floatOffset + 0], floatData[floatOffset + 1]),
+        uv1: new float2(floatData[floatOffset + 2], floatData[floatOffset + 3]),
+        position: new float3(floatData[floatOffset + 4], floatData[floatOffset + 5], floatData[floatOffset + 6]),
+        normal: new float3(floatData[floatOffset + 7], floatData[floatOffset + 8], floatData[floatOffset + 9]),
+        tangent: new float4(floatData[floatOffset + 10], floatData[floatOffset + 11], floatData[floatOffset + 12], floatData[floatOffset + 13])
       });
     }
     
@@ -245,35 +248,35 @@ export class Mesh {
     const vertices: VertexData[] = [
       // 左下
       {
-        uv0: [0, 1],
-        uv1: [0, 1],
-        position: [-halfSize, -halfSize, 0],
-        normal: [0, 0, 1],
-        tangent: [1, 0, 0, 1]
+        uv0: new float2(0, 1),
+        uv1: new float2(0, 1),
+        position: new float3(-halfSize, -halfSize, 0),
+        normal: new float3(0, 0, 1),
+        tangent: new float4(1, 0, 0, 1)
       },
       // 右下
       {
-        uv0: [1, 1],
-        uv1: [1, 1],
-        position: [halfSize, -halfSize, 0],
-        normal: [0, 0, 1],
-        tangent: [1, 0, 0, 1]
+        uv0: new float2(1, 1),
+        uv1: new float2(1, 1),
+        position: new float3(halfSize, -halfSize, 0),
+        normal: new float3(0, 0, 1),
+        tangent: new float4(1, 0, 0, 1)
       },
       // 右上
       {
-        uv0: [1, 0],
-        uv1: [1, 0],
-        position: [halfSize, halfSize, 0],
-        normal: [0, 0, 1],
-        tangent: [1, 0, 0, 1]
+        uv0: new float2(1, 0),
+        uv1: new float2(1, 0),
+        position: new float3(halfSize, halfSize, 0),
+        normal: new float3(0, 0, 1),
+        tangent: new float4(1, 0, 0, 1)
       },
       // 左上
       {
-        uv0: [0, 0],
-        uv1: [0, 0],
-        position: [-halfSize, halfSize, 0],
-        normal: [0, 0, 1],
-        tangent: [1, 0, 0, 1]
+        uv0: new float2(0, 0),
+        uv1: new float2(0, 0),
+        position: new float3(-halfSize, halfSize, 0),
+        normal: new float3(0, 0, 1),
+        tangent: new float4(1, 0, 0, 1)
       }
     ];
 
@@ -298,38 +301,38 @@ export class Mesh {
     // 定义立方体的6个面
     const faces = [
       // 前面 (Z+)
-      { normal: [0, 0, 1], tangent: [1, 0, 0, 1], positions: [
-        [-halfSize, -halfSize, halfSize], [halfSize, -halfSize, halfSize],
-        [halfSize, halfSize, halfSize], [-halfSize, halfSize, halfSize]
+      { normal: new float3(0, 0, 1), tangent: new float4(1, 0, 0, 1), positions: [
+        new float3(-halfSize, -halfSize, halfSize), new float3(halfSize, -halfSize, halfSize),
+        new float3(halfSize, halfSize, halfSize), new float3(-halfSize, halfSize, halfSize)
       ]},
       // 后面 (Z-)
-      { normal: [0, 0, -1], tangent: [-1, 0, 0, 1], positions: [
-        [halfSize, -halfSize, -halfSize], [-halfSize, -halfSize, -halfSize],
-        [-halfSize, halfSize, -halfSize], [halfSize, halfSize, -halfSize]
+      { normal: new float3(0, 0, -1), tangent: new float4(-1, 0, 0, 1), positions: [
+        new float3(halfSize, -halfSize, -halfSize), new float3(-halfSize, -halfSize, -halfSize),
+        new float3(-halfSize, halfSize, -halfSize), new float3(halfSize, halfSize, -halfSize)
       ]},
       // 右面 (X+)
-      { normal: [1, 0, 0], tangent: [0, 0, -1, 1], positions: [
-        [halfSize, -halfSize, halfSize], [halfSize, -halfSize, -halfSize],
-        [halfSize, halfSize, -halfSize], [halfSize, halfSize, halfSize]
+      { normal: new float3(1, 0, 0), tangent: new float4(0, 0, -1, 1), positions: [
+        new float3(halfSize, -halfSize, halfSize), new float3(halfSize, -halfSize, -halfSize),
+        new float3(halfSize, halfSize, -halfSize), new float3(halfSize, halfSize, halfSize)
       ]},
       // 左面 (X-)
-      { normal: [-1, 0, 0], tangent: [0, 0, 1, 1], positions: [
-        [-halfSize, -halfSize, -halfSize], [-halfSize, -halfSize, halfSize],
-        [-halfSize, halfSize, halfSize], [-halfSize, halfSize, -halfSize]
+      { normal: new float3(-1, 0, 0), tangent: new float4(0, 0, 1, 1), positions: [
+        new float3(-halfSize, -halfSize, -halfSize), new float3(-halfSize, -halfSize, halfSize),
+        new float3(-halfSize, halfSize, halfSize), new float3(-halfSize, halfSize, -halfSize)
       ]},
       // 上面 (Y+)
-      { normal: [0, 1, 0], tangent: [1, 0, 0, 1], positions: [
-        [-halfSize, halfSize, halfSize], [halfSize, halfSize, halfSize],
-        [halfSize, halfSize, -halfSize], [-halfSize, halfSize, -halfSize]
+      { normal: new float3(0, 1, 0), tangent: new float4(1, 0, 0, 1), positions: [
+        new float3(-halfSize, halfSize, halfSize), new float3(halfSize, halfSize, halfSize),
+        new float3(halfSize, halfSize, -halfSize), new float3(-halfSize, halfSize, -halfSize)
       ]},
       // 下面 (Y-)
-      { normal: [0, -1, 0], tangent: [1, 0, 0, 1], positions: [
-        [-halfSize, -halfSize, -halfSize], [halfSize, -halfSize, -halfSize],
-        [halfSize, -halfSize, halfSize], [-halfSize, -halfSize, halfSize]
+      { normal: new float3(0, -1, 0), tangent: new float4(1, 0, 0, 1), positions: [
+        new float3(-halfSize, -halfSize, -halfSize), new float3(halfSize, -halfSize, -halfSize),
+        new float3(halfSize, -halfSize, halfSize), new float3(-halfSize, -halfSize, halfSize)
       ]}
     ];
 
-    const uvs = [[0, 1], [1, 1], [1, 0], [0, 0]];
+    const uvs = [new float2(0, 1), new float2(1, 1), new float2(1, 0), new float2(0, 0)];
 
     faces.forEach((face, faceIndex) => {
       const startIndex = vertices.length;
@@ -337,11 +340,11 @@ export class Mesh {
       // 为每个面添加4个顶点
       face.positions.forEach((pos, vertIndex) => {
         vertices.push({
-          uv0: uvs[vertIndex] as [number, number],
-          uv1: uvs[vertIndex] as [number, number],
-          position: pos as [number, number, number],
-          normal: face.normal as [number, number, number],
-          tangent: face.tangent as [number, number, number, number]
+          uv0: uvs[vertIndex],
+          uv1: uvs[vertIndex],
+          position: pos,
+          normal: face.normal,
+          tangent: face.tangent
         });
       });
 
