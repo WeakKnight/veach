@@ -26,10 +26,27 @@
  * ```
  */
 
+import { GraphicsPipeline, GraphicsPipelineOptions } from './graphics-pipeline';
 import './index.css';
 
 console.log('👋 This message is being logged by "renderer.ts", included via Vite');
-var adapter = await navigator.gpu?.requestAdapter();
+
+// 等待GPU适配器和设备
+const adapter = await navigator.gpu?.requestAdapter();
 const device = await adapter?.requestDevice();
-console.log(device)
+
+// 导入shader代码
+import vertexWGSL from "./shaders/vertex.wgsl";
+import fragmentWGSL from "./shaders/fragment.wgsl";
+
+// 配置pipeline选项
+const pipelineOptions: GraphicsPipelineOptions = {
+  vertexShaderCode: vertexWGSL,
+  fragmentShaderCode: fragmentWGSL
+};
+
+// 创建graphics pipeline
+const pipeline = new GraphicsPipeline(device, pipelineOptions);
+console.log('Device:', device);
+console.log('Pipeline created successfully:', pipeline.getPipeline());
 
