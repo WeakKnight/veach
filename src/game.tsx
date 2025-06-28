@@ -9,49 +9,52 @@ import './index.css';
 import { GraphicsPipeline, GraphicsPipelineOptions } from './graphics-pipeline';
 import { Button, DatePicker } from 'antd';
 import { Layout } from "antd";
+import { Renderer } from './renderer';
 console.log('👋 This message is being logged by "renderer.tsx", included via Vite');
-
-// 等待GPU适配器和设备
-const adapter = await navigator.gpu?.requestAdapter();
-const device = await adapter?.requestDevice();
-
-// 导入shader代码
-import vertexWGSL from "./shaders/vertex.wgsl";
-import fragmentWGSL from "./shaders/fragment.wgsl";
-
-// 配置pipeline选项
-const pipelineOptions: GraphicsPipelineOptions = {
-  vertexShaderCode: vertexWGSL,
-  fragmentShaderCode: fragmentWGSL
-};
-
-// 创建graphics pipeline
-const pipeline = new GraphicsPipeline(device, pipelineOptions);
-console.log('Device:', device);
-console.log('Pipeline created successfully:', pipeline.getPipeline());
 
 // 获取根元素
 const container = document.getElementById('root');
 if (!container) {
-  throw new Error('Root element not found');
+	throw new Error('Root element not found');
 }
 const { Header, Content, Footer, Sider } = Layout;
 const Game: React.FC = () => {
-  return (
-    <div className="app">
-      <Layout>
-        <Sider>
-          <Button type="primary">PRESS ME</Button>
-          <DatePicker placeholder="select date" />
-        </Sider>
-        <Content>main content</Content>
-        <Sider>right sidebar</Sider>
-      </Layout>
-    </div>
-  );
+	return (
+		<div id="veach-game-editor">
+			<Layout className="veach-editor-layout">
+				<Sider>
+					<Button type="primary">PRESS ME</Button>
+					<DatePicker placeholder="select date" />
+				</Sider>
+				<Content>
+					<canvas id="veach-game-view" width="100%" height="100%">
+					</canvas>
+				</Content>
+				<Sider>right sidebar</Sider>
+			</Layout>
+		</div>
+	);
 };
-
 
 // 创建React根实例并渲染应用
 const root = createRoot(container);
-root.render(<Game />); 
+root.render(<Game />);
+
+let renderer = new Renderer();
+await renderer.init();
+
+let resize = () => {
+	document.body.style.width = window.innerWidth + "px";
+	document.body.style.height = window.innerHeight + "px";
+	container.style.width = document.body.style.width;
+	container.style.height = document.body.style.height;
+	let editorRoot = document.getElementById("veach-game-editor");
+	if (editorRoot !== null) {
+		editorRoot.style.width = container.style.width;
+		editorRoot.style.height = container.style.height;
+	}
+	renderer.resize();
+}
+resize();
+window.addEventListener('resize', resize);
+
