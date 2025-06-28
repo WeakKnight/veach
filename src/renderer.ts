@@ -2,15 +2,20 @@
 import vertexWGSL from "./shaders/vertex.wgsl?raw";
 import fragmentWGSL from "./shaders/fragment.wgsl?raw";
 import { GraphicsPipeline, GraphicsPipelineOptions } from './graphics-pipeline';
+import { Mesh } from "./mesh";
 
 export class Renderer {
     public device: GPUDevice | null;
     private gbufferPipeline: GraphicsPipeline | null;
     private webgpuContext: GPUCanvasContext | null;
+    private mesh: Mesh | null;
+    private bindingGroup: GPUBindGroup | null;
+
     public constructor() {
         this.device = null;
         this.gbufferPipeline = null;
         this.webgpuContext = null;
+        this.bindingGroup = null;
     }
 
     public async init() {
@@ -37,6 +42,16 @@ export class Renderer {
         this.webgpuContext = canvas.getContext("webgpu");
         console.log(this.webgpuContext);
         this.webgpuContext.configure({ device: this.device, format: 'rgba8unorm' });
+
+        this.mesh = Mesh.createCube(this.device, 0.3);
+
+        this.bindingGroup = this.device.createBindGroup({
+            layout: this.gbufferPipeline.getPipeline().getBindGroupLayout(0),
+            entries: [
+                { binding: 0, resource: this.mesh.getVertexBuffer().getBuffer() },
+                { binding: 1, resource: this.mesh.getIndexBuffer().getBuffer() }
+            ]
+        });
 
         let lastTime = 0;         // 初始为 0，首帧会被特殊处理
         let tick = (timestamp) => {
@@ -77,7 +92,8 @@ export class Renderer {
         
         let renderPassEncoder = commandEncoder.beginRenderPass(renderPassDesc);
         renderPassEncoder.setPipeline(this.gbufferPipeline.getPipeline());
-        renderPassEncoder.draw(6);
+        renderPassEncoder.setBindGroup(0, this.bindingGroup);
+        renderPassEncoder.draw(this.mesh.getIndexCount());
         renderPassEncoder.end();
         
         let commandBuffer = commandEncoder.finish();
