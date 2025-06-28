@@ -44,7 +44,7 @@ export const DEFAULT_PIPELINE_OPTIONS: Partial<GraphicsPipelineOptions> = {
   depthWriteEnabled: true,
   depthCompare: 'less',
   sampleCount: 1,
-  colorTargetFormat: 'bgra8unorm',
+  colorTargetFormat: 'rgba8unorm',
   colorWriteMask: 0xF, // 写入所有颜色通道
 };
 

@@ -1,6 +1,6 @@
 // 导入shader代码
-import vertexWGSL from "./shaders/vertex.wgsl";
-import fragmentWGSL from "./shaders/fragment.wgsl";
+import vertexWGSL from "./shaders/vertex.wgsl?raw";
+import fragmentWGSL from "./shaders/fragment.wgsl?raw";
 import { GraphicsPipeline, GraphicsPipelineOptions } from './graphics-pipeline';
 
 export class Renderer {
@@ -23,6 +23,10 @@ export class Renderer {
             vertexShaderCode: vertexWGSL,
             fragmentShaderCode: fragmentWGSL
         };
+
+        console.log(vertexWGSL);
+
+        console.log(fragmentWGSL);
 
         // 创建graphics pipeline
         this.gbufferPipeline = new GraphicsPipeline(this.device, pipelineOptions);
@@ -70,8 +74,12 @@ export class Renderer {
         };
         let attachment0:GPURenderPassColorAttachment = renderPassDesc.colorAttachments[0];
         attachment0.view = backBuffer;
+        
         let renderPassEncoder = commandEncoder.beginRenderPass(renderPassDesc);
+        renderPassEncoder.setPipeline(this.gbufferPipeline.getPipeline());
+        renderPassEncoder.draw(6);
         renderPassEncoder.end();
+        
         let commandBuffer = commandEncoder.finish();
         this.device.queue.submit([commandBuffer]);
     }

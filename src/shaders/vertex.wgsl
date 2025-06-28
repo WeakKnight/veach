@@ -7,7 +7,7 @@ struct VertexOut
 
 // process the points of the triangle
 @vertex 
-fn vs(@builtin(vertex_index) vertexIndex : u32) -> VertexOut 
+fn vs_main(@builtin(vertex_index) vertexIndex : u32) -> VertexOut 
 {
     let pos = array(
         vec2f(-1, 1),  // top left
