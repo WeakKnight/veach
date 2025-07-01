@@ -152,7 +152,7 @@ export class GPUBufferWrapper {
   static createVertexBuffer(device: GPUDevice, size: number, label?: string): GPUBufferWrapper {
     return new GPUBufferWrapper(device, {
       size,
-      usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST | GPUBufferUsage.STORAGE,
+      usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_SRC | GPUBufferUsage.COPY_DST | GPUBufferUsage.STORAGE,
       label: label || 'vertex-buffer'
     });
   }
@@ -163,7 +163,7 @@ export class GPUBufferWrapper {
   static createIndexBuffer(device: GPUDevice, size: number, label?: string): GPUBufferWrapper {
     return new GPUBufferWrapper(device, {
       size,
-      usage: GPUBufferUsage.INDEX | GPUBufferUsage.COPY_DST | GPUBufferUsage.STORAGE,
+      usage: GPUBufferUsage.INDEX | GPUBufferUsage.COPY_SRC | GPUBufferUsage.COPY_DST | GPUBufferUsage.STORAGE,
       label: label || 'index-buffer'
     });
   }

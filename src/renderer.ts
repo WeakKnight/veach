@@ -26,7 +26,10 @@ export class Renderer {
         // 配置pipeline选项
         const pipelineOptions: GraphicsPipelineOptions = {
             vertexShaderCode: vertexWGSL,
-            fragmentShaderCode: fragmentWGSL
+            fragmentShaderCode: fragmentWGSL,
+            cullMode: 'none',
+            frontFace: 'ccw',
+            depthCompare: 'always'
         };
 
         console.log(vertexWGSL);
@@ -44,14 +47,22 @@ export class Renderer {
         this.webgpuContext.configure({ device: this.device, format: 'rgba8unorm' });
 
         this.mesh = Mesh.createCube(this.device, 0.3);
+        console.log(this.mesh);
+        for(let i = 0; i < this.mesh.getVertexCount(); i++) {
+            let data = new Float32Array(14);
+            let promise = this.mesh.getVertexBuffer().readDataTo(data, i * 56);
+            promise.then(() => {
+                console.log(data);
+            });
+        }
 
         this.bindingGroup = this.device.createBindGroup({
             layout: this.gbufferPipeline.getPipeline().getBindGroupLayout(0),
             entries: [
-                { binding: 0, resource: this.mesh.getVertexBuffer().getBuffer() },
-                { binding: 1, resource: this.mesh.getIndexBuffer().getBuffer() }
+                { binding: 0, resource: this.mesh.getVertexBuffer().getBuffer() }
+                // { binding: 1, resource: this.mesh.getIndexBuffer().getBuffer() }
             ]
-        });
+        }); 
 
         let lastTime = 0;         // 初始为 0，首帧会被特殊处理
         let tick = (timestamp) => {
@@ -92,8 +103,8 @@ export class Renderer {
         
         let renderPassEncoder = commandEncoder.beginRenderPass(renderPassDesc);
         renderPassEncoder.setPipeline(this.gbufferPipeline.getPipeline());
-        renderPassEncoder.setBindGroup(0, this.bindingGroup);
-        renderPassEncoder.draw(this.mesh.getIndexCount());
+        // renderPassEncoder.setBindGroup(0, this.bindingGroup);
+        renderPassEncoder.draw(3);
         renderPassEncoder.end();
         
         let commandBuffer = commandEncoder.finish();
