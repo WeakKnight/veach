@@ -53,14 +53,14 @@ export class Renderer {
         this.webgpuContext.configure({ device: this.device, format: 'rgba8unorm' });
 
         this.mesh = Mesh.createCube(this.device, 0.3);
-        console.log(this.mesh);
-        for(let i = 0; i < this.mesh.getVertexCount(); i++) {
-            let data = new Float32Array(14);
-            let promise = this.mesh.getVertexBuffer().readDataTo(data, i * 56);
-            promise.then(() => {
-                console.log(data);
-            });
-        }
+        // console.log(this.mesh);
+        // for(let i = 0; i < this.mesh.getVertexCount(); i++) {
+        //     let data = new Float32Array(14);
+        //     let promise = this.mesh.getVertexBuffer().readDataTo(data, i * 56);
+        //     promise.then(() => {
+        //         console.log(data);
+        //     });
+        // }
 
         this.dummyVertexBuffer = new GPUBufferWrapper(this.device, {size:1024, usage:GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST | GPUBufferUsage.COPY_SRC | GPUBufferUsage.STORAGE});
         this.dummyVertexBuffer.setData(new Float32Array([-1, 1,
@@ -70,6 +70,8 @@ export class Renderer {
 
         this.dummyIndexBuffer = new GPUBufferWrapper(this.device, {size:1024, usage:GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST | GPUBufferUsage.COPY_SRC | GPUBufferUsage.STORAGE});
         this.dummyIndexBuffer.setData(new Uint32Array([0, 1, 2, 2, 3, 0]), 0);
+
+        console.log(this.gbufferPipeline.getPipeline().getBindGroupLayout(0));
 
         this.bindingGroup = this.device.createBindGroup({
             layout: this.gbufferPipeline.getPipeline().getBindGroupLayout(0),

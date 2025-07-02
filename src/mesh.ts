@@ -378,8 +378,8 @@ export class Mesh {
       );
     });
 
-    console.log(vertices);
-    console.log(indices);
+    // console.log(vertices);
+    // console.log(indices);
     return new Mesh(device, vertices, indices, label || 'cube');
   }
 } 
