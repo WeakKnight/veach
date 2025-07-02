@@ -13,11 +13,11 @@ struct VertexData {
     tangent: vec4f
 };
 
-// @group(0) @binding(0)
-// var<storage> vertexBuffer: array<f32>;
+@group(0) @binding(0)
+var<storage> vertexBuffer: array<f32>;
 
-// @group(0) @binding(1)
-// var<storage> indexBuffer: array<u32>;
+@group(0) @binding(1)
+var<storage> indexBuffer: array<u32>;
 
 // fn getVertexData(vertexIndex: u32) -> VertexData {
 //     let offset = vertexIndex * 56;
@@ -42,12 +42,11 @@ fn vs_main(@builtin(vertex_index) vertexIndex : u32) -> VertexOut
         vec2f(-1, 1)   
     );
 
-
-    
     var out: VertexOut;
     // let vertexData = getVertexData(vertexIndex);
     // out.pos = vec4f(vertexData.position.xy, 0, 1.0);
-    out.pos = vec4f(pos[vertexIndex], 0, 1);
+    out.pos = vec4f(vertexBuffer[indexBuffer[vertexIndex] * 2], vertexBuffer[indexBuffer[vertexIndex] * 2 + 1], 0, 1);
+    // out.pos = vec4f(pos[vertexIndex], 0, 1);
     out.texCoord = pos[vertexIndex]; //vertexData.uv0;
 
     return out;

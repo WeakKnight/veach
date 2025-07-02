@@ -3,12 +3,17 @@ import vertexWGSL from "./shaders/vertex.wgsl?raw";
 import fragmentWGSL from "./shaders/fragment.wgsl?raw";
 import { GraphicsPipeline, GraphicsPipelineOptions } from './graphics-pipeline';
 import { Mesh } from "./mesh";
+import { GPUBufferWrapper } from "./gpu-buffer";
 
 export class Renderer {
     public device: GPUDevice | null;
     private gbufferPipeline: GraphicsPipeline | null;
     private webgpuContext: GPUCanvasContext | null;
     private mesh: Mesh | null;
+    
+    private dummyVertexBuffer: GPUBufferWrapper | null;
+    private dummyIndexBuffer: GPUBufferWrapper | null;
+
     private bindingGroup: GPUBindGroup | null;
 
     public constructor() {
@@ -16,6 +21,7 @@ export class Renderer {
         this.gbufferPipeline = null;
         this.webgpuContext = null;
         this.bindingGroup = null;
+        this.dummyVertexBuffer = null;
     }
 
     public async init() {
@@ -56,11 +62,20 @@ export class Renderer {
             });
         }
 
+        this.dummyVertexBuffer = new GPUBufferWrapper(this.device, {size:1024, usage:GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST | GPUBufferUsage.COPY_SRC | GPUBufferUsage.STORAGE});
+        this.dummyVertexBuffer.setData(new Float32Array([-1, 1,
+            -1, -1,
+            1, -1,
+            1, 1]), 0);
+
+        this.dummyIndexBuffer = new GPUBufferWrapper(this.device, {size:1024, usage:GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST | GPUBufferUsage.COPY_SRC | GPUBufferUsage.STORAGE});
+        this.dummyIndexBuffer.setData(new Uint32Array([0, 1, 2, 2, 3, 0]), 0);
+
         this.bindingGroup = this.device.createBindGroup({
             layout: this.gbufferPipeline.getPipeline().getBindGroupLayout(0),
             entries: [
-                { binding: 0, resource: this.mesh.getVertexBuffer().getBuffer() }
-                // { binding: 1, resource: this.mesh.getIndexBuffer().getBuffer() }
+                { binding: 0, resource: this.dummyVertexBuffer.getBuffer() },
+                { binding: 1, resource: this.dummyIndexBuffer.getBuffer() }
             ]
         }); 
 
@@ -103,8 +118,8 @@ export class Renderer {
         
         let renderPassEncoder = commandEncoder.beginRenderPass(renderPassDesc);
         renderPassEncoder.setPipeline(this.gbufferPipeline.getPipeline());
-        // renderPassEncoder.setBindGroup(0, this.bindingGroup);
-        renderPassEncoder.draw(3);
+        renderPassEncoder.setBindGroup(0, this.bindingGroup);
+        renderPassEncoder.draw(6);
         renderPassEncoder.end();
         
         let commandBuffer = commandEncoder.finish();
