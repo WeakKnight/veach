@@ -4,6 +4,7 @@ import fragmentWGSL from "./shaders/fragment.wgsl?raw";
 import { GraphicsPipeline, GraphicsPipelineOptions } from './graphics-pipeline';
 import { Mesh } from "./mesh";
 import { GPUBufferWrapper } from "./gpu-buffer";
+import { WgslReflect } from "wgsl_reflect/wgsl_reflect.module.js";
 
 export class Renderer {
     public device: GPUDevice | null;
@@ -39,9 +40,11 @@ export class Renderer {
         };
 
         console.log(vertexWGSL);
-
+        const vertexReflect = new WgslReflect(vertexWGSL);
+        console.log(vertexReflect);
         console.log(fragmentWGSL);
-
+        const fragmentReflect = new WgslReflect(fragmentWGSL);
+        console.log(fragmentReflect);
         // 创建graphics pipeline
         this.gbufferPipeline = new GraphicsPipeline(this.device, pipelineOptions);
         console.log('Device:', this.device);

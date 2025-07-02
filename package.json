@@ -51,6 +51,7 @@
     "electron-squirrel-startup": "^1.0.1",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
-    "tinyusdz": "^0.9.0-rc10"
+    "tinyusdz": "^0.9.0-rc10",
+    "wgsl_reflect": "^1.2.1"
   }
 }
