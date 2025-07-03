@@ -5,381 +5,314 @@ import { float4 } from './math/float4';
 
 /**
  * 顶点数据结构定义
- * 包含: uv0(2), uv1(2), position(3), normal(3), tangent(4)
- * 总共 14 个 float32 值 = 56 字节
+ * 包含: position(3), normal(3), uv0(2)
+ * 总共 8 个 float32 值 = 32 字节
  */
 export interface VertexData {
-  uv0: float2;           // 2 floats - 纹理坐标0
-  uv1: float2;           // 2 floats - 纹理坐标1
-  position: float3;      // 3 floats - 位置
-  normal: float3;        // 3 floats - 法线
-  tangent: float4;       // 4 floats - 切线(xyz + w符号位)
+	position: float3;      // 3 floats - 位置
+	normal: float3;        // 3 floats - 法线
+	uv0: float2;           // 2 floats - 纹理坐标0
 }
 
 /**
  * 顶点属性布局常量
  */
 export const VERTEX_LAYOUT = {
-  UV0_OFFSET: 0,      // 偏移 0 字节
-  UV1_OFFSET: 8,      // 偏移 8 字节
-  POSITION_OFFSET: 16, // 偏移 16 字节
-  NORMAL_OFFSET: 28,   // 偏移 28 字节
-  TANGENT_OFFSET: 40,  // 偏移 40 字节
-  STRIDE: 56           // 每个顶点 56 字节
+	POSITION_OFFSET: 0,
+	NORMAL_OFFSET: 12,
+	UV0_OFFSET: 24,
+	STRIDE: 32,
+	FLOAT_COUNT: 8
 } as const;
 
 /**
  * Mesh 类 - 管理顶点和索引数据
  */
 export class Mesh {
-  private device: GPUDevice;
-  private vertexBuffer: GPUBufferWrapper;
-  private indexBuffer: GPUBufferWrapper;
-  private vertexCount: number;
-  private indexCount: number;
+	private device: GPUDevice;
+	private vertexBuffer: GPUBufferWrapper;
+	private indexBuffer: GPUBufferWrapper;
+	private vertexCount: number;
+	private indexCount: number;
 
-  constructor(
-    device: GPUDevice,
-    vertices: VertexData[],
-    indices: number[],
-    label?: string
-  ) {
-    this.device = device;
-    this.vertexCount = vertices.length;
-    this.indexCount = indices.length;
+	constructor(
+		device: GPUDevice,
+		vertices: VertexData[],
+		indices: number[],
+		label?: string
+	) {
+		this.device = device;
+		this.vertexCount = vertices.length;
+		this.indexCount = indices.length;
 
-    // 创建顶点缓冲区
-    const vertexData = this.packVertexData(vertices);
-    this.vertexBuffer = GPUBufferWrapper.createVertexBuffer(
-      device,
-      vertexData.byteLength,
-      label ? `${label}-vertices` : 'mesh-vertices'
-    );
-    this.vertexBuffer.setData(vertexData);
+		// 创建顶点缓冲区
+		const vertexData = this.packVertexData(vertices);
+		this.vertexBuffer = GPUBufferWrapper.createVertexBuffer(
+			device,
+			vertexData.byteLength,
+			label ? `${label}-vertices` : 'mesh-vertices'
+		);
+		this.vertexBuffer.setData(vertexData);
 
-    // 创建索引缓冲区
-    const indexData = new Uint32Array(indices);
-    this.indexBuffer = GPUBufferWrapper.createIndexBuffer(
-      device,
-      indexData.byteLength,
-      label ? `${label}-indices` : 'mesh-indices'
-    );
-    this.indexBuffer.setData(indexData);
-  }
+		// 创建索引缓冲区
+		const indexData = new Uint32Array(indices);
+		this.indexBuffer = GPUBufferWrapper.createIndexBuffer(
+			device,
+			indexData.byteLength,
+			label ? `${label}-indices` : 'mesh-indices'
+		);
+		this.indexBuffer.setData(indexData);
+	}
 
-  /**
-   * 将顶点数据打包成 Float32Array
-   */
-  private packVertexData(vertices: VertexData[]): Float32Array {
-    const packedData = new Float32Array(vertices.length * 14); // 每个顶点14个float
+	/**
+	 * 将顶点数据打包成 Float32Array
+	 */
+	private packVertexData(vertices: VertexData[]): Float32Array {
+		const packedData = new Float32Array(vertices.length * VERTEX_LAYOUT.FLOAT_COUNT); // 每个顶点14个float
 
-    for (let i = 0; i < vertices.length; i++) {
-      const vertex = vertices[i];
-      const offset = i * 14;
+		for (let i = 0; i < vertices.length; i++) {
+			const vertex = vertices[i];
+			const offset = i * 8;
 
-      // uv0 (2 floats)
-      packedData[offset + 0] = vertex.uv0.x;
-      packedData[offset + 1] = vertex.uv0.y;
+			// position (3 floats)
+			packedData[offset + 0] = vertex.position.x;
+			packedData[offset + 1] = vertex.position.y;
+			packedData[offset + 2] = vertex.position.z;
 
-      // uv1 (2 floats)
-      packedData[offset + 2] = vertex.uv1.x;
-      packedData[offset + 3] = vertex.uv1.y;
+			// normal (3 floats)
+			packedData[offset + 3] = vertex.normal.x;
+			packedData[offset + 4] = vertex.normal.y;
+			packedData[offset + 5] = vertex.normal.z;
 
-      // position (3 floats)
-      packedData[offset + 4] = vertex.position.x;
-      packedData[offset + 5] = vertex.position.y;
-      packedData[offset + 6] = vertex.position.z;
+			// uv0 (2 floats)
+			packedData[offset + 6] = vertex.uv0.x;
+			packedData[offset + 7] = vertex.uv0.y;
+		}
 
-      // normal (3 floats)
-      packedData[offset + 7] = vertex.normal.x;
-      packedData[offset + 8] = vertex.normal.y;
-      packedData[offset + 9] = vertex.normal.z;
+		return packedData;
+	}
 
-      // tangent (4 floats)
-      packedData[offset + 10] = vertex.tangent.x;
-      packedData[offset + 11] = vertex.tangent.y;
-      packedData[offset + 12] = vertex.tangent.z;
-      packedData[offset + 13] = vertex.tangent.w;
-    }
+	/**
+	 * 获取顶点缓冲区
+	 */
+	getVertexBuffer(): GPUBufferWrapper {
+		return this.vertexBuffer;
+	}
 
-    return packedData;
-  }
+	/**
+	 * 获取索引缓冲区
+	 */
+	getIndexBuffer(): GPUBufferWrapper {
+		return this.indexBuffer;
+	}
 
-  /**
-   * 获取顶点缓冲区
-   */
-  getVertexBuffer(): GPUBufferWrapper {
-    return this.vertexBuffer;
-  }
+	/**
+	 * 获取顶点数量
+	 */
+	getVertexCount(): number {
+		return this.vertexCount;
+	}
 
-  /**
-   * 获取索引缓冲区
-   */
-  getIndexBuffer(): GPUBufferWrapper {
-    return this.indexBuffer;
-  }
+	/**
+	 * 获取索引数量
+	 */
+	getIndexCount(): number {
+		return this.indexCount;
+	}
 
-  /**
-   * 获取顶点数量
-   */
-  getVertexCount(): number {
-    return this.vertexCount;
-  }
+	/**
+	 * 更新顶点数据
+	 */
+	updateVertices(vertices: VertexData[], offset: number = 0): void {
+		const vertexData = this.packVertexData(vertices);
+		this.vertexBuffer.setData(vertexData, offset * VERTEX_LAYOUT.STRIDE);
+	}
 
-  /**
-   * 获取索引数量
-   */
-  getIndexCount(): number {
-    return this.indexCount;
-  }
+	/**
+	 * 更新索引数据
+	 */
+	updateIndices(indices: number[], offset: number = 0): void {
+		const indexData = new Uint32Array(indices);
+		this.indexBuffer.setData(indexData, offset * 4); // 每个索引4字节
+	}
 
-  /**
-   * 更新顶点数据
-   */
-  updateVertices(vertices: VertexData[], offset: number = 0): void {
-    const vertexData = this.packVertexData(vertices);
-    this.vertexBuffer.setData(vertexData, offset * VERTEX_LAYOUT.STRIDE);
-  }
+	/**
+	 * 读取顶点数据
+	 */
+	async readVertices(offset: number = 0, count?: number): Promise<VertexData[]> {
+		const readCount = count || this.vertexCount - offset;
+		const byteOffset = offset * VERTEX_LAYOUT.STRIDE;
+		const byteSize = readCount * VERTEX_LAYOUT.STRIDE;
 
-  /**
-   * 更新索引数据
-   */
-  updateIndices(indices: number[], offset: number = 0): void {
-    const indexData = new Uint32Array(indices);
-    this.indexBuffer.setData(indexData, offset * 4); // 每个索引4字节
-  }
+		const data = await this.vertexBuffer.readData(byteOffset, byteSize);
+		const floatData = new Float32Array(data);
 
-  /**
-   * 读取顶点数据
-   */
-  async readVertices(offset: number = 0, count?: number): Promise<VertexData[]> {
-    const readCount = count || this.vertexCount - offset;
-    const byteOffset = offset * VERTEX_LAYOUT.STRIDE;
-    const byteSize = readCount * VERTEX_LAYOUT.STRIDE;
+		const vertices: VertexData[] = [];
+		for (let i = 0; i < readCount; i++) {
+			const floatOffset = i * VERTEX_LAYOUT.FLOAT_COUNT;
+			vertices.push({
+				position: new float3(floatData[floatOffset + 0], floatData[floatOffset + 1], floatData[floatOffset + 2]),
+				normal: new float3(floatData[floatOffset + 3], floatData[floatOffset + 4], floatData[floatOffset + 5]),
+				uv0: new float2(floatData[floatOffset + 6], floatData[floatOffset + 7]),
+			});
+		}
 
-    const data = await this.vertexBuffer.readData(byteOffset, byteSize);
-    const floatData = new Float32Array(data);
+		return vertices;
+	}
 
-    const vertices: VertexData[] = [];
-    for (let i = 0; i < readCount; i++) {
-      const floatOffset = i * 14;
-      vertices.push({
-        uv0: new float2(floatData[floatOffset + 0], floatData[floatOffset + 1]),
-        uv1: new float2(floatData[floatOffset + 2], floatData[floatOffset + 3]),
-        position: new float3(floatData[floatOffset + 4], floatData[floatOffset + 5], floatData[floatOffset + 6]),
-        normal: new float3(floatData[floatOffset + 7], floatData[floatOffset + 8], floatData[floatOffset + 9]),
-        tangent: new float4(floatData[floatOffset + 10], floatData[floatOffset + 11], floatData[floatOffset + 12], floatData[floatOffset + 13])
-      });
-    }
+	/**
+	 * 读取索引数据
+	 */
+	async readIndices(offset: number = 0, count?: number): Promise<number[]> {
+		const readCount = count || this.indexCount - offset;
+		const byteOffset = offset * 4;
+		const byteSize = readCount * 4;
 
-    return vertices;
-  }
+		const data = await this.indexBuffer.readData(byteOffset, byteSize);
+		const indexData = new Uint32Array(data);
 
-  /**
-   * 读取索引数据
-   */
-  async readIndices(offset: number = 0, count?: number): Promise<number[]> {
-    const readCount = count || this.indexCount - offset;
-    const byteOffset = offset * 4;
-    const byteSize = readCount * 4;
+		return Array.from(indexData);
+	}
 
-    const data = await this.indexBuffer.readData(byteOffset, byteSize);
-    const indexData = new Uint32Array(data);
+	/**
+	 * 销毁 Mesh 资源
+	 */
+	destroy(): void {
+		this.vertexBuffer.destroy();
+		this.indexBuffer.destroy();
+	}
 
-    return Array.from(indexData);
-  }
+	/**
+	 * 静态方法：创建一个简单的四边形网格
+	 */
+	static createQuad(device: GPUDevice, size: number = 1.0, label?: string): Mesh {
+		const halfSize = size * 0.5;
 
-  /**
-   * 获取顶点属性布局描述（用于渲染管线）
-   */
-  static getVertexBufferLayout(): GPUVertexBufferLayout {
-    return {
-      arrayStride: VERTEX_LAYOUT.STRIDE,
-      stepMode: 'vertex',
-      attributes: [
-        // uv0
-        {
-          shaderLocation: 0,
-          offset: VERTEX_LAYOUT.UV0_OFFSET,
-          format: 'float32x2'
-        },
-        // uv1
-        {
-          shaderLocation: 1,
-          offset: VERTEX_LAYOUT.UV1_OFFSET,
-          format: 'float32x2'
-        },
-        // position
-        {
-          shaderLocation: 2,
-          offset: VERTEX_LAYOUT.POSITION_OFFSET,
-          format: 'float32x3'
-        },
-        // normal
-        {
-          shaderLocation: 3,
-          offset: VERTEX_LAYOUT.NORMAL_OFFSET,
-          format: 'float32x3'
-        },
-        // tangent
-        {
-          shaderLocation: 4,
-          offset: VERTEX_LAYOUT.TANGENT_OFFSET,
-          format: 'float32x4'
-        }
-      ]
-    };
-  }
+		const vertices: VertexData[] = [
+			// 左下
+			{
+				uv0: new float2(0, 1),
+				position: new float3(-halfSize, -halfSize, 0),
+				normal: new float3(0, 0, 1),
+			},
+			// 右下
+			{
+				uv0: new float2(1, 1),
+				position: new float3(halfSize, -halfSize, 0),
+				normal: new float3(0, 0, 1),
+			},
+			// 右上
+			{
+				uv0: new float2(1, 0),
+				position: new float3(halfSize, halfSize, 0),
+				normal: new float3(0, 0, 1),
+			},
+			// 左上
+			{
+				uv0: new float2(0, 0),
+				position: new float3(-halfSize, halfSize, 0),
+				normal: new float3(0, 0, 1),
+			}
+		];
 
-  /**
-   * 销毁 Mesh 资源
-   */
-  destroy(): void {
-    this.vertexBuffer.destroy();
-    this.indexBuffer.destroy();
-  }
+		const indices = [
+			0, 1, 2,  // 第一个三角形
+			0, 2, 3   // 第二个三角形
+		];
 
-  /**
-   * 静态方法：创建一个简单的四边形网格
-   */
-  static createQuad(device: GPUDevice, size: number = 1.0, label?: string): Mesh {
-    const halfSize = size * 0.5;
+		return new Mesh(device, vertices, indices, label || 'quad');
+	}
 
-    const vertices: VertexData[] = [
-      // 左下
-      {
-        uv0: new float2(0, 1),
-        uv1: new float2(0, 1),
-        position: new float3(-halfSize, -halfSize, 0),
-        normal: new float3(0, 0, 1),
-        tangent: new float4(1, 0, 0, 1)
-      },
-      // 右下
-      {
-        uv0: new float2(1, 1),
-        uv1: new float2(1, 1),
-        position: new float3(halfSize, -halfSize, 0),
-        normal: new float3(0, 0, 1),
-        tangent: new float4(1, 0, 0, 1)
-      },
-      // 右上
-      {
-        uv0: new float2(1, 0),
-        uv1: new float2(1, 0),
-        position: new float3(halfSize, halfSize, 0),
-        normal: new float3(0, 0, 1),
-        tangent: new float4(1, 0, 0, 1)
-      },
-      // 左上
-      {
-        uv0: new float2(0, 0),
-        uv1: new float2(0, 0),
-        position: new float3(-halfSize, halfSize, 0),
-        normal: new float3(0, 0, 1),
-        tangent: new float4(1, 0, 0, 1)
-      }
-    ];
+	/**
+	 * 静态方法：创建一个立方体网格
+	 */
+	static createCube(device: GPUDevice, size: number = 1.0, label?: string): Mesh {
+		const halfSize = size * 0.5;
 
-    const indices = [
-      0, 1, 2,  // 第一个三角形
-      0, 2, 3   // 第二个三角形
-    ];
+		// 创建立方体的24个顶点（每个面4个顶点）
+		const vertices: VertexData[] = [];
+		const indices: number[] = [];
 
-    return new Mesh(device, vertices, indices, label || 'quad');
-  }
+		// 定义立方体的6个面
+		const faces = [
+			// 前面 (Z+)
+			{
+				/*
+					3----2
+					|    |
+					0----1
+				*/
+				normal: new float3(0, 0, 1), tangent: new float4(1, 0, 0, 1), positions: [
+					// Bottom Left
+					new float3(0, 0, 0.5),
+					// Bottom Right
+					new float3(1, 1, 0.5),
+					// Top Right
+					new float3(0.5, 0, 0.5),
+					// Top Left
+					new float3(-halfSize, halfSize, halfSize)
+				]
+			},
+			// 后面 (Z-)
+			{
+				normal: new float3(0, 0, -1), tangent: new float4(-1, 0, 0, 1), positions: [
+					new float3(halfSize, -halfSize, -halfSize), new float3(-halfSize, -halfSize, -halfSize),
+					new float3(-halfSize, halfSize, -halfSize), new float3(halfSize, halfSize, -halfSize)
+				]
+			},
+			// 右面 (X+)
+			{
+				normal: new float3(1, 0, 0), tangent: new float4(0, 0, -1, 1), positions: [
+					new float3(halfSize, -halfSize, halfSize), new float3(halfSize, -halfSize, -halfSize),
+					new float3(halfSize, halfSize, -halfSize), new float3(halfSize, halfSize, halfSize)
+				]
+			},
+			// 左面 (X-)
+			{
+				normal: new float3(-1, 0, 0), tangent: new float4(0, 0, 1, 1), positions: [
+					new float3(-halfSize, -halfSize, -halfSize), new float3(-halfSize, -halfSize, halfSize),
+					new float3(-halfSize, halfSize, halfSize), new float3(-halfSize, halfSize, -halfSize)
+				]
+			},
+			// 上面 (Y+)
+			{
+				normal: new float3(0, 1, 0), tangent: new float4(1, 0, 0, 1), positions: [
+					new float3(-halfSize, halfSize, halfSize), new float3(halfSize, halfSize, halfSize),
+					new float3(halfSize, halfSize, -halfSize), new float3(-halfSize, halfSize, -halfSize)
+				]
+			},
+			// 下面 (Y-)
+			{
+				normal: new float3(0, -1, 0), tangent: new float4(1, 0, 0, 1), positions: [
+					new float3(-halfSize, -halfSize, -halfSize), new float3(halfSize, -halfSize, -halfSize),
+					new float3(halfSize, -halfSize, halfSize), new float3(-halfSize, -halfSize, halfSize)
+				]
+			}
+		];
 
-  /**
-   * 静态方法：创建一个立方体网格
-   */
-  static createCube(device: GPUDevice, size: number = 1.0, label?: string): Mesh {
-    const halfSize = size * 0.5;
+		const uvs = [new float2(0, 1), new float2(1, 1), new float2(1, 0), new float2(0, 0)];
 
-    // 创建立方体的24个顶点（每个面4个顶点）
-    const vertices: VertexData[] = [];
-    const indices: number[] = [];
+		faces.forEach((face, faceIndex) => {
+			const startIndex = vertices.length;
 
-    // 定义立方体的6个面
-    const faces = [
-      // 前面 (Z+)
-      {
-        /*
-            3----2
-            |    |
-            0----1
-        */
-        normal: new float3(0, 0, 1), tangent: new float4(1, 0, 0, 1), positions: [
-          // Bottom Left
-          new float3(0, 0, 0.5), 
-          // Bottom Right
-          new float3(1, 1, 0.5),
-          // Top Right
-          new float3(0.5, 0, 0.5), 
-          // Top Left
-          new float3(-halfSize, halfSize, halfSize)
-        ]
-      },
-      // 后面 (Z-)
-      {
-        normal: new float3(0, 0, -1), tangent: new float4(-1, 0, 0, 1), positions: [
-          new float3(halfSize, -halfSize, -halfSize), new float3(-halfSize, -halfSize, -halfSize),
-          new float3(-halfSize, halfSize, -halfSize), new float3(halfSize, halfSize, -halfSize)
-        ]
-      },
-      // 右面 (X+)
-      {
-        normal: new float3(1, 0, 0), tangent: new float4(0, 0, -1, 1), positions: [
-          new float3(halfSize, -halfSize, halfSize), new float3(halfSize, -halfSize, -halfSize),
-          new float3(halfSize, halfSize, -halfSize), new float3(halfSize, halfSize, halfSize)
-        ]
-      },
-      // 左面 (X-)
-      {
-        normal: new float3(-1, 0, 0), tangent: new float4(0, 0, 1, 1), positions: [
-          new float3(-halfSize, -halfSize, -halfSize), new float3(-halfSize, -halfSize, halfSize),
-          new float3(-halfSize, halfSize, halfSize), new float3(-halfSize, halfSize, -halfSize)
-        ]
-      },
-      // 上面 (Y+)
-      {
-        normal: new float3(0, 1, 0), tangent: new float4(1, 0, 0, 1), positions: [
-          new float3(-halfSize, halfSize, halfSize), new float3(halfSize, halfSize, halfSize),
-          new float3(halfSize, halfSize, -halfSize), new float3(-halfSize, halfSize, -halfSize)
-        ]
-      },
-      // 下面 (Y-)
-      {
-        normal: new float3(0, -1, 0), tangent: new float4(1, 0, 0, 1), positions: [
-          new float3(-halfSize, -halfSize, -halfSize), new float3(halfSize, -halfSize, -halfSize),
-          new float3(halfSize, -halfSize, halfSize), new float3(-halfSize, -halfSize, halfSize)
-        ]
-      }
-    ];
+			// 为每个面添加4个顶点
+			face.positions.forEach((pos, vertIndex) => {
+				vertices.push({
+					uv0: uvs[vertIndex],
+					position: pos,
+					normal: face.normal,
+				});
+			});
 
-    const uvs = [new float2(0, 1), new float2(1, 1), new float2(1, 0), new float2(0, 0)];
+			// 为每个面添加2个三角形的索引
+			indices.push(
+				startIndex + 0, startIndex + 1, startIndex + 2,
+				startIndex + 2, startIndex + 1, startIndex + 0
+			);
+		});
 
-    faces.forEach((face, faceIndex) => {
-      const startIndex = vertices.length;
-
-      // 为每个面添加4个顶点
-      face.positions.forEach((pos, vertIndex) => {
-        vertices.push({
-          uv0: uvs[vertIndex],
-          uv1: uvs[vertIndex],
-          position: pos,
-          normal: face.normal,
-          tangent: face.tangent
-        });
-      });
-
-      // 为每个面添加2个三角形的索引
-      indices.push(
-        startIndex + 0, startIndex + 1, startIndex + 2,
-        startIndex + 2, startIndex + 1, startIndex + 0
-      );
-    });
-
-    // console.log(vertices);
-    // console.log(indices);
-    return new Mesh(device, vertices, indices, label || 'cube');
-  }
+		// console.log(vertices);
+		// console.log(indices);
+		return new Mesh(device, vertices, indices, label || 'cube');
+	}
 } 
