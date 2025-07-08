@@ -11,6 +11,7 @@ export class Renderer {
 	private gbufferPipeline: GraphicsPipeline | null;
 	private webgpuContext: GPUCanvasContext | null;
 	private mesh: Mesh | null;
+	private canvas: HTMLCanvasElement | null;
 
 	// private dummyVertexBuffer: GPUBufferWrapper | null;
 	// private dummyIndexBuffer: GPUBufferWrapper | null;
@@ -21,6 +22,7 @@ export class Renderer {
 		this.device = null;
 		this.gbufferPipeline = null;
 		this.webgpuContext = null;
+		this.canvas = null;
 		this.bindingGroup = null;
 		// this.dummyVertexBuffer = null;
 	}
@@ -50,9 +52,13 @@ export class Renderer {
 		console.log('Device:', this.device);
 		console.log('Pipeline created successfully:', this.gbufferPipeline.getPipeline());
 
-		let canvas = document.getElementById("veach-game-view") as HTMLCanvasElement;
-		this.webgpuContext = canvas.getContext("webgpu");
+		this.canvas = document.getElementById("veach-game-view") as HTMLCanvasElement;
+		this.webgpuContext = this.canvas.getContext("webgpu");
 		console.log(this.webgpuContext);
+		
+		// Set up proper canvas resolution
+		this.resizeCanvas();
+		
 		this.webgpuContext.configure({ device: this.device, format: 'rgba8unorm' });
 
 		this.mesh = Mesh.createQuad(this.device, 0.3);
@@ -100,6 +106,30 @@ export class Renderer {
 	}
 
 	public resize() {
+		this.resizeCanvas();
+	}
+
+	private resizeCanvas() {
+		if (!this.canvas) return;
+		
+		// Get the display size (CSS size) of the canvas
+		const displayWidth = this.canvas.clientWidth;
+		const displayHeight = this.canvas.clientHeight;
+		
+		// Get device pixel ratio for high-DPI displays
+		const devicePixelRatio = window.devicePixelRatio || 1;
+		
+		// Calculate the actual canvas resolution
+		const canvasWidth = Math.floor(displayWidth * devicePixelRatio);
+		const canvasHeight = Math.floor(displayHeight * devicePixelRatio);
+		
+		// Only resize if the size has changed
+		if (this.canvas.width !== canvasWidth || this.canvas.height !== canvasHeight) {
+			this.canvas.width = canvasWidth;
+			this.canvas.height = canvasHeight;
+			
+			console.log(`Canvas resized to ${canvasWidth}x${canvasHeight} (display: ${displayWidth}x${displayHeight}, ratio: ${devicePixelRatio})`);
+		}
 	}
 
 	public render(deltaTime) {

@@ -27,7 +27,7 @@ const Game: React.FC = () => {
 					<DatePicker placeholder="select date" />
 				</Sider>
 				<Content>
-					<canvas id="veach-game-view" width="100%" height="100%">
+					<canvas id="veach-game-view">
 					</canvas>
 				</Content>
 				<Sider>right sidebar</Sider>
@@ -44,15 +44,19 @@ let renderer = new Renderer();
 await renderer.init();
 
 let resize = () => {
+	// Set up the window/container sizing
 	document.body.style.width = window.innerWidth + "px";
 	document.body.style.height = window.innerHeight + "px";
 	container.style.width = document.body.style.width;
 	container.style.height = document.body.style.height;
+	
 	let editorRoot = document.getElementById("veach-game-editor");
 	if (editorRoot !== null) {
 		editorRoot.style.width = container.style.width;
 		editorRoot.style.height = container.style.height;
 	}
+	
+	// Update renderer canvas resolution
 	renderer.resize();
 }
 resize();
