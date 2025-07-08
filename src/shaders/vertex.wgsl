@@ -29,15 +29,6 @@ fn getVertexData(vertexIndex: u32) -> VertexData {
 @vertex 
 fn vs_main(@builtin(vertex_index) vertexIndex : u32) -> VertexOut 
 {
-     let pos = array(
-        vec2f(-1, 1),  // top left
-        vec2f(-1, -1),  // bottom left
-        vec2f(1, -1), // bottom right
-        vec2f(1, -1),
-        vec2f(1, 1),
-        vec2f(-1, 1)   
-    );
-
     var out: VertexOut;
     let vertexData = getVertexData(indexBuffer[vertexIndex]);
     // out.pos = vec4f(vertexData.position.xy, 0, 1.0);
