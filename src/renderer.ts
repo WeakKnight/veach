@@ -12,8 +12,8 @@ export class Renderer {
 	private webgpuContext: GPUCanvasContext | null;
 	private mesh: Mesh | null;
 
-	private dummyVertexBuffer: GPUBufferWrapper | null;
-	private dummyIndexBuffer: GPUBufferWrapper | null;
+	// private dummyVertexBuffer: GPUBufferWrapper | null;
+	// private dummyIndexBuffer: GPUBufferWrapper | null;
 
 	private bindingGroup: GPUBindGroup | null;
 
@@ -22,7 +22,7 @@ export class Renderer {
 		this.gbufferPipeline = null;
 		this.webgpuContext = null;
 		this.bindingGroup = null;
-		this.dummyVertexBuffer = null;
+		// this.dummyVertexBuffer = null;
 	}
 
 	public async init() {
@@ -55,7 +55,7 @@ export class Renderer {
 		console.log(this.webgpuContext);
 		this.webgpuContext.configure({ device: this.device, format: 'rgba8unorm' });
 
-		this.mesh = Mesh.createCube(this.device, 0.3);
+		this.mesh = Mesh.createQuad(this.device, 0.3);
 		// console.log(this.mesh);
 		// for(let i = 0; i < this.mesh.getVertexCount(); i++) {
 		//     let data = new Float32Array(14);
@@ -65,22 +65,22 @@ export class Renderer {
 		//     });
 		// }
 
-		this.dummyVertexBuffer = new GPUBufferWrapper(this.device, { size: 1024, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST | GPUBufferUsage.COPY_SRC | GPUBufferUsage.STORAGE });
-		this.dummyVertexBuffer.setData(new Float32Array([-1, 1,
-		-1, -1,
-			1, -1,
-			1, 1]), 0);
+		// this.dummyVertexBuffer = new GPUBufferWrapper(this.device, { size: 1024, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST | GPUBufferUsage.COPY_SRC | GPUBufferUsage.STORAGE });
+		// this.dummyVertexBuffer.setData(new Float32Array([-1, 1,
+		// -1, -1,
+		// 	1, -1,
+		// 	1, 1]), 0);
 
-		this.dummyIndexBuffer = new GPUBufferWrapper(this.device, { size: 1024, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST | GPUBufferUsage.COPY_SRC | GPUBufferUsage.STORAGE });
-		this.dummyIndexBuffer.setData(new Uint32Array([0, 1, 2, 2, 3, 0]), 0);
+		// this.dummyIndexBuffer = new GPUBufferWrapper(this.device, { size: 1024, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST | GPUBufferUsage.COPY_SRC | GPUBufferUsage.STORAGE });
+		// this.dummyIndexBuffer.setData(new Uint32Array([0, 1, 2, 2, 3, 0]), 0);
 
 		console.log(this.gbufferPipeline.getPipeline().getBindGroupLayout(0));
 
 		this.bindingGroup = this.device.createBindGroup({
 			layout: this.gbufferPipeline.getPipeline().getBindGroupLayout(0),
 			entries: [
-				{ binding: 0, resource: this.dummyVertexBuffer.getBuffer() },
-				{ binding: 1, resource: this.dummyIndexBuffer.getBuffer() }
+				{ binding: 0, resource: this.mesh.getVertexBuffer().getBuffer() },
+				{ binding: 1, resource: this.mesh.getIndexBuffer().getBuffer() }
 			]
 		});
 
@@ -124,7 +124,7 @@ export class Renderer {
 		let renderPassEncoder = commandEncoder.beginRenderPass(renderPassDesc);
 		renderPassEncoder.setPipeline(this.gbufferPipeline.getPipeline());
 		renderPassEncoder.setBindGroup(0, this.bindingGroup);
-		renderPassEncoder.draw(6);
+		renderPassEncoder.draw(this.mesh.getIndexCount());
 		renderPassEncoder.end();
 
 		let commandBuffer = commandEncoder.finish();
