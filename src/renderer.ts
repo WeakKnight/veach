@@ -1,6 +1,3 @@
-// 导入shader代码
-import vertexWGSL from "./shaders/vertex.wgsl?raw";
-import fragmentWGSL from "./shaders/fragment.wgsl?raw";
 import { GraphicsPipeline, GraphicsPipelineOptions } from './graphics-pipeline';
 import { Mesh } from "./mesh";
 import { GPUBufferWrapper } from "./gpu-buffer";
@@ -33,6 +30,9 @@ export class Renderer {
 		// 等待GPU适配器和设备
 		const adapter = await navigator.gpu?.requestAdapter();
 		this.device = await adapter?.requestDevice();
+
+		let vertexWGSL = await window.fs.readTextFile('assets/shaders/vertex.wgsl');
+		let fragmentWGSL = await window.fs.readTextFile('assets/shaders/fragment.wgsl');
 
 		// 配置pipeline选项
 		const pipelineOptions: GraphicsPipelineOptions = {

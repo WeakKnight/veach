@@ -40,10 +40,6 @@ ipcMain.handle('fs:stat', async (_event, filePath: string) => {
   };
 });
 
-fs.readFile('assets/shaders/fragment.wgsl', { encoding: 'utf-8' }).then((data) => {
-  console.log('xixi:' + data);
-});
-
 const createWindow = () => {
   // Create the browser window.
   const mainWindow = new BrowserWindow({
