@@ -41,7 +41,7 @@ const root = createRoot(container);
 root.render(<Game />);
 
 let renderer = new Renderer();
-await renderer.init();
+renderer.init();
 
 let resize = () => {
 	// Set up the window/container sizing
