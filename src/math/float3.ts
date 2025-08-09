@@ -105,7 +105,7 @@ export class float3 {
    * 克隆向量
    * @returns 新的float3实例
    */
-  clone(): float3 {
+  public clone(): float3 {
     return new float3(this.x, this.y, this.z);
   }
 
@@ -446,6 +446,10 @@ export class float3 {
    */
   static mul(a: float3, b: float3): float3 {
     return new float3(a.x * b.x, a.y * b.y, a.z * b.z);
+  }
+
+  static scale(a: float3, b: number): float3 {
+    return new float3(a.x * b, a.y * b, a.z * b);
   }
 
   /**
