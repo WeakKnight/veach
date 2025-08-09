@@ -1,11 +1,44 @@
-import { app, BrowserWindow } from 'electron';
+import { app, BrowserWindow, ipcMain } from 'electron';
 import path from 'node:path';
 import started from 'electron-squirrel-startup';
+import * as fs from 'node:fs/promises';
 
 // Handle creating/removing shortcuts on Windows when installing/uninstalling.
 if (started) {
   app.quit();
 }
+
+// Minimal fs IPC handlers
+ipcMain.handle('fs:readTextFile', async (_event, filePath: string, encoding: BufferEncoding = 'utf8') => {
+  return fs.readFile(filePath, { encoding });
+});
+
+ipcMain.handle('fs:writeTextFile', async (_event, filePath: string, data: string, encoding: BufferEncoding = 'utf8') => {
+  await fs.writeFile(filePath, data, { encoding });
+});
+
+ipcMain.handle('fs:readdir', async (_event, dirPath: string) => {
+  return fs.readdir(dirPath);
+});
+
+ipcMain.handle('fs:mkdir', async (_event, dirPath: string) => {
+  await fs.mkdir(dirPath, { recursive: true });
+});
+
+ipcMain.handle('fs:unlink', async (_event, filePath: string) => {
+  await fs.unlink(filePath);
+});
+
+ipcMain.handle('fs:stat', async (_event, filePath: string) => {
+  const s = await fs.stat(filePath);
+  return {
+    isFile: s.isFile(),
+    isDirectory: s.isDirectory(),
+    size: s.size,
+    mtimeMs: s.mtimeMs,
+    birthtimeMs: s.birthtimeMs,
+  };
+});
 
 const createWindow = () => {
   // Create the browser window.

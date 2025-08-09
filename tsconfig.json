@@ -19,7 +19,8 @@
     "noImplicitAny": false
   },
   "include": [
-    "src/**/*"
+    "src/**/*",
+    "forge.env.d.ts"
   ],
   "exclude": [
     "node_modules",
