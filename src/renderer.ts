@@ -17,6 +17,7 @@ export class Renderer {
 	// private dummyIndexBuffer: GPUBufferWrapper | null;
 
 	private bindingGroup: GPUBindGroup | null;
+	private initialized: boolean;
 
 	public constructor() {
 		this.device = null;
@@ -25,6 +26,7 @@ export class Renderer {
 		this.canvas = null;
 		this.bindingGroup = null;
 		// this.dummyVertexBuffer = null;
+		this.initialized = false;
 	}
 
 	public async init() {
@@ -90,6 +92,8 @@ export class Renderer {
 			]
 		});
 
+		this.initialized = true;
+
 		let lastTime = 0;         // 初始为 0，首帧会被特殊处理
 		let tick = (timestamp) => {
 			// timestamp: requestAnimationFrame 传入的高精度毫秒数
@@ -110,7 +114,7 @@ export class Renderer {
 	}
 
 	private resizeCanvas() {
-		if (!this.canvas) return;
+		if (!this.canvas || !this.initialized) return;
 		
 		// Get the display size (CSS size) of the canvas
 		const displayWidth = this.canvas.clientWidth;
