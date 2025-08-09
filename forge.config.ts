@@ -6,6 +6,23 @@ import { MakerRpm } from '@electron-forge/maker-rpm';
 import { VitePlugin } from '@electron-forge/plugin-vite';
 import { FusesPlugin } from '@electron-forge/plugin-fuses';
 import { FuseV1Options, FuseVersion } from '@electron/fuses';
+import path from 'node:path';
+import * as fsp from 'node:fs/promises';
+
+async function copyDirRecursive(srcDir: string, destDir: string): Promise<void> {
+  await fsp.mkdir(destDir, { recursive: true });
+  const entries = await fsp.readdir(srcDir, { withFileTypes: true });
+  for (const entry of entries) {
+    const srcPath = path.join(srcDir, entry.name);
+    const destPath = path.join(destDir, entry.name);
+    if (entry.isDirectory()) {
+      await copyDirRecursive(srcPath, destPath);
+    } else if (entry.isFile()) {
+      await fsp.mkdir(path.dirname(destPath), { recursive: true });
+      await fsp.copyFile(srcPath, destPath);
+    }
+  }
+}
 
 const config: ForgeConfig = {
   packagerConfig: {
@@ -49,6 +66,34 @@ const config: ForgeConfig = {
       [FuseV1Options.OnlyLoadAppFromAsar]: true,
     }),
   ],
+  hooks: {
+    // After packaging (electron-forge package), copy project-root assets/ next to the packaged executable
+    postPackage: async (_forgeConfig: any, results: any) => {
+      const projectAssets = path.resolve(__dirname, 'assets');
+      try {
+        const st = await fsp.stat(projectAssets);
+        if (!st.isDirectory()) return;
+      } catch {
+        return; // no assets dir; nothing to do
+      }
+
+      const outputPaths: string[] = Array.isArray(results?.outputPaths)
+        ? results.outputPaths
+        : Array.isArray(results)
+          ? results
+          : results?.outputPath
+            ? [results.outputPath]
+            : [];
+
+      await Promise.all(
+        outputPaths.map(async (outPath) => {
+          // outPath is the packaged app directory (e.g., out/veach-win32-x64)
+          const dest = path.join(outPath, 'assets');
+          await copyDirRecursive(projectAssets, dest);
+        })
+      );
+    },
+  },
 };
 
 export default config;
