@@ -6,7 +6,7 @@
   "main": ".vite/build/main.js",
   "scripts": {
     "preprocess:shaders": "node scripts/preprocess-wgsl.js",
-    "start": "electron-forge start",
+    "start": "npm run preprocess:shaders && electron-forge start",
     "package": "electron-forge package",
     "make": "electron-forge make",
     "publish": "electron-forge publish",
