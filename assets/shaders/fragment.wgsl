@@ -10,5 +10,5 @@ struct VertexOut
 @fragment 
 fn fs_main(in: VertexOut) -> @location(0) vec4f 
 {
-    return vec4f(in.texCoord, 0.0, 1); // textureSample(_texture, _sampler, in.texCoord);
+    return vec4f(in.texCoord, 0.0f, 1.0f); // textureSample(_texture, _sampler, in.texCoord);
 }
