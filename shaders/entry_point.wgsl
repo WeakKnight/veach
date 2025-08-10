@@ -20,6 +20,11 @@ fn entry_point(@builtin(local_invocation_id) local_id: vec3<u32>,
 @builtin(local_invocation_index) local_index: u32,
 @builtin(global_invocation_id) global_id: vec3<u32>) 
 {
-    let entity_count = 0;
-    
+    var entity_count: u32 = 0u;
+
+    {
+        let entity: Entity = Entity(look_at(vec3<f32>(0.0f, 0.0f, 0.0f), vec3<f32>(0.0f, 0.0f, 0.0f), vec3<f32>(0.0f, 0.0f, 0.0f)));
+        gEntityList[entity_count] = entity;
+        entity_count = entity_count + 1u;
+    }
 }
