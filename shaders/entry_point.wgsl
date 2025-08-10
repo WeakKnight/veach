@@ -21,5 +21,5 @@ fn entry_point(@builtin(local_invocation_id) local_id: vec3<u32>,
 @builtin(global_invocation_id) global_id: vec3<u32>) 
 {
     let entity_count = 0;
-
+    
 }
