@@ -2,7 +2,7 @@ import { GraphicsPipeline, GraphicsPipelineOptions } from './graphics-pipeline';
 import { Mesh } from "./mesh";
 import { GPUBufferWrapper } from "./gpu-buffer";
 import { WgslReflect } from "wgsl_reflect/wgsl_reflect.module.js";
-import ccc from './test.slang';
+import * as BasePassShader from './shaders/base-pass.slang';
 
 export class Renderer {
 	public device: GPUDevice | null;
@@ -35,7 +35,8 @@ export class Renderer {
 		let vertexWGSL = await window.fs.readTextFile('assets/shaders/vertex.wgsl');
 		let fragmentWGSL = await window.fs.readTextFile('assets/shaders/fragment.wgsl');
 
-		console.log(ccc);
+		console.log(BasePassShader.code);
+		console.log(BasePassShader.reflection);
 
 		// 配置pipeline选项
 		const pipelineOptions: GraphicsPipelineOptions = {
@@ -46,12 +47,12 @@ export class Renderer {
 			depthCompare: 'always'
 		};
 
-		console.log(vertexWGSL);
-		const vertexReflect = new WgslReflect(vertexWGSL);
-		console.log(vertexReflect);
-		console.log(fragmentWGSL);
-		const fragmentReflect = new WgslReflect(fragmentWGSL);
-		console.log(fragmentReflect);
+		// console.log(vertexWGSL);
+		// const vertexReflect = new WgslReflect(vertexWGSL);
+		// console.log(vertexReflect);
+		// console.log(fragmentWGSL);
+		// const fragmentReflect = new WgslReflect(fragmentWGSL);
+		// console.log(fragmentReflect);
 		// 创建graphics pipeline
 		this.gbufferPipeline = new GraphicsPipeline(this.device, pipelineOptions);
 		console.log('Device:', this.device);
