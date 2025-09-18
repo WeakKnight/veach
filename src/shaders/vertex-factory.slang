@@ -17,13 +17,3 @@ VertexData GetVertexData(uint vertexIndex)
     return VertexData(position, normal, uv0);
 }
 
-struct VertexStageOutput
-{
-    float4 positionClipSpace : SV_POSITION;
-    float2 texCoord;
-};
-
-struct FragmentStageOutput
-{
-    float4 color : SV_TARGET0;
-};
