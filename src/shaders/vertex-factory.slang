@@ -20,7 +20,7 @@ VertexData GetVertexData(uint vertexIndex)
 struct VertexStageOutput
 {
     float4 positionClipSpace : SV_POSITION;
-    float2 texCoord : TEXCOORD0;
+    float2 texCoord;
 };
 
 struct FragmentStageOutput

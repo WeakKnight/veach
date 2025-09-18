@@ -40,8 +40,9 @@ export class Renderer {
 
 		// 配置pipeline选项
 		const pipelineOptions: GraphicsPipelineOptions = {
-			vertexShaderCode: vertexWGSL,
-			fragmentShaderCode: fragmentWGSL,
+			shaderCode: BasePassShader.code,
+			vertexEntryPoint: BasePassShader.reflection.entryPoints[0].name,
+			fragmentEntryPoint: BasePassShader.reflection.entryPoints[1].name,
 			cullMode: 'none',
 			frontFace: 'ccw',
 			depthCompare: 'always'

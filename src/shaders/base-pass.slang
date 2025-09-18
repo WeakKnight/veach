@@ -1,7 +1,7 @@
 #include "vertex-factory.slang"
 
 [shader("vertex")]
-VertexStageOutput vertexMain(uint vertexIndex: SV_VertexID) : SV_Position
+VertexStageOutput vertexMain(uint vertexIndex: SV_VertexID)
 {
     VertexData vertexData = GetVertexData(IndexBuffer[vertexIndex]);
     VertexStageOutput output;
@@ -11,7 +11,7 @@ VertexStageOutput vertexMain(uint vertexIndex: SV_VertexID) : SV_Position
 }
 
 [shader("fragment")]
-FragmentStageOutput fragmentMain(in VertexStageOutput fragmentInput)
+FragmentStageOutput fragmentMain(VertexStageOutput fragmentInput)
 {
     FragmentStageOutput output;
     output.color = float4(fragmentInput.texCoord, 0, 1);

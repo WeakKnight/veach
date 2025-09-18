@@ -2,9 +2,12 @@
  * 图形渲染管线配置选项
  */
 export interface GraphicsPipelineOptions {
-  // Shader 相关
-  vertexShaderCode: string;
-  fragmentShaderCode: string;
+  // Shader 相关 - 支持统一 shader 或分离 shader
+  shaderCode?: string; // 统一的 shader 代码（包含 vertex 和 fragment）
+  vertexShaderCode?: string; // 独立的顶点着色器代码
+  fragmentShaderCode?: string; // 独立的片元着色器代码
+  vertexEntryPoint?: string;
+  fragmentEntryPoint?: string;
   
   // 顶点输入布局
   vertexBufferLayouts?: GPUVertexBufferLayout[];
@@ -38,6 +41,8 @@ export interface GraphicsPipelineOptions {
  * 默认的图形渲染管线配置
  */
 export const DEFAULT_PIPELINE_OPTIONS: Partial<GraphicsPipelineOptions> = {
+  vertexEntryPoint: 'vs_main',
+  fragmentEntryPoint: 'fs_main',
   primitiveTopology: 'triangle-list',
   cullMode: 'back',
   frontFace: 'ccw',
@@ -64,15 +69,54 @@ export class GraphicsPipeline {
     this.device = device;
     this.options = { ...DEFAULT_PIPELINE_OPTIONS, ...options };
     
+    // 验证 shader 配置
+    this.validateShaderOptions();
+    
     // 创建 shader 模块
-    this.vertexShader = this.createShaderModule(options.vertexShaderCode, 'vertex');
-    this.fragmentShader = this.createShaderModule(options.fragmentShaderCode, 'fragment');
+    const { vertexCode, fragmentCode } = this.resolveShaderCodes();
+    this.vertexShader = this.createShaderModule(vertexCode, 'vertex');
+    this.fragmentShader = this.createShaderModule(fragmentCode, 'fragment');
     
     // 创建管线布局
     this.pipelineLayout = this.createPipelineLayout();
     
     // 创建渲染管线
     this.pipeline = this.createRenderPipeline();
+  }
+
+  /**
+   * 验证 shader 配置选项
+   */
+  private validateShaderOptions(): void {
+    const hasUnifiedShader = !!this.options.shaderCode;
+    const hasSeparateShaders = !!(this.options.vertexShaderCode && this.options.fragmentShaderCode);
+    
+    if (!hasUnifiedShader && !hasSeparateShaders) {
+      throw new Error('Must provide either shaderCode or both vertexShaderCode and fragmentShaderCode');
+    }
+    
+    if (hasUnifiedShader && hasSeparateShaders) {
+      throw new Error('Cannot provide both shaderCode and separate vertex/fragment shader codes');
+    }
+  }
+
+  /**
+   * 解析 shader 代码
+   */
+  private resolveShaderCodes(): { vertexCode: string; fragmentCode: string } {
+    if (this.options.shaderCode) {
+      // 使用统一的 shader 代码
+      return {
+        vertexCode: this.options.shaderCode,
+        fragmentCode: this.options.shaderCode
+      };
+    } else {
+      // 使用分离的 shader 代码
+      return {
+        vertexCode: this.options.vertexShaderCode!,
+        fragmentCode: this.options.fragmentShaderCode!
+      };
+    }
   }
 
   /**
@@ -112,14 +156,14 @@ export class GraphicsPipeline {
       // 顶点着色器
       vertex: {
         module: this.vertexShader,
-        entryPoint: 'vs_main',
+        entryPoint: this.options.vertexEntryPoint!,
         buffers: this.options.vertexBufferLayouts || []
       },
       
       // 片元着色器
       fragment: {
         module: this.fragmentShader,
-        entryPoint: 'fs_main',
+        entryPoint: this.options.fragmentEntryPoint!,
         targets: [{
           format: this.options.colorTargetFormat!,
           blend: this.options.colorBlend,
@@ -219,6 +263,20 @@ export class GraphicsPipeline {
   }
 
   /**
+   * 静态方法：创建使用统一 shader 的管线
+   */
+  static createUnified(
+    device: GPUDevice,
+    shaderCode: string,
+    options?: Partial<GraphicsPipelineOptions>
+  ): GraphicsPipeline {
+    return new GraphicsPipeline(device, {
+      shaderCode,
+      ...options
+    });
+  }
+
+  /**
    * 静态方法：创建带深度测试的管线
    */
   static createWithDepth(
@@ -231,6 +289,24 @@ export class GraphicsPipeline {
     return new GraphicsPipeline(device, {
       vertexShaderCode,
       fragmentShaderCode,
+      depthStencilFormat: depthFormat,
+      depthWriteEnabled: true,
+      depthCompare: 'less',
+      ...options
+    });
+  }
+
+  /**
+   * 静态方法：创建使用统一 shader 且带深度测试的管线
+   */
+  static createUnifiedWithDepth(
+    device: GPUDevice,
+    shaderCode: string,
+    depthFormat: GPUTextureFormat = 'depth24plus',
+    options?: Partial<GraphicsPipelineOptions>
+  ): GraphicsPipeline {
+    return new GraphicsPipeline(device, {
+      shaderCode,
       depthStencilFormat: depthFormat,
       depthWriteEnabled: true,
       depthCompare: 'less',
