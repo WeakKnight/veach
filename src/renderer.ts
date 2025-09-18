@@ -2,6 +2,7 @@ import { GraphicsPipeline, GraphicsPipelineOptions } from './graphics-pipeline';
 import { Mesh } from "./mesh";
 import { GPUBufferWrapper } from "./gpu-buffer";
 import { WgslReflect } from "wgsl_reflect/wgsl_reflect.module.js";
+import ccc from './test.slang';
 
 export class Renderer {
 	public device: GPUDevice | null;
@@ -33,6 +34,8 @@ export class Renderer {
 
 		let vertexWGSL = await window.fs.readTextFile('assets/shaders/vertex.wgsl');
 		let fragmentWGSL = await window.fs.readTextFile('assets/shaders/fragment.wgsl');
+
+		console.log(ccc);
 
 		// 配置pipeline选项
 		const pipelineOptions: GraphicsPipelineOptions = {
