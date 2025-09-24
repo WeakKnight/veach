@@ -2,6 +2,7 @@ import { GraphicsPipeline, GraphicsPipelineOptions } from './graphics-pipeline';
 import { Mesh } from "./mesh";
 import { GPUBufferWrapper } from "./gpu-buffer";
 import { WgslReflect } from "wgsl_reflect/wgsl_reflect.module.js";
+import { GLTFImporter } from './gltf/gltf-importer';
 
 export class Renderer {
 	public device: GPUDevice | null;
@@ -9,6 +10,7 @@ export class Renderer {
 	private webgpuContext: GPUCanvasContext | null;
 	private mesh: Mesh | null;
 	private canvas: HTMLCanvasElement | null;
+	private gltfImporter: GLTFImporter | null;
 
 	// private dummyVertexBuffer: GPUBufferWrapper | null;
 	// private dummyIndexBuffer: GPUBufferWrapper | null;
@@ -21,6 +23,7 @@ export class Renderer {
 		this.gbufferPipeline = null;
 		this.webgpuContext = null;
 		this.canvas = null;
+		this.gltfImporter = null;
 		this.bindingGroup = null;
 		// this.dummyVertexBuffer = null;
 		this.initialized = false;
@@ -91,6 +94,16 @@ export class Renderer {
 				{ binding: 1, resource: this.mesh.getIndexBuffer().getBuffer() }
 			]
 		});
+
+		// 初始化 glTF 导入器
+		this.gltfImporter = new GLTFImporter(this.device, {
+			generateMipmaps: true,
+			textureFormat: 'rgba8unorm',
+			optimizeMeshes: true
+		});
+
+		// 测试加载 BoxTextured.gltf
+		this.testGLTFImport();
 
 		this.initialized = true;
 
@@ -163,5 +176,48 @@ export class Renderer {
 
 		let commandBuffer = commandEncoder.finish();
 		this.device.queue.submit([commandBuffer]);
+	}
+
+	/**
+	 * 测试 glTF 导入功能
+	 */
+	private async testGLTFImport(): Promise<void> {
+		if (!this.gltfImporter) {
+			console.error('glTF importer not initialized');
+			return;
+		}
+
+		try {
+			console.log('=== 开始测试 glTF 导入 ===');
+			
+			// 测试加载 BoxTextured.gltf
+			const result = await this.gltfImporter.importFromFile('assets/box-textured/BoxTextured.gltf');
+			
+			console.log('=== glTF 导入结果 ===');
+			console.log(`网格数量: ${result.meshes.length}`);
+			console.log(`纹理数量: ${result.textures.length}`);
+			
+			// 打印网格信息
+			result.meshes.forEach((mesh, index) => {
+				console.log(`网格 ${index}:`);
+				console.log(`  - 顶点数: ${mesh.getVertexCount()}`);
+				console.log(`  - 索引数: ${mesh.getIndexCount()}`);
+				console.log(`  - 顶点缓冲区大小: ${mesh.getVertexBuffer().getSize()} 字节`);
+				console.log(`  - 索引缓冲区大小: ${mesh.getIndexBuffer().getSize()} 字节`);
+			});
+			
+			// 打印纹理信息
+			result.textures.forEach((texture, index) => {
+				console.log(`纹理 ${index}:`);
+				console.log(`  - 尺寸: ${texture.getWidth()}x${texture.getHeight()}`);
+				console.log(`  - 格式: ${texture.getFormat()}`);
+				console.log(`  - Mip级别: ${texture.getMipLevelCount()}`);
+			});
+			
+			console.log('=== glTF 导入测试完成 ===');
+			
+		} catch (error) {
+			console.error('glTF 导入测试失败:', error);
+		}
 	}
 }
