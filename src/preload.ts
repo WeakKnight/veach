@@ -24,4 +24,12 @@ contextBridge.exposeInMainWorld('fs', {
       mtimeMs: number;
       birthtimeMs: number;
     }>,
+
+  // 新增：读取二进制文件
+  readBinaryFile: (filePath: string) =>
+    ipcRenderer.invoke('fs:readBinaryFile', filePath) as Promise<ArrayBuffer>,
+
+  // 新增：写入二进制文件
+  writeBinaryFile: (filePath: string, data: ArrayBuffer) =>
+    ipcRenderer.invoke('fs:writeBinaryFile', filePath, data) as Promise<void>,
 });

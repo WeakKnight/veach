@@ -46,6 +46,9 @@
     "vite": "^5.4.19"
   },
   "dependencies": {
+    "@gltf-transform/core": "^4.2.1",
+    "@gltf-transform/extensions": "^4.2.1",
+    "@gltf-transform/functions": "^4.2.1",
     "@types/react": "^19.1.8",
     "@types/react-dom": "^19.1.6",
     "antd": "^5.26.2",

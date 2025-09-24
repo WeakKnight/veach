@@ -211,6 +211,31 @@ npm test
 npm run lint
 ```
 
+### 文件系统接口
+
+项目提供了完整的文件系统访问接口，支持文本和二进制文件操作：
+
+```typescript
+// 文本文件操作
+await window.fs.readTextFile('assets/config.json');
+await window.fs.writeTextFile('output/log.txt', 'Hello World');
+
+// 二进制文件操作
+const buffer = await window.fs.readBinaryFile('assets/models/character.bin');
+await window.fs.writeBinaryFile('output/data.bin', arrayBuffer);
+
+// 图像文件操作（作为二进制文件读取）
+const imageBuffer = await window.fs.readBinaryFile('assets/textures/diffuse.png');
+
+// 目录操作
+const files = await window.fs.readdir('assets/textures');
+await window.fs.mkdir('output/processed');
+
+// 文件信息
+const stats = await window.fs.stat('assets/model.obj');
+console.log('File size:', stats.size);
+```
+
 ### 构建和打包
 ```bash
 # 构建项目
@@ -297,7 +322,25 @@ const result = position
   .normalize();
 ```
 
-### 2. WebGPU 资源管理
+### 2. 文件系统操作最佳实践
+```typescript
+// ✅ 推荐: 异步文件操作
+try {
+  const imageBuffer = await window.fs.readBinaryFile('assets/textures/diffuse.png');
+  const blob = new Blob([imageBuffer]);
+  const imageBitmap = await createImageBitmap(blob);
+  // 使用图像数据...
+} catch (error) {
+  console.error('Failed to load image:', error);
+}
+
+// ✅ 推荐: 批量文件处理
+const imagePaths = ['texture1.png', 'texture2.png', 'texture3.png'];
+const results = await Promise.all(
+  imagePaths.map(path => window.fs.readBinaryFile(`assets/${path}`))
+);
+
+### 3. WebGPU 资源管理
 ```typescript
 // ✅ 推荐: 使用封装类管理资源
 const buffer = GPUBufferWrapper.createVertexBuffer(device, size);
@@ -305,7 +348,7 @@ buffer.setData(vertexData);
 // 自动清理: buffer.destroy()
 ```
 
-### 3. 错误处理
+### 4. 错误处理
 ```typescript
 // ✅ 推荐: 检查 WebGPU 支持
 if (!navigator.gpu) {
@@ -318,7 +361,7 @@ if (!adapter) {
 }
 ```
 
-### 4. 性能优化
+### 5. 性能优化
 ```typescript
 // ✅ 推荐: 批量操作
 const commandEncoder = device.createCommandEncoder();
@@ -489,22 +532,6 @@ class ResourceManager {
 ```
 
 ## 🔮 扩展开发指南
-
-### 添加新的渲染管线
-```typescript
-// 1. 定义新的管线选项
-interface CustomPipelineOptions extends GraphicsPipelineOptions {
-  customProperty: string;
-}
-
-// 2. 创建管线类
-class CustomPipeline extends GraphicsPipeline {
-  constructor(device: GPUDevice, options: CustomPipelineOptions) {
-    super(device, options);
-    // 自定义初始化逻辑
-  }
-}
-```
 
 ### 添加新的数学类型
 ```typescript

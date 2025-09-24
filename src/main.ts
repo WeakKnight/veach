@@ -40,6 +40,18 @@ ipcMain.handle('fs:stat', async (_event, filePath: string) => {
   };
 });
 
+// 新增：读取二进制文件
+ipcMain.handle('fs:readBinaryFile', async (_event, filePath: string) => {
+  const buffer = await fs.readFile(filePath);
+  return buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength);
+});
+
+// 新增：写入二进制文件
+ipcMain.handle('fs:writeBinaryFile', async (_event, filePath: string, data: ArrayBuffer) => {
+  const buffer = Buffer.from(data);
+  await fs.writeFile(filePath, buffer);
+});
+
 const createWindow = () => {
   // Create the browser window.
   const mainWindow = new BrowserWindow({

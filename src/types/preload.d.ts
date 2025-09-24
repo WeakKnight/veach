@@ -13,6 +13,9 @@ export interface FsApi {
   mkdir: (dirPath: string) => Promise<void>;
   unlink: (filePath: string) => Promise<void>;
   stat: (filePath: string) => Promise<FsStat>;
+  // 新增：二进制文件操作
+  readBinaryFile: (filePath: string) => Promise<ArrayBuffer>;
+  writeBinaryFile: (filePath: string, data: ArrayBuffer) => Promise<void>;
 }
 
 declare global {
