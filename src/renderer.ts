@@ -1,32 +1,37 @@
-import { GraphicsPipeline, GraphicsPipelineOptions } from './graphics-pipeline';
+import { Material } from './material';
 import { Mesh } from "./mesh";
 import { GPUBufferWrapper } from "./gpu-buffer";
 import { WgslReflect } from "wgsl_reflect/wgsl_reflect.module.js";
 import { GLTFImporter } from './gltf/gltf-importer';
+import { MeshRenderer, MeshRendererManager } from './mesh-renderer';
+import { float3 } from './math/float3';
+import { float4x4 } from './math/float4x4';
 
 export class Renderer {
 	public device: GPUDevice | null;
-	private gbufferPipeline: GraphicsPipeline | null;
 	private webgpuContext: GPUCanvasContext | null;
-	private mesh: Mesh | null;
 	private canvas: HTMLCanvasElement | null;
 	private gltfImporter: GLTFImporter | null;
-
-	// private dummyVertexBuffer: GPUBufferWrapper | null;
-	// private dummyIndexBuffer: GPUBufferWrapper | null;
-
-	private bindingGroup: GPUBindGroup | null;
+	private meshRendererManager: MeshRendererManager;
 	private initialized: boolean;
+	private vertexShaderCode: string | null;
+	private fragmentShaderCode: string | null;
+	
+	// 相机和旋转状态
+	private rotationX: number = 0;
+	private rotationY: number = 0;
+	private viewMatrix: float4x4 = new float4x4();
+	private projectionMatrix: float4x4 = new float4x4();
 
 	public constructor() {
 		this.device = null;
-		this.gbufferPipeline = null;
 		this.webgpuContext = null;
 		this.canvas = null;
 		this.gltfImporter = null;
-		this.bindingGroup = null;
-		// this.dummyVertexBuffer = null;
+		this.meshRendererManager = new MeshRendererManager();
 		this.initialized = false;
+		this.vertexShaderCode = null;
+		this.fragmentShaderCode = null;
 	}
 
 	public async init() {
@@ -34,66 +39,20 @@ export class Renderer {
 		const adapter = await navigator.gpu?.requestAdapter();
 		this.device = await adapter?.requestDevice();
 
-		let vertexWGSL = await window.fs.readTextFile('assets/shaders/vertex.wgsl');
-		let fragmentWGSL = await window.fs.readTextFile('assets/shaders/fragment.wgsl');
+		// 读取着色器代码
+		this.vertexShaderCode = await window.fs.readTextFile('assets/shaders/vertex.wgsl');
+		this.fragmentShaderCode = await window.fs.readTextFile('assets/shaders/fragment.wgsl');
 
-		// 配置pipeline选项
-		const pipelineOptions: GraphicsPipelineOptions = {
-			vertexShaderCode: vertexWGSL,
-			fragmentShaderCode: fragmentWGSL,
-			cullMode: 'none',
-			frontFace: 'ccw',
-			depthCompare: 'always'
-		};
-
-		// console.log(vertexWGSL);
-		// const vertexReflect = new WgslReflect(vertexWGSL);
-		// console.log(vertexReflect);
-		// console.log(fragmentWGSL);
-		// const fragmentReflect = new WgslReflect(fragmentWGSL);
-		// console.log(fragmentReflect);
-		// 创建graphics pipeline
-		this.gbufferPipeline = new GraphicsPipeline(this.device, pipelineOptions);
 		console.log('Device:', this.device);
-		console.log('Pipeline created successfully:', this.gbufferPipeline.getPipeline());
 
 		this.canvas = document.getElementById("veach-game-view") as HTMLCanvasElement;
 		this.webgpuContext = this.canvas.getContext("webgpu");
 		console.log(this.webgpuContext);
-		
+
 		// Set up proper canvas resolution
 		this.resizeCanvas();
-		
+
 		this.webgpuContext.configure({ device: this.device, format: 'rgba8unorm' });
-
-		this.mesh = Mesh.createQuad(this.device, 0.3);
-		// console.log(this.mesh);
-		// for(let i = 0; i < this.mesh.getVertexCount(); i++) {
-		//     let data = new Float32Array(14);
-		//     let promise = this.mesh.getVertexBuffer().readDataTo(data, i * 56);
-		//     promise.then(() => {
-		//         console.log(data);
-		//     });
-		// }
-
-		// this.dummyVertexBuffer = new GPUBufferWrapper(this.device, { size: 1024, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST | GPUBufferUsage.COPY_SRC | GPUBufferUsage.STORAGE });
-		// this.dummyVertexBuffer.setData(new Float32Array([-1, 1,
-		// -1, -1,
-		// 	1, -1,
-		// 	1, 1]), 0);
-
-		// this.dummyIndexBuffer = new GPUBufferWrapper(this.device, { size: 1024, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST | GPUBufferUsage.COPY_SRC | GPUBufferUsage.STORAGE });
-		// this.dummyIndexBuffer.setData(new Uint32Array([0, 1, 2, 2, 3, 0]), 0);
-
-		console.log(this.gbufferPipeline.getPipeline().getBindGroupLayout(0));
-
-		this.bindingGroup = this.device.createBindGroup({
-			layout: this.gbufferPipeline.getPipeline().getBindGroupLayout(0),
-			entries: [
-				{ binding: 0, resource: this.mesh.getVertexBuffer().getBuffer() },
-				{ binding: 1, resource: this.mesh.getIndexBuffer().getBuffer() }
-			]
-		});
 
 		// 初始化 glTF 导入器
 		this.gltfImporter = new GLTFImporter(this.device, {
@@ -102,17 +61,17 @@ export class Renderer {
 			optimizeMeshes: true
 		});
 
-		// 测试加载 BoxTextured.gltf
-		this.testGLTFImport();
+		// 加载并创建 GLTF MeshRenderer
+		await this.loadGLTFModel();
 
 		this.initialized = true;
 
 		let lastTime = 0;         // 初始为 0，首帧会被特殊处理
-		let tick = (timestamp) => {
+		let tick = (timestamp: number) => {
 			// timestamp: requestAnimationFrame 传入的高精度毫秒数
 			if (lastTime === 0) lastTime = timestamp;          // 首帧校准
 
-			const deltaTime = (timestamp - lastTime) / 1000;   // 秒；去掉 “/1000” 则是毫秒
+			const deltaTime = (timestamp - lastTime) / 1000;   // 秒；去掉 "/1000" 则是毫秒
 			lastTime = timestamp;
 
 			this.render(deltaTime);
@@ -149,12 +108,20 @@ export class Renderer {
 		}
 	}
 
-	public render(deltaTime) {
+	public render(deltaTime: number) {
+		// 更新旋转角度（自动旋转）
+		this.rotationX += deltaTime * 0.5; // 每秒约 28.6 度
+		this.rotationY += deltaTime * 0.3; // 每秒约 17.2 度
+		
+		// 更新相机矩阵
+		this.updateCamera();
+		
+		// 更新所有 MeshRenderer 的 transform（应用旋转）
+		this.updateMeshTransforms();
+		
 		let commandEncoder = this.device.createCommandEncoder({ label: "GBuffer" });
-		// console.log(commandEncoder);
 
 		let backBuffer = this.webgpuContext.getCurrentTexture().createView();
-		// console.log(deltaTime);
 
 		let renderPassDesc: GPURenderPassDescriptor = {
 			label: "GBuffer",
@@ -169,17 +136,100 @@ export class Renderer {
 		attachment0.view = backBuffer;
 
 		let renderPassEncoder = commandEncoder.beginRenderPass(renderPassDesc);
-		renderPassEncoder.setPipeline(this.gbufferPipeline.getPipeline());
-		renderPassEncoder.setBindGroup(0, this.bindingGroup);
-		renderPassEncoder.draw(this.mesh.getIndexCount());
+		
+		// 使用 MeshRendererManager 渲染所有启用的 MeshRenderer
+		// 传递相机矩阵
+		this.meshRendererManager.renderAll(renderPassEncoder, this.viewMatrix, this.projectionMatrix);
+		
 		renderPassEncoder.end();
 
 		let commandBuffer = commandEncoder.finish();
 		this.device.queue.submit([commandBuffer]);
 	}
+	
+	/**
+	 * 更新相机矩阵
+	 */
+	private updateCamera(): void {
+		// 设置相机位置：在 Z 轴正方向，距离原点 3 个单位
+		const cameraPosition = new float3(0, 0, 3);
+		const targetPosition = new float3(0, 0, 0);
+		const upDirection = new float3(0, 1, 0);
+		
+		// 创建视图矩阵
+		this.viewMatrix = float4x4.lookAt(cameraPosition, targetPosition, upDirection);
+		
+		// 创建投影矩阵
+		if (this.canvas) {
+			const aspect = this.canvas.width / this.canvas.height;
+			this.projectionMatrix = float4x4.perspective(
+				Math.PI / 4,  // 45 度视野 (FOV)
+				aspect,       // 宽高比
+				0.1,          // 近裁剪面
+				100.0         // 远裁剪面
+			);
+		}
+	}
+	
+	/**
+	 * 更新所有 MeshRenderer 的变换矩阵
+	 */
+	private updateMeshTransforms(): void {
+		// 创建旋转矩阵：先绕 Y 轴（左右），再绕 X 轴（上下）
+		const rotY = float4x4.rotationY(this.rotationY);
+		const rotX = float4x4.rotationX(this.rotationX);
+		const modelMatrix = float4x4.multiply(rotY, rotX);
+		
+		// 应用到所有 MeshRenderer
+		this.meshRendererManager.getAllRenderers().forEach(renderer => {
+			renderer.setTransform(modelMatrix);
+		});
+	}
 
 	/**
-	 * 测试 glTF 导入功能
+	 * 加载 GLTF 模型并创建 MeshRenderer
+	 */
+	private async loadGLTFModel(): Promise<void> {
+		if (!this.gltfImporter || !this.device || !this.vertexShaderCode || !this.fragmentShaderCode) {
+			console.error('Required components not initialized for GLTF loading');
+			return;
+		}
+
+		try {
+			console.log('=== 开始加载 glTF 模型 ===');
+			
+			// 导入 BoxTextured.gltf
+			const result = await this.gltfImporter.importFromFile('assets/box-textured/BoxTextured.gltf');
+			
+			console.log('=== glTF 导入结果 ===');
+			console.log(`网格数量: ${result.meshes.length}`);
+			console.log(`纹理数量: ${result.textures.length}`);
+			
+			// 创建 MeshRenderer 数组
+			const meshRenderers = await MeshRenderer.createArrayFromGLTF(
+				this.device,
+				result.meshes,
+				result.textures,
+				this.vertexShaderCode,
+				this.fragmentShaderCode,
+				'BoxTextured'
+			);
+
+			// 将 MeshRenderer 添加到管理器中
+			meshRenderers.forEach((renderer, index) => {
+				this.meshRendererManager.addRenderer(`gltf-mesh-${index}`, renderer);
+				console.log(`添加 MeshRenderer: ${renderer.getName()}`);
+			});
+
+			console.log(`=== 成功创建 ${meshRenderers.length} 个 MeshRenderer ===`);
+			
+		} catch (error) {
+			console.error('GLTF 模型加载失败:', error);
+		}
+	}
+
+	/**
+	 * 测试 glTF 导入功能（保留用于调试）
 	 */
 	private async testGLTFImport(): Promise<void> {
 		if (!this.gltfImporter) {
