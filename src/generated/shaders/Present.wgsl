@@ -30,6 +30,15 @@ struct LocalExposureParams_std140_0
 };
 
 @binding(5) @group(0) var<uniform> gLocalExposure_0 : LocalExposureParams_std140_0;
+struct DisplayTransformParams_std140_0
+{
+    @align(16) info_1 : vec4<f32>,
+    @align(16) encoding_0 : vec4<f32>,
+    @align(16) domainMin_0 : vec4<f32>,
+    @align(16) domainMax_0 : vec4<f32>,
+};
+
+@binding(11) @group(0) var<uniform> gDisplayTransform_0 : DisplayTransformParams_std140_0;
 @binding(6) @group(0) var gLocalExposureResidual_0 : texture_2d<f32>;
 
 @binding(7) @group(0) var gLocalExposurePyramid_0 : texture_2d<f32>;
@@ -37,6 +46,8 @@ struct LocalExposureParams_std140_0
 @binding(8) @group(0) var gLocalExposureForwardLut_0 : texture_2d<f32>;
 
 @binding(9) @group(0) var gLocalExposureInverseLut_0 : texture_2d<f32>;
+
+@binding(10) @group(0) var gUserLUT_0 : texture_3d<f32>;
 
 @binding(2) @group(0) var gToneLUT_0 : texture_3d<f32>;
 
@@ -179,6 +190,123 @@ fn FusionLocalExposure_0( p_2 : ptr<function, LocalExposureParams_std140_0>,  fo
     return clamp(_S40 / max(luminance_1, 9.999999960041972e-13f), exp2(-12.0f), exp2(12.0f));
 }
 
+fn DisplayTo2020_0( c_0 : vec3<f32>) -> vec3<f32>
+{
+    return vec3<f32>(dot(c_0, vec3<f32>(0.62740391492843628f, 0.32928302884101868f, 0.043313071131706238f)), dot(c_0, vec3<f32>(0.069097287952899933f, 0.9195404052734375f, 0.011362319812178612f)), dot(c_0, vec3<f32>(0.016391439363360405f, 0.088013313710689545f, 0.8955952525138855f)));
+}
+
+fn EncodeDisplayInput_0( x_3 : f32,  transfer_0 : u32,  gamma_0 : f32) -> f32
+{
+    var _S41 : f32;
+    if(transfer_0 == u32(1))
+    {
+        if((x_3 <= 0.0031308000907301903f))
+        {
+            _S41 = 12.920000076293945f * x_3;
+        }
+        else
+        {
+            _S41 = 1.0549999475479126f * pow(max(x_3, 0.0f), 0.4166666567325592f) - 0.054999999701976776f;
+        }
+        return _S41;
+    }
+    if(transfer_0 == u32(2))
+    {
+        if((x_3 < 0.00088900001719594002f))
+        {
+            _S41 = 8.7994613647460938f * x_3 + 0.092863999307155609f;
+        }
+        else
+        {
+            _S41 = 0.24528099596500397f * ((log( (max(5.5555558204650879f * x_3 + 0.06482899934053421f, 1.00000001168609742e-07f)) ) * f32( 0.43429448190325182765112891891661) )) + 0.38431599736213684f;
+        }
+        return _S41;
+    }
+    if(transfer_0 == u32(3))
+    {
+        return pow(max(x_3, 0.0f), rcp_0(gamma_0));
+    }
+    return x_3;
+}
+
+fn DecodeDisplayOutput_0( x_4 : f32,  transfer_1 : u32,  gamma_1 : f32) -> f32
+{
+    if(transfer_1 == u32(1))
+    {
+        var _S42 : f32;
+        if((x_4 <= 0.040449999272823334f))
+        {
+            _S42 = x_4 / 12.920000076293945f;
+        }
+        else
+        {
+            _S42 = pow(max((x_4 + 0.054999999701976776f) / 1.0549999475479126f, 0.0f), 2.4000000953674316f);
+        }
+        return _S42;
+    }
+    if(transfer_1 == u32(3))
+    {
+        return pow(max(x_4, 0.0f), gamma_1);
+    }
+    return x_4;
+}
+
+fn DisplayTo709_0( c_1 : vec3<f32>) -> vec3<f32>
+{
+    return vec3<f32>(dot(c_1, vec3<f32>(1.6604909896850586f, -0.58764111995697021f, -0.072849862277507782f)), dot(c_1, vec3<f32>(-0.1245504692196846f, 1.1328998804092407f, -0.0083494195714592934f)), dot(c_1, vec3<f32>(-0.018150759860873222f, -0.10057889670133591f, 1.1187297105789185f)));
+}
+
+fn ApplyUserDisplayTransform_0( color_1 : vec3<f32>) -> vec3<f32>
+{
+    var _S43 : vec3<f32>;
+    if((gDisplayTransform_0.info_1.y) != 0.0f)
+    {
+        _S43 = DisplayTo2020_0(color_1);
+    }
+    else
+    {
+        _S43 = color_1;
+    }
+    var transfer_2 : u32 = u32(gDisplayTransform_0.info_1.z);
+    var gamma_2 : f32 = gDisplayTransform_0.encoding_0.x;
+    var encoded_0 : vec3<f32> = vec3<f32>(EncodeDisplayInput_0(_S43.x, transfer_2, gamma_2), EncodeDisplayInput_0(_S43.y, transfer_2, gamma_2), EncodeDisplayInput_0(_S43.z, transfer_2, gamma_2));
+    var w_0 : u32;
+    var h_0 : u32;
+    var d_0 : u32;
+    {var dim = textureDimensions((gUserLUT_0));((w_0)) = dim.x;((h_0)) = dim.y;((d_0)) = dim.z;};
+    var p_3 : vec3<f32> = saturate((encoded_0 - gDisplayTransform_0.domainMin_0.xyz) / (gDisplayTransform_0.domainMax_0.xyz - gDisplayTransform_0.domainMin_0.xyz)) * vec3<f32>(f32(w_0 - u32(1)));
+    var _S44 : vec3<i32> = min(vec3<i32>(floor(p_3)), vec3<i32>((i32(w_0) - i32(2))));
+    var f_3 : vec3<f32> = p_3 - vec3<f32>(_S44);
+    var _S45 : vec4<i32> = vec4<i32>(_S44, i32(0));
+    var _S46 : vec4<i32> = vec4<i32>(_S44 + vec3<i32>(i32(1), i32(0), i32(0)), i32(0));
+    var _S47 : vec3<f32> = vec3<f32>(f_3.x);
+    var _S48 : vec4<i32> = vec4<i32>(_S44 + vec3<i32>(i32(0), i32(1), i32(0)), i32(0));
+    var _S49 : vec4<i32> = vec4<i32>(_S44 + vec3<i32>(i32(1), i32(1), i32(0)), i32(0));
+    var _S50 : vec4<i32> = vec4<i32>(_S44 + vec3<i32>(i32(0), i32(0), i32(1)), i32(0));
+    var _S51 : vec4<i32> = vec4<i32>(_S44 + vec3<i32>(i32(1), i32(0), i32(1)), i32(0));
+    var _S52 : vec4<i32> = vec4<i32>(_S44 + vec3<i32>(i32(0), i32(1), i32(1)), i32(0));
+    var _S53 : vec4<i32> = vec4<i32>(_S44 + vec3<i32>(i32(1), i32(1), i32(1)), i32(0));
+    var _S54 : vec3<f32> = vec3<f32>(f_3.y);
+    var result_0 : vec3<f32> = mix(mix(mix((textureLoad((gUserLUT_0), ((_S45)).xyz, ((_S45)).w)).xyz, (textureLoad((gUserLUT_0), ((_S46)).xyz, ((_S46)).w)).xyz, _S47), mix((textureLoad((gUserLUT_0), ((_S48)).xyz, ((_S48)).w)).xyz, (textureLoad((gUserLUT_0), ((_S49)).xyz, ((_S49)).w)).xyz, _S47), _S54), mix(mix((textureLoad((gUserLUT_0), ((_S50)).xyz, ((_S50)).w)).xyz, (textureLoad((gUserLUT_0), ((_S51)).xyz, ((_S51)).w)).xyz, _S47), mix((textureLoad((gUserLUT_0), ((_S52)).xyz, ((_S52)).w)).xyz, (textureLoad((gUserLUT_0), ((_S53)).xyz, ((_S53)).w)).xyz, _S47), _S54), vec3<f32>(f_3.z));
+    var transfer_3 : u32 = u32(gDisplayTransform_0.encoding_0.y);
+    var gamma_3 : f32 = gDisplayTransform_0.encoding_0.z;
+    var result_1 : vec3<f32> = vec3<f32>(DecodeDisplayOutput_0(result_0.x, transfer_3, gamma_3), DecodeDisplayOutput_0(result_0.y, transfer_3, gamma_3), DecodeDisplayOutput_0(result_0.z, transfer_3, gamma_3));
+    if((gDisplayTransform_0.info_1.w) != 0.0f)
+    {
+        _S43 = DisplayTo709_0(result_1);
+    }
+    else
+    {
+        _S43 = result_1;
+    }
+    return _S43;
+}
+
+fn LinearToSrgb_0( c_2 : vec3<f32>) -> vec3<f32>
+{
+    return select(vec3<f32>(1.0549999475479126f) * pow(max(c_2, vec3<f32>(0.0f)), vec3<f32>(0.4166666567325592f)) - vec3<f32>(0.054999999701976776f), c_2 * vec3<f32>(12.920000076293945f), (c_2 <= vec3<f32>(0.0031308000907301903f)));
+}
+
 fn LinearToST2084_0( nits_0 : vec3<f32>) -> vec3<f32>
 {
     var Lm_0 : vec3<f32> = pow(nits_0 / vec3<f32>(10000.0f), vec3<f32>(0.1593017578125f));
@@ -187,28 +315,23 @@ fn LinearToST2084_0( nits_0 : vec3<f32>) -> vec3<f32>
 
 fn ACES2_0( linearColor_0 : vec3<f32>) -> vec3<f32>
 {
-    var encoded_0 : vec3<f32> = LinearToST2084_0(clamp(linearColor_0 * vec3<f32>(100.0f), vec3<f32>(0.0f), vec3<f32>(10000.0f)));
+    var encoded_1 : vec3<f32> = LinearToST2084_0(clamp(linearColor_0 * vec3<f32>(100.0f), vec3<f32>(0.0f), vec3<f32>(10000.0f)));
     var size_4 : vec3<u32>;
-    var _S41 : u32 = size_4[i32(0)];
-    var _S42 : u32 = size_4[i32(1)];
-    var _S43 : u32 = size_4[i32(2)];
-    {var dim = textureDimensions((gToneLUT_0));((_S41)) = dim.x;((_S42)) = dim.y;((_S43)) = dim.z;};
-    size_4[i32(0)] = _S41;
-    size_4[i32(1)] = _S42;
-    size_4[i32(2)] = _S43;
+    var _S55 : u32 = size_4[i32(0)];
+    var _S56 : u32 = size_4[i32(1)];
+    var _S57 : u32 = size_4[i32(2)];
+    {var dim = textureDimensions((gToneLUT_0));((_S55)) = dim.x;((_S56)) = dim.y;((_S57)) = dim.z;};
+    size_4[i32(0)] = _S55;
+    size_4[i32(1)] = _S56;
+    size_4[i32(2)] = _S57;
     var n_0 : f32 = f32(size_4.x);
-    return (textureSampleLevel((gToneLUT_0), (gToneLUTSampler_0), (encoded_0 * vec3<f32>(((n_0 - 1.0f) / n_0)) + vec3<f32>((0.5f / n_0))), (0.0f))).xyz;
+    return (textureSampleLevel((gToneLUT_0), (gToneLUTSampler_0), (encoded_1 * vec3<f32>(((n_0 - 1.0f) / n_0)) + vec3<f32>((0.5f / n_0))), (0.0f))).xyz;
 }
 
-fn ACESFilmic_0( color_1 : vec3<f32>) -> vec3<f32>
+fn ACESFilmic_0( color_2 : vec3<f32>) -> vec3<f32>
 {
-    var _S44 : vec3<f32> = color_1 * vec3<f32>(0.60000002384185791f);
-    return saturate(_S44 * (vec3<f32>(2.5099999904632568f) * _S44 + vec3<f32>(0.029999999329447746f)) / (_S44 * (vec3<f32>(2.4300000667572021f) * _S44 + vec3<f32>(0.5899999737739563f)) + vec3<f32>(0.14000000059604645f)));
-}
-
-fn LinearToSrgb_0( c_0 : vec3<f32>) -> vec3<f32>
-{
-    return select(vec3<f32>(1.0549999475479126f) * pow(max(c_0, vec3<f32>(0.0f)), vec3<f32>(0.4166666567325592f)) - vec3<f32>(0.054999999701976776f), c_0 * vec3<f32>(12.920000076293945f), (c_0 <= vec3<f32>(0.0031308000907301903f)));
+    var _S58 : vec3<f32> = color_2 * vec3<f32>(0.60000002384185791f);
+    return saturate(_S58 * (vec3<f32>(2.5099999904632568f) * _S58 + vec3<f32>(0.029999999329447746f)) / (_S58 * (vec3<f32>(2.4300000667572021f) * _S58 + vec3<f32>(0.5899999737739563f)) + vec3<f32>(0.14000000059604645f)));
 }
 
 struct pixelOutput_0
@@ -219,44 +342,58 @@ struct pixelOutput_0
 @fragment
 fn fsMain(@builtin(position) position_3 : vec4<f32>) -> pixelOutput_0
 {
-    var _S45 : vec2<u32> = min(vec2<u32>(position_3.xy), gFrame_0.frame_0.xy - vec2<u32>(u32(1)));
-    var color_2 : vec3<f32> = gAccum_0[(_S45.y * gFrame_0.frame_0.x + _S45.x) * u32(3)].xyz;
-    var color_3 : vec3<f32>;
+    var _S59 : vec2<u32> = min(vec2<u32>(position_3.xy), gFrame_0.frame_0.xy - vec2<u32>(u32(1)));
+    var color_3 : vec3<f32> = gAccum_0[(_S59.y * gFrame_0.frame_0.x + _S59.x) * u32(3)].xyz;
+    var color_4 : vec3<f32>;
     if((gFrame_0.settings_0.y) == u32(0))
     {
-        var color_4 : vec3<f32> = color_2 * vec3<f32>((gExposure_0[i32(0)].x * rcp_0(gFrame_0.envParams_0.z)));
+        var color_5 : vec3<f32> = color_3 * vec3<f32>((gExposure_0[i32(0)].x * rcp_0(gFrame_0.envParams_0.z)));
+        var _S60 : bool;
         if((gLocalExposure_0.info_0.x) != u32(0))
         {
-            var uv_2 : vec2<f32> = (vec2<f32>(_S45) + vec2<f32>(0.5f)) / vec2<f32>(gFrame_0.frame_0.xy);
-            var _S46 : LocalExposureParams_std140_0 = gLocalExposure_0;
-            var _S47 : f32 = EyeAdaptationLuminance_0(&(_S46), color_4);
-            var _S48 : f32 = FusionLocalExposure_0(&(_S46), gLocalExposureForwardLut_0, gLocalExposureInverseLut_0, _S47, SampleBilinear_0(gLocalExposureResidual_0, uv_2), SampleBilinear_1(gLocalExposurePyramid_0, uv_2).xy);
-            if((gLocalExposure_0.info_0.y) != u32(0))
-            {
-                var _S49 : pixelOutput_0 = pixelOutput_0( vec4<f32>(vec3<f32>(saturate(log2(_S48) / 12.0f + 0.5f)), 1.0f) );
-                return _S49;
-            }
-            color_3 = color_4 * vec3<f32>(_S48);
+            _S60 = (gDisplayTransform_0.info_1.x) == 0.0f;
         }
         else
         {
-            color_3 = color_4;
+            _S60 = false;
+        }
+        if(_S60)
+        {
+            var uv_2 : vec2<f32> = (vec2<f32>(_S59) + vec2<f32>(0.5f)) / vec2<f32>(gFrame_0.frame_0.xy);
+            var _S61 : LocalExposureParams_std140_0 = gLocalExposure_0;
+            var _S62 : f32 = EyeAdaptationLuminance_0(&(_S61), color_5);
+            var _S63 : f32 = FusionLocalExposure_0(&(_S61), gLocalExposureForwardLut_0, gLocalExposureInverseLut_0, _S62, SampleBilinear_0(gLocalExposureResidual_0, uv_2), SampleBilinear_1(gLocalExposurePyramid_0, uv_2).xy);
+            if((gLocalExposure_0.info_0.y) != u32(0))
+            {
+                var _S64 : pixelOutput_0 = pixelOutput_0( vec4<f32>(vec3<f32>(saturate(log2(_S63) / 12.0f + 0.5f)), 1.0f) );
+                return _S64;
+            }
+            color_4 = color_5 * vec3<f32>(_S63);
+        }
+        else
+        {
+            color_4 = color_5;
+        }
+        if((gDisplayTransform_0.info_1.x) != 0.0f)
+        {
+            var _S65 : pixelOutput_0 = pixelOutput_0( vec4<f32>(LinearToSrgb_0(saturate(ApplyUserDisplayTransform_0(color_4))), 1.0f) );
+            return _S65;
         }
         if((gFrame_0.settings_0.w) == u32(2))
         {
-            var _S50 : pixelOutput_0 = pixelOutput_0( vec4<f32>(saturate(ACES2_0(color_3)), 1.0f) );
-            return _S50;
+            var _S66 : pixelOutput_0 = pixelOutput_0( vec4<f32>(saturate(ACES2_0(color_4)), 1.0f) );
+            return _S66;
         }
         if((gFrame_0.settings_0.w) == u32(1))
         {
-            color_3 = ACESFilmic_0(color_3);
+            color_4 = ACESFilmic_0(color_4);
         }
     }
     else
     {
-        color_3 = color_2;
+        color_4 = color_3;
     }
-    var _S51 : pixelOutput_0 = pixelOutput_0( vec4<f32>(LinearToSrgb_0(saturate(color_3)), 1.0f) );
-    return _S51;
+    var _S67 : pixelOutput_0 = pixelOutput_0( vec4<f32>(LinearToSrgb_0(saturate(color_4)), 1.0f) );
+    return _S67;
 }
 

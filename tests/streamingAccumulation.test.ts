@@ -9,10 +9,12 @@ function harness(samples = 1, maxSamples = 0) {
 	const renderer = Object.assign(Object.create(Renderer.prototype), {
 		settings: { ...defaultRenderSettings(), maxSamples }, frameIndex: samples,
 		streamedCoverage: 0, quietFeedbackFrames: 0,
+		tracer: { setPresentationBuffer: vi.fn() }, denoiseRevision: 0,
 		vt: { update: () => update, stats },
 	}) as {
 		frameIndex: number;
 		settings: RenderSettings;
+		streamingPending: boolean;
 		resetAccumulation(): void;
 		updateStreaming(): void;
 	};
@@ -27,6 +29,15 @@ function harness(samples = 1, maxSamples = 0) {
 }
 
 describe('streaming accumulation', () => {
+	it('does not block denoising forever on unmet cache demand after feedback drains', () => {
+		const h = harness(1, 1);
+		h.step({ pendingFeedback: true }, 100, 0);
+		expect(h.renderer.streamingPending).toBe(true);
+		h.step({ pendingFeedback: false }, 100, 0);
+		expect(h.renderer.streamingPending).toBe(false);
+		h.step({ pendingFeedback: false }, 0, 1);
+		expect(h.renderer.streamingPending).toBe(true);
+	});
 	it('keeps accumulating with continuous uploads and pending zero, including at 1 spp', () => {
 		const h = harness();
 		for (let i = 0; i < 256; i++) h.step({ mapped: 20, coverage: 0.1 });

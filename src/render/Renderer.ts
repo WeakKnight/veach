@@ -22,7 +22,13 @@ import {
 import { GpuScene, type SceneStats } from './GpuScene';
 import { bakeFusionTables, calibrateZCurve, contrastScaleToEV, evaluateCurve, neutralToneResponse, type CurveKeys, type ZCurve } from './LocalExposureCurve';
 import { PathTracer } from './PathTracer';
+import { loadBuiltinLUT, type DisplayTransform, type DisplayTransformState, type DisplayTransformResult } from './color/BuiltinLUTs';
+import { snapshotDisplayTransform } from './color/LUT';
+import { createDisplayTransformGPU, type DisplayTransformGPU } from './color/DisplayTransformGPU';
 import { PipelineCompiler } from './PipelineCompiler';
+import { loadOIDN, validateDenoiserOptions, type OIDNDenoiserOptions, type DenoisingState } from './denoise/OIDNDenoiser';
+import type { DenoisingInputs } from './denoise/OIDNGuides';
+import type { UNet } from 'oidn-webgpu';
 import { compileSceneMaterials, textureUsage } from './SceneMaterials';
 import { VT_FEEDBACK_PERIOD, VT_FEEDBACK_SHIFT, VirtualTextureSystem, type VirtualTextureOptions, type VirtualTextureStats } from './vt/VirtualTextureSystem';
 
@@ -83,7 +89,7 @@ export interface RenderSettings {
 export function defaultRenderSettings(): RenderSettings {
 	return {
 		maxBounces: 8,
-		maxSamples: 0,
+		maxSamples: 128,
 		samplesPerFrame: 1,
 		resolutionScale: 1,
 		debugMode: DebugMode.None,
@@ -135,6 +141,8 @@ export interface InitProgress {
 
 export interface RendererCreateOptions {
 	onProgress?: (progress: InitProgress) => void;
+	/** Omit for bundled OIDN; null disables denoising and its model download. */
+	denoiser?: OIDNDenoiserOptions | null;
 }
 
 // Readable names of the pipelines still compiling, for progress messages.
@@ -151,9 +159,22 @@ export interface RendererStats {
 	exposure: ExposureStats; // read back from the GPU, a few frames old
 	scene: SceneStats | null;
 	virtualTexture: VirtualTextureStats | null;
+	denoising: DenoisingState;
 }
 
 export class Renderer {
+	private denoiser: UNet | null = null;
+	private denoiserRequest = 0;
+	private denoiserLoad: AbortController | null = null;
+	private denoiseRevision = 0;
+	private denoiseAttempt = '';
+	private denoiseJob: { model: UNet; retire: boolean } | null = null;
+	private denoisedBuffer: GPUBuffer | null = null;
+	private denoiseState: DenoisingState = Object.freeze({ status: 'disabled', progress: 0, samples: 0 });
+	private streamingPending = false;
+	private displayRequest = 0;
+	private destroyed = false;
+	private displayState: DisplayTransformState = Object.freeze({ type: 'default', localExposure: 'settings' });
 	readonly camera = new Camera();
 	readonly settings: RenderSettings = defaultRenderSettings();
 	readonly sun: SunSettings = defaultSunSettings();
@@ -213,6 +234,7 @@ export class Renderer {
 		}
 		const device = await adapter.requestDevice({
 			label: 'Veach',
+			requiredFeatures: adapter.features.has('shader-f16') ? ['shader-f16'] : [],
 			requiredLimits: {
 				maxStorageBufferBindingSize: adapter.limits.maxStorageBufferBindingSize,
 				maxBufferSize: adapter.limits.maxBufferSize,
@@ -245,6 +267,9 @@ export class Renderer {
 			await Promise.all([tracer.compiled, renderer.sky.compiled]);
 			report('scene', SHADERS_END, 'Preparing the scene');
 			await renderer.setScene({ meshes: [], materials: [], textures: [], instances: [], cameras: [] }, { frameCamera: false });
+			// Model loading runs alongside tracing. Failure is exposed in renderer.denoising,
+			// while the raw image stays usable; it must not fail renderer creation.
+			void renderer.setDenoiser(options.denoiser === undefined ? { type: 'oidn' } : options.denoiser).catch(() => {});
 			report('scene', 1, 'Ready');
 			return renderer;
 		} catch (e) {
@@ -274,10 +299,146 @@ export class Renderer {
 		return this.frameIndex;
 	}
 
+	get denoising(): DenoisingState { return this.denoiseState; }
+
+	/** Enable HDR OIDN at maxSamples, or disable it with null. A superseded request returns false. */
+	async setDenoiser(options: OIDNDenoiserOptions | null): Promise<boolean> {
+		if (this.destroyed) throw new Error('Renderer has been destroyed');
+		const config = options === null ? null : validateDenoiserOptions(options);
+		const request = ++this.denoiserRequest;
+		this.denoiserLoad?.abort();
+		this.invalidateDenoising();
+		if (this.denoiser) {
+			if (this.denoiseJob?.model === this.denoiser) this.denoiseJob.retire = true;
+			else this.denoiser.dispose();
+		}
+		this.denoiser = null;
+		this.denoiseState = Object.freeze({ status: config ? 'loading' : 'disabled', progress: 0, samples: 0 });
+		if (!config) return true;
+		const controller = new AbortController();
+		this.denoiserLoad = controller;
+		const stale = () => this.destroyed || request !== this.denoiserRequest;
+		try {
+			const model = await loadOIDN(this.device, config, controller.signal);
+			if (stale()) { model.dispose(); return false; }
+			this.denoiser = model;
+			this.denoiseState = Object.freeze({ status: 'idle', progress: 0, samples: 0 });
+			return true;
+		} catch (error) {
+			if (stale()) return false;
+			this.denoiseState = Object.freeze({ status: 'error', progress: 0, samples: 0, error: String(error) });
+			throw error;
+		} finally { if (!stale()) this.denoiserLoad = null; }
+	}
+
+	/** GPU-only snapshot. Call result.destroy() when no longer needed. Does not reset sampling. */
+	createDenoisingInputs(): DenoisingInputs {
+		if (this.destroyed || !this.tracer.accumulation || this.samples < 1 || this.settings.debugMode !== DebugMode.None) throw new Error('Denoising inputs require a live beauty accumulation with at least one sample');
+		this.writeUniforms();
+		const encoder = this.device.createCommandEncoder({ label: 'oidnGuides' });
+		const inputs = this.tracer.oidnGuides.create(encoder, this.tracer.uniformBuffer, this.tracer.accumulation,
+			this.tracer.width, this.tracer.height, this.samples, this.preExposure);
+		this.device.queue.submit([encoder.finish()]);
+		return inputs;
+	}
+
+	private invalidateDenoising(): void {
+		this.denoiseRevision++;
+		this.denoiseAttempt = '';
+		this.tracer.setPresentationBuffer(null);
+		this.denoisedBuffer?.destroy(); this.denoisedBuffer = null;
+		if (this.denoiser) this.denoiseState = Object.freeze({ status: 'idle', progress: 0, samples: 0 });
+	}
+
+	private maybeDenoise(): void {
+		if (!this.denoiser || this.denoiseJob || !this.converged || this.samples < 1 || this.streamingPending || this.settings.debugMode !== DebugMode.None) return;
+		const revision = this.denoiseRevision, samples = this.samples;
+		const key = `${revision}:${samples}`;
+		if (key === this.denoiseAttempt) return;
+		this.denoiseAttempt = key;
+		const job = { model: this.denoiser, retire: false };
+		this.denoiseJob = job;
+		const current = () => !this.destroyed && revision === this.denoiseRevision && this.denoiser === job.model && samples === this.samples && this.converged && this.settings.debugMode === DebugMode.None;
+		const start = performance.now();
+		let inputs: DenoisingInputs | undefined;
+		let finished = false;
+		const finish = () => {
+			if (finished) return;
+			finished = true;
+			inputs?.destroy();
+			if (job.retire) job.model.dispose();
+			if (this.denoiseJob === job) this.denoiseJob = null;
+		};
+		const fail = (error: unknown) => {
+			if (current()) this.denoiseState = Object.freeze({ status: 'error', progress: 0, samples, error: String(error) });
+			finish();
+		};
+		try {
+			inputs = this.createDenoisingInputs();
+			const { width, height, color, albedo, normal } = inputs;
+			this.denoiseState = Object.freeze({ status: 'denoising', progress: 0, samples });
+			job.model.tileExecute({ color: { data: color, width, height }, albedo: { data: albedo, width, height }, normal: { data: normal, width, height },
+				scheduling: 'animation-frame',
+				progress: (_output, _tileData, _tile, index, count) => {
+					if (current()) this.denoiseState = Object.freeze({ status: 'denoising', progress: (index + 1) / count, samples });
+				},
+				done: ({ data }) => {
+					try {
+						if (!current()) return;
+						this.writeUniforms();
+						const encoder = this.device.createCommandEncoder({ label: 'oidnCompose' });
+						const output = this.tracer.oidnGuides.composeOutput(encoder, this.tracer.uniformBuffer, this.tracer.accumulation!, data, width, height);
+						this.device.queue.submit([encoder.finish()]);
+						this.tracer.setPresentationBuffer(output);
+						this.denoisedBuffer?.destroy(); this.denoisedBuffer = output;
+						this.denoiseState = Object.freeze({ status: 'ready', progress: 1, samples, durationMs: performance.now() - start });
+						// Also present for clients that render manually or paused at maxSamples.
+						this.renderFrame();
+					} catch (error) { fail(error); }
+					finally { finish(); }
+				},
+				error: fail,
+			});
+		} catch (error) { fail(error); }
+	}
+
+	get displayTransform(): DisplayTransformState { return this.displayState; }
+
+	/** Replace the display mapping without resetting accumulation. null restores settings.tonemapper. */
+	async setDisplayTransform(transform: DisplayTransform | null): Promise<DisplayTransformResult> {
+		if (this.destroyed) throw new Error('Renderer has been destroyed');
+		const request = ++this.displayRequest;
+		const preset = transform?.type === 'builtin' ? transform.preset : undefined;
+		const desc = transform === null ? null : transform.type === 'builtin'
+			? await loadBuiltinLUT(transform.preset) : snapshotDisplayTransform(transform);
+		const stale = () => request !== this.displayRequest || this.destroyed;
+		if (stale()) return { ...this.displayState, applied: false };
+		this.device.pushErrorScope('out-of-memory');
+		this.device.pushErrorScope('validation');
+		let resources: DisplayTransformGPU | undefined;
+		let failure: unknown;
+		try { resources = createDisplayTransformGPU(this.device, desc); } catch (error) { failure = error; }
+		// Pop synchronously before awaiting, so concurrent calls cannot interleave scope stacks.
+		const validation = this.device.popErrorScope();
+		const memory = this.device.popErrorScope();
+		let errors: (GPUError | null)[];
+		try { errors = await Promise.all([validation, memory]); }
+		catch (error) { resources?.destroy(); throw error; }
+		if (failure || errors.some(Boolean)) {
+			resources?.destroy();
+			throw failure ?? new Error(errors.find(Boolean)!.message);
+		}
+		if (stale()) { resources!.destroy(); return { ...this.displayState, applied: false }; }
+		this.tracer.setDisplayTransform(resources!);
+		this.displayState = Object.freeze(transform === null ? { type: 'default', localExposure: 'settings' }
+			: { type: preset ? 'builtin' : 'lut', ...(preset ? { preset } : {}), localExposure: 'off' });
+		return { ...this.displayState, applied: true };
+	}
+
 	// Scene-linear radiance of the accumulation (before exposure and tone mapping), RGB rows from the
 	// top, for comparisons against offline references.
-	async readRadiance(): Promise<{ width: number; height: number; samples: number; data: Float32Array }> {
-		const accum = this.tracer.accumulation;
+	async readRadiance(options: { denoised?: boolean } = {}): Promise<{ width: number; height: number; samples: number; data: Float32Array }> {
+		const accum = options.denoised ? this.tracer.presentation : this.tracer.accumulation;
 		const { width, height } = this.tracer;
 		const samples = this.frameIndex;
 		const preExposure = this.preExposure;
@@ -377,6 +538,7 @@ export class Renderer {
 	}
 
 	resetAccumulation(): void {
+		this.invalidateDenoising();
 		this.frameIndex = 0;
 		this.streamedCoverage = 0;
 		this.quietFeedbackFrames = 0;
@@ -386,6 +548,9 @@ export class Renderer {
 	private updateStreaming(): void {
 		if (!this.vt) return;
 		const { mapped, coverage, feedbackFrames, pendingFeedback } = this.vt.update();
+		// pendingRequests is unmet demand from the last feedback batch, not queued work.
+		// With a full VT cache or a low sample limit it can stay nonzero forever.
+		this.streamingPending = pendingFeedback || this.vt.stats.uploadsLastFrame > 0;
 		if (mapped > 0) this.streamedCoverage += coverage;
 		const quiet = this.vt.stats.uploadsLastFrame === 0 && this.vt.stats.pendingRequests === 0;
 		this.quietFeedbackFrames = quiet ? this.quietFeedbackFrames + feedbackFrames : 0;
@@ -475,6 +640,7 @@ export class Renderer {
 
 	// Traces samplesPerFrame samples (unless converged) and presents the accumulation.
 	renderFrame(): void {
+		if (this.destroyed) return;
 		this.resize();
 		if (!this.tracer.ready) {
 			return;
@@ -485,12 +651,13 @@ export class Renderer {
 			this.preExposure = this.nextPreExposure();
 		}
 		const samples = this.settings.debugMode !== DebugMode.None ? 1 : Math.max(1, this.settings.samplesPerFrame);
+		if ((!this.converged || this.settings.debugMode !== DebugMode.None) && this.denoiseAttempt) this.invalidateDenoising();
 		for (let i = 0; i < samples && !this.converged; i++) {
 			this.writeUniforms(this.vt?.nextFeedbackJitter() ?? 0);
 			const encoder = this.device.createCommandEncoder({ label: 'trace' });
 			this.tracer.encodeTrace(encoder);
 			const feedback = this.tracer.feedback;
-			if (this.vt && feedback && i === samples - 1) {
+			if (this.vt && feedback && (i === samples - 1 || (this.settings.maxSamples > 0 && this.frameIndex + 1 >= this.settings.maxSamples))) {
 				this.vt.recordFeedbackReadback(encoder, feedback);
 			}
 			this.device.queue.submit([encoder.finish()]);
@@ -515,6 +682,7 @@ export class Renderer {
 		if (exposed) {
 			this.tracer.autoExposure.afterSubmit();
 		}
+		this.maybeDenoise();
 	}
 
 	private zCurve(tonemapper: Tonemapper): ZCurve | null {
@@ -565,6 +733,7 @@ export class Renderer {
 		// as in Unreal, the pass only runs when it can change the image (or is visualized)
 		let enabled =
 			exposed &&
+			this.displayState.localExposure !== 'off' &&
 			s.localExposureMethod === LocalExposureMethod.Fusion &&
 			(s.visualizeLocalExposure || s.localExposureHighlightContrastScale !== 1 || s.localExposureShadowContrastScale !== 1 || !!s.localExposureHighlightContrastCurve?.length || !!s.localExposureShadowContrastCurve?.length);
 		const curve = enabled ? this.zCurve(s.tonemapper) : null;
@@ -629,7 +798,7 @@ export class Renderer {
 			this.frameMs = this.lastFrameTime ? time - this.lastFrameTime : 0;
 			this.lastFrameTime = time;
 			this.renderFrame();
-			this.onStats?.({ frameIndex: this.frameIndex, width: this.tracer.width, height: this.tracer.height, frameMs: this.frameMs, exposure: this.exposureStats, scene: this.sceneStats, virtualTexture: this.virtualTextureStats });
+			this.onStats?.({ frameIndex: this.frameIndex, width: this.tracer.width, height: this.tracer.height, frameMs: this.frameMs, exposure: this.exposureStats, scene: this.sceneStats, virtualTexture: this.virtualTextureStats, denoising: this.denoising });
 			this.rafHandle = requestAnimationFrame(loop);
 		};
 		this.rafHandle = requestAnimationFrame(loop);
@@ -641,6 +810,17 @@ export class Renderer {
 	}
 
 	destroy(): void {
+		if (this.destroyed) return;
+		this.destroyed = true;
+		this.denoiserRequest++;
+		this.denoiserLoad?.abort();
+		if (this.denoiser) {
+			if (this.denoiseJob?.model === this.denoiser) this.denoiseJob.retire = true;
+			else this.denoiser.dispose();
+		}
+		this.denoiser = null;
+		this.denoisedBuffer?.destroy();
+		this.displayRequest++;
 		this.stop();
 		this.resizeObserver?.disconnect();
 		this.scene?.destroy();

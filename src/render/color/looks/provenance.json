@@ -1,0 +1,102 @@
+[
+  {
+    "id": "acros",
+    "name": "ACROS",
+    "source": "https://www.fujifilm-x.com/global/support/download/lut/",
+    "sourceFile": "FLog2_to_ACROS_33grid_V.1.00.cube",
+    "sourceSha256": "14b0c3644c1f81391aa79ca5bd8c33a4b50844f525295574ce2af9237d021930",
+    "payloadSha256": "6d65a66087a5b8572de1863ed68a414635e5d51f80e7596d04237e47da15b3a2",
+    "outputTransfer": "gamma 2.2 viewing assumption from light-lab",
+    "license": "Manufacturer download; no explicit open redistribution license located in inspected page/package"
+  },
+  {
+    "id": "astia",
+    "name": "ASTIA",
+    "source": "https://www.fujifilm-x.com/global/support/download/lut/",
+    "sourceFile": "FLog2_to_ASTIA_33grid_V.1.00.cube",
+    "sourceSha256": "c019934ee9e3fe9abadd6dfdc03d1013bbd6ba4277f6bd505d340d2730b1b83d",
+    "payloadSha256": "c32085e1361eab0135f2ef3784927ee1faea5ab3b4f8089b98477c6521b2d8f7",
+    "outputTransfer": "gamma 2.2 viewing assumption from light-lab",
+    "license": "Manufacturer download; no explicit open redistribution license located in inspected page/package"
+  },
+  {
+    "id": "classic_chrome",
+    "name": "CLASSIC-CHROME",
+    "source": "https://www.fujifilm-x.com/global/support/download/lut/",
+    "sourceFile": "FLog2_to_CLASSIC-CHROME_33grid_V.1.00.cube",
+    "sourceSha256": "b68c8f4b38da958388931c34ce9eb5c09a495e8c37e654537d534dfd8f023b75",
+    "payloadSha256": "4819e5e949a6af215256a88913f3dc212ee08c05bdd45cad2d59e7d9068f8d7b",
+    "outputTransfer": "gamma 2.2 viewing assumption from light-lab",
+    "license": "Manufacturer download; no explicit open redistribution license located in inspected page/package"
+  },
+  {
+    "id": "classic_neg",
+    "name": "CLASSIC-Neg.",
+    "source": "https://www.fujifilm-x.com/global/support/download/lut/",
+    "sourceFile": "FLog2_to_CLASSIC-Neg._33grid_V.1.00.cube",
+    "sourceSha256": "f3db5fe777c3a64e998b8ada64ff8cc2e61f9b44538fd7c550733d1c55c197c5",
+    "payloadSha256": "9d07eb91077519e809e661fa46e13cbb0d3343f39466c0ace12d6e13df4b96ee",
+    "outputTransfer": "gamma 2.2 viewing assumption from light-lab",
+    "license": "Manufacturer download; no explicit open redistribution license located in inspected page/package"
+  },
+  {
+    "id": "eterna_bb",
+    "name": "ETERNA-BB",
+    "source": "https://www.fujifilm-x.com/global/support/download/lut/",
+    "sourceFile": "FLog2_to_ETERNA-BB_33grid_V.1.00.cube",
+    "sourceSha256": "61404637816b57af5af17c82efc4b1349ab0f30a143795779b216b623b487ec3",
+    "payloadSha256": "7ab10a9c945f47cf2ef46a1f86da8b950b67c7c4e75bc79a33c13d2c05c48807",
+    "outputTransfer": "gamma 2.2 viewing assumption from light-lab",
+    "license": "Manufacturer download; no explicit open redistribution license located in inspected page/package"
+  },
+  {
+    "id": "eterna",
+    "name": "ETERNA",
+    "source": "https://www.fujifilm-x.com/global/support/download/lut/",
+    "sourceFile": "FLog2_to_ETERNA_33grid_V.1.00.cube",
+    "sourceSha256": "4fe74f18d88b81124b688a218d9be4ac23c41d467430ec31cfe5d70aa2de5bb8",
+    "payloadSha256": "ddc3244731ad798666f39f5f8c82e94d9f3587b8b0639ea5fbc58f441e53ce69",
+    "outputTransfer": "gamma 2.2 viewing assumption from light-lab",
+    "license": "Manufacturer download; no explicit open redistribution license located in inspected page/package"
+  },
+  {
+    "id": "pro_negstd",
+    "name": "PRO-Neg.Std",
+    "source": "https://www.fujifilm-x.com/global/support/download/lut/",
+    "sourceFile": "FLog2_to_PRO-Neg.Std_33grid_V.1.00.cube",
+    "sourceSha256": "a2fe3a8a1730c8428d1878a7628c45a452c8031990e13fb4b9680d3cc4fb9680",
+    "payloadSha256": "b36585755cc3d26a3677099f4accd92682b0c282d006d140e674934f28634550",
+    "outputTransfer": "gamma 2.2 viewing assumption from light-lab",
+    "license": "Manufacturer download; no explicit open redistribution license located in inspected page/package"
+  },
+  {
+    "id": "provia",
+    "name": "PROVIA",
+    "source": "https://www.fujifilm-x.com/global/support/download/lut/",
+    "sourceFile": "FLog2_to_PROVIA_33grid_V.1.00.cube",
+    "sourceSha256": "6b603a266584f19a988a352bc311ea64192fe460ed3493fe97aeef5afbe8a239",
+    "payloadSha256": "e317bc5966267b9c2b23f33caf09a0340a6c3c403f5ebedb40ed772416b6c05a",
+    "outputTransfer": "gamma 2.2 viewing assumption from light-lab",
+    "license": "Manufacturer download; no explicit open redistribution license located in inspected page/package"
+  },
+  {
+    "id": "reala_ace",
+    "name": "REALA-ACE",
+    "source": "https://www.fujifilm-x.com/global/support/download/lut/",
+    "sourceFile": "FLog2_to_REALA-ACE_33grid_V.1.00.cube",
+    "sourceSha256": "99d30c17b9246130fe0b4ae37e0207adb811e39ce4eb092f9186072173982749",
+    "payloadSha256": "1bca3a9dfb53bef6e067cd1cd9afa414b43aa7bd8a5e74f13827b3a478f57b84",
+    "outputTransfer": "gamma 2.2 viewing assumption from light-lab",
+    "license": "Manufacturer download; no explicit open redistribution license located in inspected page/package"
+  },
+  {
+    "id": "velvia",
+    "name": "Velvia",
+    "source": "https://www.fujifilm-x.com/global/support/download/lut/",
+    "sourceFile": "FLog2_to_Velvia_33grid_V.1.00.cube",
+    "sourceSha256": "1e7cea327d920e50dcfafeb16e463d596cf7940ab211f8b5b66ebf91769e0de6",
+    "payloadSha256": "55c2c1bb877da00cd11e7a5804212086c209a281b2e45b8335db2bf25a7a0389",
+    "outputTransfer": "gamma 2.2 viewing assumption from light-lab",
+    "license": "Manufacturer download; no explicit open redistribution license located in inspected page/package"
+  }
+]

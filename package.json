@@ -56,6 +56,9 @@
     "build:bsdf-harness": "node scripts/build-bsdf-harness.mjs",
     "fetch-samples": "node scripts/fetch-samples.mjs",
     "smoke": "node scripts/smoke.mjs",
+    "smoke:lut": "node scripts/lut-smoke.mjs",
+    "smoke:oidn": "node scripts/oidn-smoke.mjs",
+    "fetch-oidn-weights": "node scripts/fetch-oidn-weights.mjs",
     "build:lib": "vite build --config vite.lib.config.ts && tsc -p tsconfig.build.json",
     "dev:view": "vite --config examples/view/vite.config.ts",
     "build:view": "tsc --noEmit && vite build --config examples/view/vite.config.ts",
@@ -70,6 +73,7 @@
     "vitest": "^3.0.0"
   },
   "dependencies": {
-    "@webgpu/types": "^0.1.60"
+    "@webgpu/types": "^0.1.60",
+    "oidn-webgpu": "0.6.0"
   }
 }

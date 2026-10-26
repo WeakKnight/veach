@@ -3,6 +3,10 @@
 Exposure, local exposure and tone mapping are presentation settings (`isPresentationSetting`):
 changing them never resets accumulation.
 
+When OIDN is enabled and complete, histogram, local exposure and tone mapping read the denoised
+HDR presentation buffer at the same pre-exposure scale. Raw path-tracing accumulation stays
+untouched. Display/LUT changes reuse the denoised result. See [Denoising.md](Denoising.md).
+
 ## Tone mapping
 
 `Tonemapper.ACES2` (default) is the official ACES 2.0 Output Transform (SDR 100 nit, Rec.709
@@ -17,6 +21,33 @@ limiting, sRGB piecewise encoding).
   ACES2065-1 (Bradford, matching OCIO), and run the transform.
 - `tests/aces2.test.ts` checks the port against `tests/fixtures/aces2-reference.json` from
   OpenColorIO (`python scripts/aces2-reference.py` regenerates it).
+
+## User and bundled display LUTs
+
+`Renderer.setDisplayTransform({ type: 'builtin', preset: 'astia' })` selects one of ten bundled
+F-Gamut / F-Log2 film-simulation LUTs. Passing a `type: 'lut'` descriptor selects application-owned
+data; `null` restores `settings.tonemapper` (ACES2 by default). Built-in data lives in separate
+lazy JS chunks in the npm release; the default path downloads none of those chunks.
+
+The custom path replaces ACES and runs after global exposure: scene-linear Rec.709/D65 ->
+declared input primaries -> input transfer -> domain normalization/clamp -> trilinear RGB LUT ->
+output transfer decode -> display-linear Rec.709 -> one sRGB encode. It preserves HDR and negative
+scene inputs until transfer/domain handling. F-Log2 uses the v1.1 piecewise formula (black 0.092864,
+18% gray 0.39100724); input is not scaled by the ACES PQ path's 100-nit factor.
+
+Supported primaries are Rec.709 and Rec.2020 (D65). Transfers are linear, sRGB, explicit gamma;
+input also supports F-Log2. Output is SDR sRGB; this does not enable HDR monitor output. Bundled
+LUTs match light-lab's Rec.709 gamma-2.2 output viewing assumption, recorded in their provenance.
+
+LUT mode suppresses Fusion local exposure and its visualization without modifying saved settings.
+Clearing the transform restores the previous local-exposure configuration. Calibration of local
+exposure for arbitrary LUTs is not implemented; only `localExposure: 'off'` is accepted. Auto
+exposure remains available; use Manual for fixed-exposure comparisons with external grading tools.
+
+The present pass owns a separate rgba32float 3D texture, with manual trilinear interpolation and
+a 64-byte parameter uniform (bindings 10/11). No added compute-stage storage buffers. Uploads
+validate/snapshot data, replace old resources only after successful creation, and discard obsolete
+requests. Swapping LUTs never resets accumulation. CPU reference: `render/color/LUT.ts`.
 
 ## Exposure
 

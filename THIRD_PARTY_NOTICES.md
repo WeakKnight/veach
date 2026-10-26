@@ -6,6 +6,19 @@ the top-level MIT license does not replace those terms. These notices and the
 `licenses/` directory are included in the npm distribution, even when the corresponding
 runtime code or data is embedded in JavaScript or WebAssembly.
 
+## FUJIFILM film-simulation LUT data
+
+- Author: FUJIFILM Corporation; source: https://www.fujifilm-x.com/global/support/download/lut/ .
+- Ten 33³ FLog2 film-simulation LUTs supplied through the user's light-lab workspace: PROVIA,
+  ASTIA, Velvia, CLASSIC CHROME, REALA ACE, PRO Neg.Std, CLASSIC Neg., ETERNA, ETERNA BB and ACROS.
+- The original `.cube` values were repacked as little-endian RGB float32 data; shipped as lazy
+  JavaScript chunks. Source and payload hashes are included in `licenses/fujifilm-luts.txt`.
+- These manufacturer assets are not covered by Veach's MIT license. The supplied provenance records
+  manufacturer download terms and no explicit open redistribution license. No additional license
+  grant for the LUT data is asserted by this package.
+- The F-Gamut/F-Log2 input adapter follows the manufacturer's v1.1 data sheet. Output uses the
+  light-lab gamma-2.2 viewing assumption, followed by sRGB display encoding.
+
 ## tinybvh
 
 - Upstream: https://github.com/jbikker/tinybvh
@@ -72,6 +85,15 @@ runtime code or data is embedded in JavaScript or WebAssembly.
   they do not imply that the compiler or all its libraries ship in the npm package.
 
 ## Separately installed and development dependencies
+
+- `oidn-webgpu` 0.6.0: https://github.com/pissang/oidn-webgpu, MIT.
+  Installed separately and dynamically imported for optional HDR denoising; its full notice is
+  in `licenses/oidn-webgpu-MIT.txt`. The bundled `rt_hdr_alb_nrm.tza` model is distributed
+  in a separate lazy chunk, under Apache-2.0 (`licenses/oidn-weights-Apache-2.0.txt`).
+  SHA-256: `e586ef2ff48d7fbb7611986405220ed8fc5c13ca79bfc40be4dc742fbf959e1a`.
+  The model and external-model smoke fixture come from upstream
+  commit `aee3d609e1d45eb14da7c3010bb9aa4bd9988d6c` (Apache-2.0,
+  https://github.com/pissang/oidn-webgpu/blob/aee3d609e1d45eb14da7c3010bb9aa4bd9988d6c/weights/LICENSE.txt).
 
 - `@webgpu/types`: https://github.com/gpuweb/types, BSD-3-Clause,
   Copyright 2022 WebGPU Developers. Installed separately for the public declarations;

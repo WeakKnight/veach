@@ -2,6 +2,18 @@
 
 ## Source layout
 
+Custom display LUTs use `src/render/color/` for validated data, color-space adapters, GPU resources
+and lazy built-in presets. Present bindings 10 (unfilterable float32 3D LUT) and 11 (64-byte uniform)
+are separate from the compute scene layouts; the eight-storage-buffer budget is unchanged.
+
+Optional OIDN uses `src/render/denoise/` and `Passes/OIDNGuides.slang` (Prepare/Compose).
+It snapshots accumulated HDR/albedo/normal into separate GPU inputs at maxSamples and feeds
+denoised HDR to all presentation passes without overwriting accumulation. The independent
+guiding layout uses four storage buffers; scene bindings remain unchanged. See [Denoising.md](Denoising.md).
+`oidn-webgpu` is a pinned, separately installed dependency loaded dynamically. The default HDR
+TZA model is bundled in its own lazy JS chunk. New renderers default to 128 samples and OIDN;
+passing `denoiser: null` to `Renderer.create` avoids inference/model downloads.
+
 The working tree contains the web renderer and its current `<veach-view>` demo. The former
 `Legacy/` C++ tree and its submodule are absent; their source remains in the
 [upstream Mozi repository's history](https://github.com/Mozi-Renderer/Mozi), not this repository's history.

@@ -16,6 +16,7 @@ const exe = isWindows ? 'slangc.exe' : 'slangc';
 
 // Each program becomes one WGSL module containing all of its entry points.
 const programs = [
+	{ name: 'OIDNGuides', source: 'Passes/OIDNGuides.slang', entries: [['Prepare', 'compute'], ['Compose', 'compute']] },
 	{ name: 'PathTracing', source: 'Passes/PathTracing.slang', entries: [['main', 'compute']] },
 	{ name: 'Present', source: 'Passes/Present.slang', entries: [['vsMain', 'vertex'], ['fsMain', 'fragment']] },
 	{

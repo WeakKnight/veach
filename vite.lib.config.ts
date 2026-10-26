@@ -12,6 +12,7 @@ export default defineConfig({
 		// Release packages contain compiled code only; maps embed the original TypeScript.
 		sourcemap: false,
 		minify: 'esbuild',
+		rollupOptions: { external: ['oidn-webgpu'] },
 		lib: {
 			entry: { index: 'src/index.ts', view: 'src/view/index.ts' },
 			formats: ['es'],

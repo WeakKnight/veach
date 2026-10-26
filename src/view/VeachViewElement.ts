@@ -1,6 +1,8 @@
 // <veach-view>: the Veach renderer as a custom element. One <canvas>, one WebGPU device, progressive
 // path tracing, with a progress bar until the shaders have compiled and the first scene has loaded.
 import { OrbitController } from '../render/Camera';
+import type { DisplayTransform, DisplayTransformResult } from '../render/color/BuiltinLUTs';
+import type { OIDNDenoiserOptions } from '../render/denoise/OIDNDenoiser';
 import { AutoExposureMethod } from '../render/AutoExposure';
 import { DebugMode, Tonemapper } from '../render/GpuLayout';
 import type { SunSettings } from '../render/Environment';
@@ -22,6 +24,7 @@ export interface VeachViewProgress {
 }
 
 export interface VeachViewEventMap extends HTMLElementEventMap {
+	'veach-displaychange': CustomEvent<DisplayTransformResult>;
 	/** The renderer is created (the shaders have compiled). */
 	'veach-ready': CustomEvent<Renderer>;
 	/** A scene has loaded. */
@@ -100,6 +103,8 @@ export class VeachViewElement extends HTMLElement {
 	private readonly fallbackBox: HTMLElement;
 
 	private _renderer: Renderer | null = null;
+	private _displayTransform: DisplayTransform | null = null;
+	private _denoiser: OIDNDenoiserOptions | null = { type: 'oidn' };
 	private generation = 0; // bumped on dispose; late results of an older generation are dropped
 	private creating = false;
 	private fatal: Error | null = null;
@@ -223,6 +228,40 @@ export class VeachViewElement extends HTMLElement {
 		this._renderer?.frameScene();
 	}
 
+	/** Initial or runtime OIDN configuration; state is in renderer.denoising / veach-stats. */
+	get denoiser(): OIDNDenoiserOptions | null { return this._denoiser; }
+	set denoiser(value: OIDNDenoiserOptions | null) {
+		this._denoiser = value;
+		if (this._renderer) void this.setDenoiser(value).catch(error => this.report(toError(error)));
+	}
+
+	async setDenoiser(value: OIDNDenoiserOptions | null): Promise<boolean> {
+		const renderer = this._renderer;
+		if (!renderer) throw new Error('Wait for veach-ready before calling setDenoiser');
+		const applied = await renderer.setDenoiser(value);
+		if (applied && renderer === this._renderer) this._denoiser = value;
+		return applied;
+	}
+
+	/** Requested display transform; may be assigned before connecting the element. */
+	get displayTransform(): DisplayTransform | null { return this._displayTransform; }
+	set displayTransform(value: DisplayTransform | null) {
+		this._displayTransform = value;
+		if (this._renderer) void this.setDisplayTransform(value).catch(error => this.report(toError(error)));
+	}
+
+	/** Await application after veach-ready; use the property for initial configuration. */
+	async setDisplayTransform(value: DisplayTransform | null): Promise<DisplayTransformResult> {
+		const renderer = this._renderer;
+		if (!renderer) throw new Error('Wait for veach-ready before calling setDisplayTransform');
+		const result = await renderer.setDisplayTransform(value);
+		if (result.applied && renderer === this._renderer) {
+			this._displayTransform = value;
+			this.emit('veach-displaychange', result);
+		}
+		return result;
+	}
+
 	resetAccumulation(): void {
 		this._renderer?.resetAccumulation();
 	}
@@ -297,7 +336,7 @@ export class VeachViewElement extends HTMLElement {
 			this.updateProgress();
 			this.emit('veach-progress', p);
 		};
-		Renderer.create(this.canvas, { onProgress }).then(
+		Renderer.create(this.canvas, { onProgress, denoiser: null }).then(
 			(renderer) => {
 				if (!current()) {
 					renderer.destroy();
@@ -307,6 +346,8 @@ export class VeachViewElement extends HTMLElement {
 				this._renderer = renderer;
 				renderer.onStats = (s) => this.onStats(s);
 				this.applySettings();
+				if (this._displayTransform) void this.setDisplayTransform(this._displayTransform).catch(error => this.report(toError(error)));
+				if (this._denoiser) void this.setDenoiser(this._denoiser).catch(error => this.report(toError(error)));
 				this.applySun();
 				this.updateRunning();
 				this.updateControls();

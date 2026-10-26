@@ -113,7 +113,10 @@ and `environmentIntensity`.
 | `renderer.renderFrame()` | Render from an application-owned loop; do not also call `start()` |
 | `renderer.resetAccumulation()` | Restart progressive sampling after manual camera / lighting changes |
 | `renderer.onStats` | Frame statistics callback for the owned loop |
-| `renderer.readRadiance()` | Read scene-linear RGB pixels and sample count |
+| `renderer.readRadiance({ denoised?: boolean })` | Read scene-linear RGB pixels; original by default, current denoised presentation source when requested |
+| `renderer.setDenoiser(options \| null)` | Load HDR OIDN and enable automatic denoising at maxSamples; null disables it |
+| `renderer.denoising` | Immutable loading / progress / ready / error state, also in RendererStats |
+| `renderer.createDenoisingInputs()` | Create caller-owned GPU color/albedo/normal snapshots; call destroy() after use |
 | `renderer.destroy()` | Stop rendering and release renderer-owned GPU resources |
 | `OrbitController.dispose()` | Detach input listeners |
 
@@ -161,6 +164,111 @@ Events are typed through `VeachViewEventMap`: `veach-ready`, `veach-load`, `veac
 
 `defineVeachView(tag)` registers a custom tag. `attachFileDrop(element, handlers)` and
 `loadDroppedFiles(files)` allow an application to provide its own drop surface.
+
+## Custom display transforms and built-in LUTs
+
+No configuration is required for the existing ACES2 default. The ten bundled looks are listed in
+`BUILTIN_LUTS` (immutable `{ id, name }` entries); bytes load only when selected.
+
+```ts
+import { BUILTIN_LUTS, parseCubeLUT, parseLUT3D } from '@tianyuliwiwo/veach';
+
+await renderer.setDisplayTransform({ type: 'builtin', preset: 'astia' });
+await renderer.setDisplayTransform(null); // restore settings.tonemapper (default ACES2)
+
+const response = await fetch('/looks/my-look.cube');
+if (!response.ok) throw new Error(`LUT download failed: ${response.status}`);
+const lut = parseCubeLUT(await response.text());
+await renderer.setDisplayTransform({
+	type: 'lut', lut,
+	input: { primaries: 'rec2020', transfer: 'f-log2' },
+	output: { primaries: 'rec709', transfer: { type: 'gamma', exponent: 2.2 } },
+	interpolation: 'trilinear', outOfDomain: 'clamp', localExposure: 'off',
+});
+```
+
+Input/output metadata must describe the actual LUT; `.cube` domains do not identify a color space.
+The example matches the bundled light-lab LUTs. `parseLUT3D(buffer, { format: 'float32-le', size: 33,
+layout: 'rgb-r-fastest', domainMin: [0,0,0], domainMax: [1,1,1] })` reads their headerless binary format.
+The binary domains default to [0,1]. Direct `LUT3D` data uses Float32 RGB triplets with red varying
+fastest. Sizes 2..128 are accepted; finite values and valid per-axis domains are required. Negative
+and HDR output values are preserved until display handling. `.cube` supports `LUT_3D_SIZE`, `TITLE`,
+`DOMAIN_MIN/MAX` and comments; 1D/shaper/range directives are rejected explicitly. Input is bounded
+to the declared domain at lookup; no extrapolation or full/video-range conversion is implicit.
+
+Primaries: `rec709` / `rec2020`, both D65. Input transfer: `linear`, `srgb`, `f-log2`, or
+`{ type: 'gamma', exponent }`. Output transfer: linear/sRGB/gamma. Gamma encoding means
+code = linear^(1/exponent), decoding means linear = max(code,0)^exponent. This is an SDR display
+transform replacing the built-in tone mapper, not a second look after ACES. F-Gamut/F-Log2 input
+uses Rec.2020 primaries and F-Log2 transfer. The built-in gamma-2.2 output is a viewing assumption
+from light-lab, not inferred from BT.709 primaries.
+
+`setDisplayTransform()` returns `{ applied, type, preset?, localExposure }`; superseded requests
+return `applied: false`. `renderer.displayTransform` exposes the immutable active state. Invalid
+data or a failed upload rejects without replacing the active transform. Caller arrays are copied.
+Only a successful change affects subsequent presentation; accumulation and `readRadiance()` remain
+unchanged. `null` restores saved local exposure as well as the selected built-in tone mapper.
+Local exposure is disabled while any LUT is active; optional calibration is not yet supported.
+Auto exposure remains controlled by `renderer.settings`; use Manual for reproducible comparisons.
+
+`loadBuiltinLUT(id)` returns an independent `LUTDisplayTransform` descriptor for inspection or CPU
+evaluation. `evaluateDisplayTransform(desc, rgb)` evaluates exposed scene-linear Rec.709 into
+display-linear Rec.709 (before final clip/sRGB encode). `sampleLUT3D(lut, encoded)` samples encoded
+LUT coordinates, unlike the legacy ACES-specific `sampleToneLUT` and `ToneLUT` helpers.
+
+For the custom element, assign `view.displayTransform` before or after connection; failures emit
+`veach-error`. After `veach-ready`, `await view.setDisplayTransform(desc)` confirms application.
+Successful changes emit `veach-displaychange`. Initial LUT loading may finish after `veach-ready`.
+
+## OIDN at the sample limit
+
+```ts
+renderer.settings.maxSamples = 128;
+await renderer.setDenoiser({
+  type: 'oidn',
+  // weights: '/weights/rt_hdr_alb_nrm.tza', // optional override; URL or ArrayBuffer
+  maxTileSize: 256,                     // optional; 32..512, multiple of 16
+  precision: 'auto',                    // auto / fp16 / fp32
+});
+renderer.start();
+// renderer.denoising: { status, progress, samples, durationMs?, error? }
+// renderer.onStats also receives stats.denoising.
+
+const original = await renderer.readRadiance();
+const displayedHDR = await renderer.readRadiance({ denoised: true });
+await renderer.setDenoiser(null); // raw presentation; keep accumulated samples
+```
+
+New renderers default to **128 samples and OIDN enabled**. `Renderer.create(canvas)` loads the
+bundled HDR model asynchronously alongside rendering; no configuration is required. The example
+above is only needed to change the defaults. To start without OIDN or its downloads, use
+`Renderer.create(canvas, { denoiser: null })`. `setDenoiser({ type: 'oidn' })` re-enables it.
+Inference code and bundled model data are separate lazy chunks. To override the model, host the
+upstream HDR **noisy albedo + normal** model (`rt_hdr_alb_nrm.tza` or its `_small` variant)
+with your app, retaining its Apache-2.0 license. Do not use clean-guide,
+LDR or lightmap-log models with this adapter. `setDenoiser` resolves `true` when applied, `false`
+when superseded/disposed, and rejects load/configuration errors.
+
+While enabled, one denoise runs when beauty reaches a positive `maxSamples` and texture streaming
+settles. `maxSamples = 0` is unlimited and never triggers. Keep `start()` running or continue
+calling `renderFrame()` while feedback drains. Resetting accumulation or resuming sampling
+invalidates old work; an obsolete in-flight result cannot overwrite a new image. Exposure and
+display LUT changes reuse the denoised HDR. A failure keeps the raw image and records an error;
+there is no automatic per-frame retry. Call `setDenoiser` again to reload/retry.
+
+For other GPU consumers, `renderer.createDenoisingInputs()` returns caller-owned snapshots:
+`{ width, height, samples, preExposure, color, albedo, normal, destroy() }`. All three buffers
+are tightly packed RGBA float32, top row first, with STORAGE/COPY_SRC usage on `renderer.device`.
+Color is scene-linear Rec.709 multiplied by `preExposure`, albedo is linear [0,1], and normals are
+averaged world-space shading normals encoded `n * 0.5 + 0.5`. No display transform is included.
+Do not renormalize these averaged normals; background is encoded (0.5,0.5,0.5). Snapshots require
+a live beauty accumulation with at least one sample. Call `destroy()` when GPU consumers finish.
+These are primary-hit guides, not reflection/transmission-aware guides. The original
+accumulation is always retained; `readRadiance({ denoised: true })` falls back to it until ready.
+
+For `<veach-view>`, set `view.denoiser` before connecting or call `await view.setDenoiser(options)`
+after `veach-ready`. Initial loading may finish after `veach-ready`; errors use `veach-error`,
+and `veach-stats` includes the denoising state.
 
 ## Extending the API
 
