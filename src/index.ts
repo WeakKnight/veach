@@ -1,5 +1,5 @@
 /// <reference types="@webgpu/types" preserve="true" />
-// Public API for `veach`. Add supported exports here deliberately and document them in
+// Public API for `@tianyuliwiwo/veach`. Add supported exports here deliberately and document them in
 // docs/PublicAPI.md. Implementation paths are not package entry points.
 
 // Renderer lifecycle, settings and progress.

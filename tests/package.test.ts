@@ -1,5 +1,5 @@
-// The core entry (`veach`) must load without a DOM (Node, SSR, workers); the DOM-dependent
-// <veach-view> lives in `veach/view`.
+// The core entry (`@tianyuliwiwo/veach`) must load without a DOM (Node, SSR, workers); the DOM-dependent
+// <veach-view> lives in `@tianyuliwiwo/veach/view`.
 import { describe, expect, it } from 'vitest';
 
 describe('package entry points', () => {

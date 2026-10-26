@@ -27,8 +27,8 @@ src/
   app/              main.ts (minimal viewer: drag & drop, URL params, keys), BlendSettings.ts (applies a .blend world
                     (constant / Nishita sky), view transform and exposure to the Renderer)
   view/             <veach-view> custom element (VeachViewElement: renderer lifetime, scene / environment loads, progress, stats,
-                    events) and fileDrop (drag & drop loading). The `veach/view` entry; index.ts is the core entry
-  index.ts          `veach` entry: renderer and loaders, no DOM side effects (tests/package.test.ts)
+                    events) and fileDrop (drag & drop loading). The `@tianyuliwiwo/veach/view` entry; index.ts is the core entry
+  index.ts          `@tianyuliwiwo/veach` entry: renderer and loaders, no DOM side effects (tests/package.test.ts)
   scene/Scene.ts    Backend-independent SceneDesc (meshes, materials, textures, instances, cameras)
   material/         MaterialX-subset graphs (MaterialSystem.md): Graph, NodeDefs, GLTFMaterial (glTF -> graph), Lower (-> open_pbr_surface),
                     Optimize, Evaluate (graph reference), Bytecode + Compile (-> programs), Interpreter (CPU reference of MaterialProgram.slang)
@@ -66,7 +66,7 @@ reachable from the current public entries. `@webgpu/types` remains an installed 
 the public declarations. No Slang, WASM or BSDF rebuild
 is needed for packaging-only changes: their committed generated outputs are consumed as-is.
 
-The explicit exports in `src/index.ts` (`veach`) and `src/view/index.ts` (`veach/view`) are the
+The explicit exports in `src/index.ts` (`@tianyuliwiwo/veach`) and `src/view/index.ts` (`@tianyuliwiwo/veach/view`) are the
 public API layer. Package `exports` blocks deep imports into implementation modules. Generated
 declarations and [PublicAPI.md](PublicAPI.md) ship with the release, so trimming source files
 does not remove supported APIs. Future API additions belong in these entry points with their

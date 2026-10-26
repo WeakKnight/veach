@@ -2,8 +2,6 @@
 
 A physically based path tracer for the web: **WebGPU** compute, **tinybvh** (compiled to WebAssembly) for BVH construction, and BVH traversal / shading written in **Slang** and compiled to WGSL. Renders glTF 2.0 assets.
 
-Veach is based on the Mozi web renderer. The original C++ XPU renderer (CPU / OptiX / Metal, editor) remains in the [upstream Mozi repository's history](https://github.com/Mozi-Renderer/Mozi) under the former `Legacy/` directory for porting reference.
-
 ## Features
 
 - Megakernel unidirectional path tracer with multiple importance sampling between BSDF sampling and next event estimation (environment map, emissive triangles, analytic sun)
@@ -34,10 +32,10 @@ Other parameters: `spp=<n>` stops after n samples, `debug=<0..9>` selects a debu
 ## npm package
 
 ```sh
-npm install veach
+npm install @tianyuliwiwo/veach
 ```
 
-The package is ES modules with TypeScript declarations; shaders, the tinybvh wasm and the BSDF tables are inlined, so it needs no asset configuration in any bundler. `veach` is the renderer and loaders (no DOM side effects, imports in Node); `veach/view` adds the `<veach-view>` custom element.
+The package is ES modules with TypeScript declarations; shaders, the tinybvh wasm and the BSDF tables are inlined, so it needs no asset configuration in any bundler. `@tianyuliwiwo/veach` is the renderer and loaders (no DOM side effects, imports in Node); `@tianyuliwiwo/veach/view` adds the `<veach-view>` custom element.
 
 See the [public API guide](docs/PublicAPI.md) for custom canvas integration, application-owned
 scene loading, environment switching, component embedding and resource cleanup.
@@ -54,15 +52,15 @@ and WGSL remain readable; this packaging does not encrypt or hide the runtime im
 
 ```html
 <script type="module">
-	import 'veach/view'; // registers <veach-view>
+	import '@tianyuliwiwo/veach/view'; // registers <veach-view>
 </script>
 
 <veach-view model="/model.glb" environment="/env.hdr" show-stats droppable style="height: 600px"></veach-view>
 ```
 
 ```ts
-import 'veach/view';
-import { Tonemapper } from 'veach';
+import '@tianyuliwiwo/veach/view';
+import { Tonemapper } from '@tianyuliwiwo/veach';
 
 const view = document.querySelector('veach-view')!;
 view.settings = { maxBounces: 8, maxSamples: 1024, tonemapper: Tonemapper.ACES2 }; // partial RenderSettings
@@ -87,7 +85,7 @@ Each view owns its own WebGPU device.
 ### Renderer
 
 ```ts
-import { Renderer, loadGLTF, loadHDR, OrbitController } from 'veach';
+import { Renderer, loadGLTF, loadHDR, OrbitController } from '@tianyuliwiwo/veach';
 
 const renderer = await Renderer.create(canvas, { onProgress: (p) => console.log(p.message, p.progress) });
 new OrbitController(renderer.camera, canvas, () => renderer.resetAccumulation());

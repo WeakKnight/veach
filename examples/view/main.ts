@@ -14,8 +14,8 @@ import {
 	type RenderSettings,
 	type SceneDesc,
 	type SceneStats,
-} from 'veach';
-import { attachFileDrop } from 'veach/view';
+} from '@tianyuliwiwo/veach';
+import { attachFileDrop } from '@tianyuliwiwo/veach/view';
 
 const base = import.meta.env.BASE_URL;
 const MODELS = [

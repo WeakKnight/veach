@@ -14,8 +14,8 @@
     "allowJs": false,
     "noEmit": true,
     "paths": {
-      "veach": ["./src/index.ts"],
-      "veach/view": ["./src/view/index.ts"]
+      "@tianyuliwiwo/veach": ["./src/index.ts"],
+      "@tianyuliwiwo/veach/view": ["./src/view/index.ts"]
     }
   },
   "include": ["src", "tests", "examples"]

@@ -1,7 +1,11 @@
 {
-  "name": "veach",
+  "name": "@tianyuliwiwo/veach",
   "version": "0.1.0",
   "license": "MIT",
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  },
   "description": "Veach: a WebGPU path tracer for glTF and .blend assets (tinybvh + Slang), with a <veach-view> custom element",
   "keywords": [
     "webgpu",

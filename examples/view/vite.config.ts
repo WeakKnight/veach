@@ -1,4 +1,4 @@
-// <veach-view> demo: resolves `veach` / `veach/view` to the sources and serves the
+// <veach-view> demo: resolves `@tianyuliwiwo/veach` / `@tianyuliwiwo/veach/view` to the sources and serves the
 // repo's public/ (samples).
 import { fileURLToPath } from 'node:url';
 import { defineConfig } from 'vite';
@@ -11,8 +11,8 @@ export default defineConfig({
 	publicDir: repo('public'),
 	resolve: {
 		alias: [
-			{ find: /^veach\/view$/, replacement: repo('src/view/index.ts') },
-			{ find: /^veach$/, replacement: repo('src/index.ts') },
+			{ find: /^@tianyuliwiwo\/veach\/view$/, replacement: repo('src/view/index.ts') },
+			{ find: /^@tianyuliwiwo\/veach$/, replacement: repo('src/index.ts') },
 		],
 	},
 	optimizeDeps: {

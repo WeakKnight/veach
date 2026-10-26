@@ -6,18 +6,18 @@ declarations are shipped in the release package. Applications should not import 
 
 | Import | Purpose |
 | --- | --- |
-| `veach` | Renderer, scene loaders, scene data types, camera, settings and advanced utilities |
-| `veach/view` | `<veach-view>`, typed component events and drag-and-drop helpers |
+| `@tianyuliwiwo/veach` | Renderer, scene loaders, scene data types, camera, settings and advanced utilities |
+| `@tianyuliwiwo/veach/view` | `<veach-view>`, typed component events and drag-and-drop helpers |
 
 The core entry can be imported without a DOM in Node / SSR. Creating a renderer requires a
-browser with WebGPU and an HTML canvas. Import `veach/view` only in the browser: it registers
+browser with WebGPU and an HTML canvas. Import `@tianyuliwiwo/veach/view` only in the browser: it registers
 the custom element. JavaScript applications use the same API; TypeScript adds completion and
 type checking without requiring the original sources.
 
 ## Embed in your own canvas
 
 ```ts
-import { Renderer, OrbitController, loadGLTF, loadHDR } from 'veach';
+import { Renderer, OrbitController, loadGLTF, loadHDR } from '@tianyuliwiwo/veach';
 
 const canvas = document.createElement('canvas');
 canvas.style.cssText = 'width:100%;height:480px;display:block';
@@ -58,7 +58,7 @@ one scene change before starting the next. The renderer observes canvas size cha
 For custom authentication, caching or downloads, fetch the bytes yourself:
 
 ```ts
-import { parseGLTF, type SceneDesc } from 'veach';
+import { parseGLTF, type SceneDesc } from '@tianyuliwiwo/veach';
 
 const response = await fetch('/models/scene.glb');
 if (!response.ok) throw new Error(`Model request failed: ${response.status}`);
@@ -73,12 +73,12 @@ material. For custom materials, the `MaterialDesc.graph` is the shading represen
 changing legacy scalar material fields alone does not rebuild that graph.
 
 The standalone development viewer also imports `.blend` files. Its Blender loader is currently
-an internal module, not an export of `veach`; the public loaders listed above are glTF and HDR.
+an internal module, not an export of `@tianyuliwiwo/veach`; the public loaders listed above are glTF and HDR.
 
 ## Switch environment maps
 
 ```ts
-import { loadHDR, parseHDR, type HDRImage } from 'veach';
+import { loadHDR, parseHDR, type HDRImage } from '@tianyuliwiwo/veach';
 
 // Replace the environment at any time.
 renderer.setEnvironment(await loadHDR('/environments/outdoor.hdr'));
@@ -126,8 +126,8 @@ scene again to rebuild its acceleration structure.
 ## Embed the component
 
 ```ts
-import 'veach/view';
-import { loadGLTF, loadHDR, Tonemapper } from 'veach';
+import '@tianyuliwiwo/veach/view';
+import { loadGLTF, loadHDR, Tonemapper } from '@tianyuliwiwo/veach';
 
 const view = document.createElement('veach-view');
 view.style.height = '480px';

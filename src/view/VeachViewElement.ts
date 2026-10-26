@@ -74,7 +74,7 @@ const BOOLEAN_ATTRIBUTES = ['paused', 'show-stats', 'controls', 'use-scene-camer
 
 /**
  * `<veach-view model="scene.glb" environment="studio.hdr" show-stats>`. Register it with
- * `import 'veach/view'` (or `defineVeachView()`), size it with CSS (360px high by default).
+ * `import '@tianyuliwiwo/veach/view'` (or `defineVeachView()`), size it with CSS (360px high by default).
  *
  * Attributes: `model` and `environment` (URLs), `paused`, `show-stats`, `droppable` (presence), and
  * `controls`, `use-scene-camera`, `progress` (on unless `="false"`). Objects go through properties:

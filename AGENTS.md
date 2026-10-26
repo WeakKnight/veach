@@ -41,7 +41,7 @@ Read the relevant doc before changing a subsystem, and update it with the change
 - Keep CPU references in sync with their shaders: `Interpreter.ts` / `MaterialProgram.slang`, `Procedural.ts` / `Procedural.slang`, `Atmosphere.ts` / `Atmosphere.slang`.
 - Emissive triangles are listed in primitive order (`lightOffset + primIdx`) for MIS; underestimated light power is safe, overestimated is not.
 - Exposure and tone mapping settings are presentation settings and must never reset accumulation.
-- The package is `veach` (`npm run build:lib` -> `dist-lib/`): `src/index.ts` must stay free of DOM side effects; DOM code goes in `src/view` (`veach/view`).
+- The package is `@tianyuliwiwo/veach` (`npm run build:lib` -> `dist-lib/`): `src/index.ts` must stay free of DOM side effects; DOM code goes in `src/view` (`@tianyuliwiwo/veach/view`).
 - Generated code is committed. After editing `shaders/` run `npm run build:shaders`; `wasm/` or tinybvh: `npm run build:wasm`; `shaders/Materials/BSDF`, `shaders/Common` or `tests/bsdf`: `npm run build:bsdf-harness`.
 
 ## Commands
