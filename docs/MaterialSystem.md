@@ -109,6 +109,7 @@ is replaced by the graph; the loader keeps no parallel struct.
 | `base_color` | `base_color` × texture.rgb |
 | `base_metalness`, `specular_roughness` | `metallic` × tex.b, `roughness` × tex.g (one sample of the shared texture) |
 | `specular_ior`, `specular_weight`, `specular_color` | `ior`, `specular` × tex.a, `specular_color` × tex.rgb |
+| `veach_specular_dielectric_only` | true for glTF metallic-roughness; false by default for native OpenPBR |
 | `specular_roughness_anisotropy`, `specular_anisotropy_rotation` | `anisotropy_strength`, `anisotropy_rotation` (+ texture) |
 | `transmission_weight`, `transmission_color`, `transmission_depth` | `transmission` × tex.r; `attenuation_color` / `attenuation_distance` when not thin-walled, else `base_color` |
 | `transmission_dispersion_*` | `dispersion` (Abbe number 20 / dispersion, scale 1) |
@@ -121,6 +122,14 @@ is replaced by the graph; the loader keeps no parallel struct.
 
 Textures the current `Material` struct cannot hold (specular, specular color, sheen,
 iridescence, anisotropy, thickness, clearcoat normal) come for free with the graph.
+
+`KHR_materials_specular` affects only the dielectric BRDF. The import semantic above keeps
+the metal weight equal to metalness and its F82 tint white, independently of specular factor,
+color and textures. It is applied per lobe, so fractional/textured metalness retains the
+original dielectric controls without attenuating the metal contribution. Native OpenPBR
+continues to use specular weight/color for both base components. This corrects black metals
+when a glTF conductor carries `specularFactor: 0`. The fifth field in output group 1 fits
+the existing two uint4 instruction words; no GPU storage buffer or scene layout is added.
 `KHR_materials_unlit` lowers to emission = base color, base / specular weight 0.
 
 `KHR_materials_pbrSpecularGlossiness` (`veach_gltf_specular_glossiness`):

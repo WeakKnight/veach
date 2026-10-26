@@ -54,6 +54,45 @@ class Checker {
 	}
 }
 
+describe('glTF dielectric-only specular controls', () => {
+	const make = (metalness: number, weight: number, color: Vec3, gltf = true, coat = 0): BSDFCase => ({
+		inputs: { ...defaultInputs(), baseColor: [0.92, 0.75, 0.4], baseMetalness: metalness,
+			specularWeight: weight, specularColor: color, specularDielectricOnly: gltf,
+			specularRoughness: 0.3, coatWeight: coat, coatIor: 1.5, coatRoughness: 0.15 },
+		wo: [0.6, 0, 0.8], wi: [-0.6, 0, 0.8], u: [0.25, 0.4, 0.6],
+		throughput: [1, 1, 1], wavelengths: RGB_WAVELENGTHS, exteriorIor: 1,
+	});
+	it('keeps pure metal reflection and sampling independent of specular factor/color, including under a coat', () => {
+		for (const coat of [0, 1]) {
+			const baseline = harness.port([make(1, 1, [1, 1, 1], false, coat)])[0];
+			for (const weight of [0, 0.2, 1]) {
+				const result = harness.port([make(1, weight, [0.1, 0.5, 0.9], true, coat)])[0];
+				expect(result).toEqual(baseline);
+				expect(Math.max(...result.evalSpecular)).toBeGreaterThan(0);
+			}
+		}
+	});
+	it('preserves dielectric behavior and native OpenPBR metal darkening', () => {
+		for (const weight of [0, 0.2, 1]) {
+			expect(harness.port([make(0, weight, [0.2, 0.5, 0.9])])[0])
+				.toEqual(harness.port([make(0, weight, [0.2, 0.5, 0.9], false)])[0]);
+		}
+		expect(harness.port([make(1, 0, [1, 1, 1], false)])[0].evalSpecular).toEqual([0, 0, 0]);
+	});
+	it('keeps the correct metal and dielectric contributions at fractional metalness', () => {
+		for (const weight of [0, 0.2, 1]) {
+			const metal = harness.port([make(1, 1, [1, 1, 1], false)])[0];
+			const dielectric = harness.port([make(0, weight, [0.2, 0.5, 0.9], false)])[0];
+			for (const m of [0.1, 0.5, 0.9]) {
+				const result = harness.port([make(m, weight, [0.2, 0.5, 0.9])])[0];
+				for (const field of ['evalSpecular', 'evalDiffuse'] as const) {
+					for (let c = 0; c < 3; c++) expect(result[field][c]).toBeCloseTo(m * metal[field][c] + (1 - m) * dielectric[field][c], 5);
+				}
+			}
+		}
+	});
+});
+
 describe('BSDF harness', () => {
 	it('is built from the current sources', () => {
 		const built = JSON.parse(readFileSync(join(root, 'tests', 'generated', 'bsdf', 'BSDFHarness.json'), 'utf8')).sourceHash;

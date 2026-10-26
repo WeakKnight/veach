@@ -31,6 +31,7 @@ struct BSDFInputs
 	float subsurfaceScatterAnisotropy;
 
 	float specularWeight;
+	bool specularDielectricOnly; // glTF import semantic; false retains OpenPBR behavior.
 	float3 specularColor;
 	float specularRoughness;
 	float specularRoughnessAnisotropy;
@@ -85,6 +86,7 @@ struct BSDFInputs
 		i.subsurfaceScatterAnisotropy = 0.0;
 
 		i.specularWeight = 1.0;
+		i.specularDielectricOnly = false;
 		i.specularColor = float3(1.0);
 		i.specularRoughness = 0.3;
 		i.specularRoughnessAnisotropy = 0.0;
@@ -371,12 +373,13 @@ LayeredLobe PrepareLobes(BSDFInputs inputs, VolumeDerived derived, float3 wo, fl
 	float trans = dielectric * inputs.transmissionWeight;
 	float sss = nonTrans * dielectric * inputs.subsurfaceWeight;
 
-	float darkenedMetal = inputs.baseMetalness * inputs.specularWeight;
+	float darkenedMetal = inputs.baseMetalness * (inputs.specularDielectricOnly ? 1.0 : inputs.specularWeight);
+	float3 metalF82Tint = inputs.specularDielectricOnly ? float3(1.0) : inputs.specularColor;
 	float3 weightedBaseColor = inputs.baseColor * inputs.baseWeight;
 	float3 metalAverageFresnel = float3(1.0);
 	if (BSDF_ENABLE_METALLIC)
 	{
-		metalAverageFresnel = AverageFresnelMetalF82(weightedBaseColor, inputs.specularColor);
+		metalAverageFresnel = AverageFresnelMetalF82(weightedBaseColor, metalF82Tint);
 	}
 
 	// Coat darkening from internal reflections (OpenPBR 1.1.1): K_s / K_r are the internal diffuse
@@ -508,7 +511,7 @@ LayeredLobe PrepareLobes(BSDFInputs inputs, VolumeDerived derived, float3 wo, fl
 	coefficient.reflectionScaleOpaque = scaleOpaqueReflection;
 	coefficient.transmission = thinWallAwareTintedTransIncludingSss;
 	coefficient.metalF0 = weightedBaseColor;
-	coefficient.metalF82Tint = inputs.specularColor;
+	coefficient.metalF82Tint = metalF82Tint;
 	coefficient.metalAmount = darkenedMetal;
 	coefficient.thinFilmWeight = inputs.thinFilmWeight;
 	coefficient.thinFilmThickness = inputs.thinFilmThickness * 1000.0;

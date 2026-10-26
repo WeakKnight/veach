@@ -66,7 +66,7 @@ export const MAX_STACK_SIZE = 16; // MATERIAL_STACK_SIZE in shaders/Materials/Ma
 // operand keep BSDFInputs' defaults.
 export const OUTPUT_GROUPS: readonly (readonly string[])[] = [
 	['base_weight', 'base_color', 'base_diffuse_roughness', 'base_metalness'],
-	['specular_weight', 'specular_color', 'specular_roughness', 'specular_ior'],
+	['specular_weight', 'specular_color', 'specular_roughness', 'specular_ior', 'veach_specular_dielectric_only'],
 	['specular_roughness_anisotropy', 'geometry_tangent'],
 	['transmission_weight', 'transmission_color', 'transmission_depth', 'transmission_scatter', 'transmission_scatter_anisotropy', 'transmission_dispersion_scale', 'transmission_dispersion_abbe_number'],
 	['subsurface_weight', 'subsurface_color', 'subsurface_radius', 'subsurface_radius_scale', 'subsurface_scatter_anisotropy'],

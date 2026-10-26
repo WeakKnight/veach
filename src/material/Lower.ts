@@ -55,6 +55,7 @@ function lowerGltfPbr(b: GraphBuilder, i: Args, alphaMode: AlphaMode): Arg {
 		specular_roughness: b.saturate(i.roughness!),
 		specular_ior: i.ior,
 		specular_weight: i.specular,
+		veach_specular_dielectric_only: true,
 		specular_color: i.specular_color,
 		transmission_weight: b.saturate(i.transmission!),
 		geometry_thin_walled: thinWalled,

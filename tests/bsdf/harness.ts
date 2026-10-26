@@ -24,6 +24,7 @@ export interface BSDFInputs {
 	subsurfaceRadiusScale: Vec3;
 	subsurfaceScatterAnisotropy: number;
 	specularWeight: number;
+	specularDielectricOnly?: boolean;
 	specularColor: Vec3;
 	specularRoughness: number;
 	specularRoughnessAnisotropy: number;
@@ -202,6 +203,7 @@ function packCase(out: Float32Array, offset: number, c: BSDFCase) {
 	v(c.throughput);
 	v(c.wavelengths);
 	f(c.exteriorIor);
+	f(i.specularDielectricOnly ? 1 : 0);
 	if (o - offset > CASE_FLOATS) {
 		throw new Error('case layout overflow');
 	}

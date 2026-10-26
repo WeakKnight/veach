@@ -126,6 +126,7 @@ void Run(uint3 id: SV_DispatchThreadID)
 	float3 throughput = r.Float3();
 	float3 wavelengths = r.Float3();
 	float exteriorIor = r.Float();
+	i.specularDielectricOnly = r.Float() != 0.0;
 
 	BSDF bsdf = BSDF(i, wo, throughput, wavelengths, exteriorIor);
 	DiffuseSpecular f = bsdf.Eval(wi);

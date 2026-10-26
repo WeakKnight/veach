@@ -62,7 +62,7 @@ static const uint GEOMETRY_TANGENT = 4u;
 static const uint GEOMETRY_BITANGENT = 5u;
 static const uint GEOMETRY_OBJECT_POSITION = 6u;
 
-// uint4s of an Output instruction per OUTPUT_GROUPS entry (4, 4, 2, 7, 5, 8, 3, 3, 2, 3 operands),
+// uint4s of an Output instruction per OUTPUT_GROUPS entry (4, 5, 2, 7, 5, 8, 3, 3, 2, 3 operands),
 // 2 bits each: a switch-free table, since WGSL cannot index constant arrays dynamically everywhere.
 static const uint OUTPUT_INSTRUCTION_WORDS = 0x55E9Au;
 
@@ -375,6 +375,7 @@ void RunMaterialProgram<let SURFACE : int>(MaterialHeader header, uint program, 
 					MATERIAL_OUTPUT(1u, outputs.inputs.specularColor = v.xyz);
 					MATERIAL_OUTPUT(2u, outputs.inputs.specularRoughness = v.x);
 					MATERIAL_OUTPUT(3u, outputs.inputs.specularIor = v.x);
+					MATERIAL_OUTPUT(4u, outputs.inputs.specularDielectricOnly = v.x != 0.0);
 				}
 				break;
 			case 2u:

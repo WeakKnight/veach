@@ -300,7 +300,7 @@ describe('material graphs', () => {
 		expect(textured.nodes.filter((n) => n.category === 'veach_texture')).toHaveLength(4);
 		const empty = optimized('empty');
 		expect(empty.nodes).toHaveLength(1);
-		expect(Object.keys(empty.nodes[0].inputs).sort()).toEqual(['base_color', 'base_metalness', 'geometry_thin_walled', 'specular_roughness']);
+		expect(Object.keys(empty.nodes[0].inputs).sort()).toEqual(['base_color', 'base_metalness', 'geometry_thin_walled', 'specular_roughness', 'veach_specular_dielectric_only']);
 		const fallback = optimizeGraph(lowerGraph(defaultMaterialGraph()));
 		expect(fallback.nodes).toHaveLength(1);
 	});
@@ -447,6 +447,36 @@ function blenderCoverageGraph(): MaterialGraph {
 		doubleSided: false,
 	};
 }
+
+describe('glTF specular import semantics', () => {
+	it('carries dielectric-only specular through the loader, optimizer and bytecode for metalness/specular textures', async () => {
+		const scene = await parseGLTF(gltfJson({
+			images: [{ uri: 'metal.png' }, { uri: 'specular.png' }], textures: [{ source: 0 }, { source: 1 }],
+			materials: [{ pbrMetallicRoughness: { metallicFactor: 1, metallicRoughnessTexture: { index: 0 } },
+				extensions: { KHR_materials_specular: { specularFactor: 0.5, specularTexture: { index: 1 }, specularColorTexture: { index: 1 } } } }],
+		}), { decodeImages: false });
+		const graph = scene.materials[0].graph;
+		const compiled = compileMaterial(graph);
+		for (const metalness of [0, 0.5, 1]) {
+			for (const specular of [0, 0.4, 1]) {
+				const ctx = randomContext(rng(10));
+				ctx.sample = source => source === 0 ? [1, 0.3, metalness, 1] : [0.2, 0.5, 0.8, specular];
+				const values = evaluateCompiled(compiled, ctx);
+				expect(values.veach_specular_dielectric_only).toEqual([1]);
+				expect(values.base_metalness[0]).toBeCloseTo(metalness);
+				expect(values.specular_weight[0]).toBeCloseTo(specular * 0.5);
+				expect(values.specular_color[0]).toBeLessThan(values.specular_color[2]);
+				expectCompiledMatchesGraph(graph, compiled, ctx);
+			}
+		}
+	});
+	it('leaves native OpenPBR specular semantics unchanged', () => {
+		const b = new GraphBuilder();
+		const surface = b.node('open_pbr_surface', 'surfaceshader', { base_metalness: 1, specular_weight: 0 });
+		const graph: MaterialGraph = { name: 'native metal', nodes: b.nodes, surface: surface.node, alphaMode: AlphaMode.Opaque, alphaCutoff: 0.5, doubleSided: false };
+		expect(evaluateCompiled(compileMaterial(graph), randomContext(rng(11))).veach_specular_dielectric_only).toEqual([0]);
+	});
+});
 
 describe('material bytecode', () => {
 	it('runs every opcode like the graph evaluator', () => {

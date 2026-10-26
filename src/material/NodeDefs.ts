@@ -14,6 +14,8 @@ export const OPEN_PBR_SURFACE: Record<string, InputDef> = {
 	base_diffuse_roughness: { type: 'float', default: [0] },
 	base_metalness: { type: 'float', default: [0] },
 	specular_weight: { type: 'float', default: [1] },
+	// Import semantic: glTF specular controls affect only the dielectric part of the base.
+	veach_specular_dielectric_only: { type: 'boolean', default: [0] },
 	specular_color: { type: 'color3', default: [1, 1, 1] },
 	specular_roughness: { type: 'float', default: [0.3] },
 	specular_roughness_anisotropy: { type: 'float', default: [0] },

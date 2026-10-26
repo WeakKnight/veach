@@ -15,6 +15,10 @@ World space: `BSDF(inputs, wo, throughput, wavelengths, exteriorIor)`, `Eval` (f
   `NEAR_SPECULAR_ALPHA` skip NEE, and the next light hit (including the sun disc) gets MIS
   weight 1.
 - Zero-weight lobes and zero-presence coat / fuzz are skipped (exact).
+- glTF metallic-roughness imports set `specularDielectricOnly`: specular weight/color still
+  control the dielectric base, but do not darken or tint the metal lobe. Native OpenPBR
+  inputs default to false and retain the reference behavior. Both metal single and multiple
+  scattering, including coat energy compensation, use the same resolved metal controls.
 - glTF is mapped to OpenPBR in `src/material/Lower.ts`. The shading normal is unflipped and bent
   to the viewer's side of the face; the basis tangent is the program's `geometry_tangent`
   (anisotropy rotation is applied to it, the BSDF rotation stays (1, 0)).

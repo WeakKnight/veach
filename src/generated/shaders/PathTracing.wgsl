@@ -2910,6 +2910,7 @@ struct BSDFInputs_0
      subsurfaceRadiusScale_0 : vec3<f32>,
      subsurfaceScatterAnisotropy_0 : f32,
      specularWeight_0 : f32,
+     specularDielectricOnly_0 : bool,
      specularColor_0 : vec3<f32>,
      specularRoughness_0 : f32,
      specularRoughnessAnisotropy_0 : f32,
@@ -3999,194 +4000,199 @@ fn RunMaterialProgram_0( header_1 : MaterialHeader_0,  program_0 : u32,  ctx_0 :
                         {
                             (*outputs_0).inputs_0.specularIor_0 = MaterialOperand_0(o_8, stack_0[(o_8 & (u32(15)))], header_1.constantBase_0).x;
                         }
+                        var o_9 : u32 = MaterialWord_0(operands_0 + u32(4));
+                        if(o_9 != u32(4294967295))
+                        {
+                            (*outputs_0).inputs_0.specularDielectricOnly_0 = (MaterialOperand_0(o_9, stack_0[(o_9 & (u32(15)))], header_1.constantBase_0).x) != 0.0f;
+                        }
                     }
                 case u32(2):
                     {
-                        var o_9 : u32 = MaterialWord_0(operands_0);
-                        if(o_9 != u32(4294967295))
-                        {
-                            (*outputs_0).inputs_0.specularRoughnessAnisotropy_0 = MaterialOperand_0(o_9, stack_0[(o_9 & (u32(15)))], header_1.constantBase_0).x;
-                        }
-                        var o_10 : u32 = MaterialWord_0(operands_0 + u32(1));
+                        var o_10 : u32 = MaterialWord_0(operands_0);
                         if(o_10 != u32(4294967295))
                         {
-                            (*outputs_0).tangent_2 = MaterialOperand_0(o_10, stack_0[(o_10 & (u32(15)))], header_1.constantBase_0).xyz;
+                            (*outputs_0).inputs_0.specularRoughnessAnisotropy_0 = MaterialOperand_0(o_10, stack_0[(o_10 & (u32(15)))], header_1.constantBase_0).x;
+                        }
+                        var o_11 : u32 = MaterialWord_0(operands_0 + u32(1));
+                        if(o_11 != u32(4294967295))
+                        {
+                            (*outputs_0).tangent_2 = MaterialOperand_0(o_11, stack_0[(o_11 & (u32(15)))], header_1.constantBase_0).xyz;
                         }
                     }
                 case u32(3):
                     {
-                        var o_11 : u32 = MaterialWord_0(operands_0);
-                        if(o_11 != u32(4294967295))
-                        {
-                            (*outputs_0).inputs_0.transmissionWeight_0 = MaterialOperand_0(o_11, stack_0[(o_11 & (u32(15)))], header_1.constantBase_0).x;
-                        }
-                        var o_12 : u32 = MaterialWord_0(operands_0 + u32(1));
+                        var o_12 : u32 = MaterialWord_0(operands_0);
                         if(o_12 != u32(4294967295))
                         {
-                            (*outputs_0).inputs_0.transmissionColor_0 = MaterialOperand_0(o_12, stack_0[(o_12 & (u32(15)))], header_1.constantBase_0).xyz;
+                            (*outputs_0).inputs_0.transmissionWeight_0 = MaterialOperand_0(o_12, stack_0[(o_12 & (u32(15)))], header_1.constantBase_0).x;
                         }
-                        var o_13 : u32 = MaterialWord_0(operands_0 + u32(2));
+                        var o_13 : u32 = MaterialWord_0(operands_0 + u32(1));
                         if(o_13 != u32(4294967295))
                         {
-                            (*outputs_0).inputs_0.transmissionDepth_0 = MaterialOperand_0(o_13, stack_0[(o_13 & (u32(15)))], header_1.constantBase_0).x;
+                            (*outputs_0).inputs_0.transmissionColor_0 = MaterialOperand_0(o_13, stack_0[(o_13 & (u32(15)))], header_1.constantBase_0).xyz;
                         }
-                        var o_14 : u32 = MaterialWord_0(operands_0 + u32(3));
+                        var o_14 : u32 = MaterialWord_0(operands_0 + u32(2));
                         if(o_14 != u32(4294967295))
                         {
-                            (*outputs_0).inputs_0.transmissionScatter_0 = MaterialOperand_0(o_14, stack_0[(o_14 & (u32(15)))], header_1.constantBase_0).xyz;
+                            (*outputs_0).inputs_0.transmissionDepth_0 = MaterialOperand_0(o_14, stack_0[(o_14 & (u32(15)))], header_1.constantBase_0).x;
                         }
-                        var o_15 : u32 = MaterialWord_0(operands_0 + u32(4));
+                        var o_15 : u32 = MaterialWord_0(operands_0 + u32(3));
                         if(o_15 != u32(4294967295))
                         {
-                            (*outputs_0).inputs_0.transmissionScatterAnisotropy_0 = MaterialOperand_0(o_15, stack_0[(o_15 & (u32(15)))], header_1.constantBase_0).x;
+                            (*outputs_0).inputs_0.transmissionScatter_0 = MaterialOperand_0(o_15, stack_0[(o_15 & (u32(15)))], header_1.constantBase_0).xyz;
                         }
-                        var o_16 : u32 = MaterialWord_0(operands_0 + u32(5));
+                        var o_16 : u32 = MaterialWord_0(operands_0 + u32(4));
                         if(o_16 != u32(4294967295))
                         {
-                            (*outputs_0).inputs_0.transmissionDispersionScale_0 = MaterialOperand_0(o_16, stack_0[(o_16 & (u32(15)))], header_1.constantBase_0).x;
+                            (*outputs_0).inputs_0.transmissionScatterAnisotropy_0 = MaterialOperand_0(o_16, stack_0[(o_16 & (u32(15)))], header_1.constantBase_0).x;
                         }
-                        var o_17 : u32 = MaterialWord_0(operands_0 + u32(6));
+                        var o_17 : u32 = MaterialWord_0(operands_0 + u32(5));
                         if(o_17 != u32(4294967295))
                         {
-                            (*outputs_0).inputs_0.transmissionDispersionAbbeNumber_0 = MaterialOperand_0(o_17, stack_0[(o_17 & (u32(15)))], header_1.constantBase_0).x;
+                            (*outputs_0).inputs_0.transmissionDispersionScale_0 = MaterialOperand_0(o_17, stack_0[(o_17 & (u32(15)))], header_1.constantBase_0).x;
+                        }
+                        var o_18 : u32 = MaterialWord_0(operands_0 + u32(6));
+                        if(o_18 != u32(4294967295))
+                        {
+                            (*outputs_0).inputs_0.transmissionDispersionAbbeNumber_0 = MaterialOperand_0(o_18, stack_0[(o_18 & (u32(15)))], header_1.constantBase_0).x;
                         }
                     }
                 case u32(4):
                     {
-                        var o_18 : u32 = MaterialWord_0(operands_0);
-                        if(o_18 != u32(4294967295))
-                        {
-                            (*outputs_0).inputs_0.subsurfaceWeight_0 = MaterialOperand_0(o_18, stack_0[(o_18 & (u32(15)))], header_1.constantBase_0).x;
-                        }
-                        var o_19 : u32 = MaterialWord_0(operands_0 + u32(1));
+                        var o_19 : u32 = MaterialWord_0(operands_0);
                         if(o_19 != u32(4294967295))
                         {
-                            (*outputs_0).inputs_0.subsurfaceColor_0 = MaterialOperand_0(o_19, stack_0[(o_19 & (u32(15)))], header_1.constantBase_0).xyz;
+                            (*outputs_0).inputs_0.subsurfaceWeight_0 = MaterialOperand_0(o_19, stack_0[(o_19 & (u32(15)))], header_1.constantBase_0).x;
                         }
-                        var o_20 : u32 = MaterialWord_0(operands_0 + u32(2));
+                        var o_20 : u32 = MaterialWord_0(operands_0 + u32(1));
                         if(o_20 != u32(4294967295))
                         {
-                            (*outputs_0).inputs_0.subsurfaceRadius_0 = MaterialOperand_0(o_20, stack_0[(o_20 & (u32(15)))], header_1.constantBase_0).x;
+                            (*outputs_0).inputs_0.subsurfaceColor_0 = MaterialOperand_0(o_20, stack_0[(o_20 & (u32(15)))], header_1.constantBase_0).xyz;
                         }
-                        var o_21 : u32 = MaterialWord_0(operands_0 + u32(3));
+                        var o_21 : u32 = MaterialWord_0(operands_0 + u32(2));
                         if(o_21 != u32(4294967295))
                         {
-                            (*outputs_0).inputs_0.subsurfaceRadiusScale_0 = MaterialOperand_0(o_21, stack_0[(o_21 & (u32(15)))], header_1.constantBase_0).xyz;
+                            (*outputs_0).inputs_0.subsurfaceRadius_0 = MaterialOperand_0(o_21, stack_0[(o_21 & (u32(15)))], header_1.constantBase_0).x;
                         }
-                        var o_22 : u32 = MaterialWord_0(operands_0 + u32(4));
+                        var o_22 : u32 = MaterialWord_0(operands_0 + u32(3));
                         if(o_22 != u32(4294967295))
                         {
-                            (*outputs_0).inputs_0.subsurfaceScatterAnisotropy_0 = MaterialOperand_0(o_22, stack_0[(o_22 & (u32(15)))], header_1.constantBase_0).x;
+                            (*outputs_0).inputs_0.subsurfaceRadiusScale_0 = MaterialOperand_0(o_22, stack_0[(o_22 & (u32(15)))], header_1.constantBase_0).xyz;
+                        }
+                        var o_23 : u32 = MaterialWord_0(operands_0 + u32(4));
+                        if(o_23 != u32(4294967295))
+                        {
+                            (*outputs_0).inputs_0.subsurfaceScatterAnisotropy_0 = MaterialOperand_0(o_23, stack_0[(o_23 & (u32(15)))], header_1.constantBase_0).x;
                         }
                     }
                 case u32(5):
                     {
-                        var o_23 : u32 = MaterialWord_0(operands_0);
-                        if(o_23 != u32(4294967295))
-                        {
-                            (*outputs_0).inputs_0.coatWeight_0 = MaterialOperand_0(o_23, stack_0[(o_23 & (u32(15)))], header_1.constantBase_0).x;
-                        }
-                        var o_24 : u32 = MaterialWord_0(operands_0 + u32(1));
+                        var o_24 : u32 = MaterialWord_0(operands_0);
                         if(o_24 != u32(4294967295))
                         {
-                            (*outputs_0).inputs_0.coatColor_0 = MaterialOperand_0(o_24, stack_0[(o_24 & (u32(15)))], header_1.constantBase_0).xyz;
+                            (*outputs_0).inputs_0.coatWeight_0 = MaterialOperand_0(o_24, stack_0[(o_24 & (u32(15)))], header_1.constantBase_0).x;
                         }
-                        var o_25 : u32 = MaterialWord_0(operands_0 + u32(2));
+                        var o_25 : u32 = MaterialWord_0(operands_0 + u32(1));
                         if(o_25 != u32(4294967295))
                         {
-                            (*outputs_0).inputs_0.coatRoughness_0 = MaterialOperand_0(o_25, stack_0[(o_25 & (u32(15)))], header_1.constantBase_0).x;
+                            (*outputs_0).inputs_0.coatColor_0 = MaterialOperand_0(o_25, stack_0[(o_25 & (u32(15)))], header_1.constantBase_0).xyz;
                         }
-                        var o_26 : u32 = MaterialWord_0(operands_0 + u32(3));
+                        var o_26 : u32 = MaterialWord_0(operands_0 + u32(2));
                         if(o_26 != u32(4294967295))
                         {
-                            (*outputs_0).inputs_0.coatRoughnessAnisotropy_0 = MaterialOperand_0(o_26, stack_0[(o_26 & (u32(15)))], header_1.constantBase_0).x;
+                            (*outputs_0).inputs_0.coatRoughness_0 = MaterialOperand_0(o_26, stack_0[(o_26 & (u32(15)))], header_1.constantBase_0).x;
                         }
-                        var o_27 : u32 = MaterialWord_0(operands_0 + u32(4));
+                        var o_27 : u32 = MaterialWord_0(operands_0 + u32(3));
                         if(o_27 != u32(4294967295))
                         {
-                            (*outputs_0).inputs_0.coatIor_0 = MaterialOperand_0(o_27, stack_0[(o_27 & (u32(15)))], header_1.constantBase_0).x;
+                            (*outputs_0).inputs_0.coatRoughnessAnisotropy_0 = MaterialOperand_0(o_27, stack_0[(o_27 & (u32(15)))], header_1.constantBase_0).x;
                         }
-                        var o_28 : u32 = MaterialWord_0(operands_0 + u32(5));
+                        var o_28 : u32 = MaterialWord_0(operands_0 + u32(4));
                         if(o_28 != u32(4294967295))
                         {
-                            (*outputs_0).inputs_0.coatDarkening_0 = MaterialOperand_0(o_28, stack_0[(o_28 & (u32(15)))], header_1.constantBase_0).x;
+                            (*outputs_0).inputs_0.coatIor_0 = MaterialOperand_0(o_28, stack_0[(o_28 & (u32(15)))], header_1.constantBase_0).x;
                         }
-                        var o_29 : u32 = MaterialWord_0(operands_0 + u32(6));
+                        var o_29 : u32 = MaterialWord_0(operands_0 + u32(5));
                         if(o_29 != u32(4294967295))
                         {
-                            (*outputs_0).coatNormal_0 = MaterialOperand_0(o_29, stack_0[(o_29 & (u32(15)))], header_1.constantBase_0).xyz;
+                            (*outputs_0).inputs_0.coatDarkening_0 = MaterialOperand_0(o_29, stack_0[(o_29 & (u32(15)))], header_1.constantBase_0).x;
                         }
-                        var o_30 : u32 = MaterialWord_0(operands_0 + u32(7));
+                        var o_30 : u32 = MaterialWord_0(operands_0 + u32(6));
                         if(o_30 != u32(4294967295))
                         {
-                            (*outputs_0).coatTangent_0 = MaterialOperand_0(o_30, stack_0[(o_30 & (u32(15)))], header_1.constantBase_0).xyz;
+                            (*outputs_0).coatNormal_0 = MaterialOperand_0(o_30, stack_0[(o_30 & (u32(15)))], header_1.constantBase_0).xyz;
+                        }
+                        var o_31 : u32 = MaterialWord_0(operands_0 + u32(7));
+                        if(o_31 != u32(4294967295))
+                        {
+                            (*outputs_0).coatTangent_0 = MaterialOperand_0(o_31, stack_0[(o_31 & (u32(15)))], header_1.constantBase_0).xyz;
                         }
                     }
                 case u32(6):
                     {
-                        var o_31 : u32 = MaterialWord_0(operands_0);
-                        if(o_31 != u32(4294967295))
-                        {
-                            (*outputs_0).inputs_0.fuzzWeight_0 = MaterialOperand_0(o_31, stack_0[(o_31 & (u32(15)))], header_1.constantBase_0).x;
-                        }
-                        var o_32 : u32 = MaterialWord_0(operands_0 + u32(1));
+                        var o_32 : u32 = MaterialWord_0(operands_0);
                         if(o_32 != u32(4294967295))
                         {
-                            (*outputs_0).inputs_0.fuzzColor_0 = MaterialOperand_0(o_32, stack_0[(o_32 & (u32(15)))], header_1.constantBase_0).xyz;
+                            (*outputs_0).inputs_0.fuzzWeight_0 = MaterialOperand_0(o_32, stack_0[(o_32 & (u32(15)))], header_1.constantBase_0).x;
                         }
-                        var o_33 : u32 = MaterialWord_0(operands_0 + u32(2));
+                        var o_33 : u32 = MaterialWord_0(operands_0 + u32(1));
                         if(o_33 != u32(4294967295))
                         {
-                            (*outputs_0).inputs_0.fuzzRoughness_0 = MaterialOperand_0(o_33, stack_0[(o_33 & (u32(15)))], header_1.constantBase_0).x;
+                            (*outputs_0).inputs_0.fuzzColor_0 = MaterialOperand_0(o_33, stack_0[(o_33 & (u32(15)))], header_1.constantBase_0).xyz;
+                        }
+                        var o_34 : u32 = MaterialWord_0(operands_0 + u32(2));
+                        if(o_34 != u32(4294967295))
+                        {
+                            (*outputs_0).inputs_0.fuzzRoughness_0 = MaterialOperand_0(o_34, stack_0[(o_34 & (u32(15)))], header_1.constantBase_0).x;
                         }
                     }
                 case u32(7):
                     {
-                        var o_34 : u32 = MaterialWord_0(operands_0);
-                        if(o_34 != u32(4294967295))
-                        {
-                            (*outputs_0).inputs_0.thinFilmWeight_1 = MaterialOperand_0(o_34, stack_0[(o_34 & (u32(15)))], header_1.constantBase_0).x;
-                        }
-                        var o_35 : u32 = MaterialWord_0(operands_0 + u32(1));
+                        var o_35 : u32 = MaterialWord_0(operands_0);
                         if(o_35 != u32(4294967295))
                         {
-                            (*outputs_0).inputs_0.thinFilmThickness_1 = MaterialOperand_0(o_35, stack_0[(o_35 & (u32(15)))], header_1.constantBase_0).x;
+                            (*outputs_0).inputs_0.thinFilmWeight_1 = MaterialOperand_0(o_35, stack_0[(o_35 & (u32(15)))], header_1.constantBase_0).x;
                         }
-                        var o_36 : u32 = MaterialWord_0(operands_0 + u32(2));
+                        var o_36 : u32 = MaterialWord_0(operands_0 + u32(1));
                         if(o_36 != u32(4294967295))
                         {
-                            (*outputs_0).inputs_0.thinFilmIor_1 = MaterialOperand_0(o_36, stack_0[(o_36 & (u32(15)))], header_1.constantBase_0).x;
+                            (*outputs_0).inputs_0.thinFilmThickness_1 = MaterialOperand_0(o_36, stack_0[(o_36 & (u32(15)))], header_1.constantBase_0).x;
+                        }
+                        var o_37 : u32 = MaterialWord_0(operands_0 + u32(2));
+                        if(o_37 != u32(4294967295))
+                        {
+                            (*outputs_0).inputs_0.thinFilmIor_1 = MaterialOperand_0(o_37, stack_0[(o_37 & (u32(15)))], header_1.constantBase_0).x;
                         }
                     }
                 case u32(8):
                     {
-                        var o_37 : u32 = MaterialWord_0(operands_0);
-                        if(o_37 != u32(4294967295))
-                        {
-                            (*outputs_0).inputs_0.emissionLuminance_0 = MaterialOperand_0(o_37, stack_0[(o_37 & (u32(15)))], header_1.constantBase_0).x;
-                        }
-                        var o_38 : u32 = MaterialWord_0(operands_0 + u32(1));
+                        var o_38 : u32 = MaterialWord_0(operands_0);
                         if(o_38 != u32(4294967295))
                         {
-                            (*outputs_0).inputs_0.emissionColor_0 = MaterialOperand_0(o_38, stack_0[(o_38 & (u32(15)))], header_1.constantBase_0).xyz;
+                            (*outputs_0).inputs_0.emissionLuminance_0 = MaterialOperand_0(o_38, stack_0[(o_38 & (u32(15)))], header_1.constantBase_0).x;
+                        }
+                        var o_39 : u32 = MaterialWord_0(operands_0 + u32(1));
+                        if(o_39 != u32(4294967295))
+                        {
+                            (*outputs_0).inputs_0.emissionColor_0 = MaterialOperand_0(o_39, stack_0[(o_39 & (u32(15)))], header_1.constantBase_0).xyz;
                         }
                     }
                 default :
                     {
-                        var o_39 : u32 = MaterialWord_0(operands_0);
-                        if(o_39 != u32(4294967295))
-                        {
-                            (*outputs_0).inputs_0.geometryOpacity_0 = MaterialOperand_0(o_39, stack_0[(o_39 & (u32(15)))], header_1.constantBase_0).x;
-                        }
-                        var o_40 : u32 = MaterialWord_0(operands_0 + u32(1));
+                        var o_40 : u32 = MaterialWord_0(operands_0);
                         if(o_40 != u32(4294967295))
                         {
-                            (*outputs_0).inputs_0.geometryThinWalled_0 = (MaterialOperand_0(o_40, stack_0[(o_40 & (u32(15)))], header_1.constantBase_0).x) != 0.0f;
+                            (*outputs_0).inputs_0.geometryOpacity_0 = MaterialOperand_0(o_40, stack_0[(o_40 & (u32(15)))], header_1.constantBase_0).x;
                         }
-                        var o_41 : u32 = MaterialWord_0(operands_0 + u32(2));
+                        var o_41 : u32 = MaterialWord_0(operands_0 + u32(1));
                         if(o_41 != u32(4294967295))
                         {
-                            (*outputs_0).normal_11 = MaterialOperand_0(o_41, stack_0[(o_41 & (u32(15)))], header_1.constantBase_0).xyz;
+                            (*outputs_0).inputs_0.geometryThinWalled_0 = (MaterialOperand_0(o_41, stack_0[(o_41 & (u32(15)))], header_1.constantBase_0).x) != 0.0f;
+                        }
+                        var o_42 : u32 = MaterialWord_0(operands_0 + u32(2));
+                        if(o_42 != u32(4294967295))
+                        {
+                            (*outputs_0).normal_11 = MaterialOperand_0(o_42, stack_0[(o_42 & (u32(15)))], header_1.constantBase_0).xyz;
                         }
                     }
                 }
@@ -4350,8 +4356,8 @@ fn RunMaterialProgram_1( header_2 : MaterialHeader_0,  program_1 : u32,  ctx_1 :
                 r_7 = vec4<f32>(a_13.x, b_10.x, c_11.x, 0.0f);
                 if((imm_1 > u32(3)))
                 {
-                    var o_42 : u32 = MaterialWord_0(operands_1 + u32(3));
-                    r_7[i32(3)] = MaterialOperand_0(o_42, stack_1[(o_42 & (u32(15)))], header_2.constantBase_0).x;
+                    var o_43 : u32 = MaterialWord_0(operands_1 + u32(3));
+                    r_7[i32(3)] = MaterialOperand_0(o_43, stack_1[(o_43 & (u32(15)))], header_2.constantBase_0).x;
                 }
                 write_1 = true;
             }
@@ -4511,28 +4517,28 @@ fn RunMaterialProgram_1( header_2 : MaterialHeader_0,  program_1 : u32,  ctx_1 :
                     }
                 case u32(8):
                     {
-                        var o_43 : u32 = MaterialWord_0(operands_1);
-                        if(o_43 != u32(4294967295))
-                        {
-                            (*outputs_1).inputs_0.emissionLuminance_0 = MaterialOperand_0(o_43, stack_1[(o_43 & (u32(15)))], header_2.constantBase_0).x;
-                        }
-                        var o_44 : u32 = MaterialWord_0(operands_1 + u32(1));
+                        var o_44 : u32 = MaterialWord_0(operands_1);
                         if(o_44 != u32(4294967295))
                         {
-                            (*outputs_1).inputs_0.emissionColor_0 = MaterialOperand_0(o_44, stack_1[(o_44 & (u32(15)))], header_2.constantBase_0).xyz;
+                            (*outputs_1).inputs_0.emissionLuminance_0 = MaterialOperand_0(o_44, stack_1[(o_44 & (u32(15)))], header_2.constantBase_0).x;
+                        }
+                        var o_45 : u32 = MaterialWord_0(operands_1 + u32(1));
+                        if(o_45 != u32(4294967295))
+                        {
+                            (*outputs_1).inputs_0.emissionColor_0 = MaterialOperand_0(o_45, stack_1[(o_45 & (u32(15)))], header_2.constantBase_0).xyz;
                         }
                     }
                 default :
                     {
-                        var o_45 : u32 = MaterialWord_0(operands_1);
-                        if(o_45 != u32(4294967295))
-                        {
-                            (*outputs_1).inputs_0.geometryOpacity_0 = MaterialOperand_0(o_45, stack_1[(o_45 & (u32(15)))], header_2.constantBase_0).x;
-                        }
-                        var o_46 : u32 = MaterialWord_0(operands_1 + u32(1));
+                        var o_46 : u32 = MaterialWord_0(operands_1);
                         if(o_46 != u32(4294967295))
                         {
-                            (*outputs_1).inputs_0.geometryThinWalled_0 = (MaterialOperand_0(o_46, stack_1[(o_46 & (u32(15)))], header_2.constantBase_0).x) != 0.0f;
+                            (*outputs_1).inputs_0.geometryOpacity_0 = MaterialOperand_0(o_46, stack_1[(o_46 & (u32(15)))], header_2.constantBase_0).x;
+                        }
+                        var o_47 : u32 = MaterialWord_0(operands_1 + u32(1));
+                        if(o_47 != u32(4294967295))
+                        {
+                            (*outputs_1).inputs_0.geometryThinWalled_0 = (MaterialOperand_0(o_47, stack_1[(o_47 & (u32(15)))], header_2.constantBase_0).x) != 0.0f;
                         }
                     }
                 }
@@ -4625,10 +4631,10 @@ struct Ray_0
      tMax_0 : f32,
 };
 
-fn Ray_x24init_0( o_47 : vec3<f32>,  d_7 : vec3<f32>,  tmax_0 : f32) -> Ray_0
+fn Ray_x24init_0( o_48 : vec3<f32>,  d_7 : vec3<f32>,  tmax_0 : f32) -> Ray_0
 {
     var _S211 : Ray_0;
-    _S211.origin_0 = o_47;
+    _S211.origin_0 = o_48;
     _S211.direction_0 = d_7;
     _S211.tMin_0 = 0.0f;
     _S211.tMax_0 = tmax_0;
@@ -4678,7 +4684,7 @@ fn SafeRcp_0( d_8 : vec3<f32>) -> vec3<f32>
 
 var<private> gTraversalCost_0 : u32;
 
-fn IntersectTriangle_0( o_48 : vec3<f32>,  d_9 : vec3<f32>,  v0_0 : vec3<f32>,  e1_0 : vec3<f32>,  e2_0 : vec3<f32>,  tMin_1 : f32,  tMax_1 : f32,  t_5 : ptr<function, f32>,  bary_0 : ptr<function, vec2<f32>>) -> bool
+fn IntersectTriangle_0( o_49 : vec3<f32>,  d_9 : vec3<f32>,  v0_0 : vec3<f32>,  e1_0 : vec3<f32>,  e2_0 : vec3<f32>,  tMin_1 : f32,  tMax_1 : f32,  t_5 : ptr<function, f32>,  bary_0 : ptr<function, vec2<f32>>) -> bool
 {
     (*t_5) = 0.0f;
     (*bary_0) = vec2<f32>(0.0f);
@@ -4689,7 +4695,7 @@ fn IntersectTriangle_0( o_48 : vec3<f32>,  d_9 : vec3<f32>,  v0_0 : vec3<f32>,  
         return false;
     }
     var f_14 : f32 = rcp_0(a_14);
-    var s_13 : vec3<f32> = o_48 - v0_0;
+    var s_13 : vec3<f32> = o_49 - v0_0;
     var u_24 : f32 = f_14 * dot(s_13, h_12);
     var _S217 : bool;
     if((u_24 < 0.0f))
@@ -4731,7 +4737,7 @@ fn IntersectTriangle_0( o_48 : vec3<f32>,  d_9 : vec3<f32>,  v0_0 : vec3<f32>,  
     return _S217;
 }
 
-fn IntersectTriangle_1( o_49 : vec3<f32>,  d_10 : vec3<f32>,  v0_1 : vec3<f32>,  e1_1 : vec3<f32>,  e2_1 : vec3<f32>,  tMin_2 : f32,  tMax_2 : f32,  t_6 : ptr<function, f32>,  bary_1 : ptr<function, vec2<f32>>) -> bool
+fn IntersectTriangle_1( o_50 : vec3<f32>,  d_10 : vec3<f32>,  v0_1 : vec3<f32>,  e1_1 : vec3<f32>,  e2_1 : vec3<f32>,  tMin_2 : f32,  tMax_2 : f32,  t_6 : ptr<function, f32>,  bary_1 : ptr<function, vec2<f32>>) -> bool
 {
     (*t_6) = 0.0f;
     (*bary_1) = vec2<f32>(0.0f);
@@ -4742,7 +4748,7 @@ fn IntersectTriangle_1( o_49 : vec3<f32>,  d_10 : vec3<f32>,  v0_1 : vec3<f32>, 
         return false;
     }
     var f_15 : f32 = rcp_0(a_15);
-    var s_14 : vec3<f32> = o_49 - v0_1;
+    var s_14 : vec3<f32> = o_50 - v0_1;
     var u_25 : f32 = f_15 * dot(s_14, h_13);
     var _S218 : bool;
     if((u_25 < 0.0f))
@@ -4858,6 +4864,7 @@ fn BSDFInputs_Default_0() -> BSDFInputs_0
     i_6.subsurfaceRadiusScale_0 = vec3<f32>(1.0f, 0.5f, 0.25f);
     i_6.subsurfaceScatterAnisotropy_0 = 0.0f;
     i_6.specularWeight_0 = 1.0f;
+    i_6.specularDielectricOnly_0 = false;
     var _S221 : vec3<f32> = vec3<f32>(1.0f);
     i_6.specularColor_0 = _S221;
     i_6.specularRoughness_0 = 0.30000001192092896f;
@@ -4898,22 +4905,22 @@ fn BSDFInputs_Default_0() -> BSDFInputs_0
 
 fn MaterialOutputs_Default_0( ctx_3 : MaterialContext_0) -> MaterialOutputs_0
 {
-    var o_50 : MaterialOutputs_0;
-    o_50.inputs_0 = BSDFInputs_Default_0();
-    o_50.normal_11 = ctx_3.normal_10;
-    o_50.coatNormal_0 = ctx_3.normal_10;
+    var o_51 : MaterialOutputs_0;
+    o_51.inputs_0 = BSDFInputs_Default_0();
+    o_51.normal_11 = ctx_3.normal_10;
+    o_51.coatNormal_0 = ctx_3.normal_10;
     var _S223 : vec3<f32> = ctx_3.tangent_1.xyz;
-    o_50.tangent_2 = _S223;
-    o_50.coatTangent_0 = _S223;
-    return o_50;
+    o_51.tangent_2 = _S223;
+    o_51.coatTangent_0 = _S223;
+    return o_51;
 }
 
 fn RunScalarMaterialProgram_0( header_3 : MaterialHeader_0,  program_2 : u32,  tc_2 : TextureCoords_0) -> MaterialOutputs_0
 {
     var ctx_4 : MaterialContext_0 = MakeMaterialContext_0(tc_2);
-    var o_51 : MaterialOutputs_0 = MaterialOutputs_Default_0(ctx_4);
-    RunMaterialProgram_1(header_3, program_2, ctx_4, &(o_51));
-    return o_51;
+    var o_52 : MaterialOutputs_0 = MaterialOutputs_Default_0(ctx_4);
+    RunMaterialProgram_1(header_3, program_2, ctx_4, &(o_52));
+    return o_52;
 }
 
 fn EvalOpacity_0( header_4 : MaterialHeader_0,  tc_3 : TextureCoords_0) -> f32
@@ -4926,10 +4933,10 @@ fn EvalOpacity_0( header_4 : MaterialHeader_0,  tc_3 : TextureCoords_0) -> f32
     return _S224.inputs_0.geometryOpacity_0;
 }
 
-fn IntersectBox_0( bmin_0 : vec3<f32>,  bmax_0 : vec3<f32>,  o_52 : vec3<f32>,  rD_0 : vec3<f32>,  tMin_3 : f32,  tMax_3 : f32) -> f32
+fn IntersectBox_0( bmin_0 : vec3<f32>,  bmax_0 : vec3<f32>,  o_53 : vec3<f32>,  rD_0 : vec3<f32>,  tMin_3 : f32,  tMax_3 : f32) -> f32
 {
-    var t1_0 : vec3<f32> = (bmin_0 - o_52) * rD_0;
-    var t2_0 : vec3<f32> = (bmax_0 - o_52) * rD_0;
+    var t1_0 : vec3<f32> = (bmin_0 - o_53) * rD_0;
+    var t2_0 : vec3<f32> = (bmax_0 - o_53) * rD_0;
     var _S225 : vec3<f32> = min(t1_0, t2_0);
     var _S226 : vec3<f32> = max(t1_0, t2_0);
     var _S227 : f32 = max(max(_S225.x, _S225.y), max(_S225.z, tMin_3));
@@ -6029,17 +6036,17 @@ fn EvalMaterial_0( si_1 : SurfaceInteraction_0,  V_1 : vec3<f32>) -> MaterialSam
     ctx_5.normal_10 = si_1.normal_12;
     ctx_5.tangent_1 = si_1.tangent_5;
     ctx_5.instanceIndex_0 = si_1.instanceIndex_4;
-    var o_53 : MaterialOutputs_0 = MaterialOutputs_Default_0(ctx_5);
+    var o_54 : MaterialOutputs_0 = MaterialOutputs_Default_0(ctx_5);
     if((header_5.surface_0) != u32(4294967295))
     {
-        RunMaterialProgram_0(header_5, header_5.surface_0, ctx_5, &(o_53));
+        RunMaterialProgram_0(header_5, header_5.surface_0, ctx_5, &(o_54));
     }
     var ms_0 : MaterialSample_0;
-    ms_0.inputs_1 = o_53.inputs_0;
-    ms_0.albedo_1 = o_53.inputs_0.baseColor_0;
-    ms_0.roughness_5 = o_53.inputs_0.specularRoughness_0;
+    ms_0.inputs_1 = o_54.inputs_0;
+    ms_0.albedo_1 = o_54.inputs_0.baseColor_0;
+    ms_0.roughness_5 = o_54.inputs_0.specularRoughness_0;
     ms_0.doubleSided_0 = MaterialHeader_DoubleSided_0(header_5);
-    ms_0.thinWalled_0 = o_53.inputs_0.geometryThinWalled_0;
+    ms_0.thinWalled_0 = o_54.inputs_0.geometryThinWalled_0;
     var _S365 : f32 = si_1.tangent_5.w;
     var handedness_0 : f32;
     if(_S365 != 0.0f)
@@ -6050,11 +6057,11 @@ fn EvalMaterial_0( si_1 : SurfaceInteraction_0,  V_1 : vec3<f32>) -> MaterialSam
     {
         handedness_0 = 1.0f;
     }
-    ms_0.inputs_1.basis_4 = Frame_FromTangent_0(vec4<f32>(o_53.tangent_2, handedness_0), AlignWithFace_0(o_53.normal_11, V_1, si_1.frontFacing_0));
+    ms_0.inputs_1.basis_4 = Frame_FromTangent_0(vec4<f32>(o_54.tangent_2, handedness_0), AlignWithFace_0(o_54.normal_11, V_1, si_1.frontFacing_0));
     var _S366 : bool;
-    if((all(((o_53.coatNormal_0) == (o_53.normal_11)))))
+    if((all(((o_54.coatNormal_0) == (o_54.normal_11)))))
     {
-        _S366 = (all(((o_53.coatTangent_0) == (o_53.tangent_2))));
+        _S366 = (all(((o_54.coatTangent_0) == (o_54.tangent_2))));
     }
     else
     {
@@ -6066,7 +6073,7 @@ fn EvalMaterial_0( si_1 : SurfaceInteraction_0,  V_1 : vec3<f32>) -> MaterialSam
     }
     else
     {
-        ms_0.inputs_1.coatBasis_0 = Frame_FromTangent_0(vec4<f32>(o_53.coatTangent_0, handedness_0), AlignWithFace_0(o_53.coatNormal_0, V_1, si_1.frontFacing_0));
+        ms_0.inputs_1.coatBasis_0 = Frame_FromTangent_0(vec4<f32>(o_54.coatTangent_0, handedness_0), AlignWithFace_0(o_54.coatNormal_0, V_1, si_1.frontFacing_0));
     }
     return ms_0;
 }
@@ -6826,9 +6833,26 @@ fn PrepareLobes_0( inputs_3 : BSDFInputs_0,  derived_1 : VolumeDerived_0,  wo_62
     var opaqueDielectric_0 : f32 = nonTrans_0 * (1.0f - inputs_3.subsurfaceWeight_0) * dielectric_1;
     var trans_0 : f32 = dielectric_1 * inputs_3.transmissionWeight_0;
     var sss_0 : f32 = nonTrans_0 * dielectric_1 * inputs_3.subsurfaceWeight_0;
-    var darkenedMetal_0 : f32 = inputs_3.baseMetalness_0 * inputs_3.specularWeight_0;
+    if(inputs_3.specularDielectricOnly_0)
+    {
+        dispersion_2 = 1.0f;
+    }
+    else
+    {
+        dispersion_2 = inputs_3.specularWeight_0;
+    }
+    var darkenedMetal_0 : f32 = inputs_3.baseMetalness_0 * dispersion_2;
+    var metalF82Tint_2 : vec3<f32>;
+    if(inputs_3.specularDielectricOnly_0)
+    {
+        metalF82Tint_2 = vec3<f32>(1.0f);
+    }
+    else
+    {
+        metalF82Tint_2 = inputs_3.specularColor_0;
+    }
     var weightedBaseColor_0 : vec3<f32> = inputs_3.baseColor_0 * vec3<f32>(inputs_3.baseWeight_0);
-    var _S404 : vec3<f32> = AverageFresnelMetalF82_0(weightedBaseColor_0, inputs_3.specularColor_0);
+    var _S404 : vec3<f32> = AverageFresnelMetalF82_0(weightedBaseColor_0, metalF82Tint_2);
     var kSmooth_0 : f32 = AverageFresnel_0(etaCoat_0);
     var specularityOpaqueDielectric_0 : f32 = AverageFresnel_0(etaOpaqueReflection_0);
     var k_2 : f32 = mix(kSmooth_0, 1.0f - (1.0f - kSmooth_0) / Square_0(etaCoat_0), mix(1.0f, specularRoughness_1, opaqueDielectric_0 * specularityOpaqueDielectric_0 + (sss_0 + trans_0) * AverageFresnel_0(etaTransReflection_0) + inputs_3.baseMetalness_0));
@@ -7013,7 +7037,7 @@ fn PrepareLobes_0( inputs_3 : BSDFInputs_0,  derived_1 : VolumeDerived_0,  wo_62
     coefficient_5.reflectionScaleOpaque_0 = scaleOpaqueReflection_0;
     coefficient_5.transmission_0 = thinWallAwareTintedTransIncludingSss_0;
     coefficient_5.metalF0_0 = weightedBaseColor_0;
-    coefficient_5.metalF82Tint_0 = inputs_3.specularColor_0;
+    coefficient_5.metalF82Tint_0 = metalF82Tint_2;
     coefficient_5.metalAmount_0 = darkenedMetal_0;
     coefficient_5.thinFilmWeight_0 = inputs_3.thinFilmWeight_1;
     coefficient_5.thinFilmThickness_0 = inputs_3.thinFilmThickness_1 * 1000.0f;
@@ -7520,8 +7544,8 @@ fn EvalEmission_0( header_6 : MaterialHeader_0,  tc_7 : TextureCoords_0) -> vec3
     {
         return vec3<f32>(0.0f);
     }
-    var o_54 : MaterialOutputs_0 = RunScalarMaterialProgram_0(header_6, header_6.emission_0, tc_7);
-    return o_54.inputs_0.emissionColor_0 * vec3<f32>(o_54.inputs_0.emissionLuminance_0);
+    var o_55 : MaterialOutputs_0 = RunScalarMaterialProgram_0(header_6, header_6.emission_0, tc_7);
+    return o_55.inputs_0.emissionColor_0 * vec3<f32>(o_55.inputs_0.emissionLuminance_0);
 }
 
 fn EmissiveRadiance_0( material_1 : MaterialHeader_0,  tc_8 : TextureCoords_0) -> vec3<f32>
