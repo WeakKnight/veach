@@ -9,7 +9,9 @@ export default defineConfig({
 		target: 'es2022',
 		outDir: 'dist-lib',
 		emptyOutDir: true,
-		sourcemap: true,
+		// Release packages contain compiled code only; maps embed the original TypeScript.
+		sourcemap: false,
+		minify: 'esbuild',
 		lib: {
 			entry: { index: 'src/index.ts', view: 'src/view/index.ts' },
 			formats: ['es'],

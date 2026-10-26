@@ -1,5 +1,4 @@
-// Histogram auto exposure (ported from Unreal's PostProcessHistogram.usf and
-// PostProcessEyeAdaptation.usf, AEM_Histogram). The histogram reads the pre-exposed accumulation and
+// Histogram auto exposure. The histogram reads the pre-exposed accumulation and
 // undoes the pre-exposure; EyeAdaptation trims outliers, adapts towards the target over time and
 // writes gExposure[0] = (exposure scale, target scale, average luminance, compensation), which the
 // present pass applies directly and the host reads back as the next pre-exposure.
@@ -54,7 +53,7 @@ void Histogram(uint3 tid: SV_DispatchThreadID, uint groupIndex: SV_GroupIndex)
 		uint bucket0 = uint(bucket);
 		uint bucket1 = min(bucket0 + 1u, HISTOGRAM_SIZE - 1u);
 		float weight1 = frac(bucket);
-		// black pixels (bucket 0) do not count, as with Unreal's default BlackHistogramBucketInfluence
+		// Black pixels (bucket 0) do not contribute to the exposure estimate.
 		float weight0 = bucket0 == 0u ? 0.0 : 1.0 - weight1;
 		gsHistogram[bucket0].add(uint(weight0 * HISTOGRAM_WEIGHT_SCALE + 0.5));
 		gsHistogram[bucket1].add(uint(weight1 * HISTOGRAM_WEIGHT_SCALE + 0.5));

@@ -49,6 +49,29 @@ scripts/            build-shaders, build-wasm, build-bsdf-tables, build-bsdf-har
                     aces2-reference.py (OCIO fixture)
 ```
 
+## npm release layout
+
+`npm pack` and `npm publish` run `prepack`, which rebuilds `dist-lib/` from scratch.
+`vite.lib.config.ts` emits optimized ES modules without source maps. `tsconfig.build.json`
+emits declarations starting from the two public entry points and their dependencies.
+The package file allowlist includes `dist-lib/*.js`, `dist-lib/types/**/*.d.ts` and the public
+API guide, `LICENSE`, `THIRD_PARTY_NOTICES.md` and `licenses/*.txt`, along with npm's standard
+README / package metadata. License notices cover the embedded third-party runtime and data.
+This also excludes stray maps or
+development files if they are accidentally left in the build directory.
+
+WGSL strings, tinybvh WASM and BSDF lookup tables remain inlined; consumers need no runtime
+asset paths. `fzstd` is a development dependency for the `.blend` viewer and tests, and is not
+reachable from the current public entries. `@webgpu/types` remains an installed dependency for
+the public declarations. No Slang, WASM or BSDF rebuild
+is needed for packaging-only changes: their committed generated outputs are consumed as-is.
+
+The explicit exports in `src/index.ts` (`veach`) and `src/view/index.ts` (`veach/view`) are the
+public API layer. Package `exports` blocks deep imports into implementation modules. Generated
+declarations and [PublicAPI.md](PublicAPI.md) ship with the release, so trimming source files
+does not remove supported APIs. Future API additions belong in these entry points with their
+types and documentation; preserve existing exports unless making an intentional breaking release.
+
 ## Struct layout
 
 `shaders/Scene/SceneTypes.slang` and `src/render/GpuLayout.ts` must match byte for byte. Every

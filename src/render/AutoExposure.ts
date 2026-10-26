@@ -1,4 +1,4 @@
-// Histogram auto exposure (shaders/Passes/AutoExposure.slang), after Unreal's eye adaptation: a
+// Histogram auto exposure (shaders/Passes/AutoExposure.slang): a
 // 64-bucket log2 luminance histogram, a percentile-trimmed average and temporal adaptation into a
 // GPU exposure buffer that the present pass applies directly. The buffer is also read back
 // asynchronously; the renderer uses the last value as the pre-exposure of the next accumulation.
@@ -9,11 +9,11 @@ export const HISTOGRAM_SIZE = 64; // AutoExposure.slang
 export const EYE_ADAPTATION_PARAMS_BYTES = 80;
 const EXPOSURE_BYTES = 32; // float4 x 2
 const MAX_READBACKS = 3;
-// Unreal's EyeAdaptation_StartDistance and the frame time the exponential slope is matched at.
+// Transition distance in EV and reference frame time for matching the exponential slope.
 const START_DISTANCE = 1.5;
 const FRAME_TIME_EPS = 1 / 60;
 
-// Unreal's r.AutoExposure.LuminanceMethod; local exposure meters with the same weights.
+// Luminance weighting options; local exposure meters with the same weights.
 export enum LuminanceMethod {
 	Uniform = 0,
 	NTSC = 1,
@@ -26,13 +26,13 @@ export function luminanceWeights(method: LuminanceMethod): [number, number, numb
 	return [1 / 3, 1 / 3, 1 / 3];
 }
 
-// Unreal's EAutoExposureMethod (Basic is not implemented).
+// Exposure modes. Value 1 remains reserved; Basic metering is not implemented.
 export enum AutoExposureMethod {
 	Histogram = 0,
 	Manual = 2,
 }
 
-// FEyeAdaptationParameters inputs; EV100 values assume Unreal's default lens attenuation (0.78),
+// Eye adaptation inputs; EV100 values assume lens attenuation 0.78,
 // where luminance max is 1 and EV100 = log2(luminance).
 export interface EyeAdaptationInput {
 	method: AutoExposureMethod;
@@ -50,7 +50,7 @@ export interface EyeAdaptationInput {
 	luminanceMethod: LuminanceMethod;
 }
 
-// Unreal's ExponentialUpM / DownM: scales the exponential adaptation so its rate at the start
+// Scales the exponential adaptation so its rate at the start
 // distance matches the linear rate, making the switch between the two continuous.
 export function exponentialAdaptationM(speed: number): number {
 	const s = Math.max(speed, 1e-3);
@@ -58,13 +58,13 @@ export function exponentialAdaptationM(speed: number): number {
 	return FRAME_TIME_EPS / ((1 - Math.pow(2, -FRAME_TIME_EPS * s)) * startTime);
 }
 
-// Unreal's HistogramLogMin, kept at least one stop below HistogramLogMax; also the
-// eye adaptation luminance floor (EyeAdaptation_LuminanceMin = 2^HistogramLogMin).
+// Histogram lower bound, kept at least one stop below the upper bound; also the
+// eye adaptation luminance floor (2^histogramLogMin).
 export function histogramLogMin(p: Pick<EyeAdaptationInput, 'histogramLogMin' | 'histogramLogMax'>): number {
 	return Math.min(p.histogramLogMin, p.histogramLogMax - 1);
 }
 
-// Packs EyeAdaptationParams (AutoExposure.slang), as Unreal's GetEyeAdaptationParameters.
+// Packs EyeAdaptationParams for AutoExposure.slang.
 export function packEyeAdaptationParams(out: Float32Array, p: EyeAdaptationInput): void {
 	const logMin = histogramLogMin(p);
 	const scale = 1 / (p.histogramLogMax - logMin);

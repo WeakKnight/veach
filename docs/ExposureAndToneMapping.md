@@ -20,10 +20,10 @@ limiting, sRGB piecewise encoding).
 
 ## Exposure
 
-After Unreal's histogram eye adaptation and path tracer pre-exposure.
+Histogram eye adaptation and path tracer pre-exposure.
 
 - The path tracer writes `radiance * preExposure` (`envParams.z`) into the accumulation.
-  `Renderer` fixes the pre-exposure when an accumulation starts (Unreal's `BaseExposure`) to the
+  `Renderer` fixes the pre-exposure when an accumulation starts to the
   last exposure read back from the GPU (auto) or `2^exposure` (manual). The firefly clamp applies
   to pre-exposed values.
 - Every beauty frame, `AutoExposure` (`shaders/Passes/AutoExposure.slang`) builds a 64-bucket
@@ -35,17 +35,16 @@ After Unreal's histogram eye adaptation and path tracer pre-exposure.
 - Present multiplies by `gExposure[0].x / preExposure`.
 - Manual mode runs the same pass with the white point pinned to 1 and the target forced. A new
   scene forces the target; debug views skip exposure.
-- Luminances are log2 with luminance max 1 (Unreal's extended EV100 range, defaults -10..20).
+- Luminances are log2 with luminance max 1 (extended EV100 range, defaults -10..20).
 
 ### Settings
 
-- Names and meaning mirror Unreal's `FPostProcessSettings` (`autoExposureMethod`,
+- Public settings include `autoExposureMethod`,
   `autoExposureBias` + `autoExposureBiasCurve`, `autoExposureLow/HighPercent` clamped to 1..99,
-  `autoExposureMin/MaxBrightness`, `histogramLogMin/Max`, `localExposure*Contrast*`).
+  `autoExposureMin/MaxBrightness`, `histogramLogMin/Max` and `localExposure*Contrast*`.
 - EV100 values assume the default lens attenuation 0.78 (EV100 = log2 luminance).
-- Console variables keep their cvar meaning (`autoExposureLuminanceMethod` =
-  `r.AutoExposure.LuminanceMethod`, `localExposureFusionTargetLuminance` =
-  `r.LocalExposure.ExposureFusion.TargetLuminance`); the fusion weight sigma is Unreal's fixed 0.2.
+- `autoExposureLuminanceMethod` selects luminance weights;
+  `localExposureFusionTargetLuminance` sets the well-exposedness target. The fusion weight sigma is 0.2.
 - Curves key on the scene EV100 `log2(averageLuminance / 0.18)`; the histogram runs in Manual too
   so they stay valid.
 

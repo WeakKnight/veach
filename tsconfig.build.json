@@ -7,6 +7,5 @@
     "outDir": "dist-lib/types",
     "rootDir": "src"
   },
-  "include": ["src"],
-  "exclude": ["src/app"]
+  "include": ["src/index.ts", "src/view/index.ts"]
 }

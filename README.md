@@ -39,6 +39,17 @@ npm install veach
 
 The package is ES modules with TypeScript declarations; shaders, the tinybvh wasm and the BSDF tables are inlined, so it needs no asset configuration in any bundler. `veach` is the renderer and loaders (no DOM side effects, imports in Node); `veach/view` adds the `<veach-view>` custom element.
 
+See the [public API guide](docs/PublicAPI.md) for custom canvas integration, application-owned
+scene loading, environment switching, component embedding and resource cleanup.
+
+Release packages contain the optimized JavaScript entries, generated TypeScript declarations,
+public API guide, license notices, README and package metadata. WGSL, tinybvh WASM and BSDF tables are embedded in
+the JavaScript. The development viewer's `.blend` dependency `fzstd` is not installed by consumers
+of the current public entries. Source maps, original
+TypeScript / Slang / C++ sources, tests, samples and build tools are excluded. Type declarations
+preserve editor completion; `@webgpu/types` supplies their WebGPU API types. Compiled JavaScript
+and WGSL remain readable; this packaging does not encrypt or hide the runtime implementation.
+
 ### `<veach-view>`
 
 ```html
@@ -121,3 +132,11 @@ npm test            # unit tests (Node)
 npm run typecheck
 npm run smoke       # headless Chrome WebGPU renders -> .tools/smoke/*.png
 ```
+
+## License
+
+Veach's original code is available under the [MIT License](LICENSE), allowing commercial
+use, modification and redistribution subject to its copyright and license notice requirements.
+Third-party components and derived portions retain their own licenses; see
+[Third-party notices](THIRD_PARTY_NOTICES.md) and the full texts in `licenses/`.
+These notices ship with the npm package alongside the compiled runtime and public API.

@@ -43,8 +43,7 @@ export interface RenderSettings {
 	resolutionScale: number;
 	debugMode: DebugMode;
 	tonemapper: Tonemapper;
-	// Unreal's Lens|Exposure post process settings (same names and meaning; display names in
-	// quotes). EV100 values assume the default r.EyeAdaptation.LensAttenuation (0.78), where
+	// Exposure settings (display names in quotes). EV100 values assume lens attenuation 0.78, where
 	// EV100 = log2(luminance). Exposure settings only affect presentation and keep the accumulation.
 	autoExposureMethod: AutoExposureMethod; // "Metering Mode"
 	autoExposureBias: number; // "Exposure Compensation" (EV): offset from middle grey; Manual exposes by 2^bias
@@ -168,8 +167,8 @@ export class Renderer {
 	private skyKey = ''; // sun and rotation the sky was last baked for
 	private sunTransmittance: Vec3 = [1, 1, 1];
 	private frameIndex = 0;
-	// Scale applied to radiance before accumulation, fixed per accumulation (Unreal's path tracer
-	// BaseExposure): the last exposure read back when the accumulation started.
+	// Scale applied to radiance before accumulation, fixed per accumulation:
+	// the last exposure read back when the accumulation started.
 	private preExposure = 1;
 	private forceExposureTarget = true; // jump to the metered exposure (startup, new scene)
 	private lastExposureTime = 0;
@@ -533,13 +532,13 @@ export class Renderer {
 		return this.zCurves.get(tonemapper)!;
 	}
 
-	// Scene EV100 the Unreal curves key on: last average luminance / 0.18 (the saturation luminance).
+	// Scene EV100 for exposure curves: log2(last average luminance / 0.18).
 	get sceneEV100(): number | null {
 		const average = this.exposureStats.averageLuminance;
 		return average > 0 ? Math.log2(average / 0.18) : null;
 	}
 
-	// Unreal's GetAutoExposureCompensationFromSettings / FromCurve, in EV.
+	// Combined exposure compensation from the settings and optional curve, in EV.
 	exposureCompensation(): number {
 		const s = this.settings;
 		const ev = this.sceneEV100;
@@ -585,13 +584,12 @@ export class Renderer {
 			enabled,
 			visualize: s.visualizeLocalExposure,
 			luminanceWeights: luminanceWeights(s.autoExposureLuminanceMethod),
-			// Unreal's EyeAdaptation_LuminanceMin: the bottom of the histogram
+			// The bottom of the histogram defines the minimum metered luminance.
 			luminanceMin: Math.pow(2, histogramLogMin(s)),
 		});
 	}
 
-	// Unreal's UpdatePreExposure: global exposure times the average local exposure, which Unreal
-	// only measures for the bilateral method and is 1 for Fusion.
+	// Pre-exposure uses the global exposure; Fusion does not contribute a separate average scale.
 	private nextPreExposure(): number {
 		const s = this.settings;
 		const exposure = s.autoExposureMethod === AutoExposureMethod.Histogram ? this.tracer.autoExposure.stats.exposure : Math.pow(2, this.exposureCompensation());
