@@ -12,6 +12,8 @@ A physically based path tracer for the web: **WebGPU** compute, **tinybvh** (com
 - Streaming virtual textures with GPU feedback (no bindless in WebGPU): ray-cone mip selection, page requests from every texture sample at a ray hit, asynchronous readback, budgeted uploads into a shared page cache with LRU eviction
 - [ACES 2.0](https://github.com/aces-aswf/aces-core) Output Transform (SDR 100 nit sRGB), ported from the reference CTL, validated against OpenColorIO and applied as a PQ-shaped 64³ 3D LUT (after Unreal's combine-LUT pass); the ACES 1.x filmic fit remains as an option
 - Progressive accumulation, exposure, debug views (albedo, normals, UV, instance, material, traversal cost, emission, virtual texture mip)
+- OIDN WebGPU HDR denoising with albedo/normal guides, enabled by default after 128 samples; the default model is included and loaded separately
+- Ten built-in display LUTs plus external 3D `.cube` / float32 LUTs, with explicit color-space metadata; ACES2 remains the default display transform
 
 ## Quick start
 
@@ -95,6 +97,12 @@ renderer.start();
 ```
 
 `Renderer.create` compiles every pipeline asynchronously and resolves once they are ready.
+The default sample limit is 128, with OIDN enabled. Its bundled HDR model loads asynchronously
+alongside rendering; no model URL is required. Use `Renderer.create(canvas, { denoiser: null })`
+to disable denoising and its downloads, or `renderer.settings.maxSamples = 0` for unlimited sampling.
+`renderer.setDisplayTransform({ type: 'builtin', preset: 'astia' })` selects a bundled LUT;
+passing `null` restores the default tone mapper. See the public API guide for external LUTs,
+denoising progress, custom models and GPU guiding-buffer access.
 
 ### Development
 
