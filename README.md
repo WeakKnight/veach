@@ -1,0 +1,123 @@
+# Veach
+
+A physically based path tracer for the web: **WebGPU** compute, **tinybvh** (compiled to WebAssembly) for BVH construction, and BVH traversal / shading written in **Slang** and compiled to WGSL. Renders glTF 2.0 assets.
+
+Veach is based on the Mozi web renderer. The original C++ XPU renderer (CPU / OptiX / Metal, editor) remains in the [upstream Mozi repository's history](https://github.com/Mozi-Renderer/Mozi) under the former `Legacy/` directory for porting reference.
+
+## Features
+
+- Megakernel unidirectional path tracer with multiple importance sampling between BSDF sampling and next event estimation (environment map, emissive triangles, analytic sun)
+- Disney principled BSDF (diffuse, retro-reflection, sheen, specular, clearcoat, rough and smooth glass), alpha mask / stochastic blend, Russian roulette
+- Two-level acceleration structure: one tinybvh BLAS per mesh (SBVH by default) and a TLAS over instances, traversed by a hand-written stack traversal in Slang
+- glTF 2.0 (`.gltf` / `.glb`): node hierarchy, all accessor types (normalized, sparse), triangle strips / fans, cameras, PBR metallic-roughness, `KHR_materials_emissive_strength`, `_ior`, `_transmission`, `_clearcoat`, `_specular`, `_sheen`, `_anisotropy`, `_unlit`, `KHR_texture_transform`, `KHR_mesh_quantization`
+- Equirectangular `.hdr` environments with importance sampling, or a procedural sky + sun
+- Streaming virtual textures with GPU feedback (no bindless in WebGPU): ray-cone mip selection, page requests from every texture sample at a ray hit, asynchronous readback, budgeted uploads into a shared page cache with LRU eviction
+- [ACES 2.0](https://github.com/aces-aswf/aces-core) Output Transform (SDR 100 nit sRGB), ported from the reference CTL, validated against OpenColorIO and applied as a PQ-shaped 64³ 3D LUT (after Unreal's combine-LUT pass); the ACES 1.x filmic fit remains as an option
+- Progressive accumulation, exposure, debug views (albedo, normals, UV, instance, material, traversal cost, emission, virtual texture mip)
+
+## Quick start
+
+```sh
+npm install
+npm run fetch-samples   # optional: Khronos sample models + an HDR into public/samples
+npm run dev
+```
+
+Open the printed URL in a WebGPU-capable browser (Chrome / Edge 113+). Drop a `.glb`, a `.gltf` together with its files, or an `.hdr` onto the page, or use URL parameters:
+
+```
+http://localhost:5173/?model=/samples/DamagedHelmet.glb&env=/samples/studio_small_09_1k.hdr
+```
+
+Other parameters: `spp=<n>` stops after n samples, `debug=<0..9>` selects a debug view, `tonemap=<0..2>` selects None / ACES filmic fit / ACES 2.0. Keys: `0`–`9` debug view, `[` / `]` exposure, `B` / `N` bounces, `T` cycle tonemapper, `E` environment visibility, `S` sun, `F` frame scene, `H` help.
+
+## npm package
+
+```sh
+npm install veach
+```
+
+The package is ES modules with TypeScript declarations; shaders, the tinybvh wasm and the BSDF tables are inlined, so it needs no asset configuration in any bundler. `veach` is the renderer and loaders (no DOM side effects, imports in Node); `veach/view` adds the `<veach-view>` custom element.
+
+### `<veach-view>`
+
+```html
+<script type="module">
+	import 'veach/view'; // registers <veach-view>
+</script>
+
+<veach-view model="/model.glb" environment="/env.hdr" show-stats droppable style="height: 600px"></veach-view>
+```
+
+```ts
+import 'veach/view';
+import { Tonemapper } from 'veach';
+
+const view = document.querySelector('veach-view')!;
+view.settings = { maxBounces: 8, maxSamples: 1024, tonemapper: Tonemapper.ACES2 }; // partial RenderSettings
+view.sun = { elevation: 30 };
+view.addEventListener('veach-load', (e) => console.log(e.detail.triangles));
+view.addEventListener('veach-error', (e) => {
+	e.preventDefault(); // handled here (otherwise logged)
+	showMessage(e.detail.message);
+});
+```
+
+Until the shaders have compiled (seconds on a first visit, cached by the browser afterwards) and the first scene has loaded, the view shows a progress bar; a model URL given up front is fetched while the shaders compile.
+
+- Attributes: `model` / `environment` (URLs; no environment = procedural sky + sun), `show-stats`, `paused`, `droppable` (loads dropped `.glb` / `.gltf` + files / `.hdr`), and `controls`, `use-scene-camera`, `progress` (on unless `="false"`).
+- Properties: the same, plus `model` / `environment` as a loaded `SceneDesc` / `HDRImage`, `settings`, `sun`, `progress` (a function for custom content), `fallback` (content without WebGPU) and the read-only `renderer`. Methods: `frameScene()`, `resetAccumulation()`.
+- Events (`CustomEvent`): `veach-ready` (renderer), `veach-progress` (`InitProgress`), `veach-load` (`SceneStats`), `veach-loadingchange`, `veach-stats` (every frame), `veach-drop`, `veach-error`.
+- Styling: 360 px high by default (size it with CSS); `::part(canvas | stats | progress | dropzone | fallback)`; children are overlays on top of the canvas.
+- `attachFileDrop(element, handlers)` / `loadDroppedFiles(files)` provide the drag & drop loading for other drop targets; `defineVeachView(tag)` registers under another tag name.
+
+Each view owns its own WebGPU device.
+
+### Renderer
+
+```ts
+import { Renderer, loadGLTF, loadHDR, OrbitController } from 'veach';
+
+const renderer = await Renderer.create(canvas, { onProgress: (p) => console.log(p.message, p.progress) });
+new OrbitController(renderer.camera, canvas, () => renderer.resetAccumulation());
+await renderer.setScene(await loadGLTF('/model.glb'));
+renderer.setEnvironment(await loadHDR('/env.hdr'));
+renderer.start();
+```
+
+`Renderer.create` compiles every pipeline asynchronously and resolves once they are ready.
+
+### Development
+
+- `npm run dev:view`: demo app in `examples/view` (http://localhost:5174)
+- `npm run build:view` then `npm run preview:view`: production build of the demo (http://localhost:4174)
+- `npm run build:lib`: ES modules and type declarations in `dist-lib/` (also run by `npm pack` / `npm publish`)
+
+## Layout
+
+| Path | Contents |
+|---|---|
+| `shaders/` | Slang sources: `Common/`, `Scene/` (GPU struct layout and bindings), `RayTracing/Traversal.slang`, `Materials/`, `Lights/`, `Passes/` |
+| `src/accel/` | TypeScript wrapper over the tinybvh WASM module |
+| `src/loaders/` | glTF and HDR loaders |
+| `src/render/` | WebGPU host: scene flattening, virtual textures (`vt/`), ACES 2.0 + tone LUT (`aces/`, ported from aces-core, Apache-2.0, Copyright Contributors to the ACES Project), environment, pipelines, renderer, camera |
+| `src/generated/` | Committed build outputs: WGSL from Slang, tinybvh `.mjs` + `.wasm` |
+| `wasm/` | C ABI over tinybvh compiled with Emscripten |
+| `ThirdParty/tinybvh/` | Vendored tinybvh headers |
+| `scripts/` | Shader / WASM builds, sample download, headless smoke test |
+| `tests/` | vitest: BVH layout vs. brute force, loaders, environment CDF, virtual textures, ACES 2.0 vs. OpenColorIO (`python scripts/aces2-reference.py` regenerates the fixture) |
+
+## Rebuilding generated code
+
+Generated WGSL and WASM are committed, so `npm run dev` works without extra toolchains.
+
+- `npm run build:shaders`: compiles `shaders/` with `slangc` (from `$SLANGC`, `.tools/slang`, or `PATH`; downloaded into `.tools/slang` if missing).
+- `npm run build:wasm`: compiles `wasm/tinybvh_wasm.cpp` with Emscripten (`$EMSDK` or `.tools/emsdk`). Pass `-- --debug` for a build with symbols and assertions in `.tools/tinybvh-debug`.
+
+## Testing
+
+```sh
+npm test            # unit tests (Node)
+npm run typecheck
+npm run smoke       # headless Chrome WebGPU renders -> .tools/smoke/*.png
+```

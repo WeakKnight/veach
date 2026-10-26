@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="UTF-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+		<title>Veach &lt;veach-view&gt;</title>
+		<link rel="icon" href="data:," />
+		<link rel="stylesheet" href="./styles.css" />
+	</head>
+	<body>
+		<div id="app" class="app">
+			<header>
+				<span class="logo">Veach</span>
+				<span class="subtitle">WebGPU path tracer · &lt;veach-view&gt; custom element</span>
+				<span class="grow"></span>
+				<code>&lt;veach-view model environment&gt;</code>
+			</header>
+			<aside id="panel"></aside>
+			<main id="main">
+				<veach-view id="view" class="viewport" show-stats>
+					<div id="loading" class="badge" hidden>Loading…</div>
+					<div id="error" class="badge error" hidden></div>
+					<div id="dropzone" class="dropzone" hidden>Drop .glb / .gltf (+ files) or .hdr</div>
+				</veach-view>
+			</main>
+		</div>
+		<script type="module" src="./main.ts"></script>
+	</body>
+</html>

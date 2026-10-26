@@ -1,62 +1,65 @@
 {
   "name": "veach",
-  "productName": "veach",
-  "version": "1.0.0",
-  "description": "My Electron application description",
-  "main": ".vite/build/main.js",
+  "version": "0.1.0",
+  "description": "Veach: a WebGPU path tracer for glTF and .blend assets (tinybvh + Slang), with a <veach-view> custom element",
+  "keywords": [
+    "webgpu",
+    "path-tracing",
+    "renderer",
+    "gltf",
+    "pbr",
+    "web-components"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/WeakKnight/veach.git"
+  },
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist-lib/types/index.d.ts",
+      "import": "./dist-lib/index.js"
+    },
+    "./view": {
+      "types": "./dist-lib/types/view/index.d.ts",
+      "import": "./dist-lib/view.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "types": "./dist-lib/types/index.d.ts",
+  "module": "./dist-lib/index.js",
+  "sideEffects": [
+    "./dist-lib/view.js"
+  ],
+  "files": [
+    "dist-lib"
+  ],
   "scripts": {
-    "preprocess:shaders": "node scripts/preprocess-wgsl.js",
-    "start": "npm run preprocess:shaders && electron-forge start",
-    "package": "electron-forge package",
-    "make": "electron-forge make",
-    "publish": "electron-forge publish",
-    "lint": "eslint --ext .ts,.tsx .",
-    "test": "jest",
-    "test:watch": "jest --watch",
-    "test:coverage": "jest --coverage"
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "build:shaders": "node scripts/build-shaders.mjs",
+    "build:wasm": "node scripts/build-wasm.mjs",
+    "build:bsdf-tables": "node scripts/build-bsdf-tables.mjs",
+    "build:bsdf-harness": "node scripts/build-bsdf-harness.mjs",
+    "fetch-samples": "node scripts/fetch-samples.mjs",
+    "smoke": "node scripts/smoke.mjs",
+    "build:lib": "vite build --config vite.lib.config.ts && tsc -p tsconfig.build.json",
+    "dev:view": "vite --config examples/view/vite.config.ts",
+    "build:view": "tsc --noEmit && vite build --config examples/view/vite.config.ts",
+    "preview:view": "vite preview --config examples/view/vite.config.ts",
+    "prepack": "npm run build:lib"
   },
-  "keywords": [],
-  "author": {
-    "name": "Tianyu Li",
-    "email": "ltyucb@gmail.com"
-  },
-  "license": "MIT",
   "devDependencies": {
-    "@electron-forge/cli": "^7.8.1",
-    "@electron-forge/maker-deb": "^7.8.1",
-    "@electron-forge/maker-rpm": "^7.8.1",
-    "@electron-forge/maker-squirrel": "^7.8.1",
-    "@electron-forge/maker-zip": "^7.8.1",
-    "@electron-forge/plugin-auto-unpack-natives": "^7.8.1",
-    "@electron-forge/plugin-fuses": "^7.8.1",
-    "@electron-forge/plugin-vite": "^7.8.1",
-    "@electron/fuses": "^1.8.0",
-    "@types/jest": "^30.0.0",
-    "@typescript-eslint/eslint-plugin": "^5.62.0",
-    "@typescript-eslint/parser": "^5.62.0",
-    "@vitejs/plugin-react": "^4.6.0",
-    "@webgpu/types": "^0.1.63",
-    "electron": "37.0.0",
-    "eslint": "^8.57.1",
-    "eslint-plugin-import": "^2.32.0",
-    "jest": "^30.0.3",
-    "ts-jest": "^29.4.0",
-    "ts-node": "^10.9.2",
-    "typescript": "~4.5.4",
-    "vite": "^5.4.19"
+    "puppeteer-core": "^24.0.0",
+    "typescript": "^5.6.0",
+    "vite": "^6.0.0",
+    "vitest": "^3.0.0"
   },
   "dependencies": {
-    "@gltf-transform/core": "^4.2.1",
-    "@gltf-transform/extensions": "^4.2.1",
-    "@gltf-transform/functions": "^4.2.1",
-    "@types/react": "^19.1.8",
-    "@types/react-dom": "^19.1.6",
-    "antd": "^5.26.2",
-    "electron-squirrel-startup": "^1.0.1",
-    "react": "^19.1.0",
-    "react-dom": "^19.1.0",
-    "tinyusdz": "^0.9.0-rc10",
-    "vite-slang": "^0.2.0",
-    "wgsl_reflect": "^1.2.1"
+    "@webgpu/types": "^0.1.60",
+    "fzstd": "^0.1.1"
   }
 }
