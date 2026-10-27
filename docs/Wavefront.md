@@ -180,6 +180,27 @@ queue counts each bounce; this implementation uses GPU compaction and indirect d
 - Paired harness validation at 65x63 verifies both integrator orders and exact per-round HDR.
   It ran alongside smoke only to validate harness behavior; its timings are not performance
   evidence. The subsequent full-resolution paired run executes alone.
+- `paired-tail-65536-v1`: five rounds per scene, each 32 samples per integrator in the same
+  renderer with alternating order. All 25 paired HDR comparisons are bit-identical. Total-span
+  medians (mega/wave) are 15.116/8.790, 6.743/4.813, 4.286/4.104, 6.608/3.764,
+  2.405/1.917 ms. Corresponding speedups: 1.72/1.40/1.04/1.76/1.25x. BMW's small gain
+  overlaps some reference repeats; retain the raw ranges rather than claiming a robust large win.
+  The reference also shows first-block variability despite warmup, motivating longer paired runs.
+- A third compiler-lifetime regression test covers disposal between compilation completion and
+  promise delivery. It reproduced a remaining leak and now passes. Full suite: 159 tests,
+  TypeScript and library build pass after the fix.
+
+## Next experiments
+
+- Measure a one-slot SVM specialization on both integrators. All five fixed scenes fit, but
+  production selection must use compiler-reported bounds and retain the full-stack fallback.
+  Include emission and opacity interpreter call sites, not just surface shading. Keep the
+  bytecode/CPU semantics unchanged and test larger-stack materials separately.
+- Compare shader-program/material sorting and avoid assuming it helps already coherent glTF work.
+- Reduce the empty dispatch/compaction overhead after an adaptive tail finishes, and test
+  thresholds across resolutions and bounce counts rather than hardcoding this GPU's best result.
+- Extend beyond pinned-mip exact tests to ordinary stochastic-alpha convergence checks, and
+  continue monitoring startup compilation cost and memory at large image sizes.
 
 ## Experimental tail controls
 

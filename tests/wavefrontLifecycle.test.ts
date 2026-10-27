@@ -63,4 +63,20 @@ describe('wavefront compilation ownership', () => {
 		pathTracer.destroy();
 		expect(compilation.instances[1].destroy).toHaveBeenCalledTimes(1);
 	});
+
+	it('releases a ready compiler when disposal races promise delivery', async () => {
+		const compile = pending();
+		compilation.pending = compile.promise;
+		const pathTracer = tracer();
+		const switching = pathTracer.setIntegrator('wavefront');
+		const rejected = expect(switching).rejects.toThrow(/destroyed/i);
+		await vi.waitFor(() => expect(compilation.instances).toHaveLength(1));
+		compile.resolve();
+		// The compiler's await resumes first; the outer import/catch chain has not delivered it yet.
+		await Promise.resolve();
+		pathTracer.destroy();
+		await rejected;
+		expect(compilation.instances[0].destroy).toHaveBeenCalledTimes(1);
+		expect(pathTracer.resize).not.toHaveBeenCalled();
+	});
 });

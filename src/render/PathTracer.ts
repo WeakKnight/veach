@@ -290,7 +290,14 @@ export class PathTracer {
 				this.wavefrontLoading = null;
 				throw error;
 			});
-			this.wavefront = await this.wavefrontLoading;
+			const wavefront = await this.wavefrontLoading;
+			if (this.destroyed) {
+				// Compilation can finish before destroy(), yet reach this await afterward.
+				// Cached instances are already owned/disposed by this tracer; new ones are not.
+				if (wavefront !== this.wavefront) wavefront.destroy();
+				throw new Error('Path tracer has been destroyed');
+			}
+			this.wavefront = wavefront;
 		}
 		if (this.destroyed) throw new Error('Path tracer has been destroyed');
 		this.integrator = mode;
