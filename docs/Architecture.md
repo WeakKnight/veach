@@ -96,7 +96,8 @@ EmissiveTriangle 128, FrameUniforms 224. Materials are bytecode in `gMaterialDat
 The experimental wavefront integrator is described in [Wavefront.md](Wavefront.md).
 It appends bounded tile work storage to the accumulation buffer (group 1 binding 0),
 retaining the eight-storage-buffer limit. Its group 1 adds a dynamic uniform at binding 2
-for tile origin, path count, bounce, and capacity. Presentation reads only the image prefix.
+for tile origin, path count, bounce, capacity, and experimental tail threshold (32-byte binding).
+Presentation reads only the image prefix.
 GPU compaction views that allocation as atomic uints in its own pass; dispatch arguments
 are copied into a small INDIRECT-only buffer. Opaque traversal variants omit the opacity
 interpreter when `GpuScene.hasAlphaTested` is false (derived from instanced materials).

@@ -5,10 +5,13 @@ import compactWgsl from '../generated/shaders/WavefrontCompact.wgsl?raw';
 const RECORD_BYTES = 21 * 16; // WAVEFRONT_STRIDE in Wavefront.slang
 const TILE_CAPACITY = 262144;
 const WORKGROUP_SIZE = 64;
-const ENTRIES = ['Initialize', 'Intersect', 'IntersectOpaque', 'Shade', 'Shadow', 'ShadowOpaque', 'Finalize', 'Compact'] as const;
+const ENTRIES = ['Initialize', 'Intersect', 'IntersectOpaque', 'Shade', 'Shadow', 'ShadowOpaque', 'Tail', 'TailOpaque', 'Finalize', 'Compact'] as const;
 type Entry = typeof ENTRIES[number];
 
 export class Wavefront {
+	// Experimental tuning knob for the benchmark; keep the fully staged default until measured.
+	tailStart = Number.POSITIVE_INFINITY;
+	tailThreshold = 0;
 	readonly layout: GPUBindGroupLayout;
 	readonly compiled: Promise<void>;
 	private readonly pipelines = new Map<Entry, GPUComputePipeline>();
@@ -26,7 +29,7 @@ export class Wavefront {
 		this.layout = device.createBindGroupLayout({ label: 'wavefront', entries: [
 			{ binding: 0, visibility: GPUShaderStage.COMPUTE, buffer: { type: 'storage' } },
 			{ binding: 1, visibility: GPUShaderStage.COMPUTE, storageTexture: { access: 'write-only', format: 'r32uint' } },
-			{ binding: 2, visibility: GPUShaderStage.COMPUTE, buffer: { type: 'uniform', hasDynamicOffset: true, minBindingSize: 16 } },
+			{ binding: 2, visibility: GPUShaderStage.COMPUTE, buffer: { type: 'uniform', hasDynamicOffset: true, minBindingSize: 32 } },
 		] });
 		const module = device.createShaderModule({ label: 'Wavefront', code: wavefrontWgsl });
 		const compactModule = device.createShaderModule({ label: 'WavefrontCompact', code: compactWgsl });
@@ -61,13 +64,13 @@ export class Wavefront {
 		const pixels = width * height, capacity = this.capacity(pixels);
 		const workItems = Math.ceil(width / 8) * Math.ceil(height / 8) * 64;
 		const tiles = Math.ceil(workItems / capacity), bounces = Math.max(0, Math.floor(maxBounces));
-		const key = `${width}/${height}/${bounces}/${capacity}`;
+		const key = `${width}/${height}/${bounces}/${capacity}/${this.tailThreshold}`;
 		if (key !== this.parameterKey) {
 			this.parameters?.destroy();
 			const data = new Uint32Array(tiles * (bounces + 1) * this.alignment / 4);
 			for (let tile = 0; tile < tiles; tile++) {
 				for (let bounce = 0; bounce <= bounces; bounce++) {
-					data.set([tile * capacity, Math.min(capacity, workItems - tile * capacity), bounce, capacity],
+					data.set([tile * capacity, Math.min(capacity, workItems - tile * capacity), bounce, capacity, this.tailThreshold],
 						(tile * (bounces + 1) + bounce) * this.alignment / 4);
 				}
 			}
@@ -76,7 +79,7 @@ export class Wavefront {
 			this.group = this.device.createBindGroup({ label: 'wavefront', layout: this.layout, entries: [
 				{ binding: 0, resource: { buffer: this.accumulation } },
 				{ binding: 1, resource: this.feedback.createView() },
-				{ binding: 2, resource: { buffer: this.parameters, size: 16 } },
+				{ binding: 2, resource: { buffer: this.parameters, size: 32 } },
 			] });
 			this.parameterKey = key;
 		}
@@ -84,11 +87,11 @@ export class Wavefront {
 			const count = Math.min(capacity, workItems - tile * capacity);
 			const dispatch = (entry: Entry, bounce: number) => {
 				const pass = encoder.beginComputePass({ label: `wavefront.${entry}.b${bounce}` });
-				const pipeline = !hasAlphaTested && (entry === 'Intersect' || entry === 'Shadow') ? `${entry}Opaque` as Entry : entry;
+				const pipeline = !hasAlphaTested && (entry === 'Intersect' || entry === 'Shadow' || entry === 'Tail') ? `${entry}Opaque` as Entry : entry;
 				pass.setPipeline(this.pipelines.get(pipeline)!);
 				pass.setBindGroup(0, scene);
 				pass.setBindGroup(1, this.group!, [(tile * (bounces + 1) + bounce) * this.alignment]);
-				if (entry === 'Intersect' || entry === 'Shade' || entry === 'Shadow') {
+				if (entry === 'Intersect' || entry === 'Shade' || entry === 'Shadow' || entry === 'Tail') {
 					pass.dispatchWorkgroupsIndirect(this.indirect, entry === 'Shadow' ? 16 : 0);
 				} else {
 					pass.dispatchWorkgroups(Math.ceil(count / WORKGROUP_SIZE));
@@ -106,6 +109,12 @@ export class Wavefront {
 			dispatch('Initialize', 0);
 			copyArguments();
 			for (let bounce = 0; bounce <= bounces; bounce++) {
+				if (bounce >= this.tailStart) {
+					dispatch('Tail', bounce);
+					if (this.tailThreshold === 0) break;
+					// Adaptive tails either return immediately or terminate all queued paths.
+					// Following stages observe liveness; compaction drives their indirect counts to zero.
+				}
 				dispatch('Intersect', bounce);
 				compact(bounce);
 				dispatch('Shade', bounce);

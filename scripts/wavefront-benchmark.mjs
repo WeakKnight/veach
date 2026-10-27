@@ -26,7 +26,11 @@ const config = {
 	diagnose: args.includes('--diagnose'),
 	storageBuffers: Number(option('storage-buffers', 8)),
 	clamp: Number(option('clamp', 0)),
+	tailStart: Number(option('tail-start', 999)),
+	tailThreshold: Number(option('tail-threshold', 0)),
+	paired: args.includes('--paired'),
 };
+if (config.paired && config.mode !== 'wavefront') throw new Error('--paired requires --mode wavefront');
 for (const key of ['width', 'height', 'warmup', 'samples', 'repeats', 'bounces']) {
 	if (!Number.isInteger(config[key]) || config[key] < (key === 'bounces' ? 0 : 1)) throw new Error(`Invalid ${key}`);
 }
@@ -43,6 +47,10 @@ for (const c of cases) {
 	c.sha256 = createHash('sha256').update(readFileSync(c.path)).digest('hex');
 }
 mkdirSync(output, { recursive: true });
+const candidateOutput = config.paired ? join(output, 'wavefront') : output;
+const referenceOutput = join(output, 'megakernel');
+mkdirSync(candidateOutput, { recursive: true });
+if (config.paired) mkdirSync(referenceOutput, { recursive: true });
 const chrome = [process.env.CHROME_PATH, 'C:/Program Files/Google/Chrome/Application/chrome.exe',
 	'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe', '/usr/bin/google-chrome', '/usr/bin/chromium']
 	.find(p => p && existsSync(p));
@@ -67,7 +75,8 @@ const report = { started: new Date().toISOString(), revision: execFileSync('git'
 	sourceHashes: Object.fromEntries(['src/generated/shaders/PathTracing.wgsl', 'src/generated/shaders/Wavefront.wgsl',
 		'src/generated/shaders/WavefrontCompact.wgsl', 'src/render/Wavefront.ts', 'src/render/PathTracer.ts', 'src/render/Renderer.ts']
 		.filter(p => existsSync(join(root, p))).map(p => [p, createHash('sha256').update(readFileSync(join(root, p))).digest('hex')])), results: [] };
-writeFileSync(join(output, 'report.json'), JSON.stringify(report, null, 2));
+const referenceReport = { ...report, config: { ...config, mode: 'megakernel' }, results: [] };
+writeFileSync(join(candidateOutput, 'report.json'), JSON.stringify(report, null, 2));
 try {
 	for (const c of cases) {
 		console.log(`[benchmark] ${c.name}: loading ${config.mode}`);
@@ -101,10 +110,14 @@ try {
 			const renderer = await Renderer.create(canvas, { denoiser: null });
 			GPUAdapter.prototype.requestDevice = requestDevice;
 			const initMs = performance.now() - initStart;
+			const integratorStart = performance.now();
 			if (config.mode !== 'megakernel') {
 				if (!renderer.setIntegrator) throw new Error('Wavefront integration is not implemented in this revision');
 				await renderer.setIntegrator(config.mode);
+				renderer.tracer.wavefront.tailStart = config.tailStart;
+				renderer.tracer.wavefront.tailThreshold = config.tailThreshold;
 			}
+			const integratorInitMs = performance.now() - integratorStart;
 			Object.assign(renderer.settings, { maxSamples: 0, samplesPerFrame: 1, maxBounces: config.bounces,
 				autoExposureMethod: AutoExposureMethod.Manual, autoExposureBias: 0, localExposureMethod: LocalExposureMethod.None,
 				environmentIntensity: c.environment, fireflyClamp: config.clamp });
@@ -125,7 +138,6 @@ try {
 			if (quiet < 32) throw new Error(`Textures did not settle after ${warmFrames + 1} frames`);
 			console.log(`[benchmark] ${c.name}: warmed ${warmFrames + 1} frames, measuring`);
 			// Lock residency during A/B measurements; warmup above uses the normal streaming path.
-			const updateStreaming = renderer.updateStreaming;
 			renderer.updateStreaming = () => {};
 			const queries = device.createQuerySet({ type: 'timestamp', count: 2048 });
 			const resolved = device.createBuffer({ size: 2048 * 8, usage: GPUBufferUsage.QUERY_RESOLVE | GPUBufferUsage.COPY_SRC });
@@ -152,39 +164,63 @@ try {
 				return begin.call(this, descriptor);
 			};
 			const repeats = [];
+			let candidateHDR, referenceHDR;
+			const pairedErrors = [];
 			for (let repeat = 0; repeat < config.repeats; repeat++) {
-				renderer.resetAccumulation();
-				const timings = [], spanTimings = [], stages = {}, wall = performance.now();
-				for (let sample = 0; sample < config.samples; sample++) {
-					captureQueues = config.diagnose && sample === 0 && repeat === 0;
-					labels = []; measuring = true;
-					renderer.renderFrame();
-					captureQueues = false;
-					measuring = false;
-					if (!labels.length) throw new Error('No trace passes were measured');
-					const encoder = device.createCommandEncoder();
-					encoder.resolveQuerySet(queries, 0, labels.length * 2, resolved, 0);
-					encoder.copyBufferToBuffer(resolved, 0, readback, 0, labels.length * 16);
-					device.queue.submit([encoder.finish()]);
-					await readback.mapAsync(GPUMapMode.READ);
-					const timestamps = new BigUint64Array(readback.getMappedRange());
-					let sum = 0;
-					for (let i = 0; i < labels.length; i++) {
-						const ms = Number(timestamps[i * 2 + 1] - timestamps[i * 2]) / 1e6;
-						sum += ms;
-						stages[labels[i]] = (stages[labels[i]] ?? 0) + ms;
+				const modes = config.paired ? repeat % 2 === 0 ? ['megakernel', 'wavefront'] : ['wavefront', 'megakernel'] : [config.mode];
+				for (const mode of modes) {
+					if (config.paired) {
+						await renderer.setIntegrator(mode);
+						// Warm each selected pipeline before timing while retaining identical scene/VT data.
+						for (let warm = 0; warm < 8; warm++) { renderer.renderFrame(); await device.queue.onSubmittedWorkDone(); }
 					}
-					timings.push(sum);
-					spanTimings.push(Number(timestamps[labels.length * 2 - 1] - timestamps[0]) / 1e6);
-					readback.unmap();
+					renderer.resetAccumulation();
+					const timings = [], spanTimings = [], stages = {}, wall = performance.now();
+					for (let sample = 0; sample < config.samples; sample++) {
+						captureQueues = config.diagnose && sample === 0 && repeat === 0 && mode === 'wavefront';
+						labels = []; measuring = true;
+						renderer.renderFrame();
+						captureQueues = false;
+						measuring = false;
+						if (!labels.length) throw new Error('No trace passes were measured');
+						const encoder = device.createCommandEncoder();
+						encoder.resolveQuerySet(queries, 0, labels.length * 2, resolved, 0);
+						encoder.copyBufferToBuffer(resolved, 0, readback, 0, labels.length * 16);
+						device.queue.submit([encoder.finish()]);
+						await readback.mapAsync(GPUMapMode.READ);
+						const timestamps = new BigUint64Array(readback.getMappedRange());
+						let sum = 0;
+						for (let i = 0; i < labels.length; i++) {
+							const ms = Number(timestamps[i * 2 + 1] - timestamps[i * 2]) / 1e6;
+							sum += ms;
+							stages[labels[i]] = (stages[labels[i]] ?? 0) + ms;
+						}
+						timings.push(sum);
+						spanTimings.push(Number(timestamps[labels.length * 2 - 1] - timestamps[0]) / 1e6);
+						readback.unmap();
+					}
+					const wallMs = performance.now() - wall;
+					const sorted = [...timings].sort((a, b) => a - b);
+					const medianMs = (sorted[Math.floor((sorted.length - 1) / 2)] + sorted[Math.floor(sorted.length / 2)]) * 0.5;
+					const sortedSpans = [...spanTimings].sort((a, b) => a - b);
+					const medianSpanMs = (sortedSpans[Math.floor((sortedSpans.length - 1) / 2)] + sortedSpans[Math.floor(sortedSpans.length / 2)]) * 0.5;
+					repeats.push({ mode, repeat, medianMs, medianSpanMs, meanMs: timings.reduce((a, b) => a + b) / timings.length, wallMs, timings, spanTimings, stages });
+					console.log(`[benchmark] ${c.name}: ${mode} repeat ${repeat + 1}, GPU passes ${medianMs.toFixed(3)}, span ${medianSpanMs.toFixed(3)} ms/sample`);
+					if (config.paired) {
+						const hdr = await renderer.readRadiance();
+						if (mode === 'wavefront') candidateHDR = hdr;
+						else referenceHDR = hdr;
+					}
 				}
-				const wallMs = performance.now() - wall;
-				const sorted = [...timings].sort((a, b) => a - b);
-				const medianMs = sorted[Math.floor(sorted.length / 2)];
-				const sortedSpans = [...spanTimings].sort((a, b) => a - b);
-				const medianSpanMs = sortedSpans[Math.floor(sortedSpans.length / 2)];
-				repeats.push({ medianMs, medianSpanMs, meanMs: timings.reduce((a, b) => a + b) / timings.length, wallMs, timings, spanTimings, stages });
-				console.log(`[benchmark] ${c.name}: repeat ${repeat + 1}, GPU passes ${medianMs.toFixed(3)}, span ${medianSpanMs.toFixed(3)} ms/sample`);
+				if (config.paired) {
+					let maxError = 0, errorSquared = 0, referenceSquared = 0;
+					for (let i = 0; i < candidateHDR.data.length; i++) {
+						const a = referenceHDR.data[i], b = candidateHDR.data[i], error = Math.abs(a - b);
+						if (!Number.isFinite(a) || !Number.isFinite(b)) throw new Error('Nonfinite paired HDR output');
+						maxError = Math.max(maxError, error); errorSquared += error * error; referenceSquared += a * a;
+					}
+					pairedErrors.push({ repeat, maxError, relativeL2: Math.sqrt(errorSquared / Math.max(referenceSquared, 1e-30)) });
+				}
 			}
 			GPUCommandEncoder.prototype.beginComputePass = begin;
 			GPUCommandEncoder.prototype.copyBufferToBuffer = copyBuffer;
@@ -194,14 +230,23 @@ try {
 				for (let i = 0; i < queueCopies; i++) queueSnapshots.push({ active: counters[i * 4], shadow: counters[i * 4 + 1] });
 				queueReadback.unmap(); queueReadback.destroy();
 			}
-			renderer.updateStreaming = updateStreaming;
-			const hdr = await renderer.readRadiance();
+			const hdr = candidateHDR ?? await renderer.readRadiance();
 			let finite = true, sum = 0, peak = 0;
 			for (const v of hdr.data) { if (!Number.isFinite(v)) finite = false; sum += v; peak = Math.max(peak, v); }
 			if (!finite || !(sum > 0)) throw new Error('Invalid or black HDR output');
-			const bytes = new Uint8Array(hdr.data.buffer);
-			let binary = '';
-			for (let i = 0; i < bytes.length; i += 16384) binary += String.fromCharCode(...bytes.subarray(i, i + 16384));
+			let referenceSummary = null;
+			if (referenceHDR) {
+				let referenceSum = 0, referencePeak = 0;
+				for (const value of referenceHDR.data) { referenceSum += value; referencePeak = Math.max(referencePeak, value); }
+				referenceSummary = { width: referenceHDR.width, height: referenceHDR.height, samples: referenceHDR.samples,
+					elements: referenceHDR.data.length, mean: referenceSum / referenceHDR.data.length, peak: referencePeak };
+			}
+			const encodeHDR = hdr => {
+				const bytes = new Uint8Array(hdr.data.buffer);
+				let binary = '';
+				for (let i = 0; i < bytes.length; i += 16384) binary += String.fromCharCode(...bytes.subarray(i, i + 16384));
+				return btoa(binary);
+			};
 			// Presentation-only lift makes dark interiors inspectable without changing the HDR
 			// capture, path sampling, or timed work. No extra sample is traced here.
 			renderer.settings.maxSamples = renderer.samples;
@@ -210,23 +255,32 @@ try {
 			await device.queue.onSubmittedWorkDone();
 			queries.destroy(); resolved.destroy(); readback.destroy();
 			globalThis.benchmarkRenderer = renderer;
-			return { adapterInfo, initMs, loadMs, warmFrames: warmFrames + 1, presentationExposure: c.presentationExposure, scene: renderer.sceneStats, vt: renderer.virtualTextureStats,
+			return { adapterInfo, initMs, integratorInitMs, loadMs, warmFrames: warmFrames + 1,
+				presentationIntegrator: renderer.integrator, presentationExposure: c.presentationExposure, scene: renderer.sceneStats, vt: renderer.virtualTextureStats,
 				camera: { position: renderer.camera.position, target: renderer.camera.target, up: renderer.camera.up, fovY: renderer.camera.fovY },
-				repeats, queueSnapshots, hdr: { width: hdr.width, height: hdr.height, samples: hdr.samples, elements: hdr.data.length, mean: sum / hdr.data.length, peak },
-				base64: btoa(binary) };
+				repeats: repeats.filter(r => r.mode === config.mode), referenceRepeats: repeats.filter(r => r.mode === 'megakernel'), pairedErrors,
+				queueSnapshots, hdr: { width: hdr.width, height: hdr.height, samples: hdr.samples, elements: hdr.data.length, mean: sum / hdr.data.length, peak },
+				base64: encodeHDR(hdr), referenceBase64: referenceHDR ? encodeHDR(referenceHDR) : null, referenceSummary };
 		}, { c, config });
-		const { base64, ...stats } = result;
-		writeFileSync(join(output, `${c.name}.f32`), Buffer.from(base64, 'base64'));
-		await page.screenshot({ path: join(output, `${c.name}.png`) });
+		const { base64, referenceBase64, referenceRepeats, referenceSummary, ...stats } = result;
+		writeFileSync(join(candidateOutput, `${c.name}.f32`), Buffer.from(base64, 'base64'));
+		const screenshotOutput = config.paired && stats.presentationIntegrator === 'megakernel' ? referenceOutput : candidateOutput;
+		await page.screenshot({ path: join(screenshotOutput, `${c.name}.png`) });
 		report.results.push({ name: c.name, file: c.file, sha256: c.sha256, ...stats, errors });
-		writeFileSync(join(output, 'report.json'), JSON.stringify(report, null, 2));
+		writeFileSync(join(candidateOutput, 'report.json'), JSON.stringify(report, null, 2));
+		if (config.paired) {
+			writeFileSync(join(referenceOutput, `${c.name}.f32`), Buffer.from(referenceBase64, 'base64'));
+			referenceReport.results.push({ name: c.name, file: c.file, sha256: c.sha256, ...stats, repeats: referenceRepeats, hdr: referenceSummary, errors });
+			writeFileSync(join(referenceOutput, 'report.json'), JSON.stringify(referenceReport, null, 2));
+		}
 		if (errors.length) throw new Error(errors.join('\n'));
 		await page.evaluate(() => globalThis.benchmarkRenderer.destroy());
 		await page.close();
 	}
 } finally {
 	report.finished = new Date().toISOString();
-	writeFileSync(join(output, 'report.json'), JSON.stringify(report, null, 2));
+	writeFileSync(join(candidateOutput, 'report.json'), JSON.stringify(report, null, 2));
+	if (config.paired) writeFileSync(join(referenceOutput, 'report.json'), JSON.stringify({ ...referenceReport, finished: report.finished }, null, 2));
 	await browser.close();
 	await server.close();
 }

@@ -53,6 +53,15 @@ if (integratorFlag >= 0) {
 	if (!['megakernel', 'wavefront'].includes(integrator)) throw new Error('--integrator must be megakernel or wavefront');
 	only.splice(integratorFlag, 2);
 }
+const wavefrontTuning = {};
+for (const [flag, name] of [['--tail-start', 'tailStart'], ['--tail-threshold', 'tailThreshold']]) {
+	const index = only.indexOf(flag);
+	if (index < 0) continue;
+	const value = Number(only[index + 1]);
+	if (integrator !== 'wavefront' || !Number.isInteger(value) || value < 0) throw new Error(`${flag} requires wavefront and a nonnegative integer`);
+	wavefrontTuning[name] = value;
+	only.splice(index, 2);
+}
 const modelFlag = only.indexOf('--model');
 let customModel;
 if (modelFlag >= 0) {
@@ -110,6 +119,13 @@ try {
 		const start = Date.now();
 		await page.goto(`${base}?${c.query}&integrator=${integrator}`, { waitUntil: 'load' });
 		try {
+			if (Object.keys(wavefrontTuning).length) {
+				await page.waitForFunction(() => !!globalThis.veach?.tracer?.wavefront, { timeout: 120000 });
+				await page.evaluate(tuning => {
+					Object.assign(globalThis.veach.tracer.wavefront, tuning);
+					globalThis.veach.resetAccumulation();
+				}, wavefrontTuning);
+			}
 			// converged and virtual texture streaming settled (no uploads for several polls)
 			await page.waitForFunction(
 				({ n, allowStreaming }) => {

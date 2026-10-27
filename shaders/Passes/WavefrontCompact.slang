@@ -11,6 +11,7 @@ struct WavefrontUniforms
 	uint pathCount;
 	uint bounce;
 	uint capacity;
+	uint tailThreshold;
 };
 [[vk::binding(0, 1)]] RWStructuredBuffer<Atomic<uint>> gWork;
 [[vk::binding(2, 1)]] ConstantBuffer<WavefrontUniforms> gWavefront;

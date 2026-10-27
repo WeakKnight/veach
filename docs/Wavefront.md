@@ -41,6 +41,11 @@ plus CPU/readback wall time. Shader and host source hashes identify uncommitted 
 `--diagnose` records queue counters after compactions for the first measured sample.
 Screenshot exposure is lifted only after measurement/HDR capture (4/6/2/0/0 stops in
 scene-table order); the HDR and all tracing use the same manual exposure setting.
+`--paired --mode wavefront` alternates integrators within one renderer and scene, reversing
+order each round and warming the selected pipeline for eight untimed samples before each block.
+It saves separate `megakernel/` and `wavefront/` reports/captures and image errors per round.
+The screenshot is placed with whichever integrator ran last. Streaming remains frozen through
+presentation, so a late texture upload cannot reset the just-measured accumulation.
 
 ## Design constraints
 
@@ -138,9 +143,50 @@ queue counts each bounce; this implementation uses GPU compaction and indirect d
   all BMW/glass/MIS materials need zero. The generic shader still compiles a 16-slot array.
   Scene stack specialization is a separate hypothesis to measure, including on the reference
   megakernel so its benefit is not misattributed to wavefront scheduling.
+  `node scripts/wavefront-materials.mjs` reproduces this inspection, excluding unused materials
+  from its summary. The five scenes have 44/15/26/7/8 instanced materials but only 6/6/8/4/3
+  distinct complete bytecode blocks, respectively. Surface program offsets can group identical
+  instruction streams across materials; material IDs may additionally group different BSDF
+  branches caused by constants. Both are candidates for a measured sorting experiment.
 - Added asynchronous compiler ownership checks: destroying a tracer while stage compilation
   is pending releases the eventual resources, and failed compilation releases resources and
   permits retry. These checks reproduced the original leak/lifecycle issues before the fix.
+- `tail-2-v1`: reuse intersection/shading helpers in a fused tail kernel starting at bounce 2,
+  doing direct shadow tests immediately. All five 32 spp captures remain bit-identical.
+  Total spans roughly 9.30/4.59/3.85/3.62/1.69 ms. This resolves the BMW regression against
+  the fresh baseline, but classroom regresses from fully staged wavefront. A fixed bounce
+  threshold is therefore not yet the default. Nine GPU correctness cases also pass exactly.
+- Testing adaptive tail thresholds with `--tail-start 0 --tail-threshold N`: the tail kernel
+  checks the GPU queue count and returns for large queues. When it runs, it terminates all
+  queued paths; normal stage liveness checks and compaction reduce later work to zero. No CPU
+  queue readback. A 32,768 threshold passes all nine GPU correctness cases, including tail
+  execution on small images from bounce zero. Default tuning remains fully staged for now.
+- Timing scripts now average the two middle samples for even-sized medians; comparison
+  recomputes medians from saved raw timings and reports the range of repeat medians. Earlier
+  log entries used the upper middle sample. Interleaved runs reject source/browser changes
+  and compare images from every round, not only the aggregate's final capture.
+- Adaptive threshold sweep (all five captures exact at every threshold):
+  8,192 paths gives spans 8.966/6.090/4.739/4.213/1.938 ms;
+  32,768 gives 8.830/4.890/4.003/4.024/1.815 ms;
+  65,536 gives 8.940/4.747/4.009/3.722/1.905 ms.
+  The larger thresholds retain classroom's gain and avoid BMW's regression, though fixed
+  bounce-2 fusion is still faster on several scenes. Adaptive scheduling overhead and threshold
+  selection remain optimization targets; these are RTX 4090 measurements, not portable constants.
+- Full smoke with adaptive tail (`--tail-start 0 --tail-threshold 65536`): all 21 cases
+  pass; alpha and clearcoat screenshots inspected. Unit suite passes 158 tests in 15 files,
+  and TypeScript checks pass. Cold wavefront pipeline compilation in the benchmark is about
+  7.5 seconds on this machine, versus about 35 ms with the browser's pipeline cache populated.
+  Initialization/compilation is recorded separately from tracing throughput.
+- Paired harness validation at 65x63 verifies both integrator orders and exact per-round HDR.
+  It ran alongside smoke only to validate harness behavior; its timings are not performance
+  evidence. The subsequent full-resolution paired run executes alone.
+
+## Experimental tail controls
+
+`wavefront-benchmark.mjs`, `wavefront-correctness.mjs`, and `smoke.mjs --integrator wavefront`
+accept `--tail-start N` and `--tail-threshold N`. These are internal investigation controls,
+not public renderer settings. Threshold zero uses a fixed bounce switch; a positive threshold
+enables the GPU count test. Tail pipelines include alpha-capable and opaque variants.
 
 ## Current work allocation
 

@@ -10,7 +10,14 @@ for (const key of ['width', 'height', 'samples', 'bounces']) {
 	if (reference.config[key] !== candidate.config[key]) throw new Error(`Mismatched ${key}`);
 }
 if ((reference.config.clamp ?? 0) !== (candidate.config.clamp ?? 0)) throw new Error('Mismatched firefly clamp');
-const median = values => [...values].sort((a, b) => a - b)[Math.floor(values.length / 2)];
+const median = values => {
+	if (!values.length) throw new Error('Missing timing samples');
+	const sorted = [...values].sort((a, b) => a - b);
+	return (sorted[Math.floor((sorted.length - 1) / 2)] + sorted[Math.floor(sorted.length / 2)]) * 0.5;
+};
+const repeatMedians = (scene, span) => scene.repeats.map(r => span
+	? r.spanTimings?.length ? median(r.spanTimings) : r.medianSpanMs ?? r.medianMs
+	: r.timings?.length ? median(r.timings) : r.medianMs);
 const results = [];
 for (const c of candidate.results) {
 	const r = reference.results.find(r => r.name === c.name);
@@ -31,11 +38,13 @@ for (const c of candidate.results) {
 		refSum += a[i]; candidateSum += b[i];
 	}
 	errors.sort();
-	const referenceMs = median(r.repeats.map(x => x.medianMs)), candidateMs = median(c.repeats.map(x => x.medianMs));
-	const referenceSpanMs = median(r.repeats.map(x => x.medianSpanMs ?? x.medianMs));
-	const candidateSpanMs = median(c.repeats.map(x => x.medianSpanMs ?? x.medianMs));
+	const referenceMs = median(repeatMedians(r, false)), candidateMs = median(repeatMedians(c, false));
+	const referenceSpans = repeatMedians(r, true), candidateSpans = repeatMedians(c, true);
+	const referenceSpanMs = median(referenceSpans), candidateSpanMs = median(candidateSpans);
 	const result = { name: c.name, referenceMs, candidateMs, speedup: referenceMs / candidateMs,
 		referenceSpanMs, candidateSpanMs, spanSpeedup: referenceSpanMs / candidateSpanMs,
+		referenceSpanRange: [Math.min(...referenceSpans), Math.max(...referenceSpans)],
+		candidateSpanRange: [Math.min(...candidateSpans), Math.max(...candidateSpans)],
 		rmse: Math.sqrt(sumSquared / a.length), relativeL2: Math.sqrt(sumSquared / Math.max(refSquared, 1e-30)),
 		meanAbsoluteError: sumAbs / a.length, p99AbsoluteError: errors[Math.floor(errors.length * 0.99)], maxAbsoluteError: maxAbs,
 		changedFraction: changed / a.length, meanRatio: candidateSum / refSum };

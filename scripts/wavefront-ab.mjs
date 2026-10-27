@@ -14,6 +14,10 @@ if (!Number.isInteger(rounds) || rounds < 1) throw new Error('Invalid rounds');
 const scenes = option('only', 'classroom,breakfast-room,bmw-m6,glass-of-water,veach-mis').split(',');
 const pass = args.filter((_, i) => !['--out', '--rounds', '--only'].includes(args[i]) && !['--out', '--rounds', '--only'].includes(args[i - 1]));
 const aggregate = {};
+const compare = (reference, candidate) => {
+	const result = spawnSync(process.execPath, ['scripts/compare-wavefront.mjs', reference, candidate], { cwd: root, stdio: 'inherit' });
+	if (result.status !== 0) process.exit(result.status ?? 1);
+};
 for (let round = 0; round < rounds; round++) {
 	for (const scene of scenes) {
 		const order = round % 2 === 0 ? ['megakernel', 'wavefront'] : ['wavefront', 'megakernel'];
@@ -25,6 +29,10 @@ for (let round = 0; round < rounds; round++) {
 			const report = JSON.parse(readFileSync(join(folder, 'report.json'), 'utf8'));
 			const sample = report.results[0];
 			if (!sample) throw new Error(`Missing result for ${scene}`);
+			const previous = aggregate[mode];
+			if (previous && (previous.browser !== report.browser || JSON.stringify(previous.sourceHashes) !== JSON.stringify(report.sourceHashes))) {
+				throw new Error('Browser or renderer sources changed during the interleaved measurement');
+			}
 			aggregate[mode] ??= { ...report, results: [] };
 			const existing = aggregate[mode].results.find(r => r.name === scene);
 			if (existing) existing.repeats.push(...sample.repeats);
@@ -35,7 +43,7 @@ for (let round = 0; round < rounds; round++) {
 			copyFileSync(join(folder, `${scene}.png`), join(target, `${scene}.png`));
 			writeFileSync(join(target, 'report.json'), JSON.stringify(aggregate[mode], null, 2));
 		}
+		compare(join(output, `round-${round}`, scene, 'megakernel'), join(output, `round-${round}`, scene, 'wavefront'));
 	}
 }
-const comparison = spawnSync(process.execPath, ['scripts/compare-wavefront.mjs', join(output, 'megakernel'), join(output, 'wavefront')], { cwd: root, stdio: 'inherit' });
-process.exit(comparison.status ?? 1);
+compare(join(output, 'megakernel'), join(output, 'wavefront'));

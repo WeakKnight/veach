@@ -20,6 +20,7 @@ struct WavefrontUniforms
 	uint pathCount;
 	uint bounce;
 	uint capacity;
+	uint tailThreshold;
 };
 [[vk::binding(2, 1)]] ConstantBuffer<WavefrontUniforms> gWavefront;
 
@@ -135,19 +136,12 @@ void Initialize(uint3 tid : SV_DispatchThreadID)
 	StoreFeedbackState(base);
 }
 
-void IntersectImpl<let ALPHA : bool>(uint3 tid)
+HitRecord IntersectPath<let ALPHA : bool>(inout WavefrontPath s, uint bounce)
 {
-	if (tid.x >= asuint(gAccum[HeaderBase()].x)) return;
-	uint index = QueueIndex(MainQueueBase(), tid.x);
-	uint base = WorkBase(index);
-	WavefrontPath s = LoadPath(base);
-	if (s.active == 0u) return;
-	if (ALPHA) LoadFeedbackState(base);
 	gRayCone = float2(s.path.coneWidth, s.path.coneSpread);
 	Ray ray = Ray(s.path.origin, s.path.direction);
 	HitRecord hit = TraceClosest<ALPHA>(ray);
 	float clampValue = gFrame.envParams.w / gFrame.envParams.z;
-	uint bounce = gWavefront.bounce;
 	if (AnalyticLightCount() > 0u)
 	{
 		float3 radiance; float pdf;
@@ -177,7 +171,19 @@ void IntersectImpl<let ALPHA : bool>(uint3 tid)
 		}
 		s.active = 0u;
 	}
-	else
+	return hit;
+}
+
+void IntersectImpl<let ALPHA : bool>(uint3 tid)
+{
+	if (tid.x >= asuint(gAccum[HeaderBase()].x)) return;
+	uint index = QueueIndex(MainQueueBase(), tid.x);
+	uint base = WorkBase(index);
+	WavefrontPath s = LoadPath(base);
+	if (s.active == 0u) return;
+	if (ALPHA) LoadFeedbackState(base);
+	HitRecord hit = IntersectPath<ALPHA>(s, gWavefront.bounce);
+	if (hit.IsHit())
 	{
 		gAccum[Field(base, 8u)] = float4(hit.t, hit.barycentrics, asfloat(hit.instanceIndex));
 		gAccum[Field(base, 9u)] = asfloat(uint4(hit.primitiveIndex, 0u, 0u, 0u));
@@ -188,7 +194,7 @@ void IntersectImpl<let ALPHA : bool>(uint3 tid)
 	if (ALPHA) StoreFeedbackState(base);
 }
 
-void QueueDirectLighting(uint base, SurfaceInteraction si, BSDF bsdf, float2 cone, float3 throughput, inout RandomSequence rng)
+void QueueDirectLighting(uint base, SurfaceInteraction si, BSDF bsdf, float2 cone, float3 throughput, uint bounce, inout RandomSequence rng)
 {
 	uint mask = 0u;
 	gRayCone = cone;
@@ -242,23 +248,18 @@ void QueueDirectLighting(uint base, SurfaceInteraction si, BSDF bsdf, float2 con
 		}
 	}
 	// Clamp the sum of direct contributions, matching the megakernel exactly.
-	gAccum[Field(base, 10u)] = float4(throughput, gWavefront.bounce > 0u ? gFrame.envParams.w / gFrame.envParams.z : 0.0);
+	gAccum[Field(base, 10u)] = float4(throughput, bounce > 0u ? gFrame.envParams.w / gFrame.envParams.z : 0.0);
 	gAccum[Field(base, 11u)] = float4(cone, asfloat(mask), 0.0);
 }
 
-void ShadePath(uint base, inout WavefrontPath s)
+void ShadePath<let DEFERRED : bool, let ALPHA : bool>(uint base, inout WavefrontPath s, HitRecord hit, uint bounce)
 {
-	float4 h = gAccum[Field(base, 8u)];
-	HitRecord hit;
-	hit.t = h.x; hit.barycentrics = h.yz; hit.instanceIndex = asuint(h.w);
-	hit.primitiveIndex = asuint(gAccum[Field(base, 9u)].x);
 	if (any(s.path.absorption > 0.0)) s.path.throughput *= exp(s.path.absorption * -hit.t);
 	float hitConeWidth = s.path.coneWidth + s.path.coneSpread * hit.t;
 	SurfaceInteraction si = GetSurfaceInteraction(s.path.direction, hit, hitConeWidth);
 	float3 V = -s.path.direction;
 	MaterialSample ms = EvalMaterial(si, V);
 	BSDF bsdf = BSDF(ms.inputs, V, s.path.throughput, BSDF_RGB_WAVELENGTHS, 1.0);
-	uint bounce = gWavefront.bounce;
 	if (bounce == 0u)
 	{
 		s.albedo = ms.albedo;
@@ -284,7 +285,20 @@ void ShadePath(uint base, inout WavefrontPath s)
 	RandomSequence rng = RandomSequence(0u, 0u);
 	rng.seed = s.randomSeed;
 	s.path.lightsSampled = bsdf.MaxActiveAlpha() >= NEAR_SPECULAR_ALPHA;
-	if (s.path.lightsSampled) QueueDirectLighting(base, si, bsdf, float2(hitConeWidth, s.path.coneSpread), s.path.throughput, rng);
+	if (s.path.lightsSampled)
+	{
+		if (DEFERRED)
+		{
+			QueueDirectLighting(base, si, bsdf, float2(hitConeWidth, s.path.coneSpread), s.path.throughput, bounce, rng);
+		}
+		else
+		{
+			float3 direct = s.path.throughput * NextEventEstimation<ALPHA>(si, bsdf, float2(hitConeWidth, s.path.coneSpread), rng);
+			float clampValue = gFrame.envParams.w / gFrame.envParams.z;
+			if (clampValue > 0.0 && bounce > 0u) direct = min(direct, float3(clampValue));
+			s.path.radiance += direct;
+		}
+	}
 	float2 u = rng.Next2D();
 	LobeSample bs = bsdf.Sample(float3(u, rng.Next()));
 	float3 weight = bs.weight.diffuse + bs.weight.specular;
@@ -319,10 +333,43 @@ void Shade(uint3 tid : SV_DispatchThreadID)
 	WavefrontPath s = LoadPath(base);
 	if (s.active == 0u) return;
 	LoadFeedbackState(base);
-	ShadePath(base, s);
+	float4 h = gAccum[Field(base, 8u)];
+	HitRecord hit;
+	hit.t = h.x; hit.barycentrics = h.yz; hit.instanceIndex = asuint(h.w);
+	hit.primitiveIndex = asuint(gAccum[Field(base, 9u)].x);
+	ShadePath<true, true>(base, s, hit, gWavefront.bounce);
 	StorePath(base, s);
 	StoreFeedbackState(base);
 }
+
+// Finish sparse tail paths without repeatedly materializing state and launching stages.
+// The shared intersection/shading helpers preserve the staged estimator and random sequence.
+void TailImpl<let ALPHA : bool>(uint3 tid)
+{
+	uint count = asuint(gAccum[HeaderBase()].x);
+	if (tid.x >= count || (gWavefront.tailThreshold != 0u && count > gWavefront.tailThreshold)) return;
+	uint base = WorkBase(QueueIndex(MainQueueBase(), tid.x));
+	WavefrontPath s = LoadPath(base);
+	if (s.active == 0u) return;
+	LoadFeedbackState(base);
+	for (uint bounce = gWavefront.bounce; bounce <= gFrame.settings.x; bounce++)
+	{
+		HitRecord hit = IntersectPath<ALPHA>(s, bounce);
+		if (s.active == 0u) break;
+		ShadePath<false, ALPHA>(base, s, hit, bounce);
+		if (s.active == 0u) break;
+	}
+	StorePath(base, s);
+	StoreFeedbackState(base);
+}
+
+[shader("compute")]
+[numthreads(64, 1, 1)]
+void Tail(uint3 tid : SV_DispatchThreadID) { TailImpl<true>(tid); }
+
+[shader("compute")]
+[numthreads(64, 1, 1)]
+void TailOpaque(uint3 tid : SV_DispatchThreadID) { TailImpl<false>(tid); }
 
 void ShadowImpl<let ALPHA : bool>(uint3 tid)
 {

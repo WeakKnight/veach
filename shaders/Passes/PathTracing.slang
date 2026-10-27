@@ -58,7 +58,7 @@ float3 ShadowOrigin(SurfaceInteraction si, float3 dir)
 // cone: ray cone (width, spread) at the shading point.
 // One sample per light source (environment, emissive, sun) in a loop, sharing one BSDF evaluation
 // and one shadow ray, so their code (and the traversal with alpha testing) is instantiated once.
-float3 NextEventEstimation(SurfaceInteraction si, BSDF bsdf, float2 cone, inout RandomSequence rng)
+float3 NextEventEstimation<let ALPHA : bool = true>(SurfaceInteraction si, BSDF bsdf, float2 cone, inout RandomSequence rng)
 {
 	float3 result = float3(0.0);
 	gRayCone = cone;
@@ -121,7 +121,7 @@ float3 NextEventEstimation(SurfaceInteraction si, BSDF bsdf, float2 cone, inout 
 		float bsdfPdf;
 		bsdf.EvalPdf(dir, eval, bsdfPdf);
 		float3 f = eval.diffuse + eval.specular;
-		if (any(f > 0.0) && (!shadow || !TraceOcclusion(Ray(origin, dir, maxDistance))))
+		if (any(f > 0.0) && (!shadow || !TraceOcclusion<ALPHA>(Ray(origin, dir, maxDistance))))
 		{
 			float weight = mis ? EvalMISRobust(ls.solidAnglePdf, bsdfPdf) : 1.0;
 			result += weight * ls.radiance * f / ls.solidAnglePdf;

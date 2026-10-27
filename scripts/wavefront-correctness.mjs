@@ -7,7 +7,12 @@ import puppeteer from 'puppeteer-core';
 import { createServer } from 'vite';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const output = join(root, '.tools/wavefront/correctness');
+const tailOption = process.argv.indexOf('--tail-start');
+const tailStart = tailOption < 0 ? 999 : Number(process.argv[tailOption + 1]);
+const thresholdOption = process.argv.indexOf('--tail-threshold');
+const tailThreshold = thresholdOption < 0 ? 0 : Number(process.argv[thresholdOption + 1]);
+if (!Number.isInteger(tailStart) || tailStart < 0) throw new Error('Invalid tail start');
+const output = join(root, `.tools/wavefront/correctness-tail-${tailStart}-${tailThreshold}`);
 mkdirSync(output, { recursive: true });
 const chrome = [process.env.CHROME_PATH, 'C:/Program Files/Google/Chrome/Application/chrome.exe',
 	'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe', '/usr/bin/google-chrome', '/usr/bin/chromium'].find(p => p && existsSync(p));
@@ -23,7 +28,7 @@ try {
 	page.on('pageerror', e => errors.push(String(e)));
 	page.on('console', msg => { if (msg.type() === 'error') errors.push(msg.text()); if (msg.text().startsWith('[correctness]')) console.log(msg.text()); });
 	await page.goto(server.resolvedUrls.local[0] + 'scripts/benchmark.html');
-	const results = await page.evaluate(async () => {
+	const results = await page.evaluate(async ({ tailStart, tailThreshold }) => {
 		const api = await import('/src/index.ts');
 		const check = (value, message) => { if (!value) throw new Error(message); };
 		const requestDevice = GPUAdapter.prototype.requestDevice;
@@ -52,6 +57,7 @@ try {
 		}
 		async function render(mode, config) {
 			await r.setIntegrator(mode);
+			if (mode === 'wavefront') Object.assign(r.tracer.wavefront, { tailStart, tailThreshold });
 			Object.assign(r.settings, { maxBounces: config.bounces, fireflyClamp: config.clamp ?? 0, maxSamples: config.samples });
 			r.resetAccumulation();
 			while (r.samples < config.samples) {
@@ -139,8 +145,8 @@ try {
 			}
 		} finally { r.destroy(); }
 		return results;
-	});
-	writeFileSync(join(output, 'report.json'), JSON.stringify({ browser: await browser.version(), results, errors }, null, 2));
+	}, { tailStart, tailThreshold });
+	writeFileSync(join(output, 'report.json'), JSON.stringify({ browser: await browser.version(), tailStart, tailThreshold, results, errors }, null, 2));
 	if (errors.length) throw new Error(errors.join('\n'));
 	console.log(`[correctness] ${results.length} GPU regression cases passed`);
 } finally { await browser.close(); await server.close(); }
