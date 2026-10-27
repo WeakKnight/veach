@@ -93,6 +93,11 @@ EmissiveTriangle 128, FrameUniforms 224. Materials are bytecode in `gMaterialDat
 
 ## Bindings
 
+The experimental wavefront integrator is described in [Wavefront.md](Wavefront.md).
+It appends bounded tile work storage to the accumulation buffer (group 1 binding 0),
+retaining the eight-storage-buffer limit. Its group 1 adds a dynamic uniform at binding 2
+for tile origin, path count, bounce, and capacity. Presentation reads only the image prefix.
+
 Bind group layouts are explicit in `PathTracer.ts`.
 
 - Group 0, the scene: uniform, 7 read-only storage buffers, sampler, env map, env CDF

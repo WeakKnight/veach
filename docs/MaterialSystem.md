@@ -48,7 +48,8 @@ selection (same expectation, visible only at 1 spp), and `clearcoatNormalTexture
 
 Non-goals (for now): closure graphs (`mix` / `add` / `layer` of pbrlib BSDFs, Cycles' Mix
 Shader), OSL, displacement, volumes beyond the OpenPBR interior medium, running the MaterialX C++
-library at runtime, wavefront.
+library at runtime. An experimental wavefront integrator now evaluates the same bytecode
+in a separate shading stage; see [Wavefront.md](Wavefront.md).
 
 ## Pipeline
 

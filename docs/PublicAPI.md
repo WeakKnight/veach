@@ -45,6 +45,11 @@ function dispose() {
 after uploading the scene and returns `SceneStats`. Call `setScene` again to replace it; await
 one scene change before starting the next. The renderer observes canvas size changes.
 
+For experimental GPU A/B comparisons, `await renderer.setIntegrator('wavefront')` lazily
+compiles the staged path tracer and resets accumulation. Use `'megakernel'` to return to
+the default reference. `renderer.integrator` reports the selected mode. Await each switch
+before another; diagnostic views currently use the reference kernel in either mode.
+
 ## Own the scene-loading workflow
 
 | API | Input / result |

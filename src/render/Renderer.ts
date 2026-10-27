@@ -299,6 +299,17 @@ export class Renderer {
 		return this.frameIndex;
 	}
 
+	/** Experimental GPU stage decomposition. Switching clears accumulated samples. */
+	async setIntegrator(mode: 'megakernel' | 'wavefront'): Promise<void> {
+		if (mode !== 'megakernel' && mode !== 'wavefront') throw new Error(`Unknown integrator: ${mode}`);
+		if (this.destroyed) throw new Error('Renderer has been destroyed');
+		if (mode === this.tracer.integrator) return;
+		await this.tracer.setIntegrator(mode);
+		this.resetAccumulation();
+	}
+
+	get integrator(): 'megakernel' | 'wavefront' { return this.tracer.integrator; }
+
 	get denoising(): DenoisingState { return this.denoiseState; }
 
 	/** Enable HDR OIDN at maxSamples, or disable it with null. A superseded request returns false. */
@@ -445,9 +456,10 @@ export class Renderer {
 		if (!accum) {
 			return { width: 0, height: 0, samples: 0, data: new Float32Array(0) };
 		}
-		const staging = this.device.createBuffer({ label: 'radianceReadback', size: accum.size, usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ });
+		const bytes = width * height * 3 * 16;
+		const staging = this.device.createBuffer({ label: 'radianceReadback', size: bytes, usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ });
 		const encoder = this.device.createCommandEncoder({ label: 'radianceReadback' });
-		encoder.copyBufferToBuffer(accum, 0, staging, 0, accum.size);
+		encoder.copyBufferToBuffer(accum, 0, staging, 0, bytes);
 		this.device.queue.submit([encoder.finish()]);
 		await staging.mapAsync(GPUMapMode.READ);
 		const texels = new Float32Array(staging.getMappedRange());
@@ -655,7 +667,7 @@ export class Renderer {
 		for (let i = 0; i < samples && !this.converged; i++) {
 			this.writeUniforms(this.vt?.nextFeedbackJitter() ?? 0);
 			const encoder = this.device.createCommandEncoder({ label: 'trace' });
-			this.tracer.encodeTrace(encoder);
+			this.tracer.encodeTrace(encoder, this.settings.maxBounces, this.settings.debugMode);
 			const feedback = this.tracer.feedback;
 			if (this.vt && feedback && (i === samples - 1 || (this.settings.maxSamples > 0 && this.frameIndex + 1 >= this.settings.maxSamples))) {
 				this.vt.recordFeedbackReadback(encoder, feedback);

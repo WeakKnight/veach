@@ -12,6 +12,7 @@ import type { Environment } from './Environment';
 import { ACCUM_BYTES_PER_PIXEL, FRAME_UNIFORM_BYTES } from './GpuLayout';
 import type { GpuScene } from './GpuScene';
 import { VT_FEEDBACK_SHIFT, type VirtualTextureSystem } from './vt/VirtualTextureSystem';
+import type { Wavefront } from './Wavefront';
 
 const WORKGROUP_SIZE = 8;
 
@@ -38,6 +39,9 @@ export class PathTracer {
 	private presentBindGroup: GPUBindGroup | null = null;
 	private accumBuffer: GPUBuffer | null = null;
 	private feedbackTexture: GPUTexture | null = null;
+	private wavefront: Wavefront | null = null;
+	private wavefrontLoading: Promise<Wavefront> | null = null;
+	integrator: 'megakernel' | 'wavefront' = 'megakernel';
 	width = 0;
 	height = 0;
 
@@ -185,7 +189,7 @@ export class PathTracer {
 		this.accumBuffer?.destroy();
 		this.accumBuffer = this.device.createBuffer({
 			label: 'accumulation',
-			size: width * height * ACCUM_BYTES_PER_PIXEL,
+			size: width * height * ACCUM_BYTES_PER_PIXEL + (this.integrator === 'wavefront' ? this.wavefront!.storageBytes(width * height) : 0),
 			usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC,
 		});
 		this.feedbackTexture?.destroy();
@@ -203,6 +207,7 @@ export class PathTracer {
 				{ binding: 1, resource: this.feedbackTexture.createView() },
 			],
 		});
+		this.wavefront?.bind(this.accumBuffer, this.feedbackTexture);
 		this.localExposure.resize(this.uniformBuffer, this.accumBuffer, this.autoExposure.exposureBuffer, width, height);
 		this.rebuildPresentBindGroup();
 		this.autoExposure.bind(this.uniformBuffer, this.accumBuffer);
@@ -263,8 +268,28 @@ export class PathTracer {
 		return this.feedbackTexture;
 	}
 
-	encodeTrace(encoder: GPUCommandEncoder): void {
+	async setIntegrator(mode: 'megakernel' | 'wavefront'): Promise<void> {
+		if (mode === this.integrator) return;
+		if (mode === 'wavefront') {
+			this.wavefrontLoading ??= import('./Wavefront').then(async ({ Wavefront }) => {
+				const wavefront = new Wavefront(this.device, this.sceneLayout);
+				await wavefront.compiled;
+				return wavefront;
+			});
+			this.wavefront = await this.wavefrontLoading;
+		}
+		this.integrator = mode;
+		const width = this.width, height = this.height;
+		this.width = 0;
+		this.resize(width, height);
+	}
+
+	encodeTrace(encoder: GPUCommandEncoder, maxBounces = 8, debugMode = 0): void {
 		if (!this.sceneBindGroup || !this.accumBindGroup) {
+			return;
+		}
+		if (this.integrator === 'wavefront' && debugMode === 0) {
+			this.wavefront!.encode(encoder, this.sceneBindGroup, this.width, this.height, maxBounces);
 			return;
 		}
 		const pass = encoder.beginComputePass({ label: 'pathTracing' });
@@ -290,6 +315,7 @@ export class PathTracer {
 	}
 
 	destroy(): void {
+		this.wavefront?.destroy();
 		this.uniformBuffer.destroy();
 		this.accumBuffer?.destroy();
 		this.feedbackTexture?.destroy();
