@@ -757,6 +757,69 @@ Specialized wavefront smoke also passes helmet HDR, alpha and transmission; all 
 screenshots were inspected. Regenerated shader reconstruction, opcode and lifecycle tests
 were rerun after the final shader build (26 passing tests).
 
+### Optional procedural material stress
+
+`--material-layers N` (1..12) derives an additional workload from each of the same five
+scene assets. It layers normalized three-octave color Noise in object space, reuses the
+bands for color and roughness, and modulates those two existing surface inputs. All other
+surface inputs, alpha mode, opacity and emission remain unchanged; source GLBs are never
+edited. `--material-mixed` cycles material layer counts from 1 through N to create divergent
+program lengths for sorting experiments. The default of zero leaves original materials
+untouched. These are supplemental workloads, not interchangeable with original-scene timings.
+
+The helper is `scripts/wavefront-material-stress.ts`, included in benchmark source hashes.
+Compilation errors fail the experiment rather than silently substituting default materials.
+Reports include each material's layer count and required stack, and HDR comparison rejects
+different stress settings. CPU tests preserve other evaluated material inputs and verify
+real Noise instructions and stack usage. An eight-layer GPU regression compares the full
+interpreter with specialized megakernel and wavefront on partial workgroups and an ordinary
+image; all four comparisons pass exactly. The five-scene CPU census needs 8..10 temporary
+slots at eight layers, selecting capacity 16 in every scene, versus 0..1 slots originally.
+
+Example: `node scripts/wavefront-benchmark.mjs --paired --mode wavefront --compaction adaptive
+--material-layers 8 --opcode-sweep --variant-warmup 64 --out .tools/wavefront/material-stress-8-opcodes-v1`.
+
+The eight-layer run completed all five scenes with 45 exact paired HDR comparisons;
+the sweep verifier and screenshot inspection passed. Three rounds of 32 samples,
+64-frame per-variant warmup, otherwise the fixed benchmark settings:
+
+| Variant | classroom | breakfast-room | bmw-m6 | glass-of-water | veach-mis |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Megakernel, full opcodes | 27.404 | 13.740 | 9.205 | 11.793 | 6.976 |
+| Megakernel, scene opcodes | 28.685 | 13.784 | 8.242 | 10.574 | 6.729 |
+| Wavefront, full opcodes | 12.151 | 9.277 | 7.689 | 6.715 | 4.300 |
+| Wavefront, scene opcodes | 12.924 | 9.739 | 7.862 | 6.927 | 4.593 |
+
+Staging wins in every derived scene, by 1.20x..2.26x against its same-workload megakernel.
+Opcode pruning regresses wavefront in every case (2.2%..6.8%), despite improving two of
+the original simple-material scenes. This is why the universal opcode specialization
+remains experimental; reduced enabled instruction count alone does not predict runtime.
+The stress workload is deliberately more expensive than the original materials and does
+not establish a universal wavefront advantage on ordinary assets.
+
+`material-stress-mixed-sort-v1` cycles 1..8 layers across materials, uses the full opcode
+set and compares unsorted shading against material/program sorting in 64/256-path chunks.
+All 75 paired HDR comparisons are exact; the verifier and all five screenshot inspections
+pass. Median spans with the same three-round/32-sample/64-warmup settings:
+
+| Variant | classroom | breakfast-room | bmw-m6 | glass-of-water | veach-mis |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Megakernel | 26.540 | 12.136 | 7.580 | 6.578 | 3.968 |
+| Wavefront, unsorted | 11.119 | 8.652 | 7.416 | 5.841 | 3.103 |
+| Material, 64 | 11.034 | 8.682 | 7.434 | 5.822 | 3.205 |
+| Material, 256 | 9.769 | 9.105 | 7.770 | 5.639 | 3.186 |
+| Program, 64 | 11.027 | 8.714 | 7.461 | 5.704 | 3.203 |
+| Program, 256 | 9.838 | 9.221 | 7.609 | 5.624 | 3.199 |
+
+Classroom benefits from 256-path sorting: material sorting improves the span by 12.1%,
+and Shade stage totals fall from 6.003 to 4.708 ms/sample. Other scenes have small gains or
+regressions; BMW megakernel varies from 8.230 to 6.844 ms across rounds, so near-equal
+comparisons there do not establish a winner. Sorting remains opt-in. Four more GPU
+regressions with program-256 sorting pass, including exact queue permutation/order checks
+on 2,554 entries, 2,429 moved. Typecheck, all 186 unit tests, and wavefront helmet-HDR smoke
+pass; the smoke screenshot was inspected. No production shader or default changed in this
+benchmark extension.
+
 ## Work storage
 
 Group 1 binding 0 contains the original image prefix (three float4 per pixel), then

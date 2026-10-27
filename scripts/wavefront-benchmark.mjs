@@ -46,8 +46,11 @@ const config = {
 	shadowSweep: args.includes('--shadow-sweep'),
 	opcodeMode: option('opcodes', 'full'),
 	opcodeSweep: args.includes('--opcode-sweep'),
+	materialLayers: Number(option('material-layers', 0)),
+	materialMixed: args.includes('--material-mixed'),
 	variantWarmup: Number(option('variant-warmup', args.includes('--material-sweep') || args.includes('--opcode-sweep') ? 64 : 8)),
 };
+if (!Number.isInteger(config.materialLayers) || config.materialLayers < 0 || config.materialLayers > 12 || (config.materialMixed && config.materialLayers === 0)) throw new Error('Invalid material stress workload');
 if (!['full', 'scene'].includes(config.opcodeMode)) throw new Error('Invalid opcode mode');
 if (config.opcodeSweep && (!config.paired || config.tailSweep || config.packetSweep || config.materialSweep || config.sortSweep || config.shadowSweep || config.dispatchSweep || config.compactionSweep || config.opcodeMode !== 'full'))
 	throw new Error('--opcode-sweep requires paired full-opcode base and cannot combine with other sweeps');
@@ -163,7 +166,7 @@ const browser = await puppeteer.launch({ executablePath: chrome, headless: true,
 	args: ['--enable-unsafe-webgpu', '--ignore-gpu-blocklist', '--no-sandbox', '--disable-background-timer-throttling'],
 });
 const sourceHashes = () => {
-	const paths = ['scripts/wavefront-benchmark.mjs', 'package.json', 'package-lock.json', 'vite.config.ts'];
+	const paths = ['scripts/wavefront-benchmark.mjs', 'scripts/wavefront-material-stress.ts', 'package.json', 'package-lock.json', 'vite.config.ts'];
 	const visit = directory => {
 		for (const entry of readdirSync(join(root, directory), { withFileTypes: true })) {
 			const path = `${directory}/${entry.name}`;
@@ -255,6 +258,8 @@ try {
 			const integratorInitMs = performance.now() - integratorStart;
 			const loadStart = performance.now();
 			const sceneDescription = await loadGLTF(`/__research/${c.name}.glb`);
+			const { applyMaterialStress } = await import('/scripts/wavefront-material-stress.ts');
+			const materialStress = applyMaterialStress(sceneDescription, config.materialLayers, config.materialMixed);
 			const { compileSceneMaterials } = await import('/src/render/SceneMaterials.ts');
 			const compiledMaterials = compileSceneMaterials(sceneDescription);
 			const materialStackRequired = Math.max(0, ...compiledMaterials.map(material => material.stackSize));
@@ -492,7 +497,7 @@ try {
 			await device.queue.onSubmittedWorkDone();
 			queries.destroy(); resolved.destroy(); readback.destroy();
 			globalThis.benchmarkRenderer = renderer;
-			return { adapterInfo, deviceFeatures: [...device.features], initMs, integratorInitMs, loadMs, materialPrograms, materialStackRequired, materialCapacity, observedStackCapacities,
+			return { adapterInfo, deviceFeatures: [...device.features], initMs, integratorInitMs, loadMs, materialStress, materialPrograms, materialStackRequired, materialCapacity, observedStackCapacities,
 				shaderCompilations, pipelineCompilations, warmFrames: warmFrames + 1,
 				presentationIntegrator: renderer.integrator, presentationVariant, presentationExposure: c.presentationExposure, scene: renderer.sceneStats, vt: renderer.virtualTextureStats,
 				camera: { position: renderer.camera.position, target: renderer.camera.target, up: renderer.camera.up, fovY: renderer.camera.fovY },

@@ -10,6 +10,8 @@ for (const key of ['width', 'height', 'samples', 'bounces']) {
 	if (reference.config[key] !== candidate.config[key]) throw new Error(`Mismatched ${key}`);
 }
 if ((reference.config.clamp ?? 0) !== (candidate.config.clamp ?? 0)) throw new Error('Mismatched firefly clamp');
+if ((reference.config.materialLayers ?? 0) !== (candidate.config.materialLayers ?? 0)
+	|| (reference.config.materialMixed ?? false) !== (candidate.config.materialMixed ?? false)) throw new Error('Mismatched material stress workload');
 const median = values => {
 	if (!values.length) throw new Error('Missing timing samples');
 	const sorted = [...values].sort((a, b) => a - b);

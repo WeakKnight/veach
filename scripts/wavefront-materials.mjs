@@ -11,6 +11,8 @@ const args = process.argv.slice(2);
 const option = (name, fallback) => { const index = args.indexOf(`--${name}`); return index < 0 ? fallback : args[index + 1]; };
 const scenes = resolve(option('scenes', 'E:/GitHub/gltf-research-scenes/scenes'));
 const output = resolve(option('out', join(root, '.tools/wavefront/materials.json')));
+const layers = Number(option('material-layers', 0)), mixed = args.includes('--material-mixed');
+if (!Number.isInteger(layers) || layers < 0 || layers > 12 || (mixed && layers === 0)) throw new Error('Invalid material stress workload');
 const server = await createServer({ root, server: { middlewareMode: true }, logLevel: 'error' });
 const hash = value => createHash('sha256').update(value).digest('hex');
 try {
@@ -18,11 +20,13 @@ try {
 	const { compileSceneMaterials } = await server.ssrLoadModule('/src/render/SceneMaterials.ts');
 	const { programOps } = await server.ssrLoadModule('/src/material/Interpreter.ts');
 	const { Op } = await server.ssrLoadModule('/src/material/Bytecode.ts');
+	const { applyMaterialStress } = await server.ssrLoadModule('/scripts/wavefront-material-stress.ts');
 	const results = [];
 	for (const [name, file] of [['classroom', 'classroom'], ['breakfast-room', 'breakfast_room'],
 		['bmw-m6', 'bmw_m6'], ['glass-of-water', 'glass_of_water'], ['veach-mis', 'veach_mis']]) {
 		const bytes = readFileSync(join(scenes, name, 'gltf', `${file}_extended.glb`));
 		const scene = await parseGLTF(bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength));
+		const materialStress = applyMaterialStress(scene, layers, mixed);
 		const compiled = compileSceneMaterials(scene);
 		const instanced = new Set(scene.instances.map(instance => {
 			const material = scene.meshes[instance.mesh].material;
@@ -42,11 +46,11 @@ try {
 		const active = materials.filter(material => material.instanced);
 		const stackHistogram = {};
 		for (const material of active) stackHistogram[material.stack] = (stackHistogram[material.stack] ?? 0) + 1;
-		const result = { name, sha256: hash(bytes), totalMaterials: materials.length, instancedMaterials: active.length,
+		const result = { name, sha256: hash(bytes), materialStress, totalMaterials: materials.length, instancedMaterials: active.length,
 			uniqueCode: new Set(active.map(material => material.codeHash)).size, stackHistogram,
 			opcodes: [...new Set(materials.flatMap(material => material.opcodes))].sort(), materials };
 		results.push(result);
-		console.log(JSON.stringify({ ...result, materials: undefined }));
+		console.log(JSON.stringify({ ...result, materialStress: materialStress ? { layers, mixed } : null, materials: undefined }));
 	}
 	mkdirSync(dirname(output), { recursive: true });
 	writeFileSync(output, JSON.stringify({ results }, null, 2));

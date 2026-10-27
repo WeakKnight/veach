@@ -238,6 +238,10 @@ try {
 				{ width: 7, height: 5, bounces: 8, samples: 8 },
 				{ width: 129, height: 97, bounces: 8, samples: 16, clamp: 2 },
 			] },
+			{ name: 'material-stress', file: 'MetalRoughSpheres.glb', stressLayers: 8, configurations: [
+				{ width: 7, height: 5, bounces: 8, samples: 8 },
+				{ width: 129, height: 97, bounces: 8, samples: 16, clamp: 2 },
+			] },
 			{ name: 'helmet', file: 'DamagedHelmet.glb', configurations: [
 				{ width: 129, height: 97, bounces: 4, samples: 8 },
 			] },
@@ -304,7 +308,13 @@ try {
 							}).node, alphaMode: AlphaMode.Opaque, alphaCutoff: 0.5, doubleSided: false };
 					});
 				}
+				if (scene.stressLayers) {
+					const { applyMaterialStress } = await import('/scripts/wavefront-material-stress.ts');
+					applyMaterialStress(desc, scene.stressLayers);
+				}
 				await r.setScene(desc);
+				if (scene.stressLayers) check(r.scene.materialStackSize >= scene.stressLayers && r.scene.materialOpcodes[1] === 1,
+					'Material stress regression did not exercise the large procedural stack');
 				if (scene.procedural) check((r.scene.materialOpcodes[1] & 7) === 7 && (r.scene.materialOpcodes[0] >>> 31) === 1,
 					'Procedural regression did not compile Transform/Noise/Magic/Checker');
 				if (sort !== 'none') {
