@@ -108,6 +108,20 @@ describe('wavefront compilation ownership', () => {
 
 describe('material pipeline preparation', () => {
 	const scene = { instanceCount: 1, materialStackSize: 3 } as GpuScene;
+	it('does not reuse a pipeline compiled for another scene opcode set', async () => {
+		const device = { createShaderModule: vi.fn(() => ({})), createComputePipelineAsync: vi.fn().mockResolvedValue({}) };
+		const pathTracer = tracer();
+		Object.assign(pathTracer, { device, materialOpcodeSpecialization: true });
+		const a = { ...scene, materialOpcodes: [0xa00001, 0] as const } as GpuScene;
+		const b = { ...scene, materialOpcodes: [0xa00009, 7] as const } as GpuScene;
+		await pathTracer.prepareScene(a);
+		await pathTracer.prepareScene(b);
+		await pathTracer.prepareScene(a);
+		expect(device.createComputePipelineAsync).toHaveBeenCalledTimes(2);
+		expect(device.createComputePipelineAsync.mock.calls.map(([d]) => d.compute.constants)).toEqual([
+			{ '0': 0xa00001, '1': 0 }, { '0': 0xa00009, '1': 7 },
+		]);
+	});
 
 	it('shares concurrent compilation, caches success, and leaves the active pipeline alone', async () => {
 		const compile = pending();

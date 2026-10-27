@@ -28,13 +28,21 @@ selection (same expectation, visible only at 1 spp), and `clearcoatNormalTexture
   edits against the common WGSL in `MaterialStackVariants.ts`. Runtime reconstruction checks
   the base fingerprint; tests verify reconstructed output against each compiler output's SHA256.
   Function-local WGSL array sizes cannot be pipeline overrides. Pipelines are compiled lazily,
-  cached by capacity per renderer, and prepared before replacing the active scene.
+  cached by capacity and opcode mask per renderer, and prepared before replacing the active scene.
   The generated edit format uses JavaScript string positions, removal lengths and replacement text;
   runtime validates the base fingerprint and edit bounds. The build uses unchanged-line
   anchors when functions are removed, checks exact reconstruction, and records SHA256.
   Tests cover EOF/newline changes and repeated-line edits as well as actual Slang modules.
   `npm run build:shaders -- --material-stack 1` still emits standalone investigation modules
   under `.tools/wavefront/stack-1`. See [Wavefront.md](Wavefront.md) for paired measurements.
+- Experimental scene opcode specialization uses two uint32 pipeline constants to disable
+  unused interpreter cases. The host decodes the union of surface, opacity and emission
+  instructions across all compiled materials, including unused materials and the fallback;
+  extension operand words are skipped. This allows backend dead-code elimination without
+  changing bytecode, numerical operations, or the CPU interpreter. The full instruction set
+  remains the default pending measurements. Capacity zero has no override declarations and
+  shares one pipeline irrespective of opcode mask. Both integrators prepare and cache the
+  requested mask before binding the scene; shader-free wavefront stages need no constants.
 - Three programs per material: surface (every input but opacity, run by `EvalMaterial`), opacity
   (alpha tests) and emission (NEE). The last two are restricted to texture coordinates, textures
   and math, so traversal and light sampling get the reduced interpreter (`RunMaterialProgram<0>`).

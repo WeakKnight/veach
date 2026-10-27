@@ -707,6 +707,56 @@ BMW, glass and MIS use End/Output. This motivates a separate pipeline-constant o
 specialization experiment rather than assuming the VM's full arithmetic/procedural switch
 is required for these workloads.
 
+### Scene opcode specialization experiment
+
+`--opcodes scene` supplies the scene's union of SVM instructions as two uint32 pipeline
+constants. `--opcode-sweep` pairs the full-opcode megakernel and wavefront with both
+specialized variants, rotates their order and warms each selected variant for 64 frames.
+The normal renderer still uses the full opcode set. Capacity zero has no opcode overrides;
+the three constant-only research scenes are therefore useful unchanged controls.
+Pipeline caches include both capacity and mask. Benchmarks capture the constants of actual
+bound pipelines and reject a mismatch, in addition to checking capacity and HDR output.
+
+All 42 GPU regression comparisons passed with identical RGB and guides against the
+full-16-stack/full-opcode reference. Coverage includes capacities 0/1/2/4/8/16,
+alpha traversal/shadows, transmission, analytic and emissive lights, partial/multiple
+tiles, empty-scene transitions, and procedural Transform/Noise/Magic/Checker graphs.
+The latter verify both the high uint32 mask and unsigned bit 31 in the low mask.
+The CPU tests also check skipping extension operands, including unused/fallback materials,
+and separating same-capacity pipelines with different opcode masks. All 185 unit tests,
+typecheck, shader generation and library build pass. GPU correctness disables development
+hot reload so regenerating outputs cannot navigate away from an active test page;
+performance runs still require frozen source hashes throughout the run.
+
+`opcode-sweep-v1` completed all five scenes with 45 exact paired HDR comparisons;
+all screenshots were inspected. Classroom wavefront improved 8.592 to 8.305 ms and
+breakfast megakernel improved 4.272 to 4.059 ms, motivating a longer repeat.
+`opcode-sweep-v2` uses seven paired rounds, 64 samples per block and 64 warmup frames.
+All 105 paired HDR comparisons are exact and the sweep verifier passed. Median GPU spans:
+
+| Variant | classroom | breakfast-room | bmw-m6 | glass-of-water | veach-mis |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Megakernel, full opcodes | 10.134 | 4.271 | 2.704 | 2.814 | 1.549 |
+| Megakernel, scene opcodes | 9.902 | 4.118 | 2.657 | 2.809 | 1.553 |
+| Wavefront, full opcodes | 8.623 | 6.136 | 5.352 | 3.812 | 1.751 |
+| Wavefront, scene opcodes | 8.370 | 5.926 | 5.351 | 3.774 | 1.748 |
+
+Only the first two scenes change shaders. Their wavefront variants improve in every
+paired round, by 2.9% and 3.4% at the median. Shade stage totals fall from 1.4702 to
+1.2865 ms for classroom and 0.6817 to 0.5566 ms for breakfast (medians of per-round
+stage sums divided by sample count). Other stage variations and constant-only controls
+show timing noise; the apparent BMW megakernel gain is not an opcode optimization.
+This is evidence for runtime specialization, not a hardware register/occupancy measurement.
+The experiment stays opt-in while broader material performance and compilation overhead
+are evaluated. Fewer enabled instructions do not establish that every backend or scene wins.
+All five v2 screenshots were inspected. Another 36 exact comparisons cover every direct-stage
+mask with alpha and procedural materials; ten exact comparisons cover packet queues,
+fixed tail start 2, disabled subgroups, and capacities 4/16. Together with the full suite
+this gives 88 GPU regression comparisons for the opcode change.
+Specialized wavefront smoke also passes helmet HDR, alpha and transmission; all three
+screenshots were inspected. Regenerated shader reconstruction, opcode and lifecycle tests
+were rerun after the final shader build (26 passing tests).
+
 ## Work storage
 
 Group 1 binding 0 contains the original image prefix (three float4 per pixel), then

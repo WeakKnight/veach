@@ -15,6 +15,12 @@ import Materials.BSDF.BSDF;
 #define VEACH_MATERIAL_STACK_SIZE 16
 #endif
 static const uint MATERIAL_STACK_SIZE = VEACH_MATERIAL_STACK_SIZE;
+// Pipeline constants allow backend DCE of opcode implementations unused by the
+// entire scene. Defaults preserve the general interpreter; host masks include all
+// surface/opacity/emission programs and match MaterialProgramFeatures.ts.
+[[vk::constant_id(0)]] const uint gMaterialOpcodesLow = 0xffffffffu;
+[[vk::constant_id(1)]] const uint gMaterialOpcodesHigh = 0xffffffffu;
+#define MATERIAL_OPCODE_ENABLED(op) (((((op) < 32u) ? gMaterialOpcodesLow : gMaterialOpcodesHigh) >> ((op) & 31u)) & 1u)
 static const uint MATERIAL_MAX_INSTRUCTIONS = 1024u; // a malformed program must not hang the device
 
 static const uint OPERAND_CONSTANT = 0x80000000u;
@@ -269,23 +275,23 @@ void RunMaterialProgram<let SURFACE : int>(MaterialHeader header, uint program, 
 		switch (op)
 		{
 #if VEACH_MATERIAL_STACK_SIZE > 0
-		case OP_ADD: r = a + b; break;
-		case OP_SUB: r = a - b; break;
-		case OP_MUL: r = a * b; break;
-		case OP_DIV: r = a / b; break;
-		case OP_MIN: r = min(a, b); break;
-		case OP_MAX: r = max(a, b); break;
-		case OP_POW: r = pow(a, b); break;
-		case OP_ATAN2: r = atan2(a, b); break;
-		case OP_SQRT: r = sqrt(a); break;
-		case OP_SIN: r = sin(a); break;
-		case OP_COS: r = cos(a); break;
-		case OP_ABS: r = abs(a); break;
-		case OP_CLAMP: r = min(max(a, b), c); break;
-		case OP_MIX: r = lerp(a, b, c); break;
-		case OP_EXTRACT: r = float4(a[min(imm, 3u)]); break;
-		case OP_WIDEN: r = select(LanesBelow(imm & 0xffu), a, float4(float(imm >> 8u))); break;
-		case OP_COMBINE:
+		case OP_ADD: if (MATERIAL_OPCODE_ENABLED(OP_ADD) == 0u) break; r = a + b; break;
+		case OP_SUB: if (MATERIAL_OPCODE_ENABLED(OP_SUB) == 0u) break; r = a - b; break;
+		case OP_MUL: if (MATERIAL_OPCODE_ENABLED(OP_MUL) == 0u) break; r = a * b; break;
+		case OP_DIV: if (MATERIAL_OPCODE_ENABLED(OP_DIV) == 0u) break; r = a / b; break;
+		case OP_MIN: if (MATERIAL_OPCODE_ENABLED(OP_MIN) == 0u) break; r = min(a, b); break;
+		case OP_MAX: if (MATERIAL_OPCODE_ENABLED(OP_MAX) == 0u) break; r = max(a, b); break;
+		case OP_POW: if (MATERIAL_OPCODE_ENABLED(OP_POW) == 0u) break; r = pow(a, b); break;
+		case OP_ATAN2: if (MATERIAL_OPCODE_ENABLED(OP_ATAN2) == 0u) break; r = atan2(a, b); break;
+		case OP_SQRT: if (MATERIAL_OPCODE_ENABLED(OP_SQRT) == 0u) break; r = sqrt(a); break;
+		case OP_SIN: if (MATERIAL_OPCODE_ENABLED(OP_SIN) == 0u) break; r = sin(a); break;
+		case OP_COS: if (MATERIAL_OPCODE_ENABLED(OP_COS) == 0u) break; r = cos(a); break;
+		case OP_ABS: if (MATERIAL_OPCODE_ENABLED(OP_ABS) == 0u) break; r = abs(a); break;
+		case OP_CLAMP: if (MATERIAL_OPCODE_ENABLED(OP_CLAMP) == 0u) break; r = min(max(a, b), c); break;
+		case OP_MIX: if (MATERIAL_OPCODE_ENABLED(OP_MIX) == 0u) break; r = lerp(a, b, c); break;
+		case OP_EXTRACT: if (MATERIAL_OPCODE_ENABLED(OP_EXTRACT) == 0u) break; r = float4(a[min(imm, 3u)]); break;
+		case OP_WIDEN: if (MATERIAL_OPCODE_ENABLED(OP_WIDEN) == 0u) break; r = select(LanesBelow(imm & 0xffu), a, float4(float(imm >> 8u))); break;
+		case OP_COMBINE: if (MATERIAL_OPCODE_ENABLED(OP_COMBINE) == 0u) break;
 			r = float4(a.x, b.x, c.x, 0.0);
 			if (imm > 3u)
 			{
@@ -293,20 +299,20 @@ void RunMaterialProgram<let SURFACE : int>(MaterialHeader header, uint program, 
 				r.w = MaterialOperand(o, stack[o & (MATERIAL_STACK_SIZE - 1u)], header.constantBase).x;
 			}
 			break;
-		case OP_DOT:
+		case OP_DOT: if (MATERIAL_OPCODE_ENABLED(OP_DOT) == 0u) break;
 		{
 			bool4 lanes = LanesBelow(imm);
 			r = float4(dot(select(lanes, a, float4(0.0)), select(lanes, b, float4(0.0))));
 			break;
 		}
-		case OP_NORMALIZE:
+		case OP_NORMALIZE: if (MATERIAL_OPCODE_ENABLED(OP_NORMALIZE) == 0u) break;
 		{
 			float4 x = select(LanesBelow(imm), a, float4(0.0));
 			float len = length(x);
 			r = len > 0.0 ? a / len : float4(0.0);
 			break;
 		}
-		case OP_GEOMETRY:
+		case OP_GEOMETRY: if (MATERIAL_OPCODE_ENABLED(OP_GEOMETRY) == 0u) break;
 			if (imm == GEOMETRY_TEXCOORD0)
 			{
 				r = float4(ctx.tex.uv0, 0.0, 0.0);
@@ -339,45 +345,45 @@ void RunMaterialProgram<let SURFACE : int>(MaterialHeader header, uint program, 
 				}
 			}
 			break;
-		case OP_TEXTURE:
+		case OP_TEXTURE: if (MATERIAL_OPCODE_ENABLED(OP_TEXTURE) == 0u) break;
 		{
 			TextureRef ref = LoadTextureRef(header, imm);
 			r = HasTexture(ref) ? SampleTexture(ref, ctx.tex) : float4(1.0);
 			break;
 		}
-		case OP_NORMAL_MAP:
+		case OP_NORMAL_MAP: if (MATERIAL_OPCODE_ENABLED(OP_NORMAL_MAP) == 0u) break;
 			if (SURFACE != 0)
 			{
 				r = float4(ApplyNormalMap(ctx.tangent, ctx.normal, a.xyz, b.x), 0.0);
 			}
 			break;
-		case OP_FLOOR: r = floor(a); break;
-		case OP_SIGN: r = sign(a); break;
-		case OP_EXP: r = exp(a); break;
-		case OP_LOG: r = log(a); break;
-		case OP_MODULO: r = a - b * floor(a / b); break;
-		case OP_GREATER: r = select(a > b, float4(1.0), float4(0.0)); break;
-		case OP_CROSS: r = float4(cross(a.xyz, b.xyz), 0.0); break;
-		case OP_TRANSFORM:
+		case OP_FLOOR: if (MATERIAL_OPCODE_ENABLED(OP_FLOOR) == 0u) break; r = floor(a); break;
+		case OP_SIGN: if (MATERIAL_OPCODE_ENABLED(OP_SIGN) == 0u) break; r = sign(a); break;
+		case OP_EXP: if (MATERIAL_OPCODE_ENABLED(OP_EXP) == 0u) break; r = exp(a); break;
+		case OP_LOG: if (MATERIAL_OPCODE_ENABLED(OP_LOG) == 0u) break; r = log(a); break;
+		case OP_MODULO: if (MATERIAL_OPCODE_ENABLED(OP_MODULO) == 0u) break; r = a - b * floor(a / b); break;
+		case OP_GREATER: if (MATERIAL_OPCODE_ENABLED(OP_GREATER) == 0u) break; r = select(a > b, float4(1.0), float4(0.0)); break;
+		case OP_CROSS: if (MATERIAL_OPCODE_ENABLED(OP_CROSS) == 0u) break; r = float4(cross(a.xyz, b.xyz), 0.0); break;
+		case OP_TRANSFORM: if (MATERIAL_OPCODE_ENABLED(OP_TRANSFORM) == 0u) break;
 			if (SURFACE != 0)
 			{
 				Instance inst = gInstances[ctx.instanceIndex];
 				r = float4(imm == 1u ? TransformVector(inst, a.xyz) : InverseTransformVector(inst, a.xyz), 0.0);
 			}
 			break;
-		case OP_NOISE:
+		case OP_NOISE: if (MATERIAL_OPCODE_ENABLED(OP_NOISE) == 0u) break;
 		{
 			float3 v = BlenderNoise(a.xyz, b, (imm & NOISE_NORMALIZE) != 0u, (imm & NOISE_COLOR) != 0u);
 			r = (imm & NOISE_COLOR) != 0u ? float4(v, 0.0) : float4(v.x);
 			break;
 		}
-		case OP_MAGIC:
+		case OP_MAGIC: if (MATERIAL_OPCODE_ENABLED(OP_MAGIC) == 0u) break;
 		{
 			float3 c = BlenderMagic(a.xyz, imm, b.x);
 			r = float4(c, (c.x + c.y + c.z) / 3.0);
 			break;
 		}
-		case OP_CHECKER: r = float4(BlenderChecker(a.xyz)); break;
+		case OP_CHECKER: if (MATERIAL_OPCODE_ENABLED(OP_CHECKER) == 0u) break; r = float4(BlenderChecker(a.xyz)); break;
 #endif
 		case OP_OUTPUT:
 			switch (imm)

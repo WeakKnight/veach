@@ -54,6 +54,13 @@ if (integratorFlag >= 0) {
 	only.splice(integratorFlag, 2);
 }
 const wavefrontTuning = {};
+const opcodeFlag = only.indexOf('--opcodes');
+let opcodeMode = null;
+if (opcodeFlag >= 0) {
+	opcodeMode = only[opcodeFlag + 1];
+	if (!['full', 'scene'].includes(opcodeMode)) throw new Error('Invalid --opcodes');
+	only.splice(opcodeFlag, 2);
+}
 const shadowFlag = only.indexOf('--shadow');
 if (shadowFlag >= 0) {
 	const mode = only[shadowFlag + 1];
@@ -155,6 +162,16 @@ try {
 		const start = Date.now();
 		await page.goto(`${base}?${c.query}&integrator=${integrator}`, { waitUntil: 'load' });
 		try {
+			if (opcodeMode !== null) {
+				await page.waitForFunction(() => globalThis.veach?.samples > 0, { timeout: 120000 });
+				await page.evaluate(async mode => {
+					const renderer = globalThis.veach;
+					renderer.tracer.materialOpcodeSpecialization = mode === 'scene';
+					await renderer.tracer.prepareScene(renderer.scene);
+					renderer.bindScene();
+					renderer.resetAccumulation();
+				}, opcodeMode);
+			}
 			if (Object.keys(wavefrontTuning).length) {
 				// The first frame proves initial scene loading is complete. Empty scenes need
 				// no wavefront kernels; geometry scenes must receive tuning after preparation.

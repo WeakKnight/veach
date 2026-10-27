@@ -44,8 +44,13 @@ const config = {
 	sortSweep: args.includes('--sort-sweep'),
 	shadowMode: option('shadow', 'serial'),
 	shadowSweep: args.includes('--shadow-sweep'),
-	variantWarmup: Number(option('variant-warmup', args.includes('--material-sweep') ? 64 : 8)),
+	opcodeMode: option('opcodes', 'full'),
+	opcodeSweep: args.includes('--opcode-sweep'),
+	variantWarmup: Number(option('variant-warmup', args.includes('--material-sweep') || args.includes('--opcode-sweep') ? 64 : 8)),
 };
+if (!['full', 'scene'].includes(config.opcodeMode)) throw new Error('Invalid opcode mode');
+if (config.opcodeSweep && (!config.paired || config.tailSweep || config.packetSweep || config.materialSweep || config.sortSweep || config.shadowSweep || config.dispatchSweep || config.compactionSweep || config.opcodeMode !== 'full'))
+	throw new Error('--opcode-sweep requires paired full-opcode base and cannot combine with other sweeps');
 if (!['serial', 'parallel', 'parallel-auto'].includes(config.shadowMode)) throw new Error('Invalid shadow mode');
 if (config.shadowSweep && (!config.paired || config.tailSweep || config.packetSweep || config.materialSweep || config.sortSweep || config.dispatchSweep || config.compactionSweep || config.shadowMode !== 'serial'))
 	throw new Error('--shadow-sweep requires paired serial base and cannot combine with other sweeps');
@@ -102,6 +107,10 @@ if (config.shadowSweep) {
 	for (const shadowMode of ['parallel', 'parallel-auto'])
 		config.variants.push({ name: `shadow-${shadowMode}`, shadowMode, tailStart: config.tailStart, tailThreshold: config.tailThreshold });
 }
+if (config.opcodeSweep) {
+	for (const mode of ['megakernel', 'wavefront'])
+		config.variants.push({ name: `${mode}-opcodes`, mode, opcodeMode: 'scene', tailStart: config.tailStart, tailThreshold: config.tailThreshold });
+}
 for (const variant of config.variants) {
 	variant.mode ??= 'wavefront';
 	variant.materialStack ??= config.materialStack;
@@ -111,6 +120,7 @@ for (const variant of config.variants) {
 	variant.sort ??= config.sort;
 	variant.sortSize ??= config.sortSize;
 	variant.shadowMode ??= config.shadowMode;
+	variant.opcodeMode ??= config.opcodeMode;
 }
 for (const key of ['width', 'height', 'warmup', 'variantWarmup', 'samples', 'repeats', 'bounces']) {
 	if (!Number.isInteger(config[key]) || config[key] < (key === 'bounces' ? 0 : 1)) throw new Error(`Invalid ${key}`);
@@ -138,7 +148,7 @@ const chrome = [process.env.CHROME_PATH, 'C:/Program Files/Google/Chrome/Applica
 if (!chrome) throw new Error('Set CHROME_PATH to a WebGPU-capable browser');
 const shaderPath = path => join(root, path);
 const server = await createServer({
-	root, server: { port: 5201, strictPort: false }, logLevel: 'warn',
+	root, server: { port: 5201, strictPort: false, hmr: false }, logLevel: 'warn',
 	plugins: [{ name: 'research-scenes', configureServer(server) {
 		server.middlewares.use((req, res, next) => {
 			const c = cases.find(c => req.url === `/__research/${c.name}.glb`);
@@ -173,7 +183,7 @@ const assertUnchangedSources = () => {
 const referenceReport = { ...report, config: { ...config, mode: 'megakernel' }, results: [] };
 const variantReports = Object.fromEntries(config.variants.slice(1).map(variant => {
 	mkdirSync(join(output, variant.name), { recursive: true });
-	return [variant.name, { ...report, config: { ...config, mode: variant.mode, materialStack: variant.materialStack, tailStart: variant.tailStart, tailThreshold: variant.tailThreshold, compaction: variant.compaction, directStages: variant.directStages, packetStages: variant.packetStages, sort: variant.sort, sortSize: variant.sortSize, shadowMode: variant.shadowMode }, results: [] }];
+	return [variant.name, { ...report, config: { ...config, mode: variant.mode, materialStack: variant.materialStack, tailStart: variant.tailStart, tailThreshold: variant.tailThreshold, compaction: variant.compaction, directStages: variant.directStages, packetStages: variant.packetStages, sort: variant.sort, sortSize: variant.sortSize, shadowMode: variant.shadowMode, opcodeMode: variant.opcodeMode }, results: [] }];
 }));
 writeFileSync(join(candidateOutput, 'report.json'), JSON.stringify(report, null, 2));
 try {
@@ -194,11 +204,13 @@ try {
 			const createShaderModule = GPUDevice.prototype.createShaderModule;
 			const observedStackCapacities = {};
 			const shaderCompilations = [], pipelineCompilations = [];
+			const pipelineConstants = new WeakMap();
 			const createComputePipeline = GPUDevice.prototype.createComputePipelineAsync;
 			GPUDevice.prototype.createComputePipelineAsync = function(descriptor) {
 				const start = performance.now();
 				return createComputePipeline.call(this, descriptor).then(pipeline => {
-					pipelineCompilations.push({ label: descriptor.label, elapsedMs: performance.now() - start });
+					pipelineConstants.set(pipeline, descriptor.compute.constants ?? {});
+					pipelineCompilations.push({ label: descriptor.label, constants: descriptor.compute.constants ?? {}, elapsedMs: performance.now() - start });
 					return pipeline;
 				});
 			};
@@ -233,6 +245,7 @@ try {
 			GPUAdapter.prototype.requestDevice = requestDevice;
 			const initMs = performance.now() - initStart;
 			renderer.tracer.materialStackOverride = config.materialStack;
+			renderer.tracer.materialOpcodeSpecialization = config.opcodeMode === 'scene';
 			Object.assign(renderer.settings, { maxSamples: 0, samplesPerFrame: 1, maxBounces: config.bounces,
 				autoExposureMethod: AutoExposureMethod.Manual, autoExposureBias: 0, localExposureMethod: LocalExposureMethod.None,
 				environmentIntensity: c.environment, fireflyClamp: config.clamp });
@@ -294,10 +307,13 @@ try {
 			const begin = GPUCommandEncoder.prototype.beginComputePass;
 			const setPipeline = GPUComputePassEncoder.prototype.setPipeline;
 			const tracedPasses = new WeakSet();
-			let observedPipelines = new Set();
+			let observedPipelines = new Set(), observedConstants = new Map();
 			GPUComputePassEncoder.prototype.setPipeline = function(pipeline) {
 				if (tracedPasses.has(this)) {
 					if (!pipeline.label.endsWith(`.stack${renderer.tracer.materialCapacity}`)) throw new Error(`Wrong tracing pipeline: ${pipeline.label}`);
+					const constants = pipelineConstants.get(pipeline) ?? {};
+					if ('0' in constants && (constants['0'] !== renderer.tracer.materialOpcodes[0] || constants['1'] !== renderer.tracer.materialOpcodes[1])) throw new Error('Wrong bound opcode specialization');
+					observedConstants.set(pipeline.label, constants);
 					observedPipelines.add(pipeline.label);
 				}
 				return setPipeline.call(this, pipeline);
@@ -334,10 +350,10 @@ try {
 			let presentationVariant = config.mode;
 			const pairedErrors = [];
 			for (let repeat = 0; repeat < config.repeats; repeat++) {
-				const schedule = config.paired ? [{ name: 'megakernel' }, ...config.variants] : [{ name: config.mode, tailStart: config.tailStart, tailThreshold: config.tailThreshold, compaction: config.compaction, directStages: config.directStages, packetStages: config.packetStages, sort: config.sort, sortSize: config.sortSize, shadowMode: config.shadowMode }];
+				const schedule = config.paired ? [{ name: 'megakernel' }, ...config.variants] : [{ name: config.mode, tailStart: config.tailStart, tailThreshold: config.tailThreshold, compaction: config.compaction, directStages: config.directStages, packetStages: config.packetStages, sort: config.sort, sortSize: config.sortSize, shadowMode: config.shadowMode, opcodeMode: config.opcodeMode }];
 				// Rotate the sweep and reverse alternating rounds to avoid always measuring a
 				// configuration at the same position relative to GPU warmup and clock changes.
-				if (config.tailSweep || config.compactionSweep || config.dispatchSweep || config.packetSweep || config.materialSweep || config.sortSweep || config.shadowSweep) schedule.push(...schedule.splice(0, repeat % schedule.length));
+				if (config.tailSweep || config.compactionSweep || config.dispatchSweep || config.packetSweep || config.materialSweep || config.sortSweep || config.shadowSweep || config.opcodeSweep) schedule.push(...schedule.splice(0, repeat % schedule.length));
 				if (config.paired && repeat % 2 !== 0) schedule.reverse();
 				for (const variant of schedule) {
 					const mode = variant.mode ?? (variant.name === 'megakernel' ? 'megakernel' : 'wavefront');
@@ -345,8 +361,10 @@ try {
 					if (config.paired) {
 						const requestedStack = variant.materialStack ?? config.materialStack;
 						if (requestedStack !== null && requestedStack < materialStackRequired) throw new Error(`Material sweep needs at least ${materialStackRequired} stack slots`);
-						if (renderer.tracer.materialStackOverride !== requestedStack) {
+						const requestedOpcodes = (variant.opcodeMode ?? config.opcodeMode) === 'scene';
+						if (renderer.tracer.materialStackOverride !== requestedStack || renderer.tracer.materialOpcodeSpecialization !== requestedOpcodes) {
 							renderer.tracer.materialStackOverride = requestedStack;
+							renderer.tracer.materialOpcodeSpecialization = requestedOpcodes;
 							await renderer.tracer.prepareScene(renderer.scene);
 							renderer.bindScene();
 						}
@@ -358,7 +376,7 @@ try {
 						for (let warm = 0; warm < config.variantWarmup; warm++) { renderer.renderFrame(); await device.queue.onSubmittedWorkDone(); }
 					}
 					renderer.resetAccumulation();
-					observedPipelines = new Set();
+					observedPipelines = new Set(); observedConstants = new Map();
 					const timings = [], spanTimings = [], stages = {}, wall = performance.now();
 					for (let sample = 0; sample < config.samples; sample++) {
 						captureQueues = config.diagnose && sample === 0 && repeat === 0 && variant.name === 'wavefront';
@@ -392,7 +410,7 @@ try {
 					const medianMs = (sorted[Math.floor((sorted.length - 1) / 2)] + sorted[Math.floor(sorted.length / 2)]) * 0.5;
 					const sortedSpans = [...spanTimings].sort((a, b) => a - b);
 					const medianSpanMs = (sortedSpans[Math.floor((sortedSpans.length - 1) / 2)] + sortedSpans[Math.floor(sortedSpans.length / 2)]) * 0.5;
-					repeats.push({ mode, materialCapacity: renderer.tracer.materialCapacity, pipelineLabels: [...observedPipelines], variant: variant.name, repeat, medianMs, medianSpanMs, meanMs: timings.reduce((a, b) => a + b) / timings.length, wallMs, timings, spanTimings, stages });
+					repeats.push({ mode, materialCapacity: renderer.tracer.materialCapacity, pipelineLabels: [...observedPipelines], opcodeConstants: Object.fromEntries(observedConstants), materialOpcodes: renderer.tracer.materialOpcodes, variant: variant.name, repeat, medianMs, medianSpanMs, meanMs: timings.reduce((a, b) => a + b) / timings.length, wallMs, timings, spanTimings, stages });
 					console.log(`[benchmark] ${c.name}: ${variant.name} repeat ${repeat + 1}, GPU passes ${medianMs.toFixed(3)}, span ${medianSpanMs.toFixed(3)} ms/sample`);
 					if (config.paired) {
 						const hdr = await renderer.readRadiance();

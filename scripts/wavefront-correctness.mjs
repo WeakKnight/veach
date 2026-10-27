@@ -43,7 +43,7 @@ mkdirSync(output, { recursive: true });
 const chrome = [process.env.CHROME_PATH, 'C:/Program Files/Google/Chrome/Application/chrome.exe',
 	'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe', '/usr/bin/google-chrome', '/usr/bin/chromium'].find(p => p && existsSync(p));
 if (!chrome) throw new Error('Set CHROME_PATH');
-const server = await createServer({ root, logLevel: 'warn', server: { port: 5205, strictPort: false } });
+const server = await createServer({ root, logLevel: 'warn', server: { port: 5205, strictPort: false, hmr: false } });
 await server.listen();
 const browser = await puppeteer.launch({ executablePath: chrome, headless: true, protocolTimeout: 1800000,
 	args: ['--enable-unsafe-webgpu', '--ignore-gpu-blocklist', '--no-sandbox'] });
@@ -59,6 +59,13 @@ try {
 	const results = await page.evaluate(async ({ tailStart, tailThreshold, only, disableSubgroups, compaction, directStages, dispatchSweep, packetStages, packetSweep, sort, sortSize, shadowMode }) => {
 		const api = await import('/src/index.ts');
 		const check = (value, message) => { if (!value) throw new Error(message); };
+		const pipelineOpcodes = new WeakMap(), createPipeline = GPUDevice.prototype.createComputePipelineAsync;
+		GPUDevice.prototype.createComputePipelineAsync = function(descriptor) {
+			return createPipeline.call(this, descriptor).then(pipeline => {
+				pipelineOpcodes.set(pipeline, descriptor.compute.constants ?? {});
+				return pipeline;
+			});
+		};
 		const requestDevice = GPUAdapter.prototype.requestDevice;
 		GPUAdapter.prototype.requestDevice = function(descriptor = {}) {
 			return requestDevice.call(this, { ...descriptor,
@@ -79,6 +86,7 @@ try {
 		let sortMaterialOf = [], sortPrograms = new Uint32Array();
 		let sortVerification = { passes: 0, entries: 0, reordered: 0 };
 		let shadowPipelines = [];
+		let opcodeConstants = [];
 		async function renderSortCheckedFrame() {
 			const captures = [];
 			const begin = GPUCommandEncoder.prototype.beginComputePass;
@@ -143,6 +151,7 @@ try {
 		}
 		async function render(mode, config, capacity = null, stageMask = directStages, packetMask = packetStages) {
 			r.tracer.materialStackOverride = capacity;
+			r.tracer.materialOpcodeSpecialization = capacity === null;
 			await r.tracer.prepareScene(r.scene);
 			r.bindScene();
 			const expectedCapacity = capacity ?? [0, 1, 2, 4, 8, 16].find(n => n >= r.scene.materialStackSize);
@@ -152,9 +161,14 @@ try {
 			Object.assign(r.settings, { maxBounces: config.bounces, fireflyClamp: config.clamp ?? 0, maxSamples: config.samples });
 			r.resetAccumulation();
 			sortVerification = { passes: 0, entries: 0, reordered: 0 };
-			const observedShadows = new Set(), setPipeline = GPUComputePassEncoder.prototype.setPipeline;
+			const observedShadows = new Set(), observedOpcodes = new Set(), setPipeline = GPUComputePassEncoder.prototype.setPipeline;
 			GPUComputePassEncoder.prototype.setPipeline = function(pipeline) {
 				if (pipeline.label.startsWith('wavefront.Shadow')) observedShadows.add(pipeline.label);
+				const constants = pipelineOpcodes.get(pipeline) ?? {};
+				if ('0' in constants) {
+					check(constants['0'] === r.tracer.materialOpcodes[0] && constants['1'] === r.tracer.materialOpcodes[1], 'Wrong bound opcode specialization');
+					observedOpcodes.add(JSON.stringify(constants));
+				}
 				return setPipeline.call(this, pipeline);
 			};
 			try {
@@ -165,6 +179,8 @@ try {
 				}
 			} finally { GPUComputePassEncoder.prototype.setPipeline = setPipeline; }
 			shadowPipelines = [...observedShadows];
+			opcodeConstants = [...observedOpcodes].map(value => JSON.parse(value));
+			if (r.scene.instanceCount > 0 && r.tracer.materialCapacity > 0) check(opcodeConstants.length === 1, 'SVM opcode constants were not exercised');
 			const expectedShadow = r.scene.hasAlphaTested ? 'Shadow' : shadowMode === 'serial' ? 'ShadowOpaque'
 				: shadowMode === 'parallel-auto' && r.scene.lightCount === 0 ? 'ShadowOpaqueParallelSky' : 'ShadowOpaqueParallel';
 			const suffix = compaction === 'none' || (stageMask & 4) !== 0 ? 'Direct' : '';
@@ -218,6 +234,10 @@ try {
 				{ width: 7, height: 5, bounces: 8, samples: 8 },
 				{ width: 129, height: 97, bounces: 8, samples: 16, clamp: 2 },
 			] },
+			{ name: 'procedural', file: 'MetalRoughSpheres.glb', procedural: true, configurations: [
+				{ width: 7, height: 5, bounces: 8, samples: 8 },
+				{ width: 129, height: 97, bounces: 8, samples: 16, clamp: 2 },
+			] },
 			{ name: 'helmet', file: 'DamagedHelmet.glb', configurations: [
 				{ width: 129, height: 97, bounces: 4, samples: 8 },
 			] },
@@ -267,7 +287,26 @@ try {
 					check(constantMaterials.every((m, i) => m.stackSize === 0 && m.alphaTested === (i % 4 !== 3) && m.emissive),
 						`Constant graph metadata: ${JSON.stringify(constantMaterials.map(m => ({ name: m.name, stack: m.stackSize, alpha: m.alphaTested, emissive: m.emissive })))}`);
 				}
+				if (scene.procedural) {
+					const { GraphBuilder } = await import('/src/material/Graph.ts');
+					const { AlphaMode } = await import('/src/scene/Scene.ts');
+					desc.materials.forEach((material, i) => {
+						const b = new GraphBuilder();
+						const p = b.node('position', 'vector3', {});
+						const object = b.node('veach_world_to_object', 'vector3', { in: p });
+						const noise = b.math('veach_blender_noise', 'color3', { in: object, params: [3, 0.625, 2.25, 0.375], normalize: 1 });
+						const magic = b.math('veach_blender_magic', 'color4', { in: object, distortion: 1 + i % 3, depth: 3 });
+						const checker = b.math('veach_blender_checker', 'float', { in: b.mul(object, 3) });
+						material.graph = { name: `procedural-${i}`, nodes: b.nodes,
+							surface: b.node('open_pbr_surface', 'surfaceshader', {
+								base_color: b.saturate(noise), specular_roughness: b.add(0.1, b.mul(checker, 0.7)),
+								fuzz_weight: 0.3, fuzz_color: b.saturate(b.convert(magic, 'color3')),
+							}).node, alphaMode: AlphaMode.Opaque, alphaCutoff: 0.5, doubleSided: false };
+					});
+				}
 				await r.setScene(desc);
+				if (scene.procedural) check((r.scene.materialOpcodes[1] & 7) === 7 && (r.scene.materialOpcodes[0] >>> 31) === 1,
+					'Procedural regression did not compile Transform/Noise/Magic/Checker');
 				if (sort !== 'none') {
 					const { compileSceneMaterials } = await import('/src/render/SceneMaterials.ts');
 					const { packMaterialData } = await import('/src/render/GpuLayout.ts');
@@ -307,7 +346,7 @@ try {
 							maxError = Math.max(maxError, error); squared += error * error; refSquared += reference[i] * reference[i];
 						}
 						const relativeL2 = Math.sqrt(squared / Math.max(refSquared, 1e-30));
-						const result = { scene: scene.name, mode, compaction, directStages: stageMask, packetStages: packetMask, sort, sortSize, shadowMode, shadowPipelines, sortVerification, subgroups: r.device.features.has('subgroups'), materialCapacity: r.tracer.materialCapacity, ...config, maxError, relativeL2 };
+						const result = { scene: scene.name, mode, compaction, directStages: stageMask, packetStages: packetMask, sort, sortSize, shadowMode, shadowPipelines, sortVerification, opcodeConstants, subgroups: r.device.features.has('subgroups'), materialCapacity: r.tracer.materialCapacity, ...config, maxError, relativeL2 };
 						results.push(result);
 						console.log(`[correctness] ${JSON.stringify(result)}`);
 						check(maxError <= 1e-5, `${scene.name}: GPU integrators differ by ${maxError}`);
@@ -317,7 +356,7 @@ try {
 					check(r.samples === 0, 'Integrator switch failed to reset samples');
 				}
 			}
-		} finally { r.destroy(); }
+		} finally { r.destroy(); GPUDevice.prototype.createComputePipelineAsync = createPipeline; }
 		return results;
 	}, { tailStart, tailThreshold, only, disableSubgroups, compaction, directStages, dispatchSweep, packetStages, packetSweep, sort, sortSize, shadowMode });
 	if (errors.length) throw new Error(errors.join('\n'));

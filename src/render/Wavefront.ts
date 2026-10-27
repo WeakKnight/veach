@@ -9,6 +9,7 @@ import sort64Wgsl from '../generated/shaders/WavefrontSort64.wgsl?raw';
 import sort256Wgsl from '../generated/shaders/WavefrontSort256.wgsl?raw';
 import shadowWgsl from '../generated/shaders/WavefrontShadow.wgsl?raw';
 import { specializeMaterialShader, type MaterialStackCapacity } from './MaterialShaderVariants';
+import { ALL_MATERIAL_OPCODES, materialPipelineKey, materialPipelineConstants, type MaterialOpcodeMask } from './MaterialProgramFeatures';
 
 const RECORD_BYTES = 21 * 16; // WAVEFRONT_STRIDE in Wavefront.slang
 const TILE_CAPACITY = 262144;
@@ -37,8 +38,8 @@ export class Wavefront {
 	shadowMode: 'serial' | 'parallel' | 'parallel-auto' = 'serial';
 	readonly layout: GPUBindGroupLayout;
 	readonly compiled: Promise<void>;
-	private readonly pipelines = new Map<MaterialStackCapacity, Map<Entry, GPUComputePipeline>>();
-	private readonly compiling = new Map<MaterialStackCapacity, Promise<void>>();
+	private readonly pipelines = new Map<string, Map<Entry, GPUComputePipeline>>();
+	private readonly compiling = new Map<string, Promise<void>>();
 	private readonly pipelineLayout: GPUPipelineLayout;
 	private readonly compactModule: GPUShaderModule;
 	private readonly compactDenseModule: GPUShaderModule;
@@ -57,7 +58,7 @@ export class Wavefront {
 	private readonly alignment: number;
 	private readonly indirect: GPUBuffer;
 
-	constructor(private readonly device: GPUDevice, sceneLayout: GPUBindGroupLayout, capacity: MaterialStackCapacity = 16) {
+	constructor(private readonly device: GPUDevice, sceneLayout: GPUBindGroupLayout, capacity: MaterialStackCapacity = 16, opcodes: MaterialOpcodeMask = ALL_MATERIAL_OPCODES) {
 		this.alignment = device.limits.minUniformBufferOffsetAlignment;
 		this.indirect = device.createBuffer({ label: 'wavefrontDispatch', size: 32, usage: GPUBufferUsage.INDIRECT | GPUBufferUsage.COPY_DST });
 		this.layout = device.createBindGroupLayout({ label: 'wavefront', entries: [
@@ -75,13 +76,14 @@ export class Wavefront {
 		this.compactSubgroupModule = device.features.has('subgroups')
 			? device.createShaderModule({ label: 'WavefrontCompactSubgroup', code: compactSubgroupWgsl }) : null;
 		this.pipelineLayout = device.createPipelineLayout({ bindGroupLayouts: [sceneLayout, this.layout] });
-		this.compiled = this.prepareStack(capacity);
+		this.compiled = this.prepareStack(capacity, opcodes);
 	}
 
-	async prepareStack(capacity: MaterialStackCapacity): Promise<void> {
+	async prepareStack(capacity: MaterialStackCapacity, opcodes: MaterialOpcodeMask = ALL_MATERIAL_OPCODES): Promise<void> {
 		if (this.destroyed) throw new Error('Wavefront has been destroyed');
-		if (this.pipelines.has(capacity)) return;
-		let pending = this.compiling.get(capacity);
+		const key = materialPipelineKey(capacity, opcodes);
+		if (this.pipelines.has(key)) return;
+		let pending = this.compiling.get(key);
 		if (!pending) {
 			const module = this.device.createShaderModule({ label: 'Wavefront', code: specializeMaterialShader(wavefrontWgsl, 'Wavefront', capacity) });
 			pending = Promise.all(ENTRIES.filter(entry => !entry.endsWith('Subgroup') || this.compactSubgroupModule).map(async entryPoint => {
@@ -93,17 +95,19 @@ export class Wavefront {
 					: entryPoint.endsWith('Packet') ? this.compactPacketModule
 					: entryPoint.endsWith('Adaptive') ? this.compactAdaptiveModule
 					: entryPoint.endsWith('Subgroup') ? this.compactSubgroupModule! : compact ? this.compactModule : module;
+				const usesMaterial = ['Shade', 'ShadeDirect', 'Tail', 'TailOpaque', 'Intersect', 'IntersectDirect', 'Shadow', 'ShadowDirect'].includes(entryPoint);
 				const pipeline = await this.device.createComputePipelineAsync({ label: `wavefront.${entryPoint}.stack${capacity}`, layout: this.pipelineLayout,
-					compute: { module: shader, entryPoint: sort ? entryPoint.replace(/64|256/g, '') : compact ? entryPoint.replace(/Dense|Subgroup|Adaptive|Packet/g, '') : entryPoint } });
+					compute: { module: shader, entryPoint: sort ? entryPoint.replace(/64|256/g, '') : compact ? entryPoint.replace(/Dense|Subgroup|Adaptive|Packet/g, '') : entryPoint,
+						constants: usesMaterial ? materialPipelineConstants(capacity, opcodes) : undefined } });
 				return [entryPoint, pipeline] as const;
 			})).then(entries => {
 				if (this.destroyed) throw new Error('Wavefront has been destroyed');
-				this.pipelines.set(capacity, new Map(entries));
+				this.pipelines.set(key, new Map(entries));
 			}).catch(error => {
-				this.compiling.delete(capacity);
+				this.compiling.delete(key);
 				throw error;
 			});
-			this.compiling.set(capacity, pending);
+			this.compiling.set(key, pending);
 		}
 		await pending;
 	}
@@ -127,7 +131,7 @@ export class Wavefront {
 		this.group = null;
 	}
 
-	encode(encoder: GPUCommandEncoder, scene: GPUBindGroup, width: number, height: number, maxBounces: number, hasAlphaTested: boolean, materialCapacity: MaterialStackCapacity, lightCount: number): void {
+	encode(encoder: GPUCommandEncoder, scene: GPUBindGroup, width: number, height: number, maxBounces: number, hasAlphaTested: boolean, materialCapacity: MaterialStackCapacity, lightCount: number, opcodes: MaterialOpcodeMask): void {
 		if (!this.accumulation || !this.feedback) return;
 		const directStages = this.compaction === 'none' ? 7 : this.directStages;
 		if (!Number.isInteger(directStages) || directStages < 0 || directStages > 7) throw new Error('Invalid direct stage mask');
@@ -139,7 +143,7 @@ export class Wavefront {
 		if (this.compaction === 'packet' && this.tailThreshold !== 0) throw new Error('Packet counts include inactive slots; use fixed tails');
 		if (direct && this.tailThreshold !== 0) throw new Error('Direct dispatch supports fixed tails only; adaptive tails require queue counts');
 		if (this.compaction === 'subgroup' && !this.compactSubgroupModule) throw new Error('Subgroup compaction requires the subgroups device feature');
-		const pipelines = this.pipelines.get(materialCapacity);
+		const pipelines = this.pipelines.get(materialPipelineKey(materialCapacity, opcodes));
 		if (!pipelines) throw new Error('Wavefront material pipelines have not been prepared');
 		const compactSuffix = { dense: 'Dense', queued: '', subgroup: 'Subgroup', adaptive: 'Adaptive', packet: 'Packet', none: '' }[this.compaction];
 		const pixels = width * height, capacity = this.capacity(pixels);

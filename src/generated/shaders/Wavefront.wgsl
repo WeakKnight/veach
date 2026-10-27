@@ -1021,6 +1021,8 @@ fn MaterialOperand_0( operand_0 : u32,  slot_0 : vec4<f32>,  constantBase_1 : u3
     return slot_0;
 }
 
+@id(0) override gMaterialOpcodesLow_0 : u32 = u32(4294967295);
+
 fn LanesBelow_0( size_0 : u32) -> vec4<bool>
 {
     return (vec4<u32>(u32(0), u32(1), u32(2), u32(3)) < vec4<u32>(size_0));
@@ -1246,6 +1248,8 @@ fn SampleTexture_0( ref_7 : TextureRef_0,  tc_2 : TextureCoords_0) -> vec4<f32>
     }
     return color_1;
 }
+
+@id(1) override gMaterialOpcodesHigh_0 : u32 = u32(4294967295);
 
 fn HashRotate_0( x_10 : u32,  k_0 : u32) -> u32
 {
@@ -1682,86 +1686,171 @@ fn RunMaterialProgram_0( header_1 : MaterialHeader_0,  program_0 : u32,  ctx_2 :
         {
         case u32(1):
             {
+                if(((((gMaterialOpcodesLow_0 >> (u32(1)))) & (u32(1)))) == u32(0))
+                {
+                    write_0 = true;
+                    break;
+                }
                 r_2 = a_4 + b_5;
                 write_0 = true;
             }
         case u32(2):
             {
+                if(((((gMaterialOpcodesLow_0 >> (u32(2)))) & (u32(1)))) == u32(0))
+                {
+                    write_0 = true;
+                    break;
+                }
                 r_2 = a_4 - b_5;
                 write_0 = true;
             }
         case u32(3):
             {
+                if(((((gMaterialOpcodesLow_0 >> (u32(3)))) & (u32(1)))) == u32(0))
+                {
+                    write_0 = true;
+                    break;
+                }
                 r_2 = a_4 * b_5;
                 write_0 = true;
             }
         case u32(4):
             {
+                if(((((gMaterialOpcodesLow_0 >> (u32(4)))) & (u32(1)))) == u32(0))
+                {
+                    write_0 = true;
+                    break;
+                }
                 r_2 = a_4 / b_5;
                 write_0 = true;
             }
         case u32(5):
             {
+                if(((((gMaterialOpcodesLow_0 >> (u32(5)))) & (u32(1)))) == u32(0))
+                {
+                    write_0 = true;
+                    break;
+                }
                 r_2 = min(a_4, b_5);
                 write_0 = true;
             }
         case u32(6):
             {
+                if(((((gMaterialOpcodesLow_0 >> (u32(6)))) & (u32(1)))) == u32(0))
+                {
+                    write_0 = true;
+                    break;
+                }
                 r_2 = max(a_4, b_5);
                 write_0 = true;
             }
         case u32(7):
             {
+                if(((((gMaterialOpcodesLow_0 >> (u32(7)))) & (u32(1)))) == u32(0))
+                {
+                    write_0 = true;
+                    break;
+                }
                 r_2 = pow(a_4, b_5);
                 write_0 = true;
             }
         case u32(8):
             {
+                if(((((gMaterialOpcodesLow_0 >> (u32(8)))) & (u32(1)))) == u32(0))
+                {
+                    write_0 = true;
+                    break;
+                }
                 r_2 = atan2(a_4, b_5);
                 write_0 = true;
             }
         case u32(9):
             {
+                if(((((gMaterialOpcodesLow_0 >> (u32(9)))) & (u32(1)))) == u32(0))
+                {
+                    write_0 = true;
+                    break;
+                }
                 r_2 = sqrt(a_4);
                 write_0 = true;
             }
         case u32(10):
             {
+                if(((((gMaterialOpcodesLow_0 >> (u32(10)))) & (u32(1)))) == u32(0))
+                {
+                    write_0 = true;
+                    break;
+                }
                 r_2 = sin(a_4);
                 write_0 = true;
             }
         case u32(11):
             {
+                if(((((gMaterialOpcodesLow_0 >> (u32(11)))) & (u32(1)))) == u32(0))
+                {
+                    write_0 = true;
+                    break;
+                }
                 r_2 = cos(a_4);
                 write_0 = true;
             }
         case u32(12):
             {
+                if(((((gMaterialOpcodesLow_0 >> (u32(12)))) & (u32(1)))) == u32(0))
+                {
+                    write_0 = true;
+                    break;
+                }
                 r_2 = abs(a_4);
                 write_0 = true;
             }
         case u32(13):
             {
+                if(((((gMaterialOpcodesLow_0 >> (u32(13)))) & (u32(1)))) == u32(0))
+                {
+                    write_0 = true;
+                    break;
+                }
                 r_2 = min(max(a_4, b_5), c_5);
                 write_0 = true;
             }
         case u32(14):
             {
+                if(((((gMaterialOpcodesLow_0 >> (u32(14)))) & (u32(1)))) == u32(0))
+                {
+                    write_0 = true;
+                    break;
+                }
                 r_2 = mix(a_4, b_5, c_5);
                 write_0 = true;
             }
         case u32(15):
             {
+                if(((((gMaterialOpcodesLow_0 >> (u32(15)))) & (u32(1)))) == u32(0))
+                {
+                    write_0 = true;
+                    break;
+                }
                 r_2 = vec4<f32>(a_4[min(imm_0, u32(3))]);
                 write_0 = true;
             }
         case u32(16):
             {
+                if(((((gMaterialOpcodesLow_0 >> (u32(16)))) & (u32(1)))) == u32(0))
+                {
+                    write_0 = true;
+                    break;
+                }
                 r_2 = select(vec4<f32>(f32((imm_0 >> (u32(8))))), a_4, LanesBelow_0((imm_0 & (u32(255)))));
                 write_0 = true;
             }
         case u32(17):
             {
+                if(((((gMaterialOpcodesLow_0 >> (u32(17)))) & (u32(1)))) == u32(0))
+                {
+                    write_0 = true;
+                    break;
+                }
                 r_2 = vec4<f32>(a_4.x, b_5.x, c_5.x, 0.0f);
                 if((imm_0 > u32(3)))
                 {
@@ -1772,12 +1861,22 @@ fn RunMaterialProgram_0( header_1 : MaterialHeader_0,  program_0 : u32,  ctx_2 :
             }
         case u32(18):
             {
+                if(((((gMaterialOpcodesLow_0 >> (u32(18)))) & (u32(1)))) == u32(0))
+                {
+                    write_0 = true;
+                    break;
+                }
                 var lanes_0 : vec4<bool> = LanesBelow_0(imm_0);
                 r_2 = vec4<f32>(dot(select(_S120, a_4, lanes_0), select(_S120, b_5, lanes_0)));
                 write_0 = true;
             }
         case u32(19):
             {
+                if(((((gMaterialOpcodesLow_0 >> (u32(19)))) & (u32(1)))) == u32(0))
+                {
+                    write_0 = true;
+                    break;
+                }
                 var len_0 : f32 = length(select(_S120, a_4, LanesBelow_0(imm_0)));
                 if((len_0 > 0.0f))
                 {
@@ -1792,6 +1891,11 @@ fn RunMaterialProgram_0( header_1 : MaterialHeader_0,  program_0 : u32,  ctx_2 :
             }
         case u32(20):
             {
+                if(((((gMaterialOpcodesLow_0 >> (u32(20)))) & (u32(1)))) == u32(0))
+                {
+                    write_0 = true;
+                    break;
+                }
                 if(imm_0 == u32(0))
                 {
                     r_2 = vec4<f32>(ctx_2.tex_1.uv0_0, 0.0f, 0.0f);
@@ -1814,6 +1918,11 @@ fn RunMaterialProgram_0( header_1 : MaterialHeader_0,  program_0 : u32,  ctx_2 :
             }
         case u32(21):
             {
+                if(((((gMaterialOpcodesLow_0 >> (u32(21)))) & (u32(1)))) == u32(0))
+                {
+                    write_0 = true;
+                    break;
+                }
                 var ref_8 : TextureRef_0 = LoadTextureRef_0(header_1, imm_0);
                 if(HasTexture_0(ref_8))
                 {
@@ -1829,49 +1938,99 @@ fn RunMaterialProgram_0( header_1 : MaterialHeader_0,  program_0 : u32,  ctx_2 :
             }
         case u32(22):
             {
+                if(((((gMaterialOpcodesLow_0 >> (u32(22)))) & (u32(1)))) == u32(0))
+                {
+                    write_0 = true;
+                    break;
+                }
                 write_0 = true;
             }
         case u32(24):
             {
+                if(((((gMaterialOpcodesLow_0 >> (u32(24)))) & (u32(1)))) == u32(0))
+                {
+                    write_0 = true;
+                    break;
+                }
                 r_2 = floor(a_4);
                 write_0 = true;
             }
         case u32(25):
             {
+                if(((((gMaterialOpcodesLow_0 >> (u32(25)))) & (u32(1)))) == u32(0))
+                {
+                    write_0 = true;
+                    break;
+                }
                 r_2 = vec4<f32>((vec4<i32>(sign((a_4)))));
                 write_0 = true;
             }
         case u32(26):
             {
+                if(((((gMaterialOpcodesLow_0 >> (u32(26)))) & (u32(1)))) == u32(0))
+                {
+                    write_0 = true;
+                    break;
+                }
                 r_2 = exp(a_4);
                 write_0 = true;
             }
         case u32(27):
             {
+                if(((((gMaterialOpcodesLow_0 >> (u32(27)))) & (u32(1)))) == u32(0))
+                {
+                    write_0 = true;
+                    break;
+                }
                 r_2 = log(a_4);
                 write_0 = true;
             }
         case u32(28):
             {
+                if(((((gMaterialOpcodesLow_0 >> (u32(28)))) & (u32(1)))) == u32(0))
+                {
+                    write_0 = true;
+                    break;
+                }
                 r_2 = a_4 - b_5 * floor(a_4 / b_5);
                 write_0 = true;
             }
         case u32(29):
             {
+                if(((((gMaterialOpcodesLow_0 >> (u32(29)))) & (u32(1)))) == u32(0))
+                {
+                    write_0 = true;
+                    break;
+                }
                 r_2 = select(_S120, vec4<f32>(1.0f), (a_4 > b_5));
                 write_0 = true;
             }
         case u32(30):
             {
+                if(((((gMaterialOpcodesLow_0 >> (u32(30)))) & (u32(1)))) == u32(0))
+                {
+                    write_0 = true;
+                    break;
+                }
                 r_2 = vec4<f32>(cross(a_4.xyz, b_5.xyz), 0.0f);
                 write_0 = true;
             }
         case u32(31):
             {
+                if(((((gMaterialOpcodesLow_0 >> (u32(31)))) & (u32(1)))) == u32(0))
+                {
+                    write_0 = true;
+                    break;
+                }
                 write_0 = true;
             }
         case u32(32):
             {
+                if(((((gMaterialOpcodesHigh_0 >> (u32(0)))) & (u32(1)))) == u32(0))
+                {
+                    write_0 = true;
+                    break;
+                }
                 var _S123 : bool = ((imm_0 & (u32(2)))) != u32(0);
                 var v_3 : vec3<f32> = BlenderNoise_0(a_4.xyz, b_5, ((imm_0 & (u32(1)))) != u32(0), _S123);
                 if(_S123)
@@ -1887,12 +2046,22 @@ fn RunMaterialProgram_0( header_1 : MaterialHeader_0,  program_0 : u32,  ctx_2 :
             }
         case u32(33):
             {
+                if(((((gMaterialOpcodesHigh_0 >> (u32(1)))) & (u32(1)))) == u32(0))
+                {
+                    write_0 = true;
+                    break;
+                }
                 var c_6 : vec3<f32> = BlenderMagic_0(a_4.xyz, imm_0, b_5.x);
                 r_2 = vec4<f32>(c_6, (c_6.x + c_6.y + c_6.z) / 3.0f);
                 write_0 = true;
             }
         case u32(34):
             {
+                if(((((gMaterialOpcodesHigh_0 >> (u32(2)))) & (u32(1)))) == u32(0))
+                {
+                    write_0 = true;
+                    break;
+                }
                 r_2 = vec4<f32>(BlenderChecker_0(a_4.xyz));
                 write_0 = true;
             }
@@ -4569,86 +4738,171 @@ fn RunMaterialProgram_1( header_5 : MaterialHeader_0,  program_2 : u32,  ctx_4 :
         {
         case u32(1):
             {
+                if(((((gMaterialOpcodesLow_0 >> (u32(1)))) & (u32(1)))) == u32(0))
+                {
+                    write_1 = true;
+                    break;
+                }
                 r_8 = a_14 + b_13;
                 write_1 = true;
             }
         case u32(2):
             {
+                if(((((gMaterialOpcodesLow_0 >> (u32(2)))) & (u32(1)))) == u32(0))
+                {
+                    write_1 = true;
+                    break;
+                }
                 r_8 = a_14 - b_13;
                 write_1 = true;
             }
         case u32(3):
             {
+                if(((((gMaterialOpcodesLow_0 >> (u32(3)))) & (u32(1)))) == u32(0))
+                {
+                    write_1 = true;
+                    break;
+                }
                 r_8 = a_14 * b_13;
                 write_1 = true;
             }
         case u32(4):
             {
+                if(((((gMaterialOpcodesLow_0 >> (u32(4)))) & (u32(1)))) == u32(0))
+                {
+                    write_1 = true;
+                    break;
+                }
                 r_8 = a_14 / b_13;
                 write_1 = true;
             }
         case u32(5):
             {
+                if(((((gMaterialOpcodesLow_0 >> (u32(5)))) & (u32(1)))) == u32(0))
+                {
+                    write_1 = true;
+                    break;
+                }
                 r_8 = min(a_14, b_13);
                 write_1 = true;
             }
         case u32(6):
             {
+                if(((((gMaterialOpcodesLow_0 >> (u32(6)))) & (u32(1)))) == u32(0))
+                {
+                    write_1 = true;
+                    break;
+                }
                 r_8 = max(a_14, b_13);
                 write_1 = true;
             }
         case u32(7):
             {
+                if(((((gMaterialOpcodesLow_0 >> (u32(7)))) & (u32(1)))) == u32(0))
+                {
+                    write_1 = true;
+                    break;
+                }
                 r_8 = pow(a_14, b_13);
                 write_1 = true;
             }
         case u32(8):
             {
+                if(((((gMaterialOpcodesLow_0 >> (u32(8)))) & (u32(1)))) == u32(0))
+                {
+                    write_1 = true;
+                    break;
+                }
                 r_8 = atan2(a_14, b_13);
                 write_1 = true;
             }
         case u32(9):
             {
+                if(((((gMaterialOpcodesLow_0 >> (u32(9)))) & (u32(1)))) == u32(0))
+                {
+                    write_1 = true;
+                    break;
+                }
                 r_8 = sqrt(a_14);
                 write_1 = true;
             }
         case u32(10):
             {
+                if(((((gMaterialOpcodesLow_0 >> (u32(10)))) & (u32(1)))) == u32(0))
+                {
+                    write_1 = true;
+                    break;
+                }
                 r_8 = sin(a_14);
                 write_1 = true;
             }
         case u32(11):
             {
+                if(((((gMaterialOpcodesLow_0 >> (u32(11)))) & (u32(1)))) == u32(0))
+                {
+                    write_1 = true;
+                    break;
+                }
                 r_8 = cos(a_14);
                 write_1 = true;
             }
         case u32(12):
             {
+                if(((((gMaterialOpcodesLow_0 >> (u32(12)))) & (u32(1)))) == u32(0))
+                {
+                    write_1 = true;
+                    break;
+                }
                 r_8 = abs(a_14);
                 write_1 = true;
             }
         case u32(13):
             {
+                if(((((gMaterialOpcodesLow_0 >> (u32(13)))) & (u32(1)))) == u32(0))
+                {
+                    write_1 = true;
+                    break;
+                }
                 r_8 = min(max(a_14, b_13), c_11);
                 write_1 = true;
             }
         case u32(14):
             {
+                if(((((gMaterialOpcodesLow_0 >> (u32(14)))) & (u32(1)))) == u32(0))
+                {
+                    write_1 = true;
+                    break;
+                }
                 r_8 = mix(a_14, b_13, c_11);
                 write_1 = true;
             }
         case u32(15):
             {
+                if(((((gMaterialOpcodesLow_0 >> (u32(15)))) & (u32(1)))) == u32(0))
+                {
+                    write_1 = true;
+                    break;
+                }
                 r_8 = vec4<f32>(a_14[min(imm_1, u32(3))]);
                 write_1 = true;
             }
         case u32(16):
             {
+                if(((((gMaterialOpcodesLow_0 >> (u32(16)))) & (u32(1)))) == u32(0))
+                {
+                    write_1 = true;
+                    break;
+                }
                 r_8 = select(vec4<f32>(f32((imm_1 >> (u32(8))))), a_14, LanesBelow_0((imm_1 & (u32(255)))));
                 write_1 = true;
             }
         case u32(17):
             {
+                if(((((gMaterialOpcodesLow_0 >> (u32(17)))) & (u32(1)))) == u32(0))
+                {
+                    write_1 = true;
+                    break;
+                }
                 r_8 = vec4<f32>(a_14.x, b_13.x, c_11.x, 0.0f);
                 if((imm_1 > u32(3)))
                 {
@@ -4659,12 +4913,22 @@ fn RunMaterialProgram_1( header_5 : MaterialHeader_0,  program_2 : u32,  ctx_4 :
             }
         case u32(18):
             {
+                if(((((gMaterialOpcodesLow_0 >> (u32(18)))) & (u32(1)))) == u32(0))
+                {
+                    write_1 = true;
+                    break;
+                }
                 var lanes_1 : vec4<bool> = LanesBelow_0(imm_1);
                 r_8 = vec4<f32>(dot(select(_S324, a_14, lanes_1), select(_S324, b_13, lanes_1)));
                 write_1 = true;
             }
         case u32(19):
             {
+                if(((((gMaterialOpcodesLow_0 >> (u32(19)))) & (u32(1)))) == u32(0))
+                {
+                    write_1 = true;
+                    break;
+                }
                 var len_1 : f32 = length(select(_S324, a_14, LanesBelow_0(imm_1)));
                 if((len_1 > 0.0f))
                 {
@@ -4679,6 +4943,11 @@ fn RunMaterialProgram_1( header_5 : MaterialHeader_0,  program_2 : u32,  ctx_4 :
             }
         case u32(20):
             {
+                if(((((gMaterialOpcodesLow_0 >> (u32(20)))) & (u32(1)))) == u32(0))
+                {
+                    write_1 = true;
+                    break;
+                }
                 if(imm_1 == u32(0))
                 {
                     r_8 = vec4<f32>(ctx_4.tex_1.uv0_0, 0.0f, 0.0f);
@@ -4726,6 +4995,11 @@ fn RunMaterialProgram_1( header_5 : MaterialHeader_0,  program_2 : u32,  ctx_4 :
             }
         case u32(21):
             {
+                if(((((gMaterialOpcodesLow_0 >> (u32(21)))) & (u32(1)))) == u32(0))
+                {
+                    write_1 = true;
+                    break;
+                }
                 var ref_9 : TextureRef_0 = LoadTextureRef_0(header_5, imm_1);
                 if(HasTexture_0(ref_9))
                 {
@@ -4741,46 +5015,91 @@ fn RunMaterialProgram_1( header_5 : MaterialHeader_0,  program_2 : u32,  ctx_4 :
             }
         case u32(22):
             {
+                if(((((gMaterialOpcodesLow_0 >> (u32(22)))) & (u32(1)))) == u32(0))
+                {
+                    write_1 = true;
+                    break;
+                }
                 r_8 = vec4<f32>(ApplyNormalMap_0(ctx_4.tangent_3, ctx_4.normal_10, a_14.xyz, b_13.x), 0.0f);
                 write_1 = true;
             }
         case u32(24):
             {
+                if(((((gMaterialOpcodesLow_0 >> (u32(24)))) & (u32(1)))) == u32(0))
+                {
+                    write_1 = true;
+                    break;
+                }
                 r_8 = floor(a_14);
                 write_1 = true;
             }
         case u32(25):
             {
+                if(((((gMaterialOpcodesLow_0 >> (u32(25)))) & (u32(1)))) == u32(0))
+                {
+                    write_1 = true;
+                    break;
+                }
                 r_8 = vec4<f32>((vec4<i32>(sign((a_14)))));
                 write_1 = true;
             }
         case u32(26):
             {
+                if(((((gMaterialOpcodesLow_0 >> (u32(26)))) & (u32(1)))) == u32(0))
+                {
+                    write_1 = true;
+                    break;
+                }
                 r_8 = exp(a_14);
                 write_1 = true;
             }
         case u32(27):
             {
+                if(((((gMaterialOpcodesLow_0 >> (u32(27)))) & (u32(1)))) == u32(0))
+                {
+                    write_1 = true;
+                    break;
+                }
                 r_8 = log(a_14);
                 write_1 = true;
             }
         case u32(28):
             {
+                if(((((gMaterialOpcodesLow_0 >> (u32(28)))) & (u32(1)))) == u32(0))
+                {
+                    write_1 = true;
+                    break;
+                }
                 r_8 = a_14 - b_13 * floor(a_14 / b_13);
                 write_1 = true;
             }
         case u32(29):
             {
+                if(((((gMaterialOpcodesLow_0 >> (u32(29)))) & (u32(1)))) == u32(0))
+                {
+                    write_1 = true;
+                    break;
+                }
                 r_8 = select(_S324, vec4<f32>(1.0f), (a_14 > b_13));
                 write_1 = true;
             }
         case u32(30):
             {
+                if(((((gMaterialOpcodesLow_0 >> (u32(30)))) & (u32(1)))) == u32(0))
+                {
+                    write_1 = true;
+                    break;
+                }
                 r_8 = vec4<f32>(cross(a_14.xyz, b_13.xyz), 0.0f);
                 write_1 = true;
             }
         case u32(31):
             {
+                if(((((gMaterialOpcodesLow_0 >> (u32(31)))) & (u32(1)))) == u32(0))
+                {
+                    write_1 = true;
+                    break;
+                }
                 var _S327 : vec3<f32>;
                 if(imm_1 == u32(1))
                 {
@@ -4795,6 +5114,11 @@ fn RunMaterialProgram_1( header_5 : MaterialHeader_0,  program_2 : u32,  ctx_4 :
             }
         case u32(32):
             {
+                if(((((gMaterialOpcodesHigh_0 >> (u32(0)))) & (u32(1)))) == u32(0))
+                {
+                    write_1 = true;
+                    break;
+                }
                 var _S328 : bool = ((imm_1 & (u32(2)))) != u32(0);
                 var v_13 : vec3<f32> = BlenderNoise_0(a_14.xyz, b_13, ((imm_1 & (u32(1)))) != u32(0), _S328);
                 if(_S328)
@@ -4810,12 +5134,22 @@ fn RunMaterialProgram_1( header_5 : MaterialHeader_0,  program_2 : u32,  ctx_4 :
             }
         case u32(33):
             {
+                if(((((gMaterialOpcodesHigh_0 >> (u32(1)))) & (u32(1)))) == u32(0))
+                {
+                    write_1 = true;
+                    break;
+                }
                 var c_12 : vec3<f32> = BlenderMagic_0(a_14.xyz, imm_1, b_13.x);
                 r_8 = vec4<f32>(c_12, (c_12.x + c_12.y + c_12.z) / 3.0f);
                 write_1 = true;
             }
         case u32(34):
             {
+                if(((((gMaterialOpcodesHigh_0 >> (u32(2)))) & (u32(1)))) == u32(0))
+                {
+                    write_1 = true;
+                    break;
+                }
                 r_8 = vec4<f32>(BlenderChecker_0(a_14.xyz));
                 write_1 = true;
             }
