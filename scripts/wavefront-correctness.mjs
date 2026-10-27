@@ -55,7 +55,12 @@ try {
 			buffer.unmap(); buffer.destroy();
 			return values;
 		}
-		async function render(mode, config) {
+		async function render(mode, config, capacity = null) {
+			r.tracer.materialStackOverride = capacity;
+			await r.tracer.prepareScene(r.scene);
+			r.bindScene();
+			const expectedCapacity = capacity ?? [1, 2, 4, 8, 16].find(n => n >= r.scene.materialStackSize);
+			check(r.tracer.materialCapacity === expectedCapacity, 'Incorrect material capacity selection');
 			await r.setIntegrator(mode);
 			if (mode === 'wavefront') Object.assign(r.tracer.wavefront, { tailStart, tailThreshold });
 			Object.assign(r.settings, { maxBounces: config.bounces, fireflyClamp: config.clamp ?? 0, maxSamples: config.samples });
@@ -100,6 +105,15 @@ try {
 			{ name: 'analytic', file: 'MetalRoughSpheres.glb', analytic: true, configurations: [
 				{ width: 129, height: 97, bounces: 4, samples: 8, clamp: 2 },
 			] },
+			{ name: 'helmet', file: 'DamagedHelmet.glb', configurations: [
+				{ width: 129, height: 97, bounces: 4, samples: 8 },
+			] },
+			{ name: 'specgloss', file: 'SpecGlossVsMetalRough.glb', configurations: [
+				{ width: 129, height: 97, bounces: 4, samples: 8 },
+			] },
+			{ name: 'anisotropy', file: 'AnisotropyBarnLamp.glb', configurations: [
+				{ width: 129, height: 97, bounces: 4, samples: 8 },
+			] },
 		];
 		try {
 			for (const scene of scenes) {
@@ -125,19 +139,21 @@ try {
 				r.updateStreaming = () => {};
 				for (const config of scene.configurations) {
 					canvas.style.width = `${config.width}px`; canvas.style.height = `${config.height}px`; r.resize();
-					const reference = await render('megakernel', config);
-					const candidate = await render('wavefront', config);
-					let maxError = 0, squared = 0, refSquared = 0;
-					for (let i = 0; i < reference.length; i++) {
-						check(Number.isFinite(candidate[i]) && Number.isFinite(reference[i]), `${scene.name}: nonfinite output`);
-						const error = Math.abs(reference[i] - candidate[i]);
-						maxError = Math.max(maxError, error); squared += error * error; refSquared += reference[i] * reference[i];
+					const reference = await render('megakernel', config, 16);
+					for (const mode of ['megakernel', 'wavefront']) {
+						const candidate = await render(mode, config);
+						let maxError = 0, squared = 0, refSquared = 0;
+						for (let i = 0; i < reference.length; i++) {
+							check(Number.isFinite(candidate[i]) && Number.isFinite(reference[i]), `${scene.name}: nonfinite output`);
+							const error = Math.abs(reference[i] - candidate[i]);
+							maxError = Math.max(maxError, error); squared += error * error; refSquared += reference[i] * reference[i];
+						}
+						const relativeL2 = Math.sqrt(squared / Math.max(refSquared, 1e-30));
+						const result = { scene: scene.name, mode, materialCapacity: r.tracer.materialCapacity, ...config, maxError, relativeL2 };
+						results.push(result);
+						console.log(`[correctness] ${JSON.stringify(result)}`);
+						check(maxError <= 1e-5, `${scene.name}: GPU integrators differ by ${maxError}`);
 					}
-					const relativeL2 = Math.sqrt(squared / Math.max(refSquared, 1e-30));
-					const result = { scene: scene.name, ...config, maxError, relativeL2 };
-					results.push(result);
-					console.log(`[correctness] ${JSON.stringify(result)}`);
-					check(maxError <= 1e-5, `${scene.name}: GPU integrators differ by ${maxError}`);
 					// Switch back on the same renderer and make sure reallocation/reset is complete.
 					await r.setIntegrator('megakernel');
 					check(r.samples === 0, 'Integrator switch failed to reset samples');

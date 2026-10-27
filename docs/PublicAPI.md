@@ -42,7 +42,8 @@ function dispose() {
 ```
 
 `Renderer.create` resolves after initialization and shader compilation. `setScene` resolves
-after uploading the scene and returns `SceneStats`. Call `setScene` again to replace it; await
+after uploading the scene and preparing any required material pipeline variant, and returns
+`SceneStats`. Variants are cached per renderer. Call `setScene` again to replace it; await
 one scene change before starting the next. The renderer observes canvas size changes.
 
 For experimental GPU A/B comparisons, `await renderer.setIntegrator('wavefront')` lazily

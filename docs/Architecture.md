@@ -104,6 +104,13 @@ interpreter when `GpuScene.hasAlphaTested` is false (derived from instanced mate
 
 Bind group layouts are explicit in `PathTracer.ts`.
 
+Both integrators cache material stack pipeline variants at capacities 1/2/4/8/16.
+`GpuScene.materialStackSize` conservatively bounds all compiled material programs.
+`Renderer.setScene` prepares the required pipelines before replacing the old scene;
+failed compilation or disposal releases the newly allocated scene and virtual textures.
+The generated `MaterialStackVariants.ts` reconstructs exact Slang outputs from shared WGSL
+without duplicating whole modules. This changes neither bindings nor bytecode layout.
+
 - Group 0, the scene: uniform, 7 read-only storage buffers, sampler, env map, env CDF
   (`unfilterable-float`), VT physical cache (float), VT page table (uint), BSDF tables
   (binding 13, `gBSDFTables`, 3d `unfilterable-float`).

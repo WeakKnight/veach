@@ -476,9 +476,20 @@ export class Renderer {
 	}
 
 	async setScene(desc: SceneDesc, options: { frameCamera?: boolean; useSceneCamera?: boolean } = {}): Promise<SceneStats> {
+		if (this.destroyed) throw new Error('Renderer has been destroyed');
 		const materials = compileSceneMaterials(desc);
 		const vt = await VirtualTextureSystem.create(this.device, desc, textureUsage(materials), this.virtualTextureOptions);
-		const scene = GpuScene.build(this.device, this.bvh, desc, vt, materials, { quality: this.settings.bvhQuality });
+		let scene: GpuScene | null = null;
+		try {
+			if (this.destroyed) throw new Error('Renderer has been destroyed');
+			scene = GpuScene.build(this.device, this.bvh, desc, vt, materials, { quality: this.settings.bvhQuality });
+			await this.tracer.prepareScene(scene);
+			if (this.destroyed) throw new Error('Renderer has been destroyed');
+		} catch (error) {
+			scene?.destroy();
+			vt.destroy();
+			throw error;
+		}
 		this.scene?.destroy();
 		this.vt?.destroy();
 		this.scene = scene;

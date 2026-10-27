@@ -13,6 +13,7 @@ import { ACCUM_BYTES_PER_PIXEL, FRAME_UNIFORM_BYTES } from './GpuLayout';
 import type { GpuScene } from './GpuScene';
 import { VT_FEEDBACK_SHIFT, type VirtualTextureSystem } from './vt/VirtualTextureSystem';
 import type { Wavefront } from './Wavefront';
+import { materialStackCapacity, specializeMaterialShader, type MaterialStackCapacity } from './MaterialShaderVariants';
 
 const WORKGROUP_SIZE = 8;
 
@@ -26,6 +27,12 @@ export class PathTracer {
 	private readonly accumLayout: GPUBindGroupLayout;
 	private readonly presentLayout: GPUBindGroupLayout;
 	private computePipeline!: GPUComputePipeline;
+	private readonly materialPipelines = new Map<MaterialStackCapacity, GPUComputePipeline>();
+	private readonly materialPipelineLoading = new Map<MaterialStackCapacity, Promise<GPUComputePipeline>>();
+	private readonly computeLayout: GPUPipelineLayout;
+	materialCapacity: MaterialStackCapacity = 1;
+	// Internal experiment control; null selects the compiler-derived scene bound.
+	materialStackOverride: MaterialStackCapacity | null = null;
 	private presentPipeline!: GPURenderPipeline;
 	readonly compiled: Promise<void>; // all pipelines (including exposure) have compiled
 	private readonly sampler: GPUSampler;
@@ -121,12 +128,15 @@ export class PathTracer {
 			],
 		});
 
-		const ptModule = device.createShaderModule({ label: 'PathTracing', code: pathTracingWgsl });
+		// Empty scenes need no VM slots. Start with the smallest variant so loading common
+		// constant/simple materials does not compile a full stack only to replace it immediately.
+		const ptModule = device.createShaderModule({ label: 'PathTracing', code: specializeMaterialShader(pathTracingWgsl, 'PathTracing', 1) });
+		this.computeLayout = device.createPipelineLayout({ bindGroupLayouts: [this.sceneLayout, this.accumLayout] });
 		// nearly all of the compile time
 		const computePipeline = compiler.compute(
 			{
 				label: 'pathTracing',
-				layout: device.createPipelineLayout({ bindGroupLayouts: [this.sceneLayout, this.accumLayout] }),
+				layout: this.computeLayout,
 				compute: { module: ptModule, entryPoint: 'main' },
 			},
 			60,
@@ -141,6 +151,7 @@ export class PathTracer {
 		});
 		this.compiled = Promise.all([computePipeline, presentPipeline, this.autoExposure.compiled, this.localExposure.compiled, this.oidnGuides.compiled]).then(([compute, present]) => {
 			this.computePipeline = compute;
+			this.materialPipelines.set(1, compute);
 			this.presentPipeline = present;
 		});
 		void this.reportShaderErrors(ptModule, 'PathTracing');
@@ -156,7 +167,45 @@ export class PathTracer {
 		}
 	}
 
+	private sceneCapacity(scene: GpuScene): MaterialStackCapacity {
+		const capacity = this.materialStackOverride ?? materialStackCapacity(scene.materialStackSize);
+		if (capacity < scene.materialStackSize) throw new Error(`Scene needs ${scene.materialStackSize} material stack slots; selected capacity is ${capacity}`);
+		return capacity;
+	}
+
+	private async prepareMaterialPipeline(capacity: MaterialStackCapacity): Promise<GPUComputePipeline> {
+		if (this.destroyed) throw new Error('Path tracer has been destroyed');
+		const existing = this.materialPipelines.get(capacity);
+		if (existing) return existing;
+		let pending = this.materialPipelineLoading.get(capacity);
+		if (!pending) {
+			const module = this.device.createShaderModule({ label: 'PathTracing', code: specializeMaterialShader(pathTracingWgsl, 'PathTracing', capacity) });
+			pending = this.device.createComputePipelineAsync({ label: `pathTracing.stack${capacity}`, layout: this.computeLayout, compute: { module, entryPoint: 'main' } }).then(pipeline => {
+				if (this.destroyed) throw new Error('Path tracer has been destroyed');
+				this.materialPipelines.set(capacity, pipeline);
+				return pipeline;
+			}).catch(error => {
+				this.materialPipelineLoading.delete(capacity);
+				throw error;
+			});
+			this.materialPipelineLoading.set(capacity, pending);
+		}
+		return pending;
+	}
+
+	// Prepare without changing the currently bound scene/pipeline while compilation is pending.
+	async prepareScene(scene: GpuScene): Promise<void> {
+		const capacity = this.sceneCapacity(scene);
+		await Promise.all([this.prepareMaterialPipeline(capacity),
+			this.integrator === 'wavefront' ? this.wavefront!.prepareStack(capacity) : Promise.resolve()]);
+		if (this.destroyed) throw new Error('Path tracer has been destroyed');
+	}
+
 	setScene(scene: GpuScene, environment: Environment, vt: VirtualTextureSystem): void {
+		this.materialCapacity = this.sceneCapacity(scene);
+		const pipeline = this.materialPipelines.get(this.materialCapacity);
+		if (!pipeline) throw new Error('Material pipeline must be prepared before binding a scene');
+		this.computePipeline = pipeline;
 		this.hasAlphaTested = scene.hasAlphaTested;
 		this.sceneBindGroup = this.device.createBindGroup({
 			label: 'scene',
@@ -277,7 +326,7 @@ export class PathTracer {
 		if (mode === 'wavefront') {
 			this.wavefrontLoading ??= import('./Wavefront').then(async ({ Wavefront }) => {
 				if (this.destroyed) throw new Error('Path tracer has been destroyed');
-				const wavefront = new Wavefront(this.device, this.sceneLayout);
+				const wavefront = new Wavefront(this.device, this.sceneLayout, this.materialCapacity);
 				try {
 					await wavefront.compiled;
 					if (this.destroyed) throw new Error('Path tracer has been destroyed');
@@ -298,6 +347,7 @@ export class PathTracer {
 				throw new Error('Path tracer has been destroyed');
 			}
 			this.wavefront = wavefront;
+			await wavefront.prepareStack(this.materialCapacity);
 		}
 		if (this.destroyed) throw new Error('Path tracer has been destroyed');
 		this.integrator = mode;
@@ -311,7 +361,7 @@ export class PathTracer {
 			return;
 		}
 		if (this.integrator === 'wavefront' && debugMode === 0) {
-			this.wavefront!.encode(encoder, this.sceneBindGroup, this.width, this.height, maxBounces, this.hasAlphaTested);
+			this.wavefront!.encode(encoder, this.sceneBindGroup, this.width, this.height, maxBounces, this.hasAlphaTested, this.materialCapacity);
 			return;
 		}
 		const pass = encoder.beginComputePass({ label: 'pathTracing' });
@@ -339,6 +389,8 @@ export class PathTracer {
 	destroy(): void {
 		if (this.destroyed) return;
 		this.destroyed = true;
+		this.materialPipelines.clear();
+		this.materialPipelineLoading.clear();
 		this.wavefront?.destroy();
 		this.uniformBuffer.destroy();
 		this.accumBuffer?.destroy();

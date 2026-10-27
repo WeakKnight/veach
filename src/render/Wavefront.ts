@@ -1,6 +1,7 @@
 // Bounded tile work storage shares accumulation binding 0. Only a dynamic uniform is added.
 import wavefrontWgsl from '../generated/shaders/Wavefront.wgsl?raw';
 import compactWgsl from '../generated/shaders/WavefrontCompact.wgsl?raw';
+import { specializeMaterialShader, type MaterialStackCapacity } from './MaterialShaderVariants';
 
 const RECORD_BYTES = 21 * 16; // WAVEFRONT_STRIDE in Wavefront.slang
 const TILE_CAPACITY = 262144;
@@ -14,7 +15,11 @@ export class Wavefront {
 	tailThreshold = 0;
 	readonly layout: GPUBindGroupLayout;
 	readonly compiled: Promise<void>;
-	private readonly pipelines = new Map<Entry, GPUComputePipeline>();
+	private readonly pipelines = new Map<MaterialStackCapacity, Map<Entry, GPUComputePipeline>>();
+	private readonly compiling = new Map<MaterialStackCapacity, Promise<void>>();
+	private readonly pipelineLayout: GPUPipelineLayout;
+	private readonly compactModule: GPUShaderModule;
+	private destroyed = false;
 	private parameters: GPUBuffer | null = null;
 	private group: GPUBindGroup | null = null;
 	private parameterKey = '';
@@ -23,7 +28,7 @@ export class Wavefront {
 	private readonly alignment: number;
 	private readonly indirect: GPUBuffer;
 
-	constructor(private readonly device: GPUDevice, sceneLayout: GPUBindGroupLayout) {
+	constructor(private readonly device: GPUDevice, sceneLayout: GPUBindGroupLayout, capacity: MaterialStackCapacity = 16) {
 		this.alignment = device.limits.minUniformBufferOffsetAlignment;
 		this.indirect = device.createBuffer({ label: 'wavefrontDispatch', size: 32, usage: GPUBufferUsage.INDIRECT | GPUBufferUsage.COPY_DST });
 		this.layout = device.createBindGroupLayout({ label: 'wavefront', entries: [
@@ -31,13 +36,31 @@ export class Wavefront {
 			{ binding: 1, visibility: GPUShaderStage.COMPUTE, storageTexture: { access: 'write-only', format: 'r32uint' } },
 			{ binding: 2, visibility: GPUShaderStage.COMPUTE, buffer: { type: 'uniform', hasDynamicOffset: true, minBindingSize: 32 } },
 		] });
-		const module = device.createShaderModule({ label: 'Wavefront', code: wavefrontWgsl });
-		const compactModule = device.createShaderModule({ label: 'WavefrontCompact', code: compactWgsl });
-		const layout = device.createPipelineLayout({ bindGroupLayouts: [sceneLayout, this.layout] });
-		this.compiled = Promise.all(ENTRIES.map(async entryPoint => {
-			const pipeline = await device.createComputePipelineAsync({ label: `wavefront.${entryPoint}`, layout, compute: { module: entryPoint === 'Compact' ? compactModule : module, entryPoint } });
-			this.pipelines.set(entryPoint, pipeline);
-		})).then(() => {});
+		this.compactModule = device.createShaderModule({ label: 'WavefrontCompact', code: compactWgsl });
+		this.pipelineLayout = device.createPipelineLayout({ bindGroupLayouts: [sceneLayout, this.layout] });
+		this.compiled = this.prepareStack(capacity);
+	}
+
+	async prepareStack(capacity: MaterialStackCapacity): Promise<void> {
+		if (this.destroyed) throw new Error('Wavefront has been destroyed');
+		if (this.pipelines.has(capacity)) return;
+		let pending = this.compiling.get(capacity);
+		if (!pending) {
+			const module = this.device.createShaderModule({ label: 'Wavefront', code: specializeMaterialShader(wavefrontWgsl, 'Wavefront', capacity) });
+			pending = Promise.all(ENTRIES.map(async entryPoint => {
+				const pipeline = await this.device.createComputePipelineAsync({ label: `wavefront.${entryPoint}.stack${capacity}`, layout: this.pipelineLayout,
+					compute: { module: entryPoint === 'Compact' ? this.compactModule : module, entryPoint } });
+				return [entryPoint, pipeline] as const;
+			})).then(entries => {
+				if (this.destroyed) throw new Error('Wavefront has been destroyed');
+				this.pipelines.set(capacity, new Map(entries));
+			}).catch(error => {
+				this.compiling.delete(capacity);
+				throw error;
+			});
+			this.compiling.set(capacity, pending);
+		}
+		await pending;
 	}
 
 	capacity(pixels: number): number {
@@ -59,8 +82,10 @@ export class Wavefront {
 		this.group = null;
 	}
 
-	encode(encoder: GPUCommandEncoder, scene: GPUBindGroup, width: number, height: number, maxBounces: number, hasAlphaTested: boolean): void {
+	encode(encoder: GPUCommandEncoder, scene: GPUBindGroup, width: number, height: number, maxBounces: number, hasAlphaTested: boolean, materialCapacity: MaterialStackCapacity): void {
 		if (!this.accumulation || !this.feedback) return;
+		const pipelines = this.pipelines.get(materialCapacity);
+		if (!pipelines) throw new Error('Wavefront material pipelines have not been prepared');
 		const pixels = width * height, capacity = this.capacity(pixels);
 		const workItems = Math.ceil(width / 8) * Math.ceil(height / 8) * 64;
 		const tiles = Math.ceil(workItems / capacity), bounces = Math.max(0, Math.floor(maxBounces));
@@ -88,7 +113,7 @@ export class Wavefront {
 			const dispatch = (entry: Entry, bounce: number) => {
 				const pass = encoder.beginComputePass({ label: `wavefront.${entry}.b${bounce}` });
 				const pipeline = !hasAlphaTested && (entry === 'Intersect' || entry === 'Shadow' || entry === 'Tail') ? `${entry}Opaque` as Entry : entry;
-				pass.setPipeline(this.pipelines.get(pipeline)!);
+				pass.setPipeline(pipelines.get(pipeline)!);
 				pass.setBindGroup(0, scene);
 				pass.setBindGroup(1, this.group!, [(tile * (bounces + 1) + bounce) * this.alignment]);
 				if (entry === 'Intersect' || entry === 'Shade' || entry === 'Shadow' || entry === 'Tail') {
@@ -128,6 +153,10 @@ export class Wavefront {
 	}
 
 	destroy(): void {
+		if (this.destroyed) return;
+		this.destroyed = true;
+		this.pipelines.clear();
+		this.compiling.clear();
 		this.indirect.destroy();
 		this.parameters?.destroy();
 		this.group = null;

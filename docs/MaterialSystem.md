@@ -14,6 +14,17 @@ selection (same expectation, visible only at 1 spp), and `clearcoatNormalTexture
   extensions and `KHR_materials_pbrSpecularGlossiness` in `GLTFMaterial.ts`), lowered to
   `open_pbr_surface` (= `BSDFInputs`), optimized and compiled to bytecode (`src/material`, format
   in `Bytecode.ts`): uint4 instructions over a 16-entry float4 stack.
+- GPU pipelines use the smallest capacity in 1/2/4/8/16 that fits the scene's maximum
+  compiler-reported `stackSize` (conservatively including unused materials). Initialization
+  uses one slot so simple scenes reuse that pipeline. This applies to both megakernel and wavefront;
+  the bytecode format, 16-slot compiler limit, and CPU reference are unchanged.
+  `build:shaders` compiles all capacities with `VEACH_MATERIAL_STACK_SIZE` and stores lossless
+  edits against the common WGSL in `MaterialStackVariants.ts`. Runtime reconstruction checks
+  the base fingerprint; tests verify reconstructed output against each compiler output's SHA256.
+  Function-local WGSL array sizes cannot be pipeline overrides. Pipelines are compiled lazily,
+  cached by capacity per renderer, and prepared before replacing the active scene.
+  `npm run build:shaders -- --material-stack 1` still emits standalone investigation modules
+  under `.tools/wavefront/stack-1`. See [Wavefront.md](Wavefront.md) for paired measurements.
 - Three programs per material: surface (every input but opacity, run by `EvalMaterial`), opacity
   (alpha tests) and emission (NEE). The last two are restricted to texture coordinates, textures
   and math, so traversal and light sampling get the reduced interpreter (`RunMaterialProgram<0>`).

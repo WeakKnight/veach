@@ -28,6 +28,10 @@ Standard smoke cases additionally cover alpha masking/blending and other BSDF fe
 `node scripts/wavefront-benchmark.mjs --out .tools/wavefront/baseline` runs all five.
 Optional arguments: `--mode`, `--only` (comma-separated names), `--width`, `--height`,
 `--samples`, `--repeats`, `--warmup`, `--bounces`, and `--scenes`.
+`--material-stack auto` (default) uses production scene capacity selection; explicit
+1/2/4/8/16 forces a capacity for controlled comparisons and rejects undersized choices.
+Both integrators use the same capacity. The harness checks submitted WGSL array sizes
+and records the selected capacity, generated variant table, and relevant source hashes.
 
 The harness enables timestamp queries only in its own browser context. It measures
 compute passes labelled `pathTracing` or `wavefront.*`, records each stage, and stores
@@ -39,6 +43,9 @@ GPU pass timings exclude command dispatch gaps/copies. The harness now also reco
 GPU span from the first trace pass to the final trace pass, including inter-stage gaps,
 plus CPU/readback wall time. Shader and host source hashes identify uncommitted variants.
 `--diagnose` records queue counters after compactions for the first measured sample.
+`node scripts/analyze-wavefront-stages.mjs REPORT_DIRECTORY` sums stage and bounce timings
+over the recorded samples, checks that attribution equals total GPU pass time, and writes
+`stage-analysis.json`. These are arithmetic means, distinct from the comparison's medians.
 Screenshot exposure is lifted only after measurement/HDR capture (4/6/2/0/0 stops in
 scene-table order); the HDR and all tracing use the same manual exposure setting.
 `--paired --mode wavefront` alternates integrators within one renderer and scene, reversing
@@ -67,7 +74,7 @@ path arrays and groups surface work by shader, with partitioned sorting on suppo
 Integrator state is stored between kernels rather than keeping the entire path live.
 
 Wavefront does not remove SVM storage. `src/kernel/svm/svm.h::svm_eval_nodes` still declares
-`float stack[SVM_STACK_SIZE]`. Veach likewise retains its 16-entry float4 VM stack in
+`float stack[SVM_STACK_SIZE]`. Veach likewise retains a scene-sized float4 VM stack in
 `MaterialProgram.slang`. These source-language local arrays are not proof that every slot
 resides in a hardware register: dynamic indexing and compiler decisions may produce private
 memory accesses or spills. The intended benefit is smaller live state and independently
@@ -189,13 +196,60 @@ queue counts each bounce; this implementation uses GPU compaction and indirect d
 - A third compiler-lifetime regression test covers disposal between compilation completion and
   promise delivery. It reproduced a remaining leak and now passes. Full suite: 159 tests,
   TypeScript and library build pass after the fix.
+- `paired-stack-1-v1`: compile both complete integrators with a one-slot SVM, including
+  opacity/emission interpreters, using separately generated investigation modules. The benchmark
+  rejects scenes whose compiled stack bound exceeds the selected capacity and hashes the served
+  shader variant. All images match the full-stack references exactly. Mega/wave total spans:
+  10.283/8.552, 4.343/4.706, 2.929/3.957, 3.100/3.515, 1.822/1.670 ms. The megakernel gains
+  1.32-2.13x relative to its 16-slot version and now wins breakfast/BMW/glass. Wavefront gains
+  only about 2-15%. The new reference must include this optimization; the earlier wavefront
+  speedups cannot be carried over unchanged. Production selection/fallback remains to implement.
+- `paired-stack-1-tail-0-v1`: a fused kernel from bounce zero improves over the one-slot
+  megakernel by about 4-6% on all five scenes, with exact output in all 25 pairs. This is
+  effectively a megakernel with opaque traversal specialization and staged input/output,
+  not evidence for wavefront decomposition. The staged version remains better in classroom
+  and MIS; fixed tail choices still depend on scene workload. Shader-module interception
+  verifies that the actual GPU modules contain one-slot VM arrays in both integrators.
+- Capacity sweeps `paired-stack-{2,4,8}-v1` each run three paired rounds on all five scenes;
+  every saved HDR comparison remains exact. Megakernel total-span medians at capacity 2:
+  11.284/4.499/3.023/3.258/1.968 ms; capacity 4: 11.208/4.578/3.044/3.383/1.987;
+  capacity 8: 11.889/5.172/3.208/3.532/2.095. Corresponding wavefront medians are
+  9.038/4.758/3.895/3.759/1.701, 8.791/4.737/3.924/3.814/1.713, and
+  8.686/4.791/3.904/3.859/1.734. Capacity configurations were not interleaved with each
+  other, so small cross-capacity differences are not proof of a monotonic hardware effect.
+- Production integration selects a safe scene capacity for both integrators, lazily compiles
+  and caches pipelines, and keeps the old scene bound until preparation succeeds. Generated
+  variant edits reconstruct exact independently compiled Slang output. Unit coverage includes
+  capacity bounds, stale generated data, CRLF checkout handling, shared concurrent compilation,
+  failed compilation retry, and disposal during compilation. GPU equivalence and smoke checks
+  cover materials requiring up to nine slots.
+- `paired-auto-stack-v1`: production capacity selection chooses one slot for all five scenes.
+  Three paired rounds each are exact (15/15); saved outputs also match the earlier 16-slot
+  reference exactly. Mega/wave span medians: 10.106/8.572, 4.328/4.717, 2.860/4.058,
+  3.260/3.615, 1.831/1.657 ms. Wavefront wins classroom/MIS but loses the other three.
+  Classroom/BMW screenshots inspected. This run exposed redundant startup compilation:
+  initialization selected 16 slots, then scene loading compiled one slot, adding about 15 s
+  to load time. Initialization now selects one slot and prepares larger capacities only when
+  needed; startup measurements are being repeated. No tracing shader logic changed.
+- Expanded GPU equivalence harness: 24 comparisons against fixed 16-slot megakernel all have
+  zero error in radiance/albedo/normal. Includes automatic capacities 1/2/4/8/16, alpha with
+  pinned mip selection, transmission, clearcoat, emission, analytic lights, helmet, spec-gloss,
+  and anisotropy; empty odd-sized/multitile images and presentation/switching checks remain.
+  Full unit suite: 175 tests pass, as does TypeScript checking.
+- After selecting one-slot initialization, all 21 megakernel smoke cases pass with ordinary
+  texture streaming. Alpha/anisotropy screenshots inspected. Library build and a fresh full
+  `build:shaders` succeed; generated reconstruction tests pass against the rebuilt variants.
+  Adaptive wavefront smoke and startup measurements are next.
+- Stage attribution for `paired-auto-stack-v1` shows tail execution consumes about 48% of
+  GPU pass time in breakfast/BMW/glass, versus 12% in classroom. Compaction is about 5-7%
+  in these four and 12% in MIS. Empty late-bounce passes alone cannot explain BMW's regression;
+  retune tail execution after stack specialization and investigate ray/queue coherence before
+  assuming material interpreter or compaction cost is the dominant remaining bottleneck.
 
 ## Next experiments
 
-- Measure a one-slot SVM specialization on both integrators. All five fixed scenes fit, but
-  production selection must use compiler-reported bounds and retain the full-stack fallback.
-  Include emission and opacity interpreter call sites, not just surface shading. Keep the
-  bytecode/CPU semantics unchanged and test larger-stack materials separately.
+- Finish GPU validation of automatic scene stack selection against the full-stack reference,
+  including larger surface programs and emission/opacity evaluation. Measure compilation cost.
 - Compare shader-program/material sorting and avoid assuming it helps already coherent glTF work.
 - Reduce the empty dispatch/compaction overhead after an adaptive tail finishes, and test
   thresholds across resolutions and bounce counts rather than hardcoding this GPU's best result.

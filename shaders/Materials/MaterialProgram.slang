@@ -9,7 +9,12 @@ import Materials.Textures;
 import Materials.Procedural;
 import Materials.BSDF.BSDF;
 
-static const uint MATERIAL_STACK_SIZE = 16u; // MAX_STACK_SIZE in src/material/Bytecode.ts
+// Specialized builds are valid only when every compiled program fits this capacity.
+// The production fallback matches MAX_STACK_SIZE in src/material/Bytecode.ts.
+#ifndef VEACH_MATERIAL_STACK_SIZE
+#define VEACH_MATERIAL_STACK_SIZE 16
+#endif
+static const uint MATERIAL_STACK_SIZE = VEACH_MATERIAL_STACK_SIZE;
 static const uint MATERIAL_MAX_INSTRUCTIONS = 1024u; // a malformed program must not hang the device
 
 static const uint OPERAND_CONSTANT = 0x80000000u;

@@ -47,6 +47,7 @@ export class GpuScene {
 
 	instanceCount = 0;
 	hasAlphaTested = false;
+	materialStackSize = 0;
 	lightCount = 0;
 	analyticLightCount = 0;
 	tlasPrimOffset = 0;
@@ -67,6 +68,7 @@ export class GpuScene {
 			throw new Error('GpuScene: expected the compiled scene materials plus the default material');
 		}
 		const defaultMaterialIndex = materials.length - 1;
+		out.materialStackSize = Math.max(0, ...materials.map(material => material.stackSize));
 		const materialData = packMaterialData(materials, vt.descriptorOf);
 		const materialOf = (mesh: number) => {
 			const m = scene.meshes[mesh].material;

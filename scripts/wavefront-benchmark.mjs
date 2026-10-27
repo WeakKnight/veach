@@ -29,7 +29,9 @@ const config = {
 	tailStart: Number(option('tail-start', 999)),
 	tailThreshold: Number(option('tail-threshold', 0)),
 	paired: args.includes('--paired'),
+	materialStack: option('material-stack', 'auto') === 'auto' ? null : Number(option('material-stack', 'auto')),
 };
+if (config.materialStack !== null && ![1, 2, 4, 8, 16].includes(config.materialStack)) throw new Error('Invalid material stack capacity');
 if (config.paired && config.mode !== 'wavefront') throw new Error('--paired requires --mode wavefront');
 for (const key of ['width', 'height', 'warmup', 'samples', 'repeats', 'bounces']) {
 	if (!Number.isInteger(config[key]) || config[key] < (key === 'bounces' ? 0 : 1)) throw new Error(`Invalid ${key}`);
@@ -55,6 +57,7 @@ const chrome = [process.env.CHROME_PATH, 'C:/Program Files/Google/Chrome/Applica
 	'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe', '/usr/bin/google-chrome', '/usr/bin/chromium']
 	.find(p => p && existsSync(p));
 if (!chrome) throw new Error('Set CHROME_PATH to a WebGPU-capable browser');
+const shaderPath = path => join(root, path);
 const server = await createServer({
 	root, server: { port: 5201, strictPort: false }, logLevel: 'warn',
 	plugins: [{ name: 'research-scenes', configureServer(server) {
@@ -73,8 +76,9 @@ const browser = await puppeteer.launch({ executablePath: chrome, headless: true,
 const report = { started: new Date().toISOString(), revision: execFileSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8' }).trim(),
 	config, browser: await browser.version(),
 	sourceHashes: Object.fromEntries(['src/generated/shaders/PathTracing.wgsl', 'src/generated/shaders/Wavefront.wgsl',
-		'src/generated/shaders/WavefrontCompact.wgsl', 'src/render/Wavefront.ts', 'src/render/PathTracer.ts', 'src/render/Renderer.ts']
-		.filter(p => existsSync(join(root, p))).map(p => [p, createHash('sha256').update(readFileSync(join(root, p))).digest('hex')])), results: [] };
+		'src/generated/shaders/WavefrontCompact.wgsl', 'src/generated/shaders/MaterialStackVariants.ts',
+		'src/render/MaterialShaderVariants.ts', 'src/render/GpuScene.ts', 'src/render/Wavefront.ts', 'src/render/PathTracer.ts', 'src/render/Renderer.ts']
+		.filter(p => existsSync(shaderPath(p))).map(p => [p, createHash('sha256').update(readFileSync(shaderPath(p))).digest('hex')])), results: [] };
 const referenceReport = { ...report, config: { ...config, mode: 'megakernel' }, results: [] };
 writeFileSync(join(candidateOutput, 'report.json'), JSON.stringify(report, null, 2));
 try {
@@ -91,6 +95,16 @@ try {
 		// A blank module page avoids the viewer's animation loop and denoiser.
 		await page.goto(`${server.resolvedUrls.local[0]}scripts/benchmark.html`);
 		const result = await page.evaluate(async ({ c, config }) => {
+			const createShaderModule = GPUDevice.prototype.createShaderModule;
+			const observedStackCapacities = {};
+			GPUDevice.prototype.createShaderModule = function(descriptor) {
+				if (descriptor.label === 'PathTracing' || descriptor.label === 'Wavefront') {
+					const capacities = [...descriptor.code.matchAll(/var stack_\d+\s*:\s*array<vec4<f32>,\s*i32\((\d+)\)>/g)].map(match => Number(match[1]));
+					if (!capacities.length || capacities.some(capacity => capacity !== capacities[0])) throw new Error('Unexpected effective SVM shader capacity');
+					observedStackCapacities[descriptor.label] = capacities;
+				}
+				return createShaderModule.call(this, descriptor);
+			};
 			const requestDevice = GPUAdapter.prototype.requestDevice;
 			let adapterInfo;
 			GPUAdapter.prototype.requestDevice = function(descriptor = {}) {
@@ -118,12 +132,24 @@ try {
 				renderer.tracer.wavefront.tailThreshold = config.tailThreshold;
 			}
 			const integratorInitMs = performance.now() - integratorStart;
+			renderer.tracer.materialStackOverride = config.materialStack;
 			Object.assign(renderer.settings, { maxSamples: 0, samplesPerFrame: 1, maxBounces: config.bounces,
 				autoExposureMethod: AutoExposureMethod.Manual, autoExposureBias: 0, localExposureMethod: LocalExposureMethod.None,
 				environmentIntensity: c.environment, fireflyClamp: config.clamp });
 			renderer.sun.enabled = c.environment > 0;
 			const loadStart = performance.now();
-			await renderer.setScene(await loadGLTF(`/__research/${c.name}.glb`));
+			const sceneDescription = await loadGLTF(`/__research/${c.name}.glb`);
+			const { compileSceneMaterials } = await import('/src/render/SceneMaterials.ts');
+			const materialStackRequired = Math.max(0, ...compileSceneMaterials(sceneDescription).map(material => material.stackSize));
+			if (config.materialStack !== null && materialStackRequired > config.materialStack) throw new Error(`Scene needs ${materialStackRequired} stack slots; variant has ${config.materialStack}`);
+			await renderer.setScene(sceneDescription);
+			const materialCapacity = renderer.tracer.materialCapacity;
+			const expectedCapacity = config.materialStack ?? [1, 2, 4, 8, 16].find(capacity => capacity >= materialStackRequired);
+			if (materialCapacity !== expectedCapacity) throw new Error('Incorrect production material capacity selection');
+			for (const label of config.mode === 'wavefront' ? ['PathTracing', 'Wavefront'] : ['PathTracing']) {
+				if (observedStackCapacities[label]?.some(capacity => capacity !== materialCapacity)) throw new Error(`Incorrect ${label} shader specialization`);
+			}
+			GPUDevice.prototype.createShaderModule = createShaderModule;
 			const loadMs = performance.now() - loadStart;
 			const device = renderer.device;
 			let quiet = 0, warmFrames = 0;
@@ -255,7 +281,7 @@ try {
 			await device.queue.onSubmittedWorkDone();
 			queries.destroy(); resolved.destroy(); readback.destroy();
 			globalThis.benchmarkRenderer = renderer;
-			return { adapterInfo, initMs, integratorInitMs, loadMs, warmFrames: warmFrames + 1,
+			return { adapterInfo, initMs, integratorInitMs, loadMs, materialStackRequired, materialCapacity, observedStackCapacities, warmFrames: warmFrames + 1,
 				presentationIntegrator: renderer.integrator, presentationExposure: c.presentationExposure, scene: renderer.sceneStats, vt: renderer.virtualTextureStats,
 				camera: { position: renderer.camera.position, target: renderer.camera.target, up: renderer.camera.up, fovY: renderer.camera.fovY },
 				repeats: repeats.filter(r => r.mode === config.mode), referenceRepeats: repeats.filter(r => r.mode === 'megakernel'), pairedErrors,
