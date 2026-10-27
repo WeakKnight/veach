@@ -31,16 +31,26 @@ const config = {
 	paired: args.includes('--paired'),
 	materialStack: option('material-stack', 'auto') === 'auto' ? null : Number(option('material-stack', 'auto')),
 	tailSweep: args.includes('--tail-sweep'),
+	subgroups: !args.includes('--disable-subgroups'),
+	compaction: option('compaction', 'dense'),
+	compactionSweep: args.includes('--compaction-sweep'),
 };
+if (!['dense', 'queued', 'subgroup'].includes(config.compaction)) throw new Error('Invalid compaction mode');
 if (config.materialStack !== null && ![1, 2, 4, 8, 16].includes(config.materialStack)) throw new Error('Invalid material stack capacity');
 if (config.paired && config.mode !== 'wavefront') throw new Error('--paired requires --mode wavefront');
 if (config.tailSweep && !config.paired) throw new Error('--tail-sweep requires --paired --mode wavefront');
+if (config.compactionSweep && (!config.paired || config.tailSweep)) throw new Error('--compaction-sweep requires --paired and cannot combine with --tail-sweep');
 config.variants = [{ name: 'wavefront', tailStart: config.tailStart, tailThreshold: config.tailThreshold }];
 if (config.tailSweep) {
 	config.variants.push({ name: 'staged', tailStart: 999, tailThreshold: 0 },
 		...[0, 1, 2, 3].map(tailStart => ({ name: `fixed-${tailStart}`, tailStart, tailThreshold: 0 })),
 		...[8192, 32768, 131072].map(tailThreshold => ({ name: `adaptive-${tailThreshold}`, tailStart: 0, tailThreshold })));
 }
+if (config.compactionSweep) {
+	for (const compaction of ['dense', 'queued', 'subgroup'].filter(mode => mode !== config.compaction))
+		config.variants.push({ name: `compact-${compaction}`, tailStart: config.tailStart, tailThreshold: config.tailThreshold, compaction });
+}
+for (const variant of config.variants) variant.compaction ??= config.compaction;
 for (const key of ['width', 'height', 'warmup', 'samples', 'repeats', 'bounces']) {
 	if (!Number.isInteger(config[key]) || config[key] < (key === 'bounces' ? 0 : 1)) throw new Error(`Invalid ${key}`);
 }
@@ -102,7 +112,7 @@ const assertUnchangedSources = () => {
 const referenceReport = { ...report, config: { ...config, mode: 'megakernel' }, results: [] };
 const variantReports = Object.fromEntries(config.variants.slice(1).map(variant => {
 	mkdirSync(join(output, variant.name), { recursive: true });
-	return [variant.name, { ...report, config: { ...config, tailStart: variant.tailStart, tailThreshold: variant.tailThreshold }, results: [] }];
+	return [variant.name, { ...report, config: { ...config, tailStart: variant.tailStart, tailThreshold: variant.tailThreshold, compaction: variant.compaction }, results: [] }];
 }));
 writeFileSync(join(candidateOutput, 'report.json'), JSON.stringify(report, null, 2));
 try {
@@ -147,7 +157,8 @@ try {
 				if (!this.features.has('timestamp-query')) throw new Error('This benchmark requires timestamp-query');
 				return requestDevice.call(this, { ...descriptor,
 					requiredLimits: { ...descriptor.requiredLimits, maxStorageBuffersPerShaderStage: config.storageBuffers },
-					requiredFeatures: [...new Set([...(descriptor.requiredFeatures ?? []), 'timestamp-query'])] });
+					requiredFeatures: [...new Set([...(descriptor.requiredFeatures ?? []), 'timestamp-query'])]
+						.filter(feature => config.subgroups || feature !== 'subgroups') });
 			};
 			const { Renderer, LocalExposureMethod } = await import('/src/render/Renderer.ts');
 			const { AutoExposureMethod } = await import('/src/render/AutoExposure.ts');
@@ -177,6 +188,7 @@ try {
 			if (config.mode !== 'megakernel') {
 				renderer.tracer.wavefront.tailStart = config.tailStart;
 				renderer.tracer.wavefront.tailThreshold = config.tailThreshold;
+				renderer.tracer.wavefront.compaction = config.compaction;
 			}
 			const materialCapacity = renderer.tracer.materialCapacity;
 			const expectedCapacity = config.materialStack ?? [1, 2, 4, 8, 16].find(capacity => capacity >= materialStackRequired);
@@ -210,10 +222,12 @@ try {
 			const copyBuffer = GPUCommandEncoder.prototype.copyBufferToBuffer;
 			const queueReadback = config.diagnose ? device.createBuffer({ size: 65536, usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ }) : null;
 			let queueCopies = 0, captureQueues = false, queueSnapshots = [];
+			const queuePhases = [];
 			GPUCommandEncoder.prototype.copyBufferToBuffer = function(source, sourceOffset, destination, destinationOffset, size) {
 				copyBuffer.call(this, source, sourceOffset, destination, destinationOffset, size);
 				if (captureQueues && destination.label === 'wavefrontDispatch') {
 					if (queueCopies >= 4096) throw new Error('Queue diagnostic capacity exceeded');
+					queuePhases.push(labels.at(-1));
 					copyBuffer.call(this, source, sourceOffset - 16, queueReadback, queueCopies++ * 16, 16);
 				}
 			};
@@ -233,17 +247,17 @@ try {
 			let presentationVariant = config.mode;
 			const pairedErrors = [];
 			for (let repeat = 0; repeat < config.repeats; repeat++) {
-				const schedule = config.paired ? [{ name: 'megakernel' }, ...config.variants] : [{ name: config.mode, tailStart: config.tailStart, tailThreshold: config.tailThreshold }];
+				const schedule = config.paired ? [{ name: 'megakernel' }, ...config.variants] : [{ name: config.mode, tailStart: config.tailStart, tailThreshold: config.tailThreshold, compaction: config.compaction }];
 				// Rotate the sweep and reverse alternating rounds to avoid always measuring a
 				// configuration at the same position relative to GPU warmup and clock changes.
-				if (config.tailSweep) schedule.push(...schedule.splice(0, repeat % schedule.length));
+				if (config.tailSweep || config.compactionSweep) schedule.push(...schedule.splice(0, repeat % schedule.length));
 				if (config.paired && repeat % 2 !== 0) schedule.reverse();
 				for (const variant of schedule) {
 					const mode = variant.name === 'megakernel' ? 'megakernel' : 'wavefront';
 					presentationVariant = variant.name;
 					if (config.paired) {
 						await renderer.setIntegrator(mode);
-						if (mode === 'wavefront') Object.assign(renderer.tracer.wavefront, { tailStart: variant.tailStart, tailThreshold: variant.tailThreshold });
+						if (mode === 'wavefront') Object.assign(renderer.tracer.wavefront, { tailStart: variant.tailStart, tailThreshold: variant.tailThreshold, compaction: variant.compaction });
 						// Warm each selected pipeline before timing while retaining identical scene/VT data.
 						for (let warm = 0; warm < 8; warm++) { renderer.renderFrame(); await device.queue.onSubmittedWorkDone(); }
 					}
@@ -308,7 +322,9 @@ try {
 			if (queueReadback) {
 				await queueReadback.mapAsync(GPUMapMode.READ);
 				const counters = new Uint32Array(queueReadback.getMappedRange());
-				for (let i = 0; i < queueCopies; i++) queueSnapshots.push({ active: counters[i * 4], shadow: counters[i * 4 + 1] });
+				for (let i = 0; i < queueCopies; i++) queueSnapshots.push({ phase: queuePhases[i],
+					active: counters[i * 4 + (queuePhases[i].includes('CompactIntersect') ? 2 : 0)],
+					shadow: counters[i * 4 + 1], mainA: counters[i * 4], mainB: counters[i * 4 + 2] });
 				queueReadback.unmap(); queueReadback.destroy();
 			}
 			const hdr = candidateHDR ?? await renderer.readRadiance();
@@ -344,7 +360,7 @@ try {
 			await device.queue.onSubmittedWorkDone();
 			queries.destroy(); resolved.destroy(); readback.destroy();
 			globalThis.benchmarkRenderer = renderer;
-			return { adapterInfo, initMs, integratorInitMs, loadMs, materialStackRequired, materialCapacity, observedStackCapacities,
+			return { adapterInfo, deviceFeatures: [...device.features], initMs, integratorInitMs, loadMs, materialStackRequired, materialCapacity, observedStackCapacities,
 				shaderCompilations, pipelineCompilations, warmFrames: warmFrames + 1,
 				presentationIntegrator: renderer.integrator, presentationVariant, presentationExposure: c.presentationExposure, scene: renderer.sceneStats, vt: renderer.virtualTextureStats,
 				camera: { position: renderer.camera.position, target: renderer.camera.target, up: renderer.camera.up, fovY: renderer.camera.fovY },

@@ -234,7 +234,7 @@ export class Renderer {
 		}
 		const device = await adapter.requestDevice({
 			label: 'Veach',
-			requiredFeatures: adapter.features.has('shader-f16') ? ['shader-f16'] : [],
+			requiredFeatures: (['shader-f16', 'subgroups'] as GPUFeatureName[]).filter(feature => adapter.features.has(feature)),
 			requiredLimits: {
 				maxStorageBufferBindingSize: adapter.limits.maxStorageBufferBindingSize,
 				maxBufferSize: adapter.limits.maxBufferSize,

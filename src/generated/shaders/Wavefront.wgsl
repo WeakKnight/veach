@@ -9320,7 +9320,7 @@ fn TailImpl_1( tid_1 : vec3<u32>)
 
 fn ShadowQueueBase_0() -> u32
 {
-    return MainQueueBase_0() + (gWavefront_0.capacity_0 + u32(3)) / u32(4);
+    return MainQueueBase_0() + u32(2) * ((gWavefront_0.capacity_0 + u32(3)) / u32(4));
 }
 
 fn ShadowImpl_0( tid_2 : vec3<u32>)
@@ -9990,6 +9990,11 @@ fn IntersectOpaque(@builtin(global_invocation_id) tid_8 : vec3<u32>)
     return;
 }
 
+fn ShadeQueueBase_0() -> u32
+{
+    return MainQueueBase_0() + (gWavefront_0.capacity_0 + u32(3)) / u32(4);
+}
+
 @compute
 @workgroup_size(64, 1, 1)
 fn Shade(@builtin(global_invocation_id) tid_9 : vec3<u32>)
@@ -10002,11 +10007,11 @@ fn Shade(@builtin(global_invocation_id) tid_9 : vec3<u32>)
     gVTLastMappedLevel_0 = u32(0);
     gVTLastRequestedLevel_0 = u32(0);
     var _S602 : u32 = tid_9.x;
-    if((_S602 >= (bitcast<u32>((gAccum_0[HeaderBase_0()].x)))))
+    if((_S602 >= (bitcast<u32>((gAccum_0[HeaderBase_0()].z)))))
     {
         return;
     }
-    var base_27 : u32 = WorkBase_0(QueueIndex_0(MainQueueBase_0(), _S602));
+    var base_27 : u32 = WorkBase_0(QueueIndex_0(ShadeQueueBase_0(), _S602));
     gAccum_0[Field_0(base_27, u32(11))] = vec4<f32>(0.0f);
     var s_34 : WavefrontPath_0 = LoadPath_0(base_27);
     if((s_34.active_0) == u32(0))

@@ -46,7 +46,8 @@ uint Field(uint base, uint field) { return base + field * gWavefront.capacity; }
 
 uint HeaderBase() { return gFrame.frame.x * gFrame.frame.y * 3u; }
 uint MainQueueBase() { return HeaderBase() + 3u + gWavefront.capacity * WAVEFRONT_STRIDE; }
-uint ShadowQueueBase() { return MainQueueBase() + (gWavefront.capacity + 3u) / 4u; }
+uint ShadeQueueBase() { return MainQueueBase() + (gWavefront.capacity + 3u) / 4u; }
+uint ShadowQueueBase() { return MainQueueBase() + 2u * ((gWavefront.capacity + 3u) / 4u); }
 uint QueueIndex(uint base, uint index) { return asuint(gAccum[base + index / 4u][index & 3u]); }
 
 uint2 WorkPixel(uint index)
@@ -326,8 +327,8 @@ void ShadePath<let DEFERRED : bool, let ALPHA : bool>(uint base, inout Wavefront
 [numthreads(64, 1, 1)]
 void Shade(uint3 tid : SV_DispatchThreadID)
 {
-	if (tid.x >= asuint(gAccum[HeaderBase()].x)) return;
-	uint index = QueueIndex(MainQueueBase(), tid.x);
+	if (tid.x >= asuint(gAccum[HeaderBase()].z)) return;
+	uint index = QueueIndex(ShadeQueueBase(), tid.x);
 	uint base = WorkBase(index);
 	gAccum[Field(base, 11u)] = float4(0.0);
 	WavefrontPath s = LoadPath(base);

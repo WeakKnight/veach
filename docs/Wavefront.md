@@ -65,6 +65,12 @@ Startup records include submitted material shader capacities and compute pipelin
 durations. The harness selects wavefront on the empty scene, then scene loading prepares
 only the capacity needed by the incoming geometry.
 
+`--compaction dense|queued|subgroup` selects the internal queue implementation. Dense is
+the conservative default; queued scans only input indices, and subgroup uses the same queued
+layout with subgroup arithmetic and one global reservation per workgroup. `--compaction-sweep`
+compares all three within one renderer using the requested tail schedule; it is separate from
+`--tail-sweep`. `--disable-subgroups` tests adapters without that optional device feature.
+
 ## Design constraints
 
 - Keep at most eight storage buffers per stage. Pack work data into existing bindings.
@@ -299,6 +305,28 @@ queue counts each bounce; this implementation uses GPU compaction and indirect d
 
 ## Next experiments
 
+The automatic-stack tail sweep (`tail-sweep-auto-v1`, revision `5ba074e`) completed all five
+scenes, nine wavefront schedules and three paired rounds: all 135 HDR comparisons are exact.
+All five screenshots were inspected. Median GPU spans (ms/sample):
+
+| Schedule | classroom | breakfast | BMW | glass | MIS |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Megakernel | 10.392 | 4.337 | 2.882 | 3.217 | 1.819 |
+| Fully staged | 8.465 | 6.206 | 5.547 | 3.929 | 1.839 |
+| Fixed tail at 0 | 9.564 | 3.974 | 2.824 | 3.095 | 1.713 |
+| Fixed tail at 1 | 9.112 | 4.107 | 3.530 | 3.709 | 1.767 |
+| Fixed tail at 2 | 8.893 | 4.457 | 3.749 | 3.387 | 1.439 |
+| Fixed tail at 3 | 8.437 | 4.592 | 4.072 | 3.309 | 1.380 |
+| Adaptive 65,536 | 8.611 | 4.611 | 4.006 | 3.561 | 1.649 |
+
+No single split wins on every scene. Fixed-0 remains effectively fused execution, so its
+results do not establish a benefit from stage decomposition. Fully staged traversal and
+shadow passes account for 76-84% of GPU time in classroom/BMW/glass and 84% in breakfast;
+compaction is 4.5-7% there and 13% in MIS. Queue coherence deserves attention alongside VM cost.
+Initialization now takes 302-534 ms in this run; first classroom load includes 8.2 s of tail
+pipeline compilation, while later pages benefit from cached pipelines. These are observations
+from this browser session, not a controlled cold-cache startup comparison.
+
 - Finish GPU validation of automatic scene stack selection against the full-stack reference,
   including larger surface programs and emission/opacity evaluation. Measure compilation cost.
 - Measure the light empty-scene startup pipeline, and consider sharing capacity-independent
@@ -313,6 +341,52 @@ queue counts each bounce; this implementation uses GPU compaction and indirect d
   Keep separate A/B counts in the existing header so clearing the output count does not
   destroy the input count. Separate input/output arrays avoid in-place compaction races.
   This adds one uint index per slot inside the existing allocation, not a storage binding.
+  The first implementation passes 176 unit tests, typecheck, and ten GPU comparisons
+  covering alpha, geometry with analytic lights at 513x513, and return to an empty scene.
+  A full nine-schedule paired sweep is running. Input queue order is now carried between
+  stages, which may change ray coherence; reduced compaction work alone is not sufficient
+  evidence that the renderer is faster.
+  The completed first sweep (`tail-sweep-pingpong-v1`) keeps all 135 HDR comparisons exact
+  but regresses performance. Fully staged classroom rises from 8.465 to 9.759 ms; its
+  compaction arithmetic mean rises from 0.520 to 1.698 ms while traversal/shading change
+  much less. The generated kernel atomically loads the shared input count in every lane.
+  A follow-up now loads that immutable count once per workgroup into shared memory; the
+  next paired full-stage run tests whether this removes the contention hypothesis.
+  `paired-pingpong-groupcount-v1` confirms the hot-count load was costly: classroom
+  compaction falls to 0.539 ms, though overall 8.764 ms still trails the old dense queue's
+  8.465 ms in the earlier run. All 15 paired comparisons are exact. Adaptive follow-up
+  `paired-pingpong-groupcount-tail-v1` also completes all five scenes; its results are mixed.
+  The next variant uses subgroup prefix sums and one reservation per subgroup, without
+  assuming subgroup width or mapping from local invocation indices. Devices without the
+  optional `subgroups` feature retain the workgroup scan. Both benchmark and correctness
+  scripts accept `--disable-subgroups` to explicitly test that fallback.
+  Per-subgroup global reservations (`paired-subgroup-v1`) are also slower: classroom
+  compaction is 0.763 ms and MIS is 0.323 ms. The next revision aggregates subgroup totals
+  through workgroup-local atomics, retaining one global reservation per workgroup with
+  three barriers instead of the fallback scan's fifteen. It still avoids subgroup-ID/layout
+  assumptions. This is an investigation variant, not a demonstrated speedup yet.
+  The grouped subgroup revision also fails to establish a benefit in classroom/MIS. All three
+  implementations are now selectable in one renderer for interleaved measurement; dense
+  scanning remains the default until a replacement demonstrates a repeatable advantage.
+  `compaction-sweep-v1` interleaves all three methods in one renderer and completes all 45
+  HDR comparisons exactly. Dense/queued/subgroup GPU spans are 8.595/8.750/8.772 ms for
+  classroom, 6.393/6.041/6.040 for breakfast, 5.619/5.495/5.477 for BMW,
+  4.004/3.943/3.965 for glass, and 1.873/1.832/1.849 for MIS. Queue-driven scanning helps
+  some workloads but no method wins universally, and subgroup adds no clear gain here.
+  Keep dense as the default and retain the other modes as explicit experiments for now.
+  The grouped subgroup implementation passes all 30 GPU reference comparisons, including
+  alpha, transmission, analytic lights, all five stack capacities, padded/multi-tile images,
+  and geometry-to-empty transitions. Unit tests (176), typecheck and the library build pass.
+  The five `compaction-sweep-v1` screenshots have been inspected; low-sample noise remains,
+  with no queue-related missing regions. All 30 explicit no-subgroup fallback comparisons
+  also pass exactly; the report confirms the device feature is absent.
+  The full 21-case wavefront smoke suite with adaptive tail threshold 65,536 passes.
+  Empty sky, HDR helmet and alpha screenshots were inspected after that run.
+  Next hypothesis: use physical-slot scanning while the input queue exceeds half the tile,
+  then switch to queued scanning as it becomes sparse. The next dispatch must cover the full
+  tile in dense mode; generating that bound from the output count avoids CPU readback and
+  additional storage bindings, at the expense of extra inactive shading/traversal invocations.
+  This is an experiment to measure, not an assumed improvement.
 - Extend beyond pinned-mip exact tests to ordinary stochastic-alpha convergence checks, and
   continue monitoring startup compilation cost and memory at large image sizes.
 
@@ -326,8 +400,20 @@ enables the GPU count test. Tail pipelines include alpha-capable and opaque vari
 ## Current work allocation
 
 Group 1 binding 0 contains the original image prefix (three float4 per pixel), then
-three float4 headers, 21 float4 field arrays at the current tile capacity, then two
-packed uint index queues. Each field array is SoA across paths. The tile capacity is
+three float4 headers, 21 float4 field arrays at the current tile capacity, then three
+packed uint index queues (main A, main B, shadow). Header words 0/1/2 store A/shadow/B counts.
+Intersect reads A, CompactIntersect scans A and writes B, Shade reads B, and CompactShade
+scans B and writes A plus shadow indices. Compact dispatch sizes come from the input queue's
+indirect arguments; clearing the output count preserves the input count. An empty queue thus
+dispatches no further compaction work. This applies to queued/subgroup modes. The default
+dense mode scans physical path slots and writes the same alternating output queues, preserving
+the earlier traversal ordering behavior and avoiding input-index loads.
+Compaction has three separately compiled modules: dense and queued shared-memory scans and
+an optional subgroup scan. The renderer requests `subgroups` only if the adapter supports it;
+no subgroup operation appears in either portable module. The subgroup implementation uses
+prefix sums, subgroup totals and broadcast-first for local reservations, then one global
+reservation per workgroup. Three barriers publish the input count, local totals and global offsets.
+Each field array is SoA across paths. The tile capacity is
 at most 262,144, bounded by the storage binding and allocation limits. Initial indices
 map to 8x8 pixel blocks, with explicit padding checks for non-multiple-of-eight images.
 The compaction shader aliases the allocation as atomic uints in separate compute passes;

@@ -13,8 +13,12 @@ const thresholdOption = process.argv.indexOf('--tail-threshold');
 const tailThreshold = thresholdOption < 0 ? 0 : Number(process.argv[thresholdOption + 1]);
 const onlyOption = process.argv.indexOf('--only');
 const only = onlyOption < 0 ? [] : process.argv[onlyOption + 1].split(',');
+const disableSubgroups = process.argv.includes('--disable-subgroups');
+const compactionOption = process.argv.indexOf('--compaction');
+const compaction = compactionOption < 0 ? 'dense' : process.argv[compactionOption + 1];
+if (!['dense', 'queued', 'subgroup'].includes(compaction)) throw new Error('Invalid compaction mode');
 if (!Number.isInteger(tailStart) || tailStart < 0) throw new Error('Invalid tail start');
-const output = join(root, `.tools/wavefront/correctness-tail-${tailStart}-${tailThreshold}${only.length ? '-selected' : ''}`);
+const output = join(root, `.tools/wavefront/correctness-tail-${tailStart}-${tailThreshold}${only.length ? '-selected' : ''}${disableSubgroups ? '-no-subgroups' : ''}-${compaction}`);
 mkdirSync(output, { recursive: true });
 const chrome = [process.env.CHROME_PATH, 'C:/Program Files/Google/Chrome/Application/chrome.exe',
 	'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe', '/usr/bin/google-chrome', '/usr/bin/chromium'].find(p => p && existsSync(p));
@@ -32,18 +36,22 @@ try {
 	page.on('pageerror', e => errors.push(String(e)));
 	page.on('console', msg => { if (msg.type() === 'error') errors.push(msg.text()); if (msg.text().startsWith('[correctness]')) console.log(msg.text()); });
 	await page.goto(server.resolvedUrls.local[0] + 'scripts/benchmark.html');
-	const results = await page.evaluate(async ({ tailStart, tailThreshold, only }) => {
+	const results = await page.evaluate(async ({ tailStart, tailThreshold, only, disableSubgroups, compaction }) => {
 		const api = await import('/src/index.ts');
 		const check = (value, message) => { if (!value) throw new Error(message); };
 		const requestDevice = GPUAdapter.prototype.requestDevice;
 		GPUAdapter.prototype.requestDevice = function(descriptor = {}) {
-			return requestDevice.call(this, { ...descriptor, requiredLimits: { ...descriptor.requiredLimits, maxStorageBuffersPerShaderStage: 8 } });
+			return requestDevice.call(this, { ...descriptor,
+				requiredFeatures: (descriptor.requiredFeatures ?? []).filter(feature => !disableSubgroups || feature !== 'subgroups'),
+				requiredLimits: { ...descriptor.requiredLimits, maxStorageBuffersPerShaderStage: 8 } });
 		};
 		const canvas = document.querySelector('canvas');
 		canvas.style.cssText = 'width:129px;height:97px';
 		const r = await api.Renderer.create(canvas, { denoiser: null });
 		GPUAdapter.prototype.requestDevice = requestDevice;
 		check(r.device.limits.maxStorageBuffersPerShaderStage === 8, 'Storage binding budget was not enforced');
+		check(!disableSubgroups || !r.device.features.has('subgroups'), 'Subgroups were not disabled');
+		check(compaction !== 'subgroup' || r.device.features.has('subgroups'), 'Subgroup compaction is unavailable');
 		Object.assign(r.settings, { maxSamples: 0, samplesPerFrame: 1, autoExposureMethod: api.AutoExposureMethod.Manual,
 			autoExposureBias: 0, localExposureMethod: api.LocalExposureMethod.None, textureMipBias: -16 });
 		const originalUpdate = r.updateStreaming;
@@ -66,7 +74,7 @@ try {
 			const expectedCapacity = capacity ?? [1, 2, 4, 8, 16].find(n => n >= r.scene.materialStackSize);
 			check(r.tracer.materialCapacity === expectedCapacity, 'Incorrect material capacity selection');
 			await r.setIntegrator(mode);
-			if (mode === 'wavefront' && r.tracer.wavefront) Object.assign(r.tracer.wavefront, { tailStart, tailThreshold });
+			if (mode === 'wavefront' && r.tracer.wavefront) Object.assign(r.tracer.wavefront, { tailStart, tailThreshold, compaction });
 			Object.assign(r.settings, { maxBounces: config.bounces, fireflyClamp: config.clamp ?? 0, maxSamples: config.samples });
 			r.resetAccumulation();
 			while (r.samples < config.samples) {
@@ -171,7 +179,7 @@ try {
 							maxError = Math.max(maxError, error); squared += error * error; refSquared += reference[i] * reference[i];
 						}
 						const relativeL2 = Math.sqrt(squared / Math.max(refSquared, 1e-30));
-						const result = { scene: scene.name, mode, materialCapacity: r.tracer.materialCapacity, ...config, maxError, relativeL2 };
+						const result = { scene: scene.name, mode, compaction, subgroups: r.device.features.has('subgroups'), materialCapacity: r.tracer.materialCapacity, ...config, maxError, relativeL2 };
 						results.push(result);
 						console.log(`[correctness] ${JSON.stringify(result)}`);
 						check(maxError <= 1e-5, `${scene.name}: GPU integrators differ by ${maxError}`);
@@ -183,7 +191,7 @@ try {
 			}
 		} finally { r.destroy(); }
 		return results;
-	}, { tailStart, tailThreshold, only });
+	}, { tailStart, tailThreshold, only, disableSubgroups, compaction });
 	if (errors.length) throw new Error(errors.join('\n'));
 	Object.assign(report, { completed: true, results, finished: new Date().toISOString() });
 	writeFileSync(join(output, 'report.json'), JSON.stringify(report, null, 2));

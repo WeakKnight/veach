@@ -8,6 +8,8 @@ accumulation. Full material/traversal pipelines are prepared on scene loading, w
 capacity selected from compiled materials. Wavefront selection before geometry arrives is
 deferred; scene loading prepares its stages alongside the reference kernel. Geometry-free
 scenes allocate only the accumulation image prefix, without wavefront scratch.
+Wavefront compaction optionally uses the adapter's `subgroups` feature, with a separately
+compiled workgroup-scan fallback. Both paths keep the same eight-storage-buffer layouts.
 
 Custom display LUTs use `src/render/color/` for validated data, color-space adapters, GPU resources
 and lazy built-in presets. Present bindings 10 (unfilterable float32 3D LUT) and 11 (64-byte uniform)

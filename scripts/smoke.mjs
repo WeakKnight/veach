@@ -54,6 +54,13 @@ if (integratorFlag >= 0) {
 	only.splice(integratorFlag, 2);
 }
 const wavefrontTuning = {};
+const compactionFlag = only.indexOf('--compaction');
+if (compactionFlag >= 0) {
+	const mode = only[compactionFlag + 1];
+	if (integrator !== 'wavefront' || !['dense', 'queued', 'subgroup'].includes(mode)) throw new Error('--compaction requires wavefront and dense, queued or subgroup');
+	wavefrontTuning.compaction = mode;
+	only.splice(compactionFlag, 2);
+}
 for (const [flag, name] of [['--tail-start', 'tailStart'], ['--tail-threshold', 'tailThreshold']]) {
 	const index = only.indexOf(flag);
 	if (index < 0) continue;

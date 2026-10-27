@@ -26,7 +26,9 @@ const programs = [
 	{ name: 'PathTracing', source: 'Passes/PathTracing.slang', entries: [['main', 'compute']] },
 	{ name: 'PathTracingEmpty', source: 'Passes/PathTracing.slang', defines: ['VEACH_EMPTY_SCENE=1'], entries: [['main', 'compute']] },
 	{ name: 'Wavefront', source: 'Passes/Wavefront.slang', entries: ['Initialize', 'Intersect', 'IntersectOpaque', 'Shade', 'Shadow', 'ShadowOpaque', 'Tail', 'TailOpaque', 'Finalize'].map(e => [e, 'compute']) },
-	{ name: 'WavefrontCompact', source: 'Passes/WavefrontCompact.slang', entries: [['Compact', 'compute']] },
+	{ name: 'WavefrontCompact', source: 'Passes/WavefrontCompact.slang', entries: [['CompactIntersect', 'compute'], ['CompactShade', 'compute']] },
+	{ name: 'WavefrontCompactSubgroup', source: 'Passes/WavefrontCompact.slang', defines: ['VEACH_SUBGROUP_COMPACTION=1'], entries: [['CompactIntersect', 'compute'], ['CompactShade', 'compute']] },
+	{ name: 'WavefrontCompactDense', source: 'Passes/WavefrontCompact.slang', defines: ['VEACH_DENSE_COMPACTION=1'], entries: [['CompactIntersect', 'compute'], ['CompactShade', 'compute']] },
 	{ name: 'Present', source: 'Passes/Present.slang', entries: [['vsMain', 'vertex'], ['fsMain', 'fragment']] },
 	{
 		name: 'LocalExposure',

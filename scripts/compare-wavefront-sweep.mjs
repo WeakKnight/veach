@@ -11,10 +11,12 @@ const referencePath = join(directory, 'megakernel');
 const reference = JSON.parse(readFileSync(join(referencePath, 'report.json'), 'utf8'));
 if (!reference.completed || JSON.stringify(reference.plannedScenes) !== JSON.stringify(reference.results.map(r => r.name))) throw new Error('Reference sweep did not complete all planned scenes');
 const variants = [];
+const expectedVariants = new Set(reference.config.variants.map(variant => variant.name));
 for (const entry of readdirSync(directory, { withFileTypes: true })) {
 	if (!entry.isDirectory() || entry.name === 'megakernel') continue;
 	const candidatePath = join(directory, entry.name);
 	if (!existsSync(join(candidatePath, 'report.json'))) continue;
+	if (!expectedVariants.has(entry.name)) throw new Error(`Unexpected sweep variant: ${entry.name}`);
 	const report = JSON.parse(readFileSync(join(candidatePath, 'report.json'), 'utf8'));
 	if (report.browser !== reference.browser || JSON.stringify(report.sourceHashes) !== JSON.stringify(reference.sourceHashes)) {
 		throw new Error(`Inconsistent browser/source identity for ${entry.name}`);
@@ -30,9 +32,10 @@ for (const entry of readdirSync(directory, { withFileTypes: true })) {
 			throw new Error(`Invalid per-round evidence: ${entry.name}/${scene.name}`);
 		}
 	}
-	variants.push({ name: entry.name, tailStart: report.config.tailStart, tailThreshold: report.config.tailThreshold, results: comparison.results });
+	variants.push({ name: entry.name, tailStart: report.config.tailStart, tailThreshold: report.config.tailThreshold,
+		compaction: report.config.compaction, results: comparison.results });
 }
-if (!variants.length) throw new Error('No sweep variants');
+if (variants.length !== expectedVariants.size) throw new Error('Missing sweep variants');
 const summary = { directory: resolve(directory), reference: reference.results.map(r => r.name), variants };
 writeFileSync(join(directory, 'sweep-comparison.json'), JSON.stringify(summary, null, 2));
 console.table(variants.map(variant => ({ variant: variant.name, ...Object.fromEntries(variant.results.map(scene =>
