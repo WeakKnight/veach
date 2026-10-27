@@ -1148,6 +1148,69 @@ with direct stages 7. All 66 GPU comparisons are exact. Mode-4 wavefront/adaptiv
 passes helmet HDR, alpha and transmission with normal streaming; all three screenshots
 were inspected. Balanced performance measurements follow.
 
+`static-stack-original-v1` (revision `0ab66d8`) completes four position-balanced paired
+32-sample rounds on all five original scenes. All 60 non-reference HDR comparisons are
+exact; the sweep verifier confirms measured position balance, all five screenshots were
+inspected, and the source identity is unchanged throughout the run. Median GPU spans:
+
+| Integrator / mode | classroom | breakfast-room | bmw-m6 | glass-of-water | veach-mis |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Megakernel / 0 | 10.229 | 4.323 | 2.699 | 2.823 | 1.549 |
+| Megakernel / 4 | 10.087 | 4.268 | 2.656 | 2.806 | 1.550 |
+| Wavefront / 0 | 8.556 | 6.056 | 5.391 | 3.698 | 1.745 |
+| Wavefront / 4 | 8.701 | 6.043 | 5.388 | 3.710 | 1.753 |
+
+The first two scenes use one slot, so dynamic source indices already mask to zero.
+The final three use identical capacity-zero pipelines across modes: their small timing
+differences are control variation. Classroom wavefront is 1.7% slower with mode 4; no
+broad win is established. Larger live-stack workloads remain the relevant scalarization
+test, and the default remains mode 0.
+
+`static-stack-stress8-v1` uses the same four-round balanced protocol on eight-layer
+original-order materials (capacity 16 throughout). All 60 HDR comparisons are exact,
+the verifier passes and all five screenshots were inspected. Median GPU spans:
+
+| Integrator / mode | classroom | breakfast-room | bmw-m6 | glass-of-water | veach-mis |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Megakernel / 0 | 27.765 | 13.299 | 9.332 | 11.686 | 7.001 |
+| Megakernel / 4 | 31.782 | 15.238 | 9.925 | 12.745 | 7.443 |
+| Wavefront / 0 | 12.180 | 9.221 | 7.635 | 6.627 | 4.181 |
+| Wavefront / 4 | 13.150 | 9.838 | 7.876 | 6.975 | 4.529 |
+
+Mode 4 regresses wavefront by 3.1..8.3% and megakernel by 6.3..14.6%. Every paired
+round in every scene is slower with the switch variant. This does not identify the
+hardware cause (branch cost, scalarization and register allocation remain hypotheses),
+but rules out enabling this policy for the measured 16-slot workload. The default stays 0.
+
+`static-stack-scheduled8-v1` uses scheduled eight-layer materials, with capacities
+8/8/4/4/4, and the same four-round balanced protocol. All 60 HDR comparisons are exact,
+the verifier passes, and all five screenshots were inspected. Median GPU spans:
+
+| Integrator / mode | classroom | breakfast-room | bmw-m6 | glass-of-water | veach-mis |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Megakernel / 0 | 24.448 | 12.538 | 6.306 | 10.162 | 5.923 |
+| Megakernel / 4 | 26.369 | 12.626 | 6.617 | 10.025 | 6.293 |
+| Wavefront / 0 | 12.190 | 9.599 | 8.298 | 7.832 | 4.542 |
+| Wavefront / 4 | 13.135 | 10.085 | 8.268 | 7.822 | 4.443 |
+
+The two capacity-eight wavefront cases regress 7.8% and 5.1%. Capacity-four BMW/glass
+are within 0.4%, while MIS shows a possible 2.2% improvement requiring repetition before
+adoption. BMW megakernel spans 6.254..8.002 ms in mode 0 and 6.330..7.922 ms in mode 4;
+MIS megakernel also varies substantially. These ranges limit conclusions about small
+effects. The three complete sweeps establish no broadly beneficial constant-index policy,
+so it remains an opt-in experiment. Together they contain 180 exact non-reference HDR
+comparisons and fifteen inspected screenshots on the same fixed five scenes.
+
+Two follow-up prototypes remain isolated from these measurements. The octant sorter
+targets continuation queue A, skips camera rays, and preserves physical path/RNG records.
+The second specializes the megakernel's closest-hit and NEE traversal to `ALPHA=false`:
+all five reference workloads currently bind opaque wavefront traversal, while the reference
+megakernel retains the general alpha-capable traversal (runtime instance flags skip opacity
+evaluation). Its isolated 0/1/2/4/8/16-slot modules all compile. Neither prototype has GPU
+correctness or performance evidence yet; opaque specialization must retain the general
+kernel for any scene with alpha-tested instances. This comparison can separate a useful
+scene specialization from gains attributable to stage decomposition.
+
 ## Work storage layout
 
 Group 1 binding 0 contains the original image prefix (three float4 per pixel), then
