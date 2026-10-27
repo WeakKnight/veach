@@ -1009,6 +1009,47 @@ mask 5, and adaptive tail threshold 4096. This brings spatial regression coverag
 all three screenshots were inspected. The library build passes; the wavefront chunk is
 452.70 kB (74.50 kB gzip), about 0.30 kB gzip above the preceding build.
 
+The seven-round, 64-sample follow-up `spatial-queues-scheduled-v2` rotates/reverses variant
+order and retains 64 warmup frames per block. All 210 paired HDR comparisons are exact,
+the sweep verifier passes, and all five program-256/inherited screenshots were inspected.
+Median spans:
+
+| Wavefront variant | classroom | breakfast-room | bmw-m6 | glass-of-water | veach-mis |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Unsorted, inherited | 12.277 | 9.580 | 8.318 | 7.849 | 4.536 |
+| Unsorted, physical | 12.331 | 9.785 | 8.394 | 7.951 | 4.550 |
+| Material-256, inherited | 11.340 | 10.172 | 8.837 | 7.551 | 4.609 |
+| Material-256, physical | 11.610 | 9.729 | 8.589 | 7.521 | 4.669 |
+| Program-256, inherited | 11.340 | 9.869 | 8.591 | 7.472 | 4.680 |
+| Program-256, physical | 11.451 | 9.299 | 8.466 | 7.530 | 4.691 |
+
+Breakfast's program-256/physical gain survives each paired round (1.10..3.00% against
+unsorted, 2.93% comparing overall medians). This is specific to scheduled eight-layer
+materials, not a reason to enable physical queues globally. All 245 measured blocks have
+telemetry observations: sampled SM clocks are 2745/2760 MHz, memory 10501 MHz, temperature
+47..55 C. BMW megakernel still varies 6.437..8.251 ms, so those reference ratios remain
+unstable. The telemetry monitor exited normally after the run.
+
+## Experimental SVM operand loading
+
+`--operand-mode 0|1|2|3` selects the material operand policy in benchmark, correctness and
+smoke scripts. Mode 0 keeps eager loads, mode 1 avoids private-stack reads for constants or
+missing operands, mode 2 avoids generic operand preloads for Output, and mode 3 combines them.
+`--operand-sweep` compares all modes in both integrators in one paired run, rotating/reversing
+block order and warming each variant for 64 frames. It cannot combine with another sweep.
+Each block verifies actual pipeline constants and records its selected mode. Capacity-zero
+modules are shared, omit ID 2, and were byte-identical in the isolated compiler probe.
+The full reference in correctness retains original bytecode, 16 slots, all opcodes and mode 0;
+candidates use scheduled bytecode, automatic capacity, scene opcode masks and the selected
+operand mode. Shader regeneration, 192 unit tests and typecheck pass. Mode 3 passes the full
+46-case GPU suite with exact HDR/AOVs and verified bound constants. The final generated
+capacity-zero SHA256 values also match the preceding commit, beyond the isolated probe.
+The library build passes (wavefront 487.25 kB, 75.74 kB gzip; shared chunk 1,464.90 kB,
+434.82 kB gzip). Wavefront/adaptive mode-3 smoke passes helmet HDR, alpha and transmission;
+all three screenshots were inspected. Performance measurements follow.
+
+## Work storage layout
+
 Group 1 binding 0 contains the original image prefix (three float4 per pixel), then
 three float4 headers, 21 float4 field arrays at the current tile capacity, then three
 packed uint index queues (main A, main B, shadow). Header words 0/1/2 store A/shadow/B counts.

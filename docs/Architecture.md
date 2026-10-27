@@ -14,6 +14,9 @@ An experimental scene-derived opcode mask can specialize the material interprete
 two pipeline constants. Pipeline caches include the mask as well as stack capacity;
 the zero-stack module omits these constants. The scene mask includes all three programs,
 unused materials and fallback materials, and requires no GPU buffer or binding changes.
+An experimental operand-loading mode (pipeline constant ID 2) also participates in material
+pipeline cache keys. Modes 1/2/3 guard constant stack reads, skip Output preloads, or combine
+both; mode 0 remains the default. Constant-only capacity-zero modules omit this override.
 Wavefront compaction optionally uses the adapter's `subgroups` feature, with a separately
 compiled workgroup-scan fallback. Both paths keep the same eight-storage-buffer layouts.
 

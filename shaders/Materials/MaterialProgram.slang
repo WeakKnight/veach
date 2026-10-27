@@ -20,6 +20,9 @@ static const uint MATERIAL_STACK_SIZE = VEACH_MATERIAL_STACK_SIZE;
 // surface/opacity/emission programs and match MaterialProgramFeatures.ts.
 [[vk::constant_id(0)]] const uint gMaterialOpcodesLow = 0xffffffffu;
 [[vk::constant_id(1)]] const uint gMaterialOpcodesHigh = 0xffffffffu;
+// Experimental operand loading: bit 1 guards private stack reads; bit 2 skips
+// generic a/b/c loads for Output. Zero retains the original eager load policy.
+[[vk::constant_id(2)]] const uint gMaterialOperandMode = 0u;
 #define MATERIAL_OPCODE_ENABLED(op) (((((op) < 32u) ? gMaterialOpcodesLow : gMaterialOpcodesHigh) >> ((op) & 31u)) & 1u)
 static const uint MATERIAL_MAX_INSTRUCTIONS = 1024u; // a malformed program must not hang the device
 
@@ -229,13 +232,24 @@ bool4 LanesBelow(uint size)
 #define MATERIAL_SLOT(o) stack[o & (MATERIAL_STACK_SIZE - 1u)]
 #endif
 
+#if VEACH_MATERIAL_STACK_SIZE == 0
+#define MATERIAL_READ(o, value) value = MaterialOperand(o, float4(0.0), header.constantBase)
+#else
+#define MATERIAL_READ(o, value) \
+	{ \
+		float4 slot = float4(0.0); \
+		if ((gMaterialOperandMode & 1u) == 0u || ((o) & OPERAND_CONSTANT) == 0u) slot = MATERIAL_SLOT(o); \
+		value = MaterialOperand(o, slot, header.constantBase); \
+	}
+#endif
+
 // Writes field `i` of the current Output instruction: `v` is its value.
 #define MATERIAL_OUTPUT(i, assignment) \
 	{ \
 		uint o = MaterialWord(operands + (i)); \
 		if (o != OPERAND_NONE) \
 		{ \
-			float4 v = MaterialOperand(o, MATERIAL_SLOT(o), header.constantBase); \
+			float4 v; MATERIAL_READ(o, v); \
 			assignment; \
 		} \
 	}
@@ -261,9 +275,13 @@ void RunMaterialProgram<let SURFACE : int>(MaterialHeader header, uint program, 
 			return;
 		}
 #if VEACH_MATERIAL_STACK_SIZE > 0
-		float4 a = MaterialOperand(ins.y, stack[ins.y & (MATERIAL_STACK_SIZE - 1u)], header.constantBase);
-		float4 b = MaterialOperand(ins.z, stack[ins.z & (MATERIAL_STACK_SIZE - 1u)], header.constantBase);
-		float4 c = MaterialOperand(ins.w, stack[ins.w & (MATERIAL_STACK_SIZE - 1u)], header.constantBase);
+		float4 a = float4(0.0), b = float4(0.0), c = float4(0.0);
+		if ((gMaterialOperandMode & 2u) == 0u || op != OP_OUTPUT)
+		{
+			MATERIAL_READ(ins.y, a);
+			MATERIAL_READ(ins.z, b);
+			MATERIAL_READ(ins.w, c);
+		}
 #endif
 		uint operands = pc * 4u + 1u;
 		pc += op == OP_OUTPUT ? (OUTPUT_INSTRUCTION_WORDS >> (2u * min(imm, 9u))) & 3u : op == OP_COMBINE ? 1u + imm / 4u : 1u;
@@ -296,7 +314,7 @@ void RunMaterialProgram<let SURFACE : int>(MaterialHeader header, uint program, 
 			if (imm > 3u)
 			{
 				uint o = MaterialWord(operands + 3u);
-				r.w = MaterialOperand(o, stack[o & (MATERIAL_STACK_SIZE - 1u)], header.constantBase).x;
+				float4 v; MATERIAL_READ(o, v); r.w = v.x;
 			}
 			break;
 		case OP_DOT: if (MATERIAL_OPCODE_ENABLED(OP_DOT) == 0u) break;

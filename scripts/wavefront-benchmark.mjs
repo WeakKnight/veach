@@ -47,14 +47,18 @@ const config = {
 	spatialSweep: args.includes('--spatial-sweep'),
 	shadowMode: option('shadow', 'serial'),
 	shadowSweep: args.includes('--shadow-sweep'),
+	operandMode: Number(option('operand-mode', 0)),
+	operandSweep: args.includes('--operand-sweep'),
 	opcodeMode: option('opcodes', 'full'),
 	opcodeSweep: args.includes('--opcode-sweep'),
 	materialLayers: Number(option('material-layers', 0)),
 	materialMixed: args.includes('--material-mixed'),
 	materialSchedule: option('material-schedule', 'original'),
 	scheduleSweep: args.includes('--schedule-sweep'),
-	variantWarmup: Number(option('variant-warmup', args.includes('--material-sweep') || args.includes('--opcode-sweep') || args.includes('--schedule-sweep') || args.includes('--spatial-sweep') ? 64 : 8)),
+	variantWarmup: Number(option('variant-warmup', args.includes('--material-sweep') || args.includes('--opcode-sweep') || args.includes('--schedule-sweep') || args.includes('--spatial-sweep') || args.includes('--operand-sweep') ? 64 : 8)),
 };
+if (![0, 1, 2, 3].includes(config.operandMode)) throw new Error('Invalid operand mode');
+if (config.operandSweep && (!config.paired || config.operandMode !== 0 || config.tailSweep || config.packetSweep || config.materialSweep || config.sortSweep || config.shadowSweep || config.opcodeSweep || config.scheduleSweep || config.spatialSweep || config.dispatchSweep || config.compactionSweep)) throw new Error('--operand-sweep requires a paired mode-zero base without other sweeps');
 if ((config.spatialQueues || config.spatialSweep) && (config.compaction !== 'adaptive' || config.directStages === 7 || config.compactionSweep || config.dispatchSweep)) throw new Error('Spatial queues require fixed adaptive compaction');
 if (config.spatialSweep && (!config.paired || config.spatialQueues || config.sort !== 'none' || (config.directStages & 2) !== 0 || config.tailSweep || config.packetSweep || config.materialSweep || config.sortSweep || config.shadowSweep || config.opcodeSweep || config.scheduleSweep)) throw new Error('--spatial-sweep requires a paired unsorted base without other sweeps');
 if (!['original', 'optimized'].includes(config.materialSchedule)) throw new Error('Invalid material scheduling');
@@ -134,6 +138,10 @@ if (config.scheduleSweep) {
 	for (const mode of ['megakernel', 'wavefront'])
 		config.variants.push({ name: `${mode}-scheduled`, mode, materialSchedule: 'optimized', tailStart: config.tailStart, tailThreshold: config.tailThreshold });
 }
+if (config.operandSweep) {
+	for (const operandMode of [1, 2, 3]) for (const mode of ['megakernel', 'wavefront'])
+		config.variants.push({ name: `${mode}-operands-${operandMode}`, mode, operandMode, tailStart: config.tailStart, tailThreshold: config.tailThreshold });
+}
 for (const variant of config.variants) {
 	variant.mode ??= 'wavefront';
 	variant.materialStack ??= config.materialStack;
@@ -145,6 +153,7 @@ for (const variant of config.variants) {
 	variant.spatialQueues ??= config.spatialQueues;
 	variant.shadowMode ??= config.shadowMode;
 	variant.opcodeMode ??= config.opcodeMode;
+	variant.operandMode ??= config.operandMode;
 	variant.materialSchedule ??= config.materialSchedule;
 }
 for (const key of ['width', 'height', 'warmup', 'variantWarmup', 'samples', 'repeats', 'bounces']) {
@@ -208,7 +217,7 @@ const assertUnchangedSources = () => {
 const referenceReport = { ...report, config: { ...config, mode: 'megakernel' }, results: [] };
 const variantReports = Object.fromEntries(config.variants.slice(1).map(variant => {
 	mkdirSync(join(output, variant.name), { recursive: true });
-	return [variant.name, { ...report, config: { ...config, mode: variant.mode, materialStack: variant.materialStack, tailStart: variant.tailStart, tailThreshold: variant.tailThreshold, compaction: variant.compaction, directStages: variant.directStages, packetStages: variant.packetStages, sort: variant.sort, sortSize: variant.sortSize, spatialQueues: variant.spatialQueues, shadowMode: variant.shadowMode, opcodeMode: variant.opcodeMode, materialSchedule: variant.materialSchedule }, results: [] }];
+	return [variant.name, { ...report, config: { ...config, mode: variant.mode, materialStack: variant.materialStack, tailStart: variant.tailStart, tailThreshold: variant.tailThreshold, compaction: variant.compaction, directStages: variant.directStages, packetStages: variant.packetStages, sort: variant.sort, sortSize: variant.sortSize, spatialQueues: variant.spatialQueues, shadowMode: variant.shadowMode, operandMode: variant.operandMode, opcodeMode: variant.opcodeMode, materialSchedule: variant.materialSchedule }, results: [] }];
 }));
 writeFileSync(join(candidateOutput, 'report.json'), JSON.stringify(report, null, 2));
 try {
@@ -279,6 +288,7 @@ try {
 			// original stack may exceed a forced capacity valid only for the scheduled DAG.
 			renderer.tracer.materialStackOverride = config.materialSchedule === 'optimized' ? null : config.materialStack;
 			renderer.tracer.materialOpcodeSpecialization = config.opcodeMode === 'scene';
+			renderer.tracer.materialOperandMode = config.operandMode;
 			Object.assign(renderer.settings, { maxSamples: 0, samplesPerFrame: 1, maxBounces: config.bounces,
 				autoExposureMethod: AutoExposureMethod.Manual, autoExposureBias: 0, localExposureMethod: LocalExposureMethod.None,
 				environmentIntensity: c.environment, fireflyClamp: config.clamp });
@@ -369,6 +379,8 @@ try {
 					if (!pipeline.label.endsWith(`.stack${renderer.tracer.materialCapacity}`)) throw new Error(`Wrong tracing pipeline: ${pipeline.label}`);
 					const constants = pipelineConstants.get(pipeline) ?? {};
 					if ('0' in constants && (constants['0'] !== renderer.tracer.materialOpcodes[0] || constants['1'] !== renderer.tracer.materialOpcodes[1])) throw new Error('Wrong bound opcode specialization');
+					const usesMaterial = pipeline.label.startsWith('pathTracing.') || /^wavefront\.(Shade|ShadeDirect|Tail|TailOpaque|Intersect|IntersectDirect|Shadow|ShadowDirect)\./.test(pipeline.label);
+					if (usesMaterial && renderer.tracer.materialCapacity > 0 && constants['2'] !== renderer.tracer.boundMaterialOperandMode) throw new Error('Wrong bound operand mode');
 					observedConstants.set(pipeline.label, constants);
 					observedPipelines.add(pipeline.label);
 				}
@@ -409,7 +421,7 @@ try {
 				const schedule = config.paired ? [{ name: 'megakernel' }, ...config.variants] : [{ name: config.mode, tailStart: config.tailStart, tailThreshold: config.tailThreshold, compaction: config.compaction, directStages: config.directStages, packetStages: config.packetStages, sort: config.sort, sortSize: config.sortSize, spatialQueues: config.spatialQueues, shadowMode: config.shadowMode, opcodeMode: config.opcodeMode }];
 				// Rotate the sweep and reverse alternating rounds to avoid always measuring a
 				// configuration at the same position relative to GPU warmup and clock changes.
-				if (config.tailSweep || config.compactionSweep || config.dispatchSweep || config.packetSweep || config.materialSweep || config.sortSweep || config.shadowSweep || config.opcodeSweep || config.scheduleSweep || config.spatialSweep) schedule.push(...schedule.splice(0, repeat % schedule.length));
+				if (config.tailSweep || config.compactionSweep || config.dispatchSweep || config.packetSweep || config.materialSweep || config.sortSweep || config.shadowSweep || config.opcodeSweep || config.scheduleSweep || config.spatialSweep || config.operandSweep) schedule.push(...schedule.splice(0, repeat % schedule.length));
 				if (config.paired && repeat % 2 !== 0) schedule.reverse();
 				for (const variant of schedule) {
 					const mode = variant.mode ?? (variant.name === 'megakernel' ? 'megakernel' : 'wavefront');
@@ -421,15 +433,18 @@ try {
 						const requestedStack = variant.materialStack ?? config.materialStack;
 						if (requestedStack !== null && requestedStack < requiredStack) throw new Error(`Material sweep needs at least ${requiredStack} stack slots`);
 						const requestedOpcodes = (variant.opcodeMode ?? config.opcodeMode) === 'scene';
-						if (renderer.tracer.materialStackOverride !== requestedStack || renderer.tracer.materialOpcodeSpecialization !== requestedOpcodes || currentMaterialSchedule !== requestedSchedule) {
+						const requestedOperands = variant.operandMode ?? config.operandMode;
+						if (renderer.tracer.materialStackOverride !== requestedStack || renderer.tracer.materialOpcodeSpecialization !== requestedOpcodes || currentMaterialSchedule !== requestedSchedule || renderer.tracer.materialOperandMode !== requestedOperands) {
 							if (material) Object.assign(renderer.scene, { materials: material.buffer, materialStackSize: material.stack, materialOpcodes: material.opcodes });
 							currentMaterialSchedule = requestedSchedule;
 							renderer.tracer.materialStackOverride = requestedStack;
 							renderer.tracer.materialOpcodeSpecialization = requestedOpcodes;
+							renderer.tracer.materialOperandMode = requestedOperands;
 							await renderer.tracer.prepareScene(renderer.scene);
 							renderer.bindScene();
 						}
 						const expectedStack = requestedStack ?? [0, 1, 2, 4, 8, 16].find(n => n >= requiredStack);
+						if (renderer.tracer.boundMaterialOperandMode !== requestedOperands) throw new Error('Operand sweep selected the wrong mode');
 						if (renderer.tracer.materialCapacity !== expectedStack) throw new Error('Material sweep selected the wrong capacity');
 						await renderer.setIntegrator(mode);
 						if (mode === 'wavefront') Object.assign(renderer.tracer.wavefront, { tailStart: variant.tailStart, tailThreshold: variant.tailThreshold, compaction: variant.compaction, directStages: variant.directStages, packetStages: variant.packetStages, sort: variant.sort, sortSize: variant.sortSize, spatialQueues: variant.spatialQueues, shadowMode: variant.shadowMode });
@@ -478,7 +493,7 @@ try {
 						const spatial = [...observedPipelines].some(label => label.includes('.CompactShadeSpatial.'));
 						if (spatial !== variant.spatialQueues) throw new Error('Wrong spatial queue pipeline');
 					}
-					repeats.push({ measurementStartedAt, measurementFinishedAt, mode, materialSchedule: currentMaterialSchedule, boundMaterialSchedules: [...observedMaterialSchedules], materialStackRequired: renderer.scene.materialStackSize, materialCapacity: renderer.tracer.materialCapacity, pipelineLabels: [...observedPipelines], opcodeConstants: Object.fromEntries(observedConstants), materialOpcodes: renderer.tracer.materialOpcodes, variant: variant.name, repeat, medianMs, medianSpanMs, meanMs: timings.reduce((a, b) => a + b) / timings.length, wallMs, timings, spanTimings, stages });
+					repeats.push({ measurementStartedAt, measurementFinishedAt, mode, operandMode: renderer.tracer.boundMaterialOperandMode, materialSchedule: currentMaterialSchedule, boundMaterialSchedules: [...observedMaterialSchedules], materialStackRequired: renderer.scene.materialStackSize, materialCapacity: renderer.tracer.materialCapacity, pipelineLabels: [...observedPipelines], opcodeConstants: Object.fromEntries(observedConstants), materialOpcodes: renderer.tracer.materialOpcodes, variant: variant.name, repeat, medianMs, medianSpanMs, meanMs: timings.reduce((a, b) => a + b) / timings.length, wallMs, timings, spanTimings, stages });
 					console.log(`[benchmark] ${c.name}: ${variant.name} repeat ${repeat + 1}, GPU passes ${medianMs.toFixed(3)}, span ${medianSpanMs.toFixed(3)} ms/sample`);
 					if (config.paired) {
 						const hdr = await renderer.readRadiance();

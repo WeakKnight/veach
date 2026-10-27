@@ -28,7 +28,7 @@ selection (same expectation, visible only at 1 spp), and `clearcoatNormalTexture
   edits against the common WGSL in `MaterialStackVariants.ts`. Runtime reconstruction checks
   the base fingerprint; tests verify reconstructed output against each compiler output's SHA256.
   Function-local WGSL array sizes cannot be pipeline overrides. Pipelines are compiled lazily,
-  cached by capacity and opcode mask per renderer, and prepared before replacing the active scene.
+  cached by capacity, opcode mask and operand mode per renderer, and prepared before replacing the active scene.
   The generated edit format uses JavaScript string positions, removal lengths and replacement text;
   runtime validates the base fingerprint and edit bounds. The build uses unchanged-line
   anchors when functions are removed, checks exact reconstruction, and records SHA256.
@@ -43,6 +43,16 @@ selection (same expectation, visible only at 1 spp), and `clearcoatNormalTexture
   remains the default pending measurements. Capacity zero has no override declarations and
   shares one pipeline irrespective of opcode mask. Both integrators prepare and cache the
   requested mask before binding the scene; shader-free wavefront stages need no constants.
+- Experimental operand loading uses pipeline constant ID 2, with `materialOperandMode = 0`
+  retaining eager stack reads. Bit 1 guards stack reads for constant/absent operands;
+  bit 2 skips generic a/b/c loads for Output instructions, which decode their own operands.
+  Mode 3 combines both. The stack remains function-local; no bytecode, arithmetic, CPU
+  interpreter or storage binding changes are involved. Pipeline caches include the mode,
+  and the bound mode remains separate from the requested mode during asynchronous preparation.
+  Capacity-zero modules omit the override and share their existing constant-only pipeline.
+  This remains opt-in pending performance measurements. Mode 3 passes all 46 GPU regression
+  comparisons against the original interpreter, including HDR/AOVs, alpha, procedural
+  materials, partial workgroups and multiple tiles; actual pipeline constants are verified.
 - Three programs per material: surface (every input but opacity, run by `EvalMaterial`), opacity
   (alpha tests) and emission (NEE). The last two are restricted to texture coordinates, textures
   and math, so traversal and light sampling get the reduced interpreter (`RunMaterialProgram<0>`).

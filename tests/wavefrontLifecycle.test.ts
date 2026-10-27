@@ -24,6 +24,7 @@ function tracer(): PathTracer {
 	return Object.assign(Object.create(PathTracer.prototype), {
 		integrator: 'megakernel' as const, width: 8, height: 8, hasGeometry: true,
 		materialPipelines: new Map(), materialPipelineLoading: new Map(), materialCapacity: 16,
+		materialOperandMode: 0, boundMaterialOperandMode: 0,
 		resize: vi.fn(),
 		uniformBuffer: { destroy: vi.fn() }, toneLUT: { destroy: vi.fn() },
 		displayTransform: { destroy: vi.fn() }, bsdfTables: { destroy: vi.fn() },
@@ -119,8 +120,20 @@ describe('material pipeline preparation', () => {
 		await pathTracer.prepareScene(a);
 		expect(device.createComputePipelineAsync).toHaveBeenCalledTimes(2);
 		expect(device.createComputePipelineAsync.mock.calls.map(([d]) => d.compute.constants)).toEqual([
-			{ '0': 0xa00001, '1': 0 }, { '0': 0xa00009, '1': 7 },
+			{ '0': 0xa00001, '1': 0, '2': 0 }, { '0': 0xa00009, '1': 7, '2': 0 },
 		]);
+	});
+
+	it('compiles each operand mode independently and reuses a previous mode', async () => {
+		const device = { createShaderModule: vi.fn(() => ({})), createComputePipelineAsync: vi.fn().mockResolvedValue({}) };
+		const pathTracer = tracer();
+		Object.assign(pathTracer, { device });
+		for (const mode of [0, 1, 2, 3, 1, 0]) {
+			pathTracer.materialOperandMode = mode;
+			await pathTracer.prepareScene(scene);
+		}
+		expect(device.createComputePipelineAsync.mock.calls.map(([d]) => d.compute.constants['2'])).toEqual([0, 1, 2, 3]);
+		expect(pathTracer.boundMaterialOperandMode).toBe(0);
 	});
 
 	it('shares concurrent compilation, caches success, and leaves the active pipeline alone', async () => {

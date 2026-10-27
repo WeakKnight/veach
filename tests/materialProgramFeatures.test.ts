@@ -24,7 +24,21 @@ describe('scene material opcode bounds', () => {
 	it('separates instruction sets in caches and omits absent overrides', () => {
 		expect(materialPipelineKey(4, [1, 0])).not.toBe(materialPipelineKey(4, ALL_MATERIAL_OPCODES));
 		expect(materialPipelineKey(0, [1, 0])).toBe(materialPipelineKey(0, ALL_MATERIAL_OPCODES));
-		expect(materialPipelineConstants(4, [0x80000001, 7])).toEqual({ '0': 0x80000001, '1': 7 });
+		expect(materialPipelineConstants(4, [0x80000001, 7])).toEqual({ '0': 0x80000001, '1': 7, '2': 0 });
 		expect(materialPipelineConstants(0, ALL_MATERIAL_OPCODES)).toEqual({});
+	});
+
+	it('separates operand modes while sharing constant-only modules', () => {
+		const keys = [0, 1, 2, 3].map(mode => materialPipelineKey(4, ALL_MATERIAL_OPCODES, mode));
+		expect(new Set(keys).size).toBe(4);
+		for (const mode of [0, 1, 2, 3]) {
+			expect(materialPipelineConstants(4, ALL_MATERIAL_OPCODES, mode)['2']).toBe(mode);
+			expect(materialPipelineConstants(0, ALL_MATERIAL_OPCODES, mode)).toEqual({});
+			expect(materialPipelineKey(0, ALL_MATERIAL_OPCODES, mode)).toBe('0');
+		}
+		for (const mode of [-1, 4, 0.5, Number.NaN]) {
+			expect(() => materialPipelineKey(4, ALL_MATERIAL_OPCODES, mode)).toThrow('operand');
+			expect(() => materialPipelineConstants(0, ALL_MATERIAL_OPCODES, mode)).toThrow('operand');
+		}
 	});
 });

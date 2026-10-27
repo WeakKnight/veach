@@ -21,12 +21,18 @@ export function materialOpcodeMask(materials: readonly CompiledMaterial[]): Mate
 	return mask;
 }
 
-export function materialPipelineKey(capacity: MaterialStackCapacity, mask: MaterialOpcodeMask): string {
-	return capacity === 0 ? '0' : `${capacity}/${mask[0]}/${mask[1]}`;
+function validateOperandMode(mode: number): void {
+	if (!Number.isInteger(mode) || mode < 0 || mode > 3) throw new Error('Invalid material operand mode');
+}
+
+export function materialPipelineKey(capacity: MaterialStackCapacity, mask: MaterialOpcodeMask, operandMode = 0): string {
+	validateOperandMode(operandMode);
+	return capacity === 0 ? '0' : `${capacity}/${mask[0]}/${mask[1]}/${operandMode}`;
 }
 
 // IDs match MaterialProgram.slang. Capacity zero contains no guarded opcode cases,
 // so Slang removes these override declarations and they must not be supplied.
-export function materialPipelineConstants(capacity: MaterialStackCapacity, mask: MaterialOpcodeMask): Record<string, number> {
-	return capacity === 0 ? {} : { '0': mask[0], '1': mask[1] };
+export function materialPipelineConstants(capacity: MaterialStackCapacity, mask: MaterialOpcodeMask, operandMode = 0): Record<string, number> {
+	validateOperandMode(operandMode);
+	return capacity === 0 ? {} : { '0': mask[0], '1': mask[1], '2': operandMode };
 }

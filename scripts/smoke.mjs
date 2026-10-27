@@ -54,6 +54,13 @@ if (integratorFlag >= 0) {
 	only.splice(integratorFlag, 2);
 }
 const wavefrontTuning = {};
+const operandFlag = only.indexOf('--operand-mode');
+let operandMode = null;
+if (operandFlag >= 0) {
+	operandMode = Number(only[operandFlag + 1]);
+	if (![0, 1, 2, 3].includes(operandMode)) throw new Error('Invalid --operand-mode');
+	only.splice(operandFlag, 2);
+}
 const opcodeFlag = only.indexOf('--opcodes');
 let opcodeMode = null;
 if (opcodeFlag >= 0) {
@@ -169,15 +176,16 @@ try {
 		const start = Date.now();
 		await page.goto(`${base}?${c.query}&integrator=${integrator}`, { waitUntil: 'load' });
 		try {
-			if (opcodeMode !== null) {
+			if (opcodeMode !== null || operandMode !== null) {
 				await page.waitForFunction(() => globalThis.veach?.samples > 0, { timeout: 120000 });
-				await page.evaluate(async mode => {
+				await page.evaluate(async ({ mode, operands }) => {
 					const renderer = globalThis.veach;
-					renderer.tracer.materialOpcodeSpecialization = mode === 'scene';
+					if (mode !== null) renderer.tracer.materialOpcodeSpecialization = mode === 'scene';
+					if (operands !== null) renderer.tracer.materialOperandMode = operands;
 					await renderer.tracer.prepareScene(renderer.scene);
 					renderer.bindScene();
 					renderer.resetAccumulation();
-				}, opcodeMode);
+				}, { mode: opcodeMode, operands: operandMode });
 			}
 			if (Object.keys(wavefrontTuning).length) {
 				// The first frame proves initial scene loading is complete. Empty scenes need

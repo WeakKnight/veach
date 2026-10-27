@@ -62,7 +62,7 @@ export class Wavefront {
 	private readonly alignment: number;
 	private readonly indirect: GPUBuffer;
 
-	constructor(private readonly device: GPUDevice, sceneLayout: GPUBindGroupLayout, capacity: MaterialStackCapacity = 16, opcodes: MaterialOpcodeMask = ALL_MATERIAL_OPCODES) {
+	constructor(private readonly device: GPUDevice, sceneLayout: GPUBindGroupLayout, capacity: MaterialStackCapacity = 16, opcodes: MaterialOpcodeMask = ALL_MATERIAL_OPCODES, operandMode = 0) {
 		this.alignment = device.limits.minUniformBufferOffsetAlignment;
 		this.indirect = device.createBuffer({ label: 'wavefrontDispatch', size: 32, usage: GPUBufferUsage.INDIRECT | GPUBufferUsage.COPY_DST });
 		this.layout = device.createBindGroupLayout({ label: 'wavefront', entries: [
@@ -81,12 +81,12 @@ export class Wavefront {
 		this.compactSubgroupModule = device.features.has('subgroups')
 			? device.createShaderModule({ label: 'WavefrontCompactSubgroup', code: compactSubgroupWgsl }) : null;
 		this.pipelineLayout = device.createPipelineLayout({ bindGroupLayouts: [sceneLayout, this.layout] });
-		this.compiled = this.prepareStack(capacity, opcodes);
+		this.compiled = this.prepareStack(capacity, opcodes, operandMode);
 	}
 
-	async prepareStack(capacity: MaterialStackCapacity, opcodes: MaterialOpcodeMask = ALL_MATERIAL_OPCODES): Promise<void> {
+	async prepareStack(capacity: MaterialStackCapacity, opcodes: MaterialOpcodeMask = ALL_MATERIAL_OPCODES, operandMode = 0): Promise<void> {
 		if (this.destroyed) throw new Error('Wavefront has been destroyed');
-		const key = materialPipelineKey(capacity, opcodes);
+		const key = materialPipelineKey(capacity, opcodes, operandMode);
 		if (this.pipelines.has(key)) return;
 		let pending = this.compiling.get(key);
 		if (!pending) {
@@ -104,7 +104,7 @@ export class Wavefront {
 				const usesMaterial = ['Shade', 'ShadeDirect', 'Tail', 'TailOpaque', 'Intersect', 'IntersectDirect', 'Shadow', 'ShadowDirect'].includes(entryPoint);
 				const pipeline = await this.device.createComputePipelineAsync({ label: `wavefront.${entryPoint}.stack${capacity}`, layout: this.pipelineLayout,
 					compute: { module: shader, entryPoint: sort ? entryPoint.replace(/64|256/g, '') : compact ? entryPoint.replace(/Dense|Subgroup|Adaptive|Packet|Spatial/g, '') : entryPoint,
-						constants: usesMaterial ? materialPipelineConstants(capacity, opcodes) : undefined } });
+						constants: usesMaterial ? materialPipelineConstants(capacity, opcodes, operandMode) : undefined } });
 				return [entryPoint, pipeline] as const;
 			})).then(entries => {
 				if (this.destroyed) throw new Error('Wavefront has been destroyed');
@@ -137,7 +137,7 @@ export class Wavefront {
 		this.group = null;
 	}
 
-	encode(encoder: GPUCommandEncoder, scene: GPUBindGroup, width: number, height: number, maxBounces: number, hasAlphaTested: boolean, materialCapacity: MaterialStackCapacity, lightCount: number, opcodes: MaterialOpcodeMask): void {
+	encode(encoder: GPUCommandEncoder, scene: GPUBindGroup, width: number, height: number, maxBounces: number, hasAlphaTested: boolean, materialCapacity: MaterialStackCapacity, lightCount: number, opcodes: MaterialOpcodeMask, operandMode = 0): void {
 		if (!this.accumulation || !this.feedback) return;
 		const directStages = this.compaction === 'none' ? 7 : this.directStages;
 		if (!Number.isInteger(directStages) || directStages < 0 || directStages > 7) throw new Error('Invalid direct stage mask');
@@ -150,7 +150,7 @@ export class Wavefront {
 		if (this.compaction === 'packet' && this.tailThreshold !== 0) throw new Error('Packet counts include inactive slots; use fixed tails');
 		if (direct && this.tailThreshold !== 0) throw new Error('Direct dispatch supports fixed tails only; adaptive tails require queue counts');
 		if (this.compaction === 'subgroup' && !this.compactSubgroupModule) throw new Error('Subgroup compaction requires the subgroups device feature');
-		const pipelines = this.pipelines.get(materialPipelineKey(materialCapacity, opcodes));
+		const pipelines = this.pipelines.get(materialPipelineKey(materialCapacity, opcodes, operandMode));
 		if (!pipelines) throw new Error('Wavefront material pipelines have not been prepared');
 		const compactSuffix = { dense: 'Dense', queued: '', subgroup: 'Subgroup', adaptive: 'Adaptive', packet: 'Packet', none: '' }[this.compaction];
 		const pixels = width * height, capacity = this.capacity(pixels);
