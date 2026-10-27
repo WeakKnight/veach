@@ -20,6 +20,8 @@ const directOption = process.argv.indexOf('--direct-stages');
 const directStages = directOption < 0 ? 0 : Number(process.argv[directOption + 1]);
 const packetOption = process.argv.indexOf('--packet-stages');
 const packetStages = packetOption < 0 ? 7 : Number(process.argv[packetOption + 1]);
+const spatialQueues = process.argv.includes('--spatial-queues');
+if (spatialQueues && (compaction !== 'adaptive' || directStages === 7)) throw new Error('Spatial queues require adaptive compaction');
 const packetSweep = process.argv.includes('--packet-sweep');
 const shadowOption = process.argv.indexOf('--shadow');
 const shadowMode = shadowOption < 0 ? 'serial' : process.argv[shadowOption + 1];
@@ -32,13 +34,14 @@ if (!['none', 'material', 'program'].includes(sort) || ![64, 256].includes(sortS
 if (sort !== 'none' && (compaction === 'none' || (directStages & 2) !== 0 || process.argv.includes('--dispatch-sweep'))) throw new Error('Sorting requires queued shading');
 if (!Number.isInteger(packetStages) || packetStages < 0 || packetStages > 7) throw new Error('Invalid packet stage mask');
 const dispatchSweep = process.argv.includes('--dispatch-sweep');
+if (spatialQueues && dispatchSweep) throw new Error('Spatial queues require a fixed direct-stage choice');
 if (!Number.isInteger(directStages) || directStages < 0 || directStages > 7) throw new Error('Invalid direct stage mask');
 if (packetSweep && (compaction !== 'packet' || dispatchSweep)) throw new Error('Packet sweep requires packet compaction and cannot combine with dispatch sweep');
 if (dispatchSweep && compaction === 'none') throw new Error('Dispatch sweep requires a compaction mode');
 if (!['dense', 'queued', 'subgroup', 'adaptive', 'packet', 'none'].includes(compaction)) throw new Error('Invalid compaction mode');
 if ((compaction === 'none' || compaction === 'packet' || directStages === 7) && tailThreshold !== 0) throw new Error('Direct/packet dispatch supports fixed tails only');
 if (!Number.isInteger(tailStart) || tailStart < 0) throw new Error('Invalid tail start');
-const output = join(root, `.tools/wavefront/correctness-tail-${tailStart}-${tailThreshold}${only.length ? '-selected' : ''}${disableSubgroups ? '-no-subgroups' : ''}-${compaction}${packetSweep ? '-packet-sweep' : packetStages !== 7 ? `-packet-${packetStages}` : ''}${dispatchSweep ? '-dispatch-sweep' : directStages ? `-direct-${directStages}` : ''}${sort !== 'none' ? `-sort-${sort}-${sortSize}` : ''}${shadowMode !== 'serial' ? `-shadow-${shadowMode}` : ''}`);
+const output = join(root, `.tools/wavefront/correctness-tail-${tailStart}-${tailThreshold}${only.length ? '-selected' : ''}${disableSubgroups ? '-no-subgroups' : ''}-${compaction}${packetSweep ? '-packet-sweep' : packetStages !== 7 ? `-packet-${packetStages}` : ''}${dispatchSweep ? '-dispatch-sweep' : directStages ? `-direct-${directStages}` : ''}${sort !== 'none' ? `-sort-${sort}-${sortSize}` : ''}${spatialQueues ? '-spatial' : ''}${shadowMode !== 'serial' ? `-shadow-${shadowMode}` : ''}`);
 mkdirSync(output, { recursive: true });
 const chrome = [process.env.CHROME_PATH, 'C:/Program Files/Google/Chrome/Application/chrome.exe',
 	'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe', '/usr/bin/google-chrome', '/usr/bin/chromium'].find(p => p && existsSync(p));
@@ -48,7 +51,7 @@ await server.listen();
 const browser = await puppeteer.launch({ executablePath: chrome, headless: true, protocolTimeout: 1800000,
 	args: ['--enable-unsafe-webgpu', '--ignore-gpu-blocklist', '--no-sandbox'] });
 const errors = [];
-const report = { started: new Date().toISOString(), completed: false, browser: await browser.version(), tailStart, tailThreshold, only, directStages, dispatchSweep, packetStages, packetSweep, sort, sortSize, shadowMode, results: [], errors };
+const report = { started: new Date().toISOString(), completed: false, browser: await browser.version(), tailStart, tailThreshold, only, directStages, dispatchSweep, packetStages, packetSweep, sort, sortSize, spatialQueues, shadowMode, results: [], errors };
 writeFileSync(join(output, 'report.json'), JSON.stringify(report, null, 2));
 try {
 	const page = await browser.newPage();
@@ -56,7 +59,7 @@ try {
 	page.on('pageerror', e => errors.push(String(e)));
 	page.on('console', msg => { if (msg.type() === 'error') errors.push(msg.text()); if (msg.text().startsWith('[correctness]')) console.log(msg.text()); });
 	await page.goto(server.resolvedUrls.local[0] + 'scripts/benchmark.html');
-	const results = await page.evaluate(async ({ tailStart, tailThreshold, only, disableSubgroups, compaction, directStages, dispatchSweep, packetStages, packetSweep, sort, sortSize, shadowMode }) => {
+	const results = await page.evaluate(async ({ tailStart, tailThreshold, only, disableSubgroups, compaction, directStages, dispatchSweep, packetStages, packetSweep, sort, sortSize, spatialQueues, shadowMode }) => {
 		const api = await import('/src/index.ts');
 		const check = (value, message) => { if (!value) throw new Error(message); };
 		const pipelineOpcodes = new WeakMap(), createPipeline = GPUDevice.prototype.createComputePipelineAsync;
@@ -91,7 +94,7 @@ try {
 		const results = [];
 		let sortMaterialOf = [], sortPrograms = new Uint32Array();
 		let sortVerification = { passes: 0, entries: 0, reordered: 0 };
-		let shadowPipelines = [];
+		let shadowPipelines = [], compactPipelines = [];
 		let opcodeConstants = [];
 		let materialVariants = null;
 		const releaseUnusedMaterials = () => {
@@ -171,12 +174,13 @@ try {
 			const expectedCapacity = capacity ?? [0, 1, 2, 4, 8, 16].find(n => n >= r.scene.materialStackSize);
 			check(r.tracer.materialCapacity === expectedCapacity, 'Incorrect material capacity selection');
 			await r.setIntegrator(mode);
-			if (mode === 'wavefront' && r.tracer.wavefront) Object.assign(r.tracer.wavefront, { tailStart, tailThreshold, compaction, directStages: stageMask, packetStages: packetMask, sort, sortSize, shadowMode });
+			if (mode === 'wavefront' && r.tracer.wavefront) Object.assign(r.tracer.wavefront, { tailStart, tailThreshold, compaction, directStages: stageMask, packetStages: packetMask, sort, sortSize, spatialQueues, shadowMode });
 			Object.assign(r.settings, { maxBounces: config.bounces, fireflyClamp: config.clamp ?? 0, maxSamples: config.samples });
 			r.resetAccumulation();
 			sortVerification = { passes: 0, entries: 0, reordered: 0 };
-			const observedShadows = new Set(), observedOpcodes = new Set(), setPipeline = GPUComputePassEncoder.prototype.setPipeline;
+			const observedShadows = new Set(), observedCompaction = new Set(), observedOpcodes = new Set(), setPipeline = GPUComputePassEncoder.prototype.setPipeline;
 			GPUComputePassEncoder.prototype.setPipeline = function(pipeline) {
+				if (pipeline.label.startsWith('wavefront.CompactShade')) observedCompaction.add(pipeline.label);
 				if (pipeline.label.startsWith('wavefront.Shadow')) observedShadows.add(pipeline.label);
 				const constants = pipelineOpcodes.get(pipeline) ?? {};
 				if ('0' in constants) {
@@ -193,6 +197,9 @@ try {
 				}
 			} finally { GPUComputePassEncoder.prototype.setPipeline = setPipeline; }
 			shadowPipelines = [...observedShadows];
+			compactPipelines = [...observedCompaction];
+			if (mode === 'wavefront' && config.bounces > 0 && tailStart > 0 && r.scene.instanceCount > 0)
+				check(compactPipelines.some(label => label.includes('.CompactShadeSpatial.')) === spatialQueues, 'Wrong spatial queue pipeline');
 			opcodeConstants = [...observedOpcodes].map(value => JSON.parse(value));
 			if (r.scene.instanceCount > 0 && r.tracer.materialCapacity > 0) check(opcodeConstants.length === 1, 'SVM opcode constants were not exercised');
 			const expectedShadow = r.scene.hasAlphaTested ? 'Shadow' : shadowMode === 'serial' ? 'ShadowOpaque'
@@ -373,7 +380,7 @@ try {
 							maxError = Math.max(maxError, error); squared += error * error; refSquared += reference[i] * reference[i];
 						}
 						const relativeL2 = Math.sqrt(squared / Math.max(refSquared, 1e-30));
-						const result = { scene: scene.name, mode, compaction, directStages: stageMask, packetStages: packetMask, sort, sortSize, shadowMode, shadowPipelines, sortVerification, opcodeConstants, materialSchedules: { original: materialVariants.original.stack, optimized: materialVariants.optimized.stack }, subgroups: r.device.features.has('subgroups'), materialCapacity: r.tracer.materialCapacity, ...config, maxError, relativeL2 };
+						const result = { scene: scene.name, mode, compaction, directStages: stageMask, packetStages: packetMask, sort, sortSize, spatialQueues, shadowMode, shadowPipelines, compactPipelines, sortVerification, opcodeConstants, materialSchedules: { original: materialVariants.original.stack, optimized: materialVariants.optimized.stack }, subgroups: r.device.features.has('subgroups'), materialCapacity: r.tracer.materialCapacity, ...config, maxError, relativeL2 };
 						results.push(result);
 						console.log(`[correctness] ${JSON.stringify(result)}`);
 						check(maxError <= 1e-5, `${scene.name}: GPU integrators differ by ${maxError}`);
@@ -385,7 +392,7 @@ try {
 			}
 		} finally { releaseUnusedMaterials(); r.destroy(); GPUDevice.prototype.createComputePipelineAsync = createPipeline; GPUDevice.prototype.createBindGroup = createBindGroup; }
 		return results;
-	}, { tailStart, tailThreshold, only, disableSubgroups, compaction, directStages, dispatchSweep, packetStages, packetSweep, sort, sortSize, shadowMode });
+	}, { tailStart, tailThreshold, only, disableSubgroups, compaction, directStages, dispatchSweep, packetStages, packetSweep, sort, sortSize, spatialQueues, shadowMode });
 	if (errors.length) throw new Error(errors.join('\n'));
 	Object.assign(report, { completed: true, results, finished: new Date().toISOString() });
 	writeFileSync(join(output, 'report.json'), JSON.stringify(report, null, 2));

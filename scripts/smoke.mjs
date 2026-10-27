@@ -97,6 +97,13 @@ if (compactionFlag >= 0) {
 	wavefrontTuning.compaction = mode;
 	only.splice(compactionFlag, 2);
 }
+const spatialFlag = only.indexOf('--spatial-queues');
+if (spatialFlag >= 0) {
+	if (integrator !== 'wavefront' || wavefrontTuning.compaction !== 'adaptive' || wavefrontTuning.directStages === 7)
+		throw new Error('--spatial-queues requires wavefront with adaptive compaction');
+	wavefrontTuning.spatialQueues = true;
+	only.splice(spatialFlag, 1);
+}
 for (const [flag, name] of [['--tail-start', 'tailStart'], ['--tail-threshold', 'tailThreshold']]) {
 	const index = only.indexOf(flag);
 	if (index < 0) continue;

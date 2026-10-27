@@ -906,6 +906,109 @@ passes helmet HDR, alpha, transmission and anisotropy; all four screenshots were
 
 ## Work storage
 
+The experimental `Wavefront.spatialQueues` option (default false, adaptive compaction only)
+collects continuation and shadow paths from physical slots after shading. This restores
+local 8x8 pixel neighborhoods even when material sorting rearranges the shading queue.
+Workgroup reservations remain atomic, so this does not promise a globally sorted queue.
+It scans the full tile, trading extra sparse-tail work for spatially coherent traversal.
+`WavefrontCompactSpatial` combines the existing dense-scan and adaptive-output-bound
+compile flags. Its main indirect bound still expands to the full tile above half occupancy,
+which is required by the following adaptive intersection compaction. The host dispatches
+this physical scan directly; other stages retain their existing indirect arguments.
+No work-storage layout, material bytecode, or bind group changes are required.
+
+Benchmark/correctness scripts accept `--spatial-queues`. A paired `--spatial-sweep` with
+an adaptive, unsorted base compares unsorted, material-256 and program-256 shading with
+inherited or physical continuation queues. Each measured variant verifies its actual
+CompactShade pipeline; the correctness script records those pipeline labels as well as
+checking HDR/AOV results and sorted queue permutations. Performance results are below.
+Shader regeneration, all 190 unit tests and typecheck pass. The spatial option passes the
+complete 46-case GPU suite plus ten program-256/adaptive comparisons covering alpha,
+procedural stress and anisotropy. Those runs validate the actual `CompactShadeSpatial`
+pipeline and retain exact HDR/AOV results, including partial workgroups and multiple tiles.
+
+`spatial-queues-original-v1` completes all five original scenes, with 90 exact paired HDR
+comparisons and a passing sweep verifier. The program-256/physical screenshots were inspected.
+Three rounds of 32 samples and 64-frame variant warmup give these median spans:
+
+| Wavefront variant | classroom | breakfast-room | bmw-m6 | glass-of-water | veach-mis |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Unsorted, inherited | 8.627 | 6.043 | 5.341 | 3.781 | 1.744 |
+| Unsorted, physical | 8.644 | 6.385 | 5.457 | 3.897 | 1.782 |
+| Material-256, inherited | 8.682 | 6.868 | 5.808 | 4.038 | 1.867 |
+| Material-256, physical | 8.785 | 6.407 | 5.583 | 4.045 | 1.910 |
+| Program-256, inherited | 8.689 | 6.871 | 5.689 | 3.854 | 1.872 |
+| Program-256, physical | 8.826 | 6.464 | 5.571 | 3.887 | 1.918 |
+
+Restoring physical queues recovers some sorting overhead in breakfast and BMW, but the
+unsorted baseline remains faster. Breakfast material-256 Intersect falls from 4.640 to
+4.181 ms/sample; CompactShade grows from 0.159 to 0.233 ms/sample. This demonstrates a
+traversal-order tradeoff rather than a general justification for physical scanning.
+
+The mixed 1..8-layer workload (`spatial-queues-mixed-v1`) also passes all 90 paired HDR
+comparisons, the verifier and five screenshot inspections. Its median spans are:
+
+| Wavefront variant | classroom | breakfast-room | bmw-m6 | glass-of-water | veach-mis |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Unsorted, inherited | 11.094 | 8.670 | 7.447 | 5.711 | 3.094 |
+| Unsorted, physical | 11.293 | 8.886 | 7.480 | 5.819 | 3.150 |
+| Material-256, inherited | 9.842 | 9.191 | 7.749 | 5.603 | 3.205 |
+| Material-256, physical | 10.093 | 8.747 | 7.591 | 5.715 | 3.236 |
+| Program-256, inherited | 9.863 | 9.110 | 7.683 | 5.617 | 3.196 |
+| Program-256, physical | 10.083 | 8.768 | 7.531 | 5.589 | 3.235 |
+
+Classroom still benefits from sorting without the physical rescan. Breakfast/BMW regain
+some traversal efficiency after sorting but remain slower than their unsorted baselines.
+Glass has a small gain from program sorting; the other changes do not establish a broad
+win. Megakernel BMW varies 6.701..8.035 ms and glass 6.572..8.020 ms across the three rounds,
+so speedup ratios against those unstable references need caution. The spatial option stays
+disabled by default.
+
+Measured blocks now record `measurementStartedAt`/`measurementFinishedAt` as Unix milliseconds,
+after warmup and before the HDR readback, for correlation with external telemetry. The
+scheduled-eight-layer follow-up records NVIDIA timestamp, P-state, SM/memory clocks,
+temperature, power and utilization at approximately 100 ms intervals via `nvidia-smi`.
+Its CSV uses this machine's local time (UTC+08:00); only samples within timed blocks should
+be used to discuss measured clock behavior, since scene loading/compilation includes idle
+periods. This monitoring does not set GPU clocks or power limits.
+`node scripts/analyze-gpu-telemetry.mjs .tools/wavefront/spatial-queues-scheduled-v1 +08:00`
+correlates the completed reports with the CSV and writes `telemetry-summary.json`. Blocks
+without a telemetry sample are explicitly unobserved, rather than assigned nearby clocks.
+
+`spatial-queues-scheduled-v1` uses uniform eight-layer materials with instruction scheduling
+enabled. All 90 HDR comparisons are exact, the verifier passes and all five screenshots
+were inspected. Median spans:
+
+| Wavefront variant | classroom | breakfast-room | bmw-m6 | glass-of-water | veach-mis |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Unsorted, inherited | 12.496 | 9.558 | 8.281 | 7.812 | 4.495 |
+| Unsorted, physical | 12.484 | 9.779 | 8.369 | 7.981 | 4.521 |
+| Material-256, inherited | 11.414 | 10.097 | 8.777 | 7.536 | 4.622 |
+| Material-256, physical | 11.667 | 9.764 | 8.595 | 7.516 | 4.635 |
+| Program-256, inherited | 11.446 | 9.926 | 8.648 | 7.411 | 4.533 |
+| Program-256, physical | 11.553 | 9.321 | 8.477 | 7.593 | 4.678 |
+
+Breakfast's program-256/physical combination improves on its scheduled unsorted baseline
+by 2.5%, and on program sorting with inherited queues by 6.1%. Classroom and glass prefer
+sorting with inherited queues; BMW and MIS prefer the unsorted baseline in this run.
+This does not establish an overall win over original-order materials, which are a different
+experiment. Default settings remain unchanged.
+
+All 105 measurement blocks contain telemetry observations. Observed SM clocks stay at
+2745 MHz for classroom and 2760 MHz for the other scenes; memory stays at 10501 MHz.
+Observed temperatures span 48..57 C. BMW megakernel spans 6.402..6.706 ms and glass
+9.878..10.095 ms in this run, while MIS still varies 5.627..6.221 ms at the same observed
+clocks. Thus clock samples do not explain every timing variation and cannot retroactively
+identify the cause of older unmonitored outliers. The monitor process exited after timing.
+The three spatial v1 sweeps alternated forward/reverse block order across three rounds.
+The spatial sweep now also rotates the first variant, matching other sweeps, so a longer
+repeat can check whether the small breakfast gain survives different block positions.
+Another 24 exact GPU comparisons cover fixed tail start 2 without subgroups, direct-stage
+mask 5, and adaptive tail threshold 4096. This brings spatial regression coverage to
+80 comparisons. Program-256/physical smoke passes helmet HDR, alpha and transmission;
+all three screenshots were inspected. The library build passes; the wavefront chunk is
+452.70 kB (74.50 kB gzip), about 0.30 kB gzip above the preceding build.
+
 Group 1 binding 0 contains the original image prefix (three float4 per pixel), then
 three float4 headers, 21 float4 field arrays at the current tile capacity, then three
 packed uint index queues (main A, main B, shadow). Header words 0/1/2 store A/shadow/B counts.

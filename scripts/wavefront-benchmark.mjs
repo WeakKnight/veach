@@ -43,6 +43,8 @@ const config = {
 	sort: option('sort', 'none'),
 	sortSize: Number(option('sort-size', 64)),
 	sortSweep: args.includes('--sort-sweep'),
+	spatialQueues: args.includes('--spatial-queues'),
+	spatialSweep: args.includes('--spatial-sweep'),
 	shadowMode: option('shadow', 'serial'),
 	shadowSweep: args.includes('--shadow-sweep'),
 	opcodeMode: option('opcodes', 'full'),
@@ -51,8 +53,10 @@ const config = {
 	materialMixed: args.includes('--material-mixed'),
 	materialSchedule: option('material-schedule', 'original'),
 	scheduleSweep: args.includes('--schedule-sweep'),
-	variantWarmup: Number(option('variant-warmup', args.includes('--material-sweep') || args.includes('--opcode-sweep') || args.includes('--schedule-sweep') ? 64 : 8)),
+	variantWarmup: Number(option('variant-warmup', args.includes('--material-sweep') || args.includes('--opcode-sweep') || args.includes('--schedule-sweep') || args.includes('--spatial-sweep') ? 64 : 8)),
 };
+if ((config.spatialQueues || config.spatialSweep) && (config.compaction !== 'adaptive' || config.directStages === 7 || config.compactionSweep || config.dispatchSweep)) throw new Error('Spatial queues require fixed adaptive compaction');
+if (config.spatialSweep && (!config.paired || config.spatialQueues || config.sort !== 'none' || (config.directStages & 2) !== 0 || config.tailSweep || config.packetSweep || config.materialSweep || config.sortSweep || config.shadowSweep || config.opcodeSweep || config.scheduleSweep)) throw new Error('--spatial-sweep requires a paired unsorted base without other sweeps');
 if (!['original', 'optimized'].includes(config.materialSchedule)) throw new Error('Invalid material scheduling');
 if (config.scheduleSweep && (!config.paired || config.materialSchedule !== 'original' || config.tailSweep || config.packetSweep || config.materialSweep || config.sortSweep || config.shadowSweep || config.dispatchSweep || config.compactionSweep || config.opcodeSweep)) throw new Error('--schedule-sweep requires a paired original-schedule base without other sweeps');
 if (!Number.isInteger(config.materialLayers) || config.materialLayers < 0 || config.materialLayers > 12 || (config.materialMixed && config.materialLayers === 0)) throw new Error('Invalid material stress workload');
@@ -112,6 +116,12 @@ if (config.sortSweep) {
 	for (const sort of ['material', 'program']) for (const sortSize of [64, 256])
 		config.variants.push({ name: `sort-${sort}-${sortSize}`, sort, sortSize, tailStart: config.tailStart, tailThreshold: config.tailThreshold });
 }
+if (config.spatialSweep) {
+	config.variants.push({ name: 'spatial-queues', spatialQueues: true, tailStart: config.tailStart, tailThreshold: config.tailThreshold });
+	for (const sort of ['material', 'program']) for (const spatialQueues of [false, true])
+		config.variants.push({ name: `spatial-${sort}-256-${spatialQueues ? 'physical' : 'inherited'}`, sort, sortSize: 256, spatialQueues,
+			tailStart: config.tailStart, tailThreshold: config.tailThreshold });
+}
 if (config.shadowSweep) {
 	for (const shadowMode of ['parallel', 'parallel-auto'])
 		config.variants.push({ name: `shadow-${shadowMode}`, shadowMode, tailStart: config.tailStart, tailThreshold: config.tailThreshold });
@@ -132,6 +142,7 @@ for (const variant of config.variants) {
 	variant.packetStages ??= config.packetStages;
 	variant.sort ??= config.sort;
 	variant.sortSize ??= config.sortSize;
+	variant.spatialQueues ??= config.spatialQueues;
 	variant.shadowMode ??= config.shadowMode;
 	variant.opcodeMode ??= config.opcodeMode;
 	variant.materialSchedule ??= config.materialSchedule;
@@ -197,7 +208,7 @@ const assertUnchangedSources = () => {
 const referenceReport = { ...report, config: { ...config, mode: 'megakernel' }, results: [] };
 const variantReports = Object.fromEntries(config.variants.slice(1).map(variant => {
 	mkdirSync(join(output, variant.name), { recursive: true });
-	return [variant.name, { ...report, config: { ...config, mode: variant.mode, materialStack: variant.materialStack, tailStart: variant.tailStart, tailThreshold: variant.tailThreshold, compaction: variant.compaction, directStages: variant.directStages, packetStages: variant.packetStages, sort: variant.sort, sortSize: variant.sortSize, shadowMode: variant.shadowMode, opcodeMode: variant.opcodeMode, materialSchedule: variant.materialSchedule }, results: [] }];
+	return [variant.name, { ...report, config: { ...config, mode: variant.mode, materialStack: variant.materialStack, tailStart: variant.tailStart, tailThreshold: variant.tailThreshold, compaction: variant.compaction, directStages: variant.directStages, packetStages: variant.packetStages, sort: variant.sort, sortSize: variant.sortSize, spatialQueues: variant.spatialQueues, shadowMode: variant.shadowMode, opcodeMode: variant.opcodeMode, materialSchedule: variant.materialSchedule }, results: [] }];
 }));
 writeFileSync(join(candidateOutput, 'report.json'), JSON.stringify(report, null, 2));
 try {
@@ -310,6 +321,7 @@ try {
 				renderer.tracer.wavefront.packetStages = config.packetStages;
 				renderer.tracer.wavefront.sort = config.sort;
 				renderer.tracer.wavefront.sortSize = config.sortSize;
+				renderer.tracer.wavefront.spatialQueues = config.spatialQueues;
 				renderer.tracer.wavefront.shadowMode = config.shadowMode;
 			}
 			const materialCapacity = renderer.tracer.materialCapacity;
@@ -394,10 +406,10 @@ try {
 			let presentationVariant = config.mode;
 			const pairedErrors = [];
 			for (let repeat = 0; repeat < config.repeats; repeat++) {
-				const schedule = config.paired ? [{ name: 'megakernel' }, ...config.variants] : [{ name: config.mode, tailStart: config.tailStart, tailThreshold: config.tailThreshold, compaction: config.compaction, directStages: config.directStages, packetStages: config.packetStages, sort: config.sort, sortSize: config.sortSize, shadowMode: config.shadowMode, opcodeMode: config.opcodeMode }];
+				const schedule = config.paired ? [{ name: 'megakernel' }, ...config.variants] : [{ name: config.mode, tailStart: config.tailStart, tailThreshold: config.tailThreshold, compaction: config.compaction, directStages: config.directStages, packetStages: config.packetStages, sort: config.sort, sortSize: config.sortSize, spatialQueues: config.spatialQueues, shadowMode: config.shadowMode, opcodeMode: config.opcodeMode }];
 				// Rotate the sweep and reverse alternating rounds to avoid always measuring a
 				// configuration at the same position relative to GPU warmup and clock changes.
-				if (config.tailSweep || config.compactionSweep || config.dispatchSweep || config.packetSweep || config.materialSweep || config.sortSweep || config.shadowSweep || config.opcodeSweep || config.scheduleSweep) schedule.push(...schedule.splice(0, repeat % schedule.length));
+				if (config.tailSweep || config.compactionSweep || config.dispatchSweep || config.packetSweep || config.materialSweep || config.sortSweep || config.shadowSweep || config.opcodeSweep || config.scheduleSweep || config.spatialSweep) schedule.push(...schedule.splice(0, repeat % schedule.length));
 				if (config.paired && repeat % 2 !== 0) schedule.reverse();
 				for (const variant of schedule) {
 					const mode = variant.mode ?? (variant.name === 'megakernel' ? 'megakernel' : 'wavefront');
@@ -420,12 +432,13 @@ try {
 						const expectedStack = requestedStack ?? [0, 1, 2, 4, 8, 16].find(n => n >= requiredStack);
 						if (renderer.tracer.materialCapacity !== expectedStack) throw new Error('Material sweep selected the wrong capacity');
 						await renderer.setIntegrator(mode);
-						if (mode === 'wavefront') Object.assign(renderer.tracer.wavefront, { tailStart: variant.tailStart, tailThreshold: variant.tailThreshold, compaction: variant.compaction, directStages: variant.directStages, packetStages: variant.packetStages, sort: variant.sort, sortSize: variant.sortSize, shadowMode: variant.shadowMode });
+						if (mode === 'wavefront') Object.assign(renderer.tracer.wavefront, { tailStart: variant.tailStart, tailThreshold: variant.tailThreshold, compaction: variant.compaction, directStages: variant.directStages, packetStages: variant.packetStages, sort: variant.sort, sortSize: variant.sortSize, spatialQueues: variant.spatialQueues, shadowMode: variant.shadowMode });
 						// Warm each selected pipeline before timing while retaining identical scene/VT data.
 						for (let warm = 0; warm < config.variantWarmup; warm++) { renderer.renderFrame(); await device.queue.onSubmittedWorkDone(); }
 					}
 					renderer.resetAccumulation();
 					observedPipelines = new Set(); observedConstants = new Map(); observedMaterialSchedules = new Set();
+					const measurementStartedAt = Date.now();
 					const timings = [], spanTimings = [], stages = {}, wall = performance.now();
 					for (let sample = 0; sample < config.samples; sample++) {
 						captureQueues = config.diagnose && sample === 0 && repeat === 0 && variant.name === 'wavefront';
@@ -454,13 +467,18 @@ try {
 						spanTimings.push(Number(timestamps[labels.length * 2 - 1] - timestamps[0]) / 1e6);
 						readback.unmap();
 					}
+					const measurementFinishedAt = Date.now();
 					const wallMs = performance.now() - wall;
 					const sorted = [...timings].sort((a, b) => a - b);
 					const medianMs = (sorted[Math.floor((sorted.length - 1) / 2)] + sorted[Math.floor(sorted.length / 2)]) * 0.5;
 					const sortedSpans = [...spanTimings].sort((a, b) => a - b);
 					const medianSpanMs = (sortedSpans[Math.floor((sortedSpans.length - 1) / 2)] + sortedSpans[Math.floor(sortedSpans.length / 2)]) * 0.5;
 					if (observedMaterialSchedules.size !== 1) throw new Error('Material schedule binding was not exercised');
-					repeats.push({ mode, materialSchedule: currentMaterialSchedule, boundMaterialSchedules: [...observedMaterialSchedules], materialStackRequired: renderer.scene.materialStackSize, materialCapacity: renderer.tracer.materialCapacity, pipelineLabels: [...observedPipelines], opcodeConstants: Object.fromEntries(observedConstants), materialOpcodes: renderer.tracer.materialOpcodes, variant: variant.name, repeat, medianMs, medianSpanMs, meanMs: timings.reduce((a, b) => a + b) / timings.length, wallMs, timings, spanTimings, stages });
+					if (mode === 'wavefront' && config.bounces > 0 && variant.tailStart > 0) {
+						const spatial = [...observedPipelines].some(label => label.includes('.CompactShadeSpatial.'));
+						if (spatial !== variant.spatialQueues) throw new Error('Wrong spatial queue pipeline');
+					}
+					repeats.push({ measurementStartedAt, measurementFinishedAt, mode, materialSchedule: currentMaterialSchedule, boundMaterialSchedules: [...observedMaterialSchedules], materialStackRequired: renderer.scene.materialStackSize, materialCapacity: renderer.tracer.materialCapacity, pipelineLabels: [...observedPipelines], opcodeConstants: Object.fromEntries(observedConstants), materialOpcodes: renderer.tracer.materialOpcodes, variant: variant.name, repeat, medianMs, medianSpanMs, meanMs: timings.reduce((a, b) => a + b) / timings.length, wallMs, timings, spanTimings, stages });
 					console.log(`[benchmark] ${c.name}: ${variant.name} repeat ${repeat + 1}, GPU passes ${medianMs.toFixed(3)}, span ${medianSpanMs.toFixed(3)} ms/sample`);
 					if (config.paired) {
 						const hdr = await renderer.readRadiance();

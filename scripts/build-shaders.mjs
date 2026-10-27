@@ -35,6 +35,8 @@ const programs = [
 	{ name: 'WavefrontCompactPacket', source: 'Passes/WavefrontCompact.slang', defines: ['VEACH_PACKET_COMPACTION=1'], entries: [['CompactIntersect', 'compute'], ['CompactShade', 'compute']] },
 	{ name: 'WavefrontCompactDense', source: 'Passes/WavefrontCompact.slang', defines: ['VEACH_DENSE_COMPACTION=1'], entries: [['CompactIntersect', 'compute'], ['CompactShade', 'compute']] },
 	{ name: 'WavefrontCompactAdaptive', source: 'Passes/WavefrontCompact.slang', defines: ['VEACH_ADAPTIVE_COMPACTION=1'], entries: [['CompactIntersect', 'compute'], ['CompactShade', 'compute']] },
+	// Scan physical slots after shading while preserving adaptive bounds for the next pass.
+	{ name: 'WavefrontCompactSpatial', source: 'Passes/WavefrontCompact.slang', defines: ['VEACH_DENSE_COMPACTION=1', 'VEACH_ADAPTIVE_COMPACTION=1'], entries: [['CompactShade', 'compute']] },
 	{ name: 'Present', source: 'Passes/Present.slang', entries: [['vsMain', 'vertex'], ['fsMain', 'fragment']] },
 	{
 		name: 'LocalExposure',
