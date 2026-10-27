@@ -107,6 +107,22 @@ for adaptive tails. `--dispatch-sweep` interleaves all eight masks (seven for ad
 with the megakernel, separately from tail/compaction sweeps. The correctness harness also
 supports this sweep to check every stage combination against the same full-stack reference.
 
+`--sort none|material|program` optionally sorts independent chunks of the shading queue
+after intersection compaction. `--sort-size 64|256` chooses the chunk size; defaults are
+none and 64. Material keys group identical materials; program keys use the shared surface
+bytecode offset, allowing materials with different constants to execute together. A bitonic
+sort breaks ties by physical path index and preserves inactive packet slots. It changes
+only queue order, not path records, RNG or material data, and adds no storage binding.
+Direct shading cannot use this experiment; intersection/shadow may still dispatch directly.
+Sorting uses the existing indirect arguments for 64-slot chunks; 256-slot chunks currently
+dispatch the bounded tile and guard by actual queue count. Sorting cost is included in
+stage timing and total GPU span. `--sort-sweep` compares unsorted plus all four key/size
+combinations and is mutually exclusive with other sweeps.
+The GPU correctness script accepts these sort options and reads back the queue before/after
+every sort in the first sample. It verifies exact per-chunk order against CPU material/program
+keys, permutation/bounds, and records how many entries actually moved. These diagnostic
+copies are absent from the performance benchmark.
+
 ## Design constraints
 
 - Keep at most eight storage buffers per stage. Pack work data into existing bindings.
@@ -613,6 +629,40 @@ Eight additional comparisons covered fixed-tail bounce 2 with packet mask 5 and 
 tail threshold of 65,536, again with zero error on the constant-alpha scenes.
 Adaptive wavefront smoke passed alpha, emissive and transmission; the transmission screenshot
 was inspected after the final run.
+
+## Shading queue sorting experiment
+
+The `shading-sort-sweep-v1` run compared both sort keys at chunk sizes 64/256 with the
+unsorted adaptive schedule, using all five scenes, three rounds and 32 samples at 640x360.
+All 75 per-round HDR comparisons were exact, saved-HDR/source checks passed, and all five
+screenshots were inspected. Median GPU spans in milliseconds:
+
+| Shading order | classroom | breakfast | BMW | glass | MIS |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Unsorted | 8.653 | 6.055 | 5.399 | 3.849 | 1.745 |
+| Material / 64 | 8.605 | 6.112 | 5.508 | 3.930 | 1.820 |
+| Material / 256 | 8.616 | 6.925 | 5.826 | 4.104 | 1.867 |
+| Program / 64 | 8.741 | 6.181 | 5.458 | 3.941 | 1.823 |
+| Program / 256 | 8.712 | 6.936 | 5.711 | 4.030 | 1.866 |
+
+These scenes do not establish a sorting benefit. Classroom differences are below 1%,
+while the other scenes regress. Sorting costs roughly 0.12-0.14 ms per sample; it also
+changes the path order seen by subsequent queued compaction/traversal. In classroom,
+material/256 changes mean intersection/shadow from 3.892/2.680 to 3.741/2.560 ms, but
+shading grows from 1.437 to 1.521 ms. In breakfast, intersection grows to 4.708 ms. Thus
+the tradeoff extends beyond the sorting dispatch itself. The option stays disabled by
+default. These five scenes predominantly use constant or one-slot materials; this result
+does not establish that sorting cannot help more divergent, expensive SVM programs.
+
+GPU validation with subgroups disabled passed the full 34-comparison material/64 adaptive
+suite, eight program/256 adaptive comparisons, 12 program/256 packet comparisons, eight
+program/64 queued comparisons, and eight material/256 fixed-tail comparisons. Each sort
+in the first sample was checked against CPU keys for exact chunk order and permutation,
+including 513x513 multi-tile and 7x5 partial-tile cases. Every radiance/albedo/normal
+comparison was exact. Typecheck, all 181 unit tests, shader generation and library build
+passed. The sort modules add about 16 KB raw / 1.3 KB gzip to the wavefront library chunk.
+Material/64 adaptive smoke passed helmet HDR, alpha and transmission; the final transmission
+screenshot was inspected. Sorting remains an internal experiment, disabled by default.
 
 ## Work storage
 

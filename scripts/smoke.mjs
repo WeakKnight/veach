@@ -54,6 +54,14 @@ if (integratorFlag >= 0) {
 	only.splice(integratorFlag, 2);
 }
 const wavefrontTuning = {};
+for (const [flag, name] of [['--sort', 'sort'], ['--sort-size', 'sortSize']]) {
+	const i = only.indexOf(flag);
+	if (i < 0) continue;
+	const value = name === 'sortSize' ? Number(only[i + 1]) : only[i + 1];
+	if (integrator !== 'wavefront' || !(name === 'sortSize' ? [64, 256] : ['none', 'material', 'program']).includes(value)) throw new Error(`Invalid ${flag}`);
+	wavefrontTuning[name] = value;
+	only.splice(i, 2);
+}
 const directFlag = only.indexOf('--direct-stages');
 if (directFlag >= 0) {
 	const mask = Number(only[directFlag + 1]);

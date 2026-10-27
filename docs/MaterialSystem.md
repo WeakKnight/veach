@@ -72,6 +72,9 @@ Non-goals (for now): closure graphs (`mix` / `add` / `layer` of pbrlib BSDFs, Cy
 Shader), OSL, displacement, volumes beyond the OpenPBR interior medium, running the MaterialX C++
 library at runtime. An experimental wavefront integrator now evaluates the same bytecode
 in a separate shading stage; see [Wavefront.md](Wavefront.md).
+Its optional chunk sorter groups shading paths by material index or shared surface-program
+offset. Programs with different constant pools can share the latter key because the bytecode
+block is deduplicated independently from constants; neither format nor interpreter changes.
 
 ## Pipeline
 

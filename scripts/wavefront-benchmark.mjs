@@ -39,8 +39,16 @@ const config = {
 	packetStages: Number(option('packet-stages', 7)),
 	packetSweep: args.includes('--packet-sweep'),
 	materialSweep: args.includes('--material-sweep'),
+	sort: option('sort', 'none'),
+	sortSize: Number(option('sort-size', 64)),
+	sortSweep: args.includes('--sort-sweep'),
 	variantWarmup: Number(option('variant-warmup', args.includes('--material-sweep') ? 64 : 8)),
 };
+if (!['none', 'material', 'program'].includes(config.sort) || ![64, 256].includes(config.sortSize)) throw new Error('Invalid shading sort');
+if ((config.sort !== 'none' || config.sortSweep) && (config.compaction === 'none' || (config.directStages & 2) !== 0 || config.dispatchSweep || config.compactionSweep))
+	throw new Error('Sorting requires queued shading and a fixed compaction/direct-stage choice');
+if (config.sortSweep && (!config.paired || config.tailSweep || config.packetSweep || config.materialSweep || config.sort !== 'none'))
+	throw new Error('--sort-sweep requires paired unsorted base and cannot combine with other sweeps');
 if (config.materialSweep && (!config.paired || config.tailSweep || config.compactionSweep || config.dispatchSweep || config.packetSweep || config.materialStack !== null))
 	throw new Error('--material-sweep requires paired auto capacity and cannot combine with other sweeps');
 if (!Number.isInteger(config.packetStages) || config.packetStages < 0 || config.packetStages > 7) throw new Error('Invalid packet stage mask');
@@ -81,12 +89,18 @@ if (config.materialSweep) {
 	for (const materialStack of [1, 16]) for (const mode of ['megakernel', 'wavefront'])
 		config.variants.push({ name: `${mode}-stack-${materialStack}`, mode, materialStack, tailStart: config.tailStart, tailThreshold: config.tailThreshold });
 }
+if (config.sortSweep) {
+	for (const sort of ['material', 'program']) for (const sortSize of [64, 256])
+		config.variants.push({ name: `sort-${sort}-${sortSize}`, sort, sortSize, tailStart: config.tailStart, tailThreshold: config.tailThreshold });
+}
 for (const variant of config.variants) {
 	variant.mode ??= 'wavefront';
 	variant.materialStack ??= config.materialStack;
 	variant.compaction ??= config.compaction;
 	variant.directStages ??= config.directStages;
 	variant.packetStages ??= config.packetStages;
+	variant.sort ??= config.sort;
+	variant.sortSize ??= config.sortSize;
 }
 for (const key of ['width', 'height', 'warmup', 'variantWarmup', 'samples', 'repeats', 'bounces']) {
 	if (!Number.isInteger(config[key]) || config[key] < (key === 'bounces' ? 0 : 1)) throw new Error(`Invalid ${key}`);
@@ -149,7 +163,7 @@ const assertUnchangedSources = () => {
 const referenceReport = { ...report, config: { ...config, mode: 'megakernel' }, results: [] };
 const variantReports = Object.fromEntries(config.variants.slice(1).map(variant => {
 	mkdirSync(join(output, variant.name), { recursive: true });
-	return [variant.name, { ...report, config: { ...config, mode: variant.mode, materialStack: variant.materialStack, tailStart: variant.tailStart, tailThreshold: variant.tailThreshold, compaction: variant.compaction, directStages: variant.directStages, packetStages: variant.packetStages }, results: [] }];
+	return [variant.name, { ...report, config: { ...config, mode: variant.mode, materialStack: variant.materialStack, tailStart: variant.tailStart, tailThreshold: variant.tailThreshold, compaction: variant.compaction, directStages: variant.directStages, packetStages: variant.packetStages, sort: variant.sort, sortSize: variant.sortSize }, results: [] }];
 }));
 writeFileSync(join(candidateOutput, 'report.json'), JSON.stringify(report, null, 2));
 try {
@@ -237,6 +251,8 @@ try {
 				renderer.tracer.wavefront.compaction = config.compaction;
 				renderer.tracer.wavefront.directStages = config.directStages;
 				renderer.tracer.wavefront.packetStages = config.packetStages;
+				renderer.tracer.wavefront.sort = config.sort;
+				renderer.tracer.wavefront.sortSize = config.sortSize;
 			}
 			const materialCapacity = renderer.tracer.materialCapacity;
 			const expectedCapacity = config.materialStack ?? [0, 1, 2, 4, 8, 16].find(capacity => capacity >= materialStackRequired);
@@ -307,10 +323,10 @@ try {
 			let presentationVariant = config.mode;
 			const pairedErrors = [];
 			for (let repeat = 0; repeat < config.repeats; repeat++) {
-				const schedule = config.paired ? [{ name: 'megakernel' }, ...config.variants] : [{ name: config.mode, tailStart: config.tailStart, tailThreshold: config.tailThreshold, compaction: config.compaction, directStages: config.directStages, packetStages: config.packetStages }];
+				const schedule = config.paired ? [{ name: 'megakernel' }, ...config.variants] : [{ name: config.mode, tailStart: config.tailStart, tailThreshold: config.tailThreshold, compaction: config.compaction, directStages: config.directStages, packetStages: config.packetStages, sort: config.sort, sortSize: config.sortSize }];
 				// Rotate the sweep and reverse alternating rounds to avoid always measuring a
 				// configuration at the same position relative to GPU warmup and clock changes.
-				if (config.tailSweep || config.compactionSweep || config.dispatchSweep || config.packetSweep || config.materialSweep) schedule.push(...schedule.splice(0, repeat % schedule.length));
+				if (config.tailSweep || config.compactionSweep || config.dispatchSweep || config.packetSweep || config.materialSweep || config.sortSweep) schedule.push(...schedule.splice(0, repeat % schedule.length));
 				if (config.paired && repeat % 2 !== 0) schedule.reverse();
 				for (const variant of schedule) {
 					const mode = variant.mode ?? (variant.name === 'megakernel' ? 'megakernel' : 'wavefront');
@@ -326,7 +342,7 @@ try {
 						const expectedStack = requestedStack ?? [0, 1, 2, 4, 8, 16].find(n => n >= materialStackRequired);
 						if (renderer.tracer.materialCapacity !== expectedStack) throw new Error('Material sweep selected the wrong capacity');
 						await renderer.setIntegrator(mode);
-						if (mode === 'wavefront') Object.assign(renderer.tracer.wavefront, { tailStart: variant.tailStart, tailThreshold: variant.tailThreshold, compaction: variant.compaction, directStages: variant.directStages, packetStages: variant.packetStages });
+						if (mode === 'wavefront') Object.assign(renderer.tracer.wavefront, { tailStart: variant.tailStart, tailThreshold: variant.tailThreshold, compaction: variant.compaction, directStages: variant.directStages, packetStages: variant.packetStages, sort: variant.sort, sortSize: variant.sortSize });
 						// Warm each selected pipeline before timing while retaining identical scene/VT data.
 						for (let warm = 0; warm < config.variantWarmup; warm++) { renderer.renderFrame(); await device.queue.onSubmittedWorkDone(); }
 					}

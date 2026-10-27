@@ -21,6 +21,12 @@ const directStages = directOption < 0 ? 0 : Number(process.argv[directOption + 1
 const packetOption = process.argv.indexOf('--packet-stages');
 const packetStages = packetOption < 0 ? 7 : Number(process.argv[packetOption + 1]);
 const packetSweep = process.argv.includes('--packet-sweep');
+const sortOption = process.argv.indexOf('--sort');
+const sort = sortOption < 0 ? 'none' : process.argv[sortOption + 1];
+const sortSizeOption = process.argv.indexOf('--sort-size');
+const sortSize = sortSizeOption < 0 ? 64 : Number(process.argv[sortSizeOption + 1]);
+if (!['none', 'material', 'program'].includes(sort) || ![64, 256].includes(sortSize)) throw new Error('Invalid shading sort');
+if (sort !== 'none' && (compaction === 'none' || (directStages & 2) !== 0 || process.argv.includes('--dispatch-sweep'))) throw new Error('Sorting requires queued shading');
 if (!Number.isInteger(packetStages) || packetStages < 0 || packetStages > 7) throw new Error('Invalid packet stage mask');
 const dispatchSweep = process.argv.includes('--dispatch-sweep');
 if (!Number.isInteger(directStages) || directStages < 0 || directStages > 7) throw new Error('Invalid direct stage mask');
@@ -29,7 +35,7 @@ if (dispatchSweep && compaction === 'none') throw new Error('Dispatch sweep requ
 if (!['dense', 'queued', 'subgroup', 'adaptive', 'packet', 'none'].includes(compaction)) throw new Error('Invalid compaction mode');
 if ((compaction === 'none' || compaction === 'packet' || directStages === 7) && tailThreshold !== 0) throw new Error('Direct/packet dispatch supports fixed tails only');
 if (!Number.isInteger(tailStart) || tailStart < 0) throw new Error('Invalid tail start');
-const output = join(root, `.tools/wavefront/correctness-tail-${tailStart}-${tailThreshold}${only.length ? '-selected' : ''}${disableSubgroups ? '-no-subgroups' : ''}-${compaction}${packetSweep ? '-packet-sweep' : packetStages !== 7 ? `-packet-${packetStages}` : ''}${dispatchSweep ? '-dispatch-sweep' : directStages ? `-direct-${directStages}` : ''}`);
+const output = join(root, `.tools/wavefront/correctness-tail-${tailStart}-${tailThreshold}${only.length ? '-selected' : ''}${disableSubgroups ? '-no-subgroups' : ''}-${compaction}${packetSweep ? '-packet-sweep' : packetStages !== 7 ? `-packet-${packetStages}` : ''}${dispatchSweep ? '-dispatch-sweep' : directStages ? `-direct-${directStages}` : ''}${sort !== 'none' ? `-sort-${sort}-${sortSize}` : ''}`);
 mkdirSync(output, { recursive: true });
 const chrome = [process.env.CHROME_PATH, 'C:/Program Files/Google/Chrome/Application/chrome.exe',
 	'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe', '/usr/bin/google-chrome', '/usr/bin/chromium'].find(p => p && existsSync(p));
@@ -39,7 +45,7 @@ await server.listen();
 const browser = await puppeteer.launch({ executablePath: chrome, headless: true, protocolTimeout: 1800000,
 	args: ['--enable-unsafe-webgpu', '--ignore-gpu-blocklist', '--no-sandbox'] });
 const errors = [];
-const report = { started: new Date().toISOString(), completed: false, browser: await browser.version(), tailStart, tailThreshold, only, directStages, dispatchSweep, packetStages, packetSweep, results: [], errors };
+const report = { started: new Date().toISOString(), completed: false, browser: await browser.version(), tailStart, tailThreshold, only, directStages, dispatchSweep, packetStages, packetSweep, sort, sortSize, results: [], errors };
 writeFileSync(join(output, 'report.json'), JSON.stringify(report, null, 2));
 try {
 	const page = await browser.newPage();
@@ -47,7 +53,7 @@ try {
 	page.on('pageerror', e => errors.push(String(e)));
 	page.on('console', msg => { if (msg.type() === 'error') errors.push(msg.text()); if (msg.text().startsWith('[correctness]')) console.log(msg.text()); });
 	await page.goto(server.resolvedUrls.local[0] + 'scripts/benchmark.html');
-	const results = await page.evaluate(async ({ tailStart, tailThreshold, only, disableSubgroups, compaction, directStages, dispatchSweep, packetStages, packetSweep }) => {
+	const results = await page.evaluate(async ({ tailStart, tailThreshold, only, disableSubgroups, compaction, directStages, dispatchSweep, packetStages, packetSweep, sort, sortSize }) => {
 		const api = await import('/src/index.ts');
 		const check = (value, message) => { if (!value) throw new Error(message); };
 		const requestDevice = GPUAdapter.prototype.requestDevice;
@@ -67,6 +73,59 @@ try {
 			autoExposureBias: 0, localExposureMethod: api.LocalExposureMethod.None, textureMipBias: -16 });
 		const originalUpdate = r.updateStreaming;
 		const results = [];
+		let sortMaterialOf = [], sortPrograms = new Uint32Array();
+		let sortVerification = { passes: 0, entries: 0, reordered: 0 };
+		async function renderSortCheckedFrame() {
+			const captures = [];
+			const begin = GPUCommandEncoder.prototype.beginComputePass;
+			GPUCommandEncoder.prototype.beginComputePass = function(descriptor = {}) {
+				if (!descriptor.label?.startsWith('wavefront.Sort')) return begin.call(this, descriptor);
+				const pixels = r.tracer.width * r.tracer.height;
+				const cap = r.tracer.wavefront.capacity(pixels), header = pixels * 48;
+				const queue = header + 48 + cap * 336 + Math.ceil(cap / 4) * 16;
+				const buffer = r.device.createBuffer({ size: 48 + cap * 40, usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ });
+				this.copyBufferToBuffer(r.tracer.accumulation, header, buffer, 0, 48);
+				this.copyBufferToBuffer(r.tracer.accumulation, header + 48, buffer, 48, cap * 16);
+				this.copyBufferToBuffer(r.tracer.accumulation, header + 48 + cap * 128, buffer, 48 + cap * 16, cap * 16);
+				this.copyBufferToBuffer(r.tracer.accumulation, queue, buffer, 48 + cap * 32, cap * 4);
+				const pass = begin.call(this, descriptor), end = pass.end.bind(pass), encoder = this;
+				pass.end = () => {
+					end();
+					encoder.copyBufferToBuffer(r.tracer.accumulation, queue, buffer, 48 + cap * 36, cap * 4);
+				};
+				captures.push({ buffer, cap, label: descriptor.label });
+				return pass;
+			};
+			try { r.renderFrame(); }
+			finally { GPUCommandEncoder.prototype.beginComputePass = begin; }
+			try {
+				for (const { buffer, cap, label } of captures) {
+					await buffer.mapAsync(GPUMapMode.READ);
+					const words = new Uint32Array(buffer.getMappedRange());
+					const count = words[2];
+					check(count <= cap, `${label}: oversized queue`);
+					const before = words.subarray(12 + cap * 8, 12 + cap * 8 + count);
+					const after = words.subarray(12 + cap * 9, 12 + cap * 9 + count);
+					check(new Set(before).size === count && before.every(i => i < cap), `${label}: invalid input permutation`);
+					const key = index => {
+						if (words[12 + index * 4 + 3] === 0) return 0xffffffff;
+						const instance = words[12 + cap * 4 + index * 4 + 3];
+						check(instance < sortMaterialOf.length, `${label}: invalid hit instance`);
+						const material = sortMaterialOf[instance];
+						return sort === 'material' ? material : sortPrograms[material * 8];
+					};
+					for (let offset = 0; offset < count; offset += sortSize) {
+						const expected = [...before.subarray(offset, Math.min(count, offset + sortSize))].sort((a, b) => key(a) - key(b) || a - b);
+						for (let i = 0; i < expected.length; i++) {
+							check(after[offset + i] === expected[i], `${label}: incorrect sorted permutation at ${offset + i}`);
+							sortVerification.reordered += Number(before[offset + i] !== after[offset + i]);
+						}
+					}
+					sortVerification.passes++; sortVerification.entries += count;
+					buffer.unmap();
+				}
+			} finally { for (const { buffer } of captures) buffer.destroy(); }
+		}
 		async function snapshot() {
 			const bytes = r.tracer.width * r.tracer.height * 48;
 			const buffer = r.device.createBuffer({ size: bytes, usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ });
@@ -85,11 +144,13 @@ try {
 			const expectedCapacity = capacity ?? [0, 1, 2, 4, 8, 16].find(n => n >= r.scene.materialStackSize);
 			check(r.tracer.materialCapacity === expectedCapacity, 'Incorrect material capacity selection');
 			await r.setIntegrator(mode);
-			if (mode === 'wavefront' && r.tracer.wavefront) Object.assign(r.tracer.wavefront, { tailStart, tailThreshold, compaction, directStages: stageMask, packetStages: packetMask });
+			if (mode === 'wavefront' && r.tracer.wavefront) Object.assign(r.tracer.wavefront, { tailStart, tailThreshold, compaction, directStages: stageMask, packetStages: packetMask, sort, sortSize });
 			Object.assign(r.settings, { maxBounces: config.bounces, fireflyClamp: config.clamp ?? 0, maxSamples: config.samples });
 			r.resetAccumulation();
+			sortVerification = { passes: 0, entries: 0, reordered: 0 };
 			while (r.samples < config.samples) {
-				r.renderFrame();
+				if (r.samples === 0 && mode === 'wavefront' && sort !== 'none') await renderSortCheckedFrame();
+				else r.renderFrame();
 				await r.device.queue.onSubmittedWorkDone();
 			}
 			const values = await snapshot();
@@ -186,6 +247,17 @@ try {
 						`Constant graph metadata: ${JSON.stringify(constantMaterials.map(m => ({ name: m.name, stack: m.stackSize, alpha: m.alphaTested, emissive: m.emissive })))}`);
 				}
 				await r.setScene(desc);
+				if (sort !== 'none') {
+					const { compileSceneMaterials } = await import('/src/render/SceneMaterials.ts');
+					const { packMaterialData } = await import('/src/render/GpuLayout.ts');
+					const compiled = compileSceneMaterials(desc);
+					// Texture descriptor contents do not affect packed program offsets.
+					sortPrograms = packMaterialData(compiled, () => null);
+					sortMaterialOf = desc.instances.map(instance => {
+						const material = desc.meshes[instance.mesh].material;
+						return material >= 0 && material < desc.materials.length ? material : compiled.length - 1;
+					});
+				}
 				if (scene.constant) check(r.scene.materialStackSize === 0 && r.tracer.materialCapacity === 0, 'Constant material specialization was not exercised');
 				Object.assign(r.settings, { maxSamples: 0, maxBounces: 8, fireflyClamp: 0, environmentIntensity: scene.emptyAnalytic ? 0 : 1 });
 				r.sun.enabled = !scene.emptyAnalytic;
@@ -214,7 +286,7 @@ try {
 							maxError = Math.max(maxError, error); squared += error * error; refSquared += reference[i] * reference[i];
 						}
 						const relativeL2 = Math.sqrt(squared / Math.max(refSquared, 1e-30));
-						const result = { scene: scene.name, mode, compaction, directStages: stageMask, packetStages: packetMask, subgroups: r.device.features.has('subgroups'), materialCapacity: r.tracer.materialCapacity, ...config, maxError, relativeL2 };
+						const result = { scene: scene.name, mode, compaction, directStages: stageMask, packetStages: packetMask, sort, sortSize, sortVerification, subgroups: r.device.features.has('subgroups'), materialCapacity: r.tracer.materialCapacity, ...config, maxError, relativeL2 };
 						results.push(result);
 						console.log(`[correctness] ${JSON.stringify(result)}`);
 						check(maxError <= 1e-5, `${scene.name}: GPU integrators differ by ${maxError}`);
@@ -226,7 +298,7 @@ try {
 			}
 		} finally { r.destroy(); }
 		return results;
-	}, { tailStart, tailThreshold, only, disableSubgroups, compaction, directStages, dispatchSweep, packetStages, packetSweep });
+	}, { tailStart, tailThreshold, only, disableSubgroups, compaction, directStages, dispatchSweep, packetStages, packetSweep, sort, sortSize });
 	if (errors.length) throw new Error(errors.join('\n'));
 	Object.assign(report, { completed: true, results, finished: new Date().toISOString() });
 	writeFileSync(join(output, 'report.json'), JSON.stringify(report, null, 2));

@@ -28,6 +28,8 @@ const programs = [
 	{ name: 'Wavefront', source: 'Passes/Wavefront.slang', entries: ['Initialize', 'Intersect', 'IntersectOpaque', 'Shade', 'Shadow', 'ShadowOpaque', 'Tail', 'TailOpaque', 'Finalize',
 		'IntersectDirect', 'IntersectOpaqueDirect', 'ShadeDirect', 'ShadowDirect', 'ShadowOpaqueDirect'].map(e => [e, 'compute']) },
 	{ name: 'WavefrontCompact', source: 'Passes/WavefrontCompact.slang', entries: [['CompactIntersect', 'compute'], ['CompactShade', 'compute']] },
+	{ name: 'WavefrontSort64', source: 'Passes/WavefrontSort.slang', defines: ['VEACH_SORT_SIZE=64'], entries: [['SortMaterial', 'compute'], ['SortProgram', 'compute']] },
+	{ name: 'WavefrontSort256', source: 'Passes/WavefrontSort.slang', defines: ['VEACH_SORT_SIZE=256'], entries: [['SortMaterial', 'compute'], ['SortProgram', 'compute']] },
 	{ name: 'WavefrontCompactSubgroup', source: 'Passes/WavefrontCompact.slang', defines: ['VEACH_SUBGROUP_COMPACTION=1'], entries: [['CompactIntersect', 'compute'], ['CompactShade', 'compute']] },
 	{ name: 'WavefrontCompactPacket', source: 'Passes/WavefrontCompact.slang', defines: ['VEACH_PACKET_COMPACTION=1'], entries: [['CompactIntersect', 'compute'], ['CompactShade', 'compute']] },
 	{ name: 'WavefrontCompactDense', source: 'Passes/WavefrontCompact.slang', defines: ['VEACH_DENSE_COMPACTION=1'], entries: [['CompactIntersect', 'compute'], ['CompactShade', 'compute']] },
