@@ -95,10 +95,10 @@ bool IntersectTriangle(float3 o, float3 d, float3 v0, float3 e1, float3 e2, floa
 }
 
 // Closest hit (anyHit = false) or first accepted hit (anyHit = true) within one BLAS.
-bool TraverseBLAS(uint instanceIndex, Instance inst, float3 o, float3 d, float tMin, bool anyHit, inout HitRecord hit)
+bool TraverseBLAS<let ALPHA : bool>(uint instanceIndex, Instance inst, float3 o, float3 d, float tMin, bool anyHit, inout HitRecord hit)
 {
 	float3 rD = SafeRcp(d);
-	bool alphaTested = (inst.flags & INSTANCE_FLAG_ALPHA_TESTED) != 0u;
+	bool alphaTested = ALPHA && (inst.flags & INSTANCE_FLAG_ALPHA_TESTED) != 0u;
 	uint stack[BLAS_STACK_SIZE];
 	uint stackPtr = 0u;
 	uint nodeRef = 0u;
@@ -179,7 +179,7 @@ bool TraverseBLAS(uint instanceIndex, Instance inst, float3 o, float3 d, float t
 	return found;
 }
 
-bool TraceScene(Ray ray, bool anyHit, inout HitRecord hit)
+bool TraceScene<let ALPHA : bool>(Ray ray, bool anyHit, inout HitRecord hit)
 {
 	hit.t = ray.tMax;
 	hit.barycentrics = float2(0.0);
@@ -209,7 +209,7 @@ bool TraceScene(Ray ray, bool anyHit, inout HitRecord hit)
 				Instance inst = gInstances[instanceIndex];
 				float3 o = InverseTransformPoint(inst, ray.origin);
 				float3 d = InverseTransformVector(inst, ray.direction);
-				if (TraverseBLAS(instanceIndex, inst, o, d, ray.tMin, anyHit, hit))
+				if (TraverseBLAS<ALPHA>(instanceIndex, inst, o, d, ray.tMin, anyHit, hit))
 				{
 					found = true;
 					if (anyHit)
@@ -261,15 +261,15 @@ bool TraceScene(Ray ray, bool anyHit, inout HitRecord hit)
 	return found;
 }
 
-HitRecord TraceClosest(Ray ray)
+HitRecord TraceClosest<let ALPHA : bool = true>(Ray ray)
 {
 	HitRecord hit;
-	TraceScene(ray, false, hit);
+	TraceScene<ALPHA>(ray, false, hit);
 	return hit;
 }
 
-bool TraceOcclusion(Ray ray)
+bool TraceOcclusion<let ALPHA : bool = true>(Ray ray)
 {
 	HitRecord hit;
-	return TraceScene(ray, true, hit);
+	return TraceScene<ALPHA>(ray, true, hit);
 }

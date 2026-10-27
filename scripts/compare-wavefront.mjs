@@ -9,6 +9,7 @@ const candidate = JSON.parse(readFileSync(join(candidatePath, 'report.json'), 'u
 for (const key of ['width', 'height', 'samples', 'bounces']) {
 	if (reference.config[key] !== candidate.config[key]) throw new Error(`Mismatched ${key}`);
 }
+if ((reference.config.clamp ?? 0) !== (candidate.config.clamp ?? 0)) throw new Error('Mismatched firefly clamp');
 const median = values => [...values].sort((a, b) => a - b)[Math.floor(values.length / 2)];
 const results = [];
 for (const c of candidate.results) {
@@ -31,7 +32,10 @@ for (const c of candidate.results) {
 	}
 	errors.sort();
 	const referenceMs = median(r.repeats.map(x => x.medianMs)), candidateMs = median(c.repeats.map(x => x.medianMs));
+	const referenceSpanMs = median(r.repeats.map(x => x.medianSpanMs ?? x.medianMs));
+	const candidateSpanMs = median(c.repeats.map(x => x.medianSpanMs ?? x.medianMs));
 	const result = { name: c.name, referenceMs, candidateMs, speedup: referenceMs / candidateMs,
+		referenceSpanMs, candidateSpanMs, spanSpeedup: referenceSpanMs / candidateSpanMs,
 		rmse: Math.sqrt(sumSquared / a.length), relativeL2: Math.sqrt(sumSquared / Math.max(refSquared, 1e-30)),
 		meanAbsoluteError: sumAbs / a.length, p99AbsoluteError: errors[Math.floor(errors.length * 0.99)], maxAbsoluteError: maxAbs,
 		changedFraction: changed / a.length, meanRatio: candidateSum / refSum };

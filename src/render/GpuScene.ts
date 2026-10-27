@@ -46,6 +46,7 @@ export class GpuScene {
 	lights!: GPUBuffer;
 
 	instanceCount = 0;
+	hasAlphaTested = false;
 	lightCount = 0;
 	analyticLightCount = 0;
 	tlasPrimOffset = 0;
@@ -222,7 +223,10 @@ export class GpuScene {
 			const g = meshGpu.get(inst.mesh)!;
 			const materialIndex = materialOf(inst.mesh);
 			let flags = 0;
-			if (materials[materialIndex].alphaTested) flags |= INSTANCE_FLAG_ALPHA_TESTED;
+			if (materials[materialIndex].alphaTested) {
+				flags |= INSTANCE_FLAG_ALPHA_TESTED;
+				out.hasAlphaTested = true;
+			}
 			if (triangleCount > 0 && lightOffsets[i] !== null) flags |= INSTANCE_FLAG_EMISSIVE;
 			packInstance(instanceBuffer, i, {
 				objectToWorld: inst.transform,

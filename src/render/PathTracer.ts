@@ -35,6 +35,7 @@ export class PathTracer {
 	private readonly bsdfTables: GPUTexture;
 
 	private sceneBindGroup: GPUBindGroup | null = null;
+	private hasAlphaTested = false;
 	private accumBindGroup: GPUBindGroup | null = null;
 	private presentBindGroup: GPUBindGroup | null = null;
 	private accumBuffer: GPUBuffer | null = null;
@@ -155,6 +156,7 @@ export class PathTracer {
 	}
 
 	setScene(scene: GpuScene, environment: Environment, vt: VirtualTextureSystem): void {
+		this.hasAlphaTested = scene.hasAlphaTested;
 		this.sceneBindGroup = this.device.createBindGroup({
 			label: 'scene',
 			layout: this.sceneLayout,
@@ -190,7 +192,7 @@ export class PathTracer {
 		this.accumBuffer = this.device.createBuffer({
 			label: 'accumulation',
 			size: width * height * ACCUM_BYTES_PER_PIXEL + (this.integrator === 'wavefront' ? this.wavefront!.storageBytes(width * height) : 0),
-			usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC,
+			usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC | GPUBufferUsage.COPY_DST,
 		});
 		this.feedbackTexture?.destroy();
 		this.feedbackTexture = this.device.createTexture({
@@ -289,7 +291,7 @@ export class PathTracer {
 			return;
 		}
 		if (this.integrator === 'wavefront' && debugMode === 0) {
-			this.wavefront!.encode(encoder, this.sceneBindGroup, this.width, this.height, maxBounces);
+			this.wavefront!.encode(encoder, this.sceneBindGroup, this.width, this.height, maxBounces, this.hasAlphaTested);
 			return;
 		}
 		const pass = encoder.beginComputePass({ label: 'pathTracing' });

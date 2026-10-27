@@ -46,6 +46,13 @@ const cases = [
 	{ name: 'iridescence', query: 'model=/samples/IridescentDishWithOlives.glb&env=/samples/studio_small_09_1k.hdr&spp=64' },
 ];
 const only = process.argv.slice(2);
+const integratorFlag = only.indexOf('--integrator');
+let integrator = 'megakernel';
+if (integratorFlag >= 0) {
+	integrator = only[integratorFlag + 1];
+	if (!['megakernel', 'wavefront'].includes(integrator)) throw new Error('--integrator must be megakernel or wavefront');
+	only.splice(integratorFlag, 2);
+}
 const modelFlag = only.indexOf('--model');
 let customModel;
 if (modelFlag >= 0) {
@@ -101,7 +108,7 @@ try {
 		page.on('pageerror', (e) => errors.push(String(e)));
 		const target = c.target ?? Number(new URLSearchParams(c.query).get('spp') ?? 16);
 		const start = Date.now();
-		await page.goto(`${base}?${c.query}`, { waitUntil: 'load' });
+		await page.goto(`${base}?${c.query}&integrator=${integrator}`, { waitUntil: 'load' });
 		try {
 			// converged and virtual texture streaming settled (no uploads for several polls)
 			await page.waitForFunction(

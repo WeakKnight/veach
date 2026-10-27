@@ -23,7 +23,8 @@ struct WavefrontUniforms
 };
 [[vk::binding(2, 1)]] ConstantBuffer<WavefrontUniforms> gWavefront;
 
-// float4 records: path 0..7, hit 8..9, shadow metadata 10..11, three shadows 12..20.
+// float4 field arrays (SoA): path 0..7, hit 8..9, shadow metadata 10..11,
+// three shadows 12..20. Every field has gWavefront.capacity entries.
 static const uint WAVEFRONT_STRIDE = 21u;
 
 struct WavefrontPath
@@ -37,23 +38,33 @@ struct WavefrontPath
 
 uint WorkBase(uint index)
 {
-	return gFrame.frame.x * gFrame.frame.y * 3u + index * WAVEFRONT_STRIDE;
+	return gFrame.frame.x * gFrame.frame.y * 3u + 3u + index;
 }
+
+uint Field(uint base, uint field) { return base + field * gWavefront.capacity; }
+
+uint HeaderBase() { return gFrame.frame.x * gFrame.frame.y * 3u; }
+uint MainQueueBase() { return HeaderBase() + 3u + gWavefront.capacity * WAVEFRONT_STRIDE; }
+uint ShadowQueueBase() { return MainQueueBase() + (gWavefront.capacity + 3u) / 4u; }
+uint QueueIndex(uint base, uint index) { return asuint(gAccum[base + index / 4u][index & 3u]); }
 
 uint2 WorkPixel(uint index)
 {
-	uint pixel = gWavefront.tileStart + index;
-	return uint2(pixel % gFrame.frame.x, pixel / gFrame.frame.x);
+	// Match the megakernel's 8x8 spatial grouping before paths diverge/compact.
+	uint work = gWavefront.tileStart + index;
+	uint block = work / 64u, lane = work & 63u;
+	uint blocksX = (gFrame.frame.x + 7u) / 8u;
+	return uint2((block % blocksX) * 8u + (lane & 7u), (block / blocksX) * 8u + lane / 8u);
 }
 
 void StoreFeedbackState(uint base)
 {
-	gAccum[base + 7u] = asfloat(uint4(gVTRequest, gVTRequestCount, gVTRandom, 0u));
+	gAccum[Field(base, 7u)] = asfloat(uint4(gVTRequest, gVTRequestCount, gVTRandom, 0u));
 }
 
 void LoadFeedbackState(uint base)
 {
-	uint4 state = asuint(gAccum[base + 7u]);
+	uint4 state = asuint(gAccum[Field(base, 7u)]);
 	gVTRequest = state.x;
 	gVTRequestCount = state.y;
 	gVTRandom = state.z;
@@ -62,15 +73,15 @@ void LoadFeedbackState(uint base)
 WavefrontPath LoadPath(uint base)
 {
 	WavefrontPath s;
-	float4 a = gAccum[base], b = gAccum[base + 1u], c = gAccum[base + 2u];
-	float4 d = gAccum[base + 3u], e = gAccum[base + 4u], f = gAccum[base + 5u];
+	float4 a = gAccum[base], b = gAccum[Field(base, 1u)], c = gAccum[Field(base, 2u)];
+	float4 d = gAccum[Field(base, 3u)], e = gAccum[Field(base, 4u)], f = gAccum[Field(base, 5u)];
 	s.path.radiance = a.xyz; s.active = asuint(a.w);
 	s.path.throughput = b.xyz; s.randomSeed = asuint(b.w);
 	s.path.origin = c.xyz; s.path.scatterPdf = c.w;
 	s.path.direction = d.xyz; s.path.lightsSampled = asuint(d.w) != 0u;
 	s.path.absorption = e.xyz; s.path.coneWidth = e.w;
 	s.albedo = f.xyz; s.path.coneSpread = f.w;
-	s.normal = gAccum[base + 6u].xyz;
+	s.normal = gAccum[Field(base, 6u)].xyz;
 	s.path.lobe = 0u; // last-lobe identity is already encoded in cone spread / NEE state
 	return s;
 }
@@ -78,12 +89,12 @@ WavefrontPath LoadPath(uint base)
 void StorePath(uint base, WavefrontPath s)
 {
 	gAccum[base] = float4(s.path.radiance, asfloat(s.active));
-	gAccum[base + 1u] = float4(s.path.throughput, asfloat(s.randomSeed));
-	gAccum[base + 2u] = float4(s.path.origin, s.path.scatterPdf);
-	gAccum[base + 3u] = float4(s.path.direction, asfloat(uint(s.path.lightsSampled)));
-	gAccum[base + 4u] = float4(s.path.absorption, s.path.coneWidth);
-	gAccum[base + 5u] = float4(s.albedo, s.path.coneSpread);
-	gAccum[base + 6u] = float4(s.normal, 0.0);
+	gAccum[Field(base, 1u)] = float4(s.path.throughput, asfloat(s.randomSeed));
+	gAccum[Field(base, 2u)] = float4(s.path.origin, s.path.scatterPdf);
+	gAccum[Field(base, 3u)] = float4(s.path.direction, asfloat(uint(s.path.lightsSampled)));
+	gAccum[Field(base, 4u)] = float4(s.path.absorption, s.path.coneWidth);
+	gAccum[Field(base, 5u)] = float4(s.albedo, s.path.coneSpread);
+	gAccum[Field(base, 6u)] = float4(s.normal, 0.0);
 }
 
 [shader("compute")]
@@ -106,29 +117,35 @@ void Initialize(uint3 tid : SV_DispatchThreadID)
 	s.path.coneSpread = gFrame.vtParams.y;
 	s.path.absorption = float3(0.0);
 	s.path.lightsSampled = false;
-	s.active = 1u;
+	s.active = uint(all(pixel < gFrame.frame.xy));
 	s.randomSeed = rng.seed;
 	s.albedo = float3(0.0);
 	s.normal = float3(0.0);
 	uint base = WorkBase(index);
 	StorePath(base, s);
+	gAccum[Field(base, 11u)] = float4(0.0);
+	if ((index & 3u) == 0u) gAccum[MainQueueBase() + index / 4u] = asfloat(uint4(index, index + 1u, index + 2u, index + 3u));
+	if (index == 0u)
+	{
+		gAccum[HeaderBase()] = asfloat(uint4(gWavefront.pathCount, 0u, 0u, 0u));
+		gAccum[HeaderBase() + 1u] = asfloat(uint4((gWavefront.pathCount + 63u) / 64u, 1u, 1u, 0u));
+		gAccum[HeaderBase() + 2u] = asfloat(uint4(0u, 1u, 1u, 0u));
+	}
 	InitVirtualTextureFeedback(pixel);
 	StoreFeedbackState(base);
 }
 
-[shader("compute")]
-[numthreads(64, 1, 1)]
-void Intersect(uint3 tid : SV_DispatchThreadID)
+void IntersectImpl<let ALPHA : bool>(uint3 tid)
 {
-	uint index = tid.x;
-	if (index >= gWavefront.pathCount) return;
+	if (tid.x >= asuint(gAccum[HeaderBase()].x)) return;
+	uint index = QueueIndex(MainQueueBase(), tid.x);
 	uint base = WorkBase(index);
 	WavefrontPath s = LoadPath(base);
 	if (s.active == 0u) return;
 	LoadFeedbackState(base);
 	gRayCone = float2(s.path.coneWidth, s.path.coneSpread);
 	Ray ray = Ray(s.path.origin, s.path.direction);
-	HitRecord hit = TraceClosest(ray);
+	HitRecord hit = TraceClosest<ALPHA>(ray);
 	float clampValue = gFrame.envParams.w / gFrame.envParams.z;
 	uint bounce = gWavefront.bounce;
 	if (AnalyticLightCount() > 0u)
@@ -162,8 +179,8 @@ void Intersect(uint3 tid : SV_DispatchThreadID)
 	}
 	else
 	{
-		gAccum[base + 8u] = float4(hit.t, hit.barycentrics, asfloat(hit.instanceIndex));
-		gAccum[base + 9u] = asfloat(uint4(hit.primitiveIndex, 0u, 0u, 0u));
+		gAccum[Field(base, 8u)] = float4(hit.t, hit.barycentrics, asfloat(hit.instanceIndex));
+		gAccum[Field(base, 9u)] = asfloat(uint4(hit.primitiveIndex, 0u, 0u, 0u));
 	}
 	StorePath(base, s);
 	StoreFeedbackState(base);
@@ -215,24 +232,24 @@ void QueueDirectLighting(uint base, SurfaceInteraction si, BSDF bsdf, float2 con
 		if (any(f > 0.0))
 		{
 			float weight = mis ? EvalMISRobust(ls.solidAnglePdf, pdf) : 1.0;
-			uint offset = base + 12u + source * 3u;
-			gAccum[offset] = float4(origin, maxDistance);
-			gAccum[offset + 1u] = float4(dir, asfloat(uint(shadow)));
-			gAccum[offset + 2u] = float4(weight * ls.radiance * f / ls.solidAnglePdf, 0.0);
+			uint offset = 12u + source * 3u;
+			gAccum[Field(base, offset)] = float4(origin, maxDistance);
+			gAccum[Field(base, offset + 1u)] = float4(dir, asfloat(uint(shadow)));
+			gAccum[Field(base, offset + 2u)] = float4(weight * ls.radiance * f / ls.solidAnglePdf, 0.0);
 			mask |= 1u << source;
 		}
 	}
 	// Clamp the sum of direct contributions, matching the megakernel exactly.
-	gAccum[base + 10u] = float4(throughput, gWavefront.bounce > 0u ? gFrame.envParams.w / gFrame.envParams.z : 0.0);
-	gAccum[base + 11u] = float4(cone, asfloat(mask), 0.0);
+	gAccum[Field(base, 10u)] = float4(throughput, gWavefront.bounce > 0u ? gFrame.envParams.w / gFrame.envParams.z : 0.0);
+	gAccum[Field(base, 11u)] = float4(cone, asfloat(mask), 0.0);
 }
 
 void ShadePath(uint base, inout WavefrontPath s)
 {
-	float4 h = gAccum[base + 8u];
+	float4 h = gAccum[Field(base, 8u)];
 	HitRecord hit;
 	hit.t = h.x; hit.barycentrics = h.yz; hit.instanceIndex = asuint(h.w);
-	hit.primitiveIndex = asuint(gAccum[base + 9u].x);
+	hit.primitiveIndex = asuint(gAccum[Field(base, 9u)].x);
 	if (any(s.path.absorption > 0.0)) s.path.throughput *= exp(s.path.absorption * -hit.t);
 	float hitConeWidth = s.path.coneWidth + s.path.coneSpread * hit.t;
 	SurfaceInteraction si = GetSurfaceInteraction(s.path.direction, hit, hitConeWidth);
@@ -293,10 +310,10 @@ void ShadePath(uint base, inout WavefrontPath s)
 [numthreads(64, 1, 1)]
 void Shade(uint3 tid : SV_DispatchThreadID)
 {
-	uint index = tid.x;
-	if (index >= gWavefront.pathCount) return;
+	if (tid.x >= asuint(gAccum[HeaderBase()].x)) return;
+	uint index = QueueIndex(MainQueueBase(), tid.x);
 	uint base = WorkBase(index);
-	gAccum[base + 11u] = float4(0.0);
+	gAccum[Field(base, 11u)] = float4(0.0);
 	WavefrontPath s = LoadPath(base);
 	if (s.active == 0u) return;
 	LoadFeedbackState(base);
@@ -305,14 +322,12 @@ void Shade(uint3 tid : SV_DispatchThreadID)
 	StoreFeedbackState(base);
 }
 
-[shader("compute")]
-[numthreads(64, 1, 1)]
-void Shadow(uint3 tid : SV_DispatchThreadID)
+void ShadowImpl<let ALPHA : bool>(uint3 tid)
 {
-	uint index = tid.x;
-	if (index >= gWavefront.pathCount) return;
+	if (tid.x >= asuint(gAccum[HeaderBase()].y)) return;
+	uint index = QueueIndex(ShadowQueueBase(), tid.x);
 	uint base = WorkBase(index);
-	float4 info = gAccum[base + 11u];
+	float4 info = gAccum[Field(base, 11u)];
 	uint mask = asuint(info.z);
 	if (mask == 0u) return;
 	LoadFeedbackState(base);
@@ -322,18 +337,35 @@ void Shadow(uint3 tid : SV_DispatchThreadID)
 	for (uint source = 0u; source < 3u; source++)
 	{
 		if ((mask & (1u << source)) == 0u) continue;
-		uint offset = base + 12u + source * 3u;
-		float4 origin = gAccum[offset], direction = gAccum[offset + 1u];
-		if (asuint(direction.w) == 0u || !TraceOcclusion(Ray(origin.xyz, direction.xyz, origin.w))) sum += gAccum[offset + 2u].xyz;
+		uint offset = 12u + source * 3u;
+		float4 origin = gAccum[Field(base, offset)], direction = gAccum[Field(base, offset + 1u)];
+		if (asuint(direction.w) == 0u || !TraceOcclusion<ALPHA>(Ray(origin.xyz, direction.xyz, origin.w))) sum += gAccum[Field(base, offset + 2u)].xyz;
 	}
-	float4 throughput = gAccum[base + 10u];
+	float4 throughput = gAccum[Field(base, 10u)];
 	float3 contribution = throughput.xyz * sum;
 	if (throughput.w > 0.0) contribution = min(contribution, float3(throughput.w));
 	float4 path = gAccum[base];
 	path.xyz += contribution;
 	gAccum[base] = path;
+	gAccum[Field(base, 11u)] = float4(0.0);
 	StoreFeedbackState(base);
 }
+
+[shader("compute")]
+[numthreads(64, 1, 1)]
+void Intersect(uint3 tid : SV_DispatchThreadID) { IntersectImpl<true>(tid); }
+
+[shader("compute")]
+[numthreads(64, 1, 1)]
+void IntersectOpaque(uint3 tid : SV_DispatchThreadID) { IntersectImpl<false>(tid); }
+
+[shader("compute")]
+[numthreads(64, 1, 1)]
+void Shadow(uint3 tid : SV_DispatchThreadID) { ShadowImpl<true>(tid); }
+
+[shader("compute")]
+[numthreads(64, 1, 1)]
+void ShadowOpaque(uint3 tid : SV_DispatchThreadID) { ShadowImpl<false>(tid); }
 
 [shader("compute")]
 [numthreads(64, 1, 1)]
@@ -344,11 +376,12 @@ void Finalize(uint3 tid : SV_DispatchThreadID)
 	uint base = WorkBase(index);
 	WavefrontPath s = LoadPath(base);
 	uint2 pixel = WorkPixel(index);
+	if (any(pixel >= gFrame.frame.xy)) return;
 	LoadFeedbackState(base);
 	if (IsFeedbackPixel(pixel)) gVTFeedback.Store(pixel >> gFrame.vtInfo.w, gVTRequest);
 	float3 radiance = s.path.radiance * gFrame.envParams.z;
 	if (!all(isfinite(radiance))) radiance = float3(0.0);
-	uint output = (gWavefront.tileStart + index) * 3u;
+	uint output = (pixel.y * gFrame.frame.x + pixel.x) * 3u;
 	if (gFrame.frame.z == 0u)
 	{
 		gAccum[output] = float4(radiance, 1.0);

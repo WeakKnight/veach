@@ -23,16 +23,19 @@ const config = {
 	warmup: Number(option('warmup', 64)), samples: Number(option('samples', 32)),
 	repeats: Number(option('repeats', 3)), bounces: Number(option('bounces', 8)),
 	mode: option('mode', 'megakernel'),
+	diagnose: args.includes('--diagnose'),
+	storageBuffers: Number(option('storage-buffers', 8)),
+	clamp: Number(option('clamp', 0)),
 };
 for (const key of ['width', 'height', 'warmup', 'samples', 'repeats', 'bounces']) {
-	if (!Number.isInteger(config[key]) || config[key] < 1) throw new Error(`Invalid ${key}`);
+	if (!Number.isInteger(config[key]) || config[key] < (key === 'bounces' ? 0 : 1)) throw new Error(`Invalid ${key}`);
 }
 const cases = [
-	{ name: 'classroom', file: 'classroom/gltf/classroom_extended.glb', environment: 1 },
-	{ name: 'breakfast-room', file: 'breakfast-room/gltf/breakfast_room_extended.glb', environment: 1 },
-	{ name: 'bmw-m6', file: 'bmw-m6/gltf/bmw_m6_extended.glb', environment: 1 },
-	{ name: 'glass-of-water', file: 'glass-of-water/gltf/glass_of_water_extended.glb', environment: 0 },
-	{ name: 'veach-mis', file: 'veach-mis/gltf/veach_mis_extended.glb', environment: 0 },
+	{ name: 'classroom', file: 'classroom/gltf/classroom_extended.glb', environment: 1, presentationExposure: 4 },
+	{ name: 'breakfast-room', file: 'breakfast-room/gltf/breakfast_room_extended.glb', environment: 1, presentationExposure: 6 },
+	{ name: 'bmw-m6', file: 'bmw-m6/gltf/bmw_m6_extended.glb', environment: 1, presentationExposure: 2 },
+	{ name: 'glass-of-water', file: 'glass-of-water/gltf/glass_of_water_extended.glb', environment: 0, presentationExposure: 0 },
+	{ name: 'veach-mis', file: 'veach-mis/gltf/veach_mis_extended.glb', environment: 0, presentationExposure: 0 },
 ].filter(c => option('only', '').split(',').filter(Boolean).length === 0 || option('only', '').split(',').includes(c.name));
 if (!cases.length) throw new Error('No selected scenes');
 for (const c of cases) {
@@ -60,7 +63,10 @@ const browser = await puppeteer.launch({ executablePath: chrome, headless: true,
 	args: ['--enable-unsafe-webgpu', '--ignore-gpu-blocklist', '--no-sandbox', '--disable-background-timer-throttling'],
 });
 const report = { started: new Date().toISOString(), revision: execFileSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8' }).trim(),
-	config, browser: await browser.version(), results: [] };
+	config, browser: await browser.version(),
+	sourceHashes: Object.fromEntries(['src/generated/shaders/PathTracing.wgsl', 'src/generated/shaders/Wavefront.wgsl',
+		'src/generated/shaders/WavefrontCompact.wgsl', 'src/render/Wavefront.ts', 'src/render/PathTracer.ts', 'src/render/Renderer.ts']
+		.filter(p => existsSync(join(root, p))).map(p => [p, createHash('sha256').update(readFileSync(join(root, p))).digest('hex')])), results: [] };
 writeFileSync(join(output, 'report.json'), JSON.stringify(report, null, 2));
 try {
 	for (const c of cases) {
@@ -81,7 +87,9 @@ try {
 			GPUAdapter.prototype.requestDevice = function(descriptor = {}) {
 				adapterInfo = { vendor: this.info.vendor, architecture: this.info.architecture, device: this.info.device, description: this.info.description };
 				if (!this.features.has('timestamp-query')) throw new Error('This benchmark requires timestamp-query');
-				return requestDevice.call(this, { ...descriptor, requiredFeatures: [...new Set([...(descriptor.requiredFeatures ?? []), 'timestamp-query'])] });
+				return requestDevice.call(this, { ...descriptor,
+					requiredLimits: { ...descriptor.requiredLimits, maxStorageBuffersPerShaderStage: config.storageBuffers },
+					requiredFeatures: [...new Set([...(descriptor.requiredFeatures ?? []), 'timestamp-query'])] });
 			};
 			const { Renderer, LocalExposureMethod } = await import('/src/render/Renderer.ts');
 			const { AutoExposureMethod } = await import('/src/render/AutoExposure.ts');
@@ -99,7 +107,7 @@ try {
 			}
 			Object.assign(renderer.settings, { maxSamples: 0, samplesPerFrame: 1, maxBounces: config.bounces,
 				autoExposureMethod: AutoExposureMethod.Manual, autoExposureBias: 0, localExposureMethod: LocalExposureMethod.None,
-				environmentIntensity: c.environment, fireflyClamp: 0 });
+				environmentIntensity: c.environment, fireflyClamp: config.clamp });
 			renderer.sun.enabled = c.environment > 0;
 			const loadStart = performance.now();
 			await renderer.setScene(await loadGLTF(`/__research/${c.name}.glb`));
@@ -123,6 +131,16 @@ try {
 			const resolved = device.createBuffer({ size: 2048 * 8, usage: GPUBufferUsage.QUERY_RESOLVE | GPUBufferUsage.COPY_SRC });
 			const readback = device.createBuffer({ size: 2048 * 8, usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ });
 			const begin = GPUCommandEncoder.prototype.beginComputePass;
+			const copyBuffer = GPUCommandEncoder.prototype.copyBufferToBuffer;
+			const queueReadback = config.diagnose ? device.createBuffer({ size: 65536, usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ }) : null;
+			let queueCopies = 0, captureQueues = false, queueSnapshots = [];
+			GPUCommandEncoder.prototype.copyBufferToBuffer = function(source, sourceOffset, destination, destinationOffset, size) {
+				copyBuffer.call(this, source, sourceOffset, destination, destinationOffset, size);
+				if (captureQueues && destination.label === 'wavefrontDispatch') {
+					if (queueCopies >= 4096) throw new Error('Queue diagnostic capacity exceeded');
+					copyBuffer.call(this, source, sourceOffset - 16, queueReadback, queueCopies++ * 16, 16);
+				}
+			};
 			let labels = [], measuring = false;
 			GPUCommandEncoder.prototype.beginComputePass = function(descriptor = {}) {
 				if (measuring && (descriptor.label === 'pathTracing' || descriptor.label?.startsWith('wavefront.'))) {
@@ -136,10 +154,12 @@ try {
 			const repeats = [];
 			for (let repeat = 0; repeat < config.repeats; repeat++) {
 				renderer.resetAccumulation();
-				const timings = [], stages = {}, wall = performance.now();
+				const timings = [], spanTimings = [], stages = {}, wall = performance.now();
 				for (let sample = 0; sample < config.samples; sample++) {
+					captureQueues = config.diagnose && sample === 0 && repeat === 0;
 					labels = []; measuring = true;
 					renderer.renderFrame();
+					captureQueues = false;
 					measuring = false;
 					if (!labels.length) throw new Error('No trace passes were measured');
 					const encoder = device.createCommandEncoder();
@@ -155,15 +175,25 @@ try {
 						stages[labels[i]] = (stages[labels[i]] ?? 0) + ms;
 					}
 					timings.push(sum);
+					spanTimings.push(Number(timestamps[labels.length * 2 - 1] - timestamps[0]) / 1e6);
 					readback.unmap();
 				}
 				const wallMs = performance.now() - wall;
 				const sorted = [...timings].sort((a, b) => a - b);
 				const medianMs = sorted[Math.floor(sorted.length / 2)];
-				repeats.push({ medianMs, meanMs: timings.reduce((a, b) => a + b) / timings.length, wallMs, timings, stages });
-				console.log(`[benchmark] ${c.name}: repeat ${repeat + 1}, GPU ${medianMs.toFixed(3)} ms/sample`);
+				const sortedSpans = [...spanTimings].sort((a, b) => a - b);
+				const medianSpanMs = sortedSpans[Math.floor(sortedSpans.length / 2)];
+				repeats.push({ medianMs, medianSpanMs, meanMs: timings.reduce((a, b) => a + b) / timings.length, wallMs, timings, spanTimings, stages });
+				console.log(`[benchmark] ${c.name}: repeat ${repeat + 1}, GPU passes ${medianMs.toFixed(3)}, span ${medianSpanMs.toFixed(3)} ms/sample`);
 			}
 			GPUCommandEncoder.prototype.beginComputePass = begin;
+			GPUCommandEncoder.prototype.copyBufferToBuffer = copyBuffer;
+			if (queueReadback) {
+				await queueReadback.mapAsync(GPUMapMode.READ);
+				const counters = new Uint32Array(queueReadback.getMappedRange());
+				for (let i = 0; i < queueCopies; i++) queueSnapshots.push({ active: counters[i * 4], shadow: counters[i * 4 + 1] });
+				queueReadback.unmap(); queueReadback.destroy();
+			}
 			renderer.updateStreaming = updateStreaming;
 			const hdr = await renderer.readRadiance();
 			let finite = true, sum = 0, peak = 0;
@@ -172,11 +202,17 @@ try {
 			const bytes = new Uint8Array(hdr.data.buffer);
 			let binary = '';
 			for (let i = 0; i < bytes.length; i += 16384) binary += String.fromCharCode(...bytes.subarray(i, i + 16384));
+			// Presentation-only lift makes dark interiors inspectable without changing the HDR
+			// capture, path sampling, or timed work. No extra sample is traced here.
+			renderer.settings.maxSamples = renderer.samples;
+			renderer.settings.autoExposureBias = c.presentationExposure;
+			renderer.renderFrame();
+			await device.queue.onSubmittedWorkDone();
 			queries.destroy(); resolved.destroy(); readback.destroy();
 			globalThis.benchmarkRenderer = renderer;
-			return { adapterInfo, initMs, loadMs, warmFrames: warmFrames + 1, scene: renderer.sceneStats, vt: renderer.virtualTextureStats,
+			return { adapterInfo, initMs, loadMs, warmFrames: warmFrames + 1, presentationExposure: c.presentationExposure, scene: renderer.sceneStats, vt: renderer.virtualTextureStats,
 				camera: { position: renderer.camera.position, target: renderer.camera.target, up: renderer.camera.up, fovY: renderer.camera.fovY },
-				repeats, hdr: { width: hdr.width, height: hdr.height, samples: hdr.samples, elements: hdr.data.length, mean: sum / hdr.data.length, peak },
+				repeats, queueSnapshots, hdr: { width: hdr.width, height: hdr.height, samples: hdr.samples, elements: hdr.data.length, mean: sum / hdr.data.length, peak },
 				base64: btoa(binary) };
 		}, { c, config });
 		const { base64, ...stats } = result;

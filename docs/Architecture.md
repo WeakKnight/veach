@@ -97,6 +97,9 @@ The experimental wavefront integrator is described in [Wavefront.md](Wavefront.m
 It appends bounded tile work storage to the accumulation buffer (group 1 binding 0),
 retaining the eight-storage-buffer limit. Its group 1 adds a dynamic uniform at binding 2
 for tile origin, path count, bounce, and capacity. Presentation reads only the image prefix.
+GPU compaction views that allocation as atomic uints in its own pass; dispatch arguments
+are copied into a small INDIRECT-only buffer. Opaque traversal variants omit the opacity
+interpreter when `GpuScene.hasAlphaTested` is false (derived from instanced materials).
 
 Bind group layouts are explicit in `PathTracer.ts`.
 

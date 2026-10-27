@@ -70,6 +70,7 @@ async function main(): Promise<void> {
 			showProgress(p.message, p.progress, p.stage === 'shaders');
 		},
 	}).finally(() => clearInterval(ticker));
+	if (params.get('integrator') === 'wavefront') await renderer.setIntegrator('wavefront');
 	(globalThis as unknown as { veach: Renderer }).veach = renderer;
 	new OrbitController(renderer.camera, canvas, () => renderer.resetAccumulation());
 
