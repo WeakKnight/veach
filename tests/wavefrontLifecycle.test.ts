@@ -22,7 +22,7 @@ function pending() {
 function tracer(): PathTracer {
 	// Only exercise asynchronous ownership; GPU allocation/rendering are covered by the browser tests.
 	return Object.assign(Object.create(PathTracer.prototype), {
-		integrator: 'megakernel' as const, width: 8, height: 8,
+		integrator: 'megakernel' as const, width: 8, height: 8, hasGeometry: true,
 		materialPipelines: new Map(), materialPipelineLoading: new Map(), materialCapacity: 16,
 		resize: vi.fn(),
 		uniformBuffer: { destroy: vi.fn() }, toneLUT: { destroy: vi.fn() },
@@ -33,6 +33,28 @@ function tracer(): PathTracer {
 
 describe('wavefront compilation ownership', () => {
 	beforeEach(() => { compilation.instances.length = 0; compilation.pending = Promise.resolve(); });
+
+	it('defers material kernels for empty scenes but prepares them when geometry arrives', async () => {
+		const pathTracer = tracer();
+		const device = { createShaderModule: vi.fn(() => ({})), createComputePipelineAsync: vi.fn().mockResolvedValue({}) };
+		Object.assign(pathTracer, { hasGeometry: false, materialStackOverride: null, compiled: Promise.resolve(), emptyPipeline: {}, device });
+		const emptyScene = { instanceCount: 0, materialStackSize: 0 } as GpuScene;
+		await pathTracer.setIntegrator('wavefront');
+		await pathTracer.prepareScene(emptyScene);
+		expect(pathTracer.integrator).toBe('wavefront');
+		expect(device.createComputePipelineAsync).not.toHaveBeenCalled();
+		expect(compilation.instances).toHaveLength(0);
+		// Forced capacity keeps a full reference path available for empty-scene GPU comparisons.
+		pathTracer.materialStackOverride = 16;
+		await pathTracer.prepareScene(emptyScene);
+		expect(device.createComputePipelineAsync).toHaveBeenCalledTimes(1);
+		expect(compilation.instances).toHaveLength(0);
+		pathTracer.materialStackOverride = null;
+		await pathTracer.prepareScene({ instanceCount: 1, materialStackSize: 3 } as GpuScene);
+		expect(device.createComputePipelineAsync).toHaveBeenCalledTimes(2);
+		expect(compilation.instances).toHaveLength(1);
+		expect(Reflect.get(pathTracer, 'hasGeometry')).toBe(false);
+	});
 
 	it('disposes a stage compiler that completes after the tracer is destroyed', async () => {
 		const compile = pending();

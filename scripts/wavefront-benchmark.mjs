@@ -1,6 +1,6 @@
 // Reproducible GPU timings and linear HDR captures for the wavefront experiment.
 // Uses the production renderer, a fixed camera, and timestamp queries on tracing passes only.
-import { createReadStream, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { createReadStream, existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
 import { dirname, join, resolve } from 'node:path';
@@ -30,9 +30,17 @@ const config = {
 	tailThreshold: Number(option('tail-threshold', 0)),
 	paired: args.includes('--paired'),
 	materialStack: option('material-stack', 'auto') === 'auto' ? null : Number(option('material-stack', 'auto')),
+	tailSweep: args.includes('--tail-sweep'),
 };
 if (config.materialStack !== null && ![1, 2, 4, 8, 16].includes(config.materialStack)) throw new Error('Invalid material stack capacity');
 if (config.paired && config.mode !== 'wavefront') throw new Error('--paired requires --mode wavefront');
+if (config.tailSweep && !config.paired) throw new Error('--tail-sweep requires --paired --mode wavefront');
+config.variants = [{ name: 'wavefront', tailStart: config.tailStart, tailThreshold: config.tailThreshold }];
+if (config.tailSweep) {
+	config.variants.push({ name: 'staged', tailStart: 999, tailThreshold: 0 },
+		...[0, 1, 2, 3].map(tailStart => ({ name: `fixed-${tailStart}`, tailStart, tailThreshold: 0 })),
+		...[8192, 32768, 131072].map(tailThreshold => ({ name: `adaptive-${tailThreshold}`, tailStart: 0, tailThreshold })));
+}
 for (const key of ['width', 'height', 'warmup', 'samples', 'repeats', 'bounces']) {
 	if (!Number.isInteger(config[key]) || config[key] < (key === 'bounces' ? 0 : 1)) throw new Error(`Invalid ${key}`);
 }
@@ -73,16 +81,33 @@ await server.listen();
 const browser = await puppeteer.launch({ executablePath: chrome, headless: true, protocolTimeout: 1800000,
 	args: ['--enable-unsafe-webgpu', '--ignore-gpu-blocklist', '--no-sandbox', '--disable-background-timer-throttling'],
 });
+const sourceHashes = () => {
+	const paths = ['scripts/wavefront-benchmark.mjs', 'package.json', 'package-lock.json', 'vite.config.ts'];
+	const visit = directory => {
+		for (const entry of readdirSync(join(root, directory), { withFileTypes: true })) {
+			const path = `${directory}/${entry.name}`;
+			if (entry.isDirectory()) visit(path);
+			else paths.push(path);
+		}
+	};
+	visit('src');
+	return Object.fromEntries(paths.sort().map(p => [p, createHash('sha256').update(readFileSync(shaderPath(p))).digest('hex')]));
+};
 const report = { started: new Date().toISOString(), revision: execFileSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8' }).trim(),
-	config, browser: await browser.version(),
-	sourceHashes: Object.fromEntries(['src/generated/shaders/PathTracing.wgsl', 'src/generated/shaders/Wavefront.wgsl',
-		'src/generated/shaders/WavefrontCompact.wgsl', 'src/generated/shaders/MaterialStackVariants.ts',
-		'src/render/MaterialShaderVariants.ts', 'src/render/GpuScene.ts', 'src/render/Wavefront.ts', 'src/render/PathTracer.ts', 'src/render/Renderer.ts']
-		.filter(p => existsSync(shaderPath(p))).map(p => [p, createHash('sha256').update(readFileSync(shaderPath(p))).digest('hex')])), results: [] };
+	config, plannedScenes: cases.map(c => c.name), completed: false, browser: await browser.version(),
+	sourceHashes: sourceHashes(), results: [] };
+const assertUnchangedSources = () => {
+	if (JSON.stringify(sourceHashes()) !== JSON.stringify(report.sourceHashes)) throw new Error('Renderer or benchmark sources changed during measurement');
+};
 const referenceReport = { ...report, config: { ...config, mode: 'megakernel' }, results: [] };
+const variantReports = Object.fromEntries(config.variants.slice(1).map(variant => {
+	mkdirSync(join(output, variant.name), { recursive: true });
+	return [variant.name, { ...report, config: { ...config, tailStart: variant.tailStart, tailThreshold: variant.tailThreshold }, results: [] }];
+}));
 writeFileSync(join(candidateOutput, 'report.json'), JSON.stringify(report, null, 2));
 try {
 	for (const c of cases) {
+		assertUnchangedSources();
 		console.log(`[benchmark] ${c.name}: loading ${config.mode}`);
 		const page = await browser.newPage();
 		await page.setViewport({ width: config.width, height: config.height, deviceScaleFactor: 1 });
@@ -97,11 +122,21 @@ try {
 		const result = await page.evaluate(async ({ c, config }) => {
 			const createShaderModule = GPUDevice.prototype.createShaderModule;
 			const observedStackCapacities = {};
+			const shaderCompilations = [], pipelineCompilations = [];
+			const createComputePipeline = GPUDevice.prototype.createComputePipelineAsync;
+			GPUDevice.prototype.createComputePipelineAsync = function(descriptor) {
+				const start = performance.now();
+				return createComputePipeline.call(this, descriptor).then(pipeline => {
+					pipelineCompilations.push({ label: descriptor.label, elapsedMs: performance.now() - start });
+					return pipeline;
+				});
+			};
 			GPUDevice.prototype.createShaderModule = function(descriptor) {
 				if (descriptor.label === 'PathTracing' || descriptor.label === 'Wavefront') {
 					const capacities = [...descriptor.code.matchAll(/var stack_\d+\s*:\s*array<vec4<f32>,\s*i32\((\d+)\)>/g)].map(match => Number(match[1]));
 					if (!capacities.length || capacities.some(capacity => capacity !== capacities[0])) throw new Error('Unexpected effective SVM shader capacity');
 					observedStackCapacities[descriptor.label] = capacities;
+					shaderCompilations.push({ label: descriptor.label, capacities, bytes: descriptor.code.length });
 				}
 				return createShaderModule.call(this, descriptor);
 			};
@@ -124,33 +159,33 @@ try {
 			const renderer = await Renderer.create(canvas, { denoiser: null });
 			GPUAdapter.prototype.requestDevice = requestDevice;
 			const initMs = performance.now() - initStart;
-			const integratorStart = performance.now();
-			if (config.mode !== 'megakernel') {
-				if (!renderer.setIntegrator) throw new Error('Wavefront integration is not implemented in this revision');
-				await renderer.setIntegrator(config.mode);
-				renderer.tracer.wavefront.tailStart = config.tailStart;
-				renderer.tracer.wavefront.tailThreshold = config.tailThreshold;
-			}
-			const integratorInitMs = performance.now() - integratorStart;
 			renderer.tracer.materialStackOverride = config.materialStack;
 			Object.assign(renderer.settings, { maxSamples: 0, samplesPerFrame: 1, maxBounces: config.bounces,
 				autoExposureMethod: AutoExposureMethod.Manual, autoExposureBias: 0, localExposureMethod: LocalExposureMethod.None,
 				environmentIntensity: c.environment, fireflyClamp: config.clamp });
 			renderer.sun.enabled = c.environment > 0;
+			const integratorStart = performance.now();
+			if (config.mode !== 'megakernel') await renderer.setIntegrator(config.mode);
+			const integratorInitMs = performance.now() - integratorStart;
 			const loadStart = performance.now();
 			const sceneDescription = await loadGLTF(`/__research/${c.name}.glb`);
 			const { compileSceneMaterials } = await import('/src/render/SceneMaterials.ts');
 			const materialStackRequired = Math.max(0, ...compileSceneMaterials(sceneDescription).map(material => material.stackSize));
 			if (config.materialStack !== null && materialStackRequired > config.materialStack) throw new Error(`Scene needs ${materialStackRequired} stack slots; variant has ${config.materialStack}`);
 			await renderer.setScene(sceneDescription);
+			const loadMs = performance.now() - loadStart;
+			if (config.mode !== 'megakernel') {
+				renderer.tracer.wavefront.tailStart = config.tailStart;
+				renderer.tracer.wavefront.tailThreshold = config.tailThreshold;
+			}
 			const materialCapacity = renderer.tracer.materialCapacity;
 			const expectedCapacity = config.materialStack ?? [1, 2, 4, 8, 16].find(capacity => capacity >= materialStackRequired);
 			if (materialCapacity !== expectedCapacity) throw new Error('Incorrect production material capacity selection');
 			for (const label of config.mode === 'wavefront' ? ['PathTracing', 'Wavefront'] : ['PathTracing']) {
-				if (observedStackCapacities[label]?.some(capacity => capacity !== materialCapacity)) throw new Error(`Incorrect ${label} shader specialization`);
+				if (!observedStackCapacities[label]?.length || observedStackCapacities[label].some(capacity => capacity !== materialCapacity)) throw new Error(`Incorrect ${label} shader specialization`);
 			}
 			GPUDevice.prototype.createShaderModule = createShaderModule;
-			const loadMs = performance.now() - loadStart;
+			GPUDevice.prototype.createComputePipelineAsync = createComputePipeline;
 			const device = renderer.device;
 			let quiet = 0, warmFrames = 0;
 			for (; warmFrames < Math.max(config.warmup, 512); warmFrames++) {
@@ -165,9 +200,12 @@ try {
 			console.log(`[benchmark] ${c.name}: warmed ${warmFrames + 1} frames, measuring`);
 			// Lock residency during A/B measurements; warmup above uses the normal streaming path.
 			renderer.updateStreaming = () => {};
-			const queries = device.createQuerySet({ type: 'timestamp', count: 2048 });
-			const resolved = device.createBuffer({ size: 2048 * 8, usage: GPUBufferUsage.QUERY_RESOLVE | GPUBufferUsage.COPY_SRC });
-			const readback = device.createBuffer({ size: 2048 * 8, usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ });
+			// Current WebGPU createQuerySet validation caps count at 4096. This covers
+			// a 4K image with 262144-path tiles and eight bounces, including adaptive tails.
+			const queryCapacity = 4096;
+			const queries = device.createQuerySet({ type: 'timestamp', count: queryCapacity });
+			const resolved = device.createBuffer({ size: queryCapacity * 8, usage: GPUBufferUsage.QUERY_RESOLVE | GPUBufferUsage.COPY_SRC });
+			const readback = device.createBuffer({ size: queryCapacity * 8, usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ });
 			const begin = GPUCommandEncoder.prototype.beginComputePass;
 			const copyBuffer = GPUCommandEncoder.prototype.copyBufferToBuffer;
 			const queueReadback = config.diagnose ? device.createBuffer({ size: 65536, usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ }) : null;
@@ -183,7 +221,7 @@ try {
 			GPUCommandEncoder.prototype.beginComputePass = function(descriptor = {}) {
 				if (measuring && (descriptor.label === 'pathTracing' || descriptor.label?.startsWith('wavefront.'))) {
 					const index = labels.length * 2;
-					if (index + 1 >= 2048) throw new Error('Timestamp query capacity exceeded');
+					if (index + 1 >= queryCapacity) throw new Error('Timestamp query capacity exceeded; reduce resolution or bounce count');
 					labels.push(descriptor.label);
 					descriptor = { ...descriptor, timestampWrites: { querySet: queries, beginningOfPassWriteIndex: index, endOfPassWriteIndex: index + 1 } };
 				}
@@ -191,19 +229,28 @@ try {
 			};
 			const repeats = [];
 			let candidateHDR, referenceHDR;
+			const variantHDRs = new Map();
+			let presentationVariant = config.mode;
 			const pairedErrors = [];
 			for (let repeat = 0; repeat < config.repeats; repeat++) {
-				const modes = config.paired ? repeat % 2 === 0 ? ['megakernel', 'wavefront'] : ['wavefront', 'megakernel'] : [config.mode];
-				for (const mode of modes) {
+				const schedule = config.paired ? [{ name: 'megakernel' }, ...config.variants] : [{ name: config.mode, tailStart: config.tailStart, tailThreshold: config.tailThreshold }];
+				// Rotate the sweep and reverse alternating rounds to avoid always measuring a
+				// configuration at the same position relative to GPU warmup and clock changes.
+				if (config.tailSweep) schedule.push(...schedule.splice(0, repeat % schedule.length));
+				if (config.paired && repeat % 2 !== 0) schedule.reverse();
+				for (const variant of schedule) {
+					const mode = variant.name === 'megakernel' ? 'megakernel' : 'wavefront';
+					presentationVariant = variant.name;
 					if (config.paired) {
 						await renderer.setIntegrator(mode);
+						if (mode === 'wavefront') Object.assign(renderer.tracer.wavefront, { tailStart: variant.tailStart, tailThreshold: variant.tailThreshold });
 						// Warm each selected pipeline before timing while retaining identical scene/VT data.
 						for (let warm = 0; warm < 8; warm++) { renderer.renderFrame(); await device.queue.onSubmittedWorkDone(); }
 					}
 					renderer.resetAccumulation();
 					const timings = [], spanTimings = [], stages = {}, wall = performance.now();
 					for (let sample = 0; sample < config.samples; sample++) {
-						captureQueues = config.diagnose && sample === 0 && repeat === 0 && mode === 'wavefront';
+						captureQueues = config.diagnose && sample === 0 && repeat === 0 && variant.name === 'wavefront';
 						labels = []; measuring = true;
 						renderer.renderFrame();
 						captureQueues = false;
@@ -217,11 +264,13 @@ try {
 						const timestamps = new BigUint64Array(readback.getMappedRange());
 						let sum = 0;
 						for (let i = 0; i < labels.length; i++) {
+							if (timestamps[i * 2 + 1] < timestamps[i * 2]) throw new Error('Nonmonotonic GPU timestamps; repeat the measurement');
 							const ms = Number(timestamps[i * 2 + 1] - timestamps[i * 2]) / 1e6;
 							sum += ms;
 							stages[labels[i]] = (stages[labels[i]] ?? 0) + ms;
 						}
 						timings.push(sum);
+						if (timestamps[labels.length * 2 - 1] < timestamps[0]) throw new Error('Nonmonotonic GPU span; repeat the measurement');
 						spanTimings.push(Number(timestamps[labels.length * 2 - 1] - timestamps[0]) / 1e6);
 						readback.unmap();
 					}
@@ -230,22 +279,28 @@ try {
 					const medianMs = (sorted[Math.floor((sorted.length - 1) / 2)] + sorted[Math.floor(sorted.length / 2)]) * 0.5;
 					const sortedSpans = [...spanTimings].sort((a, b) => a - b);
 					const medianSpanMs = (sortedSpans[Math.floor((sortedSpans.length - 1) / 2)] + sortedSpans[Math.floor(sortedSpans.length / 2)]) * 0.5;
-					repeats.push({ mode, repeat, medianMs, medianSpanMs, meanMs: timings.reduce((a, b) => a + b) / timings.length, wallMs, timings, spanTimings, stages });
-					console.log(`[benchmark] ${c.name}: ${mode} repeat ${repeat + 1}, GPU passes ${medianMs.toFixed(3)}, span ${medianSpanMs.toFixed(3)} ms/sample`);
+					repeats.push({ mode, variant: variant.name, repeat, medianMs, medianSpanMs, meanMs: timings.reduce((a, b) => a + b) / timings.length, wallMs, timings, spanTimings, stages });
+					console.log(`[benchmark] ${c.name}: ${variant.name} repeat ${repeat + 1}, GPU passes ${medianMs.toFixed(3)}, span ${medianSpanMs.toFixed(3)} ms/sample`);
 					if (config.paired) {
 						const hdr = await renderer.readRadiance();
-						if (mode === 'wavefront') candidateHDR = hdr;
+						if (mode === 'wavefront') {
+							variantHDRs.set(variant.name, hdr);
+							if (variant.name === 'wavefront') candidateHDR = hdr;
+						}
 						else referenceHDR = hdr;
 					}
 				}
 				if (config.paired) {
-					let maxError = 0, errorSquared = 0, referenceSquared = 0;
-					for (let i = 0; i < candidateHDR.data.length; i++) {
-						const a = referenceHDR.data[i], b = candidateHDR.data[i], error = Math.abs(a - b);
-						if (!Number.isFinite(a) || !Number.isFinite(b)) throw new Error('Nonfinite paired HDR output');
-						maxError = Math.max(maxError, error); errorSquared += error * error; referenceSquared += a * a;
+					for (const [variant, candidate] of variantHDRs) {
+						let maxError = 0, errorSquared = 0, referenceSquared = 0;
+						for (let i = 0; i < candidate.data.length; i++) {
+							const a = referenceHDR.data[i], b = candidate.data[i], error = Math.abs(a - b);
+							if (!Number.isFinite(a) || !Number.isFinite(b)) throw new Error('Nonfinite paired HDR output');
+							maxError = Math.max(maxError, error); errorSquared += error * error; referenceSquared += a * a;
+						}
+						pairedErrors.push({ repeat, variant, maxError, relativeL2: Math.sqrt(errorSquared / Math.max(referenceSquared, 1e-30)) });
+						if (maxError > 1e-5) throw new Error(`${variant} differs from reference by ${maxError}`);
 					}
-					pairedErrors.push({ repeat, maxError, relativeL2: Math.sqrt(errorSquared / Math.max(referenceSquared, 1e-30)) });
 				}
 			}
 			GPUCommandEncoder.prototype.beginComputePass = begin;
@@ -273,6 +328,14 @@ try {
 				for (let i = 0; i < bytes.length; i += 16384) binary += String.fromCharCode(...bytes.subarray(i, i + 16384));
 				return btoa(binary);
 			};
+			const variants = config.variants.slice(1).map(variant => {
+				const capture = variantHDRs.get(variant.name);
+				let sum = 0, peak = 0;
+				for (const value of capture.data) { sum += value; peak = Math.max(peak, value); }
+				return { name: variant.name, repeats: repeats.filter(r => r.variant === variant.name),
+					pairedErrors: pairedErrors.filter(r => r.variant === variant.name), base64: encodeHDR(capture),
+					hdr: { width: capture.width, height: capture.height, samples: capture.samples, elements: capture.data.length, mean: sum / capture.data.length, peak } };
+			});
 			// Presentation-only lift makes dark interiors inspectable without changing the HDR
 			// capture, path sampling, or timed work. No extra sample is traced here.
 			renderer.settings.maxSamples = renderer.samples;
@@ -281,16 +344,17 @@ try {
 			await device.queue.onSubmittedWorkDone();
 			queries.destroy(); resolved.destroy(); readback.destroy();
 			globalThis.benchmarkRenderer = renderer;
-			return { adapterInfo, initMs, integratorInitMs, loadMs, materialStackRequired, materialCapacity, observedStackCapacities, warmFrames: warmFrames + 1,
-				presentationIntegrator: renderer.integrator, presentationExposure: c.presentationExposure, scene: renderer.sceneStats, vt: renderer.virtualTextureStats,
+			return { adapterInfo, initMs, integratorInitMs, loadMs, materialStackRequired, materialCapacity, observedStackCapacities,
+				shaderCompilations, pipelineCompilations, warmFrames: warmFrames + 1,
+				presentationIntegrator: renderer.integrator, presentationVariant, presentationExposure: c.presentationExposure, scene: renderer.sceneStats, vt: renderer.virtualTextureStats,
 				camera: { position: renderer.camera.position, target: renderer.camera.target, up: renderer.camera.up, fovY: renderer.camera.fovY },
-				repeats: repeats.filter(r => r.mode === config.mode), referenceRepeats: repeats.filter(r => r.mode === 'megakernel'), pairedErrors,
+				repeats: repeats.filter(r => r.variant === config.mode), referenceRepeats: repeats.filter(r => r.mode === 'megakernel'), pairedErrors: pairedErrors.filter(r => r.variant === 'wavefront'), variants,
 				queueSnapshots, hdr: { width: hdr.width, height: hdr.height, samples: hdr.samples, elements: hdr.data.length, mean: sum / hdr.data.length, peak },
 				base64: encodeHDR(hdr), referenceBase64: referenceHDR ? encodeHDR(referenceHDR) : null, referenceSummary };
 		}, { c, config });
-		const { base64, referenceBase64, referenceRepeats, referenceSummary, ...stats } = result;
+		const { base64, referenceBase64, referenceRepeats, referenceSummary, variants, ...stats } = result;
 		writeFileSync(join(candidateOutput, `${c.name}.f32`), Buffer.from(base64, 'base64'));
-		const screenshotOutput = config.paired && stats.presentationIntegrator === 'megakernel' ? referenceOutput : candidateOutput;
+		const screenshotOutput = config.paired ? join(output, stats.presentationVariant) : candidateOutput;
 		await page.screenshot({ path: join(screenshotOutput, `${c.name}.png`) });
 		report.results.push({ name: c.name, file: c.file, sha256: c.sha256, ...stats, errors });
 		writeFileSync(join(candidateOutput, 'report.json'), JSON.stringify(report, null, 2));
@@ -299,14 +363,23 @@ try {
 			referenceReport.results.push({ name: c.name, file: c.file, sha256: c.sha256, ...stats, repeats: referenceRepeats, hdr: referenceSummary, errors });
 			writeFileSync(join(referenceOutput, 'report.json'), JSON.stringify(referenceReport, null, 2));
 		}
+		for (const variant of variants) {
+			const { name, base64, ...variantStats } = variant;
+			writeFileSync(join(output, name, `${c.name}.f32`), Buffer.from(base64, 'base64'));
+			variantReports[name].results.push({ name: c.name, file: c.file, sha256: c.sha256, ...stats, ...variantStats, errors });
+			writeFileSync(join(output, name, 'report.json'), JSON.stringify(variantReports[name], null, 2));
+		}
 		if (errors.length) throw new Error(errors.join('\n'));
 		await page.evaluate(() => globalThis.benchmarkRenderer.destroy());
 		await page.close();
 	}
+	assertUnchangedSources();
+	report.completed = true;
 } finally {
 	report.finished = new Date().toISOString();
 	writeFileSync(join(candidateOutput, 'report.json'), JSON.stringify(report, null, 2));
-	if (config.paired) writeFileSync(join(referenceOutput, 'report.json'), JSON.stringify({ ...referenceReport, finished: report.finished }, null, 2));
+	if (config.paired) writeFileSync(join(referenceOutput, 'report.json'), JSON.stringify({ ...referenceReport, completed: report.completed, finished: report.finished }, null, 2));
+	for (const [name, variantReport] of Object.entries(variantReports)) writeFileSync(join(output, name, 'report.json'), JSON.stringify({ ...variantReport, completed: report.completed, finished: report.finished }, null, 2));
 	await browser.close();
 	await server.close();
 }

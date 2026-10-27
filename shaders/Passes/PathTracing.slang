@@ -16,6 +16,10 @@ import Lights.Lights;
 import Materials.Textures;
 import Materials.VirtualTexture;
 
+#ifndef VEACH_EMPTY_SCENE
+#define VEACH_EMPTY_SCENE 0
+#endif
+
 // Per pixel: [0] radiance * pre-exposure, [1] albedo, [2] shading normal; running averages.
 [[vk::binding(0, 1)]] RWStructuredBuffer<float4> gAccum;
 // Virtual texture feedback: one request (page index + 1, 0 = none) per feedback tile.
@@ -204,7 +208,17 @@ void main(uint3 tid: SV_DispatchThreadID)
 	{
 		Ray ray = Ray(path.origin, path.direction);
 		gRayCone = float2(path.coneWidth, path.coneSpread);
+#if VEACH_EMPTY_SCENE
+		// Only selected when the bound scene has no geometry instances. Keep camera,
+		// analytic-light, background, feedback and accumulation behavior shared below.
+		HitRecord hit;
+		hit.t = ray.tMax;
+		hit.barycentrics = float2(0.0);
+		hit.instanceIndex = INVALID_INDEX;
+		hit.primitiveIndex = INVALID_INDEX;
+#else
 		HitRecord hit = TraceClosest(ray);
+#endif
 
 		if (bounce == 0u && debugMode == DEBUG_TRAVERSAL)
 		{
@@ -229,7 +243,11 @@ void main(uint3 tid: SV_DispatchThreadID)
 			}
 		}
 
+#if VEACH_EMPTY_SCENE
+		if (true)
+#else
 		if (!hit.IsHit())
+#endif
 		{
 			if (bounce == 0u)
 			{

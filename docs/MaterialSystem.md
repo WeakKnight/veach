@@ -16,7 +16,8 @@ selection (same expectation, visible only at 1 spp), and `clearcoatNormalTexture
   in `Bytecode.ts`): uint4 instructions over a 16-entry float4 stack.
 - GPU pipelines use the smallest capacity in 1/2/4/8/16 that fits the scene's maximum
   compiler-reported `stackSize` (conservatively including unused materials). Initialization
-  uses one slot so simple scenes reuse that pipeline. This applies to both megakernel and wavefront;
+  uses a lightweight empty-scene pipeline; geometry pipelines compile when a scene arrives.
+  This applies to both megakernel and wavefront;
   the bytecode format, 16-slot compiler limit, and CPU reference are unchanged.
   `build:shaders` compiles all capacities with `VEACH_MATERIAL_STACK_SIZE` and stores lossless
   edits against the common WGSL in `MaterialStackVariants.ts`. Runtime reconstruction checks
@@ -52,9 +53,10 @@ selection (same expectation, visible only at 1 spp), and `clearcoatNormalTexture
   `KHR_materials_pbrSpecularGlossiness`, and later `.mtlx` / USD and an editor all produce it.
 - One shading model: the graph always ends in `open_pbr_surface`, i.e. Veach's `BSDFInputs`.
   The BSDF (`shaders/Materials/BSDF`) does not change.
-- Materials are data, not code: graphs compile to bytecode executed by one interpreter in the
-  megakernel (after Cycles' SVM, `cycles/src/kernel/svm/svm.h`). No shader table, no pipeline
-  per material, no recompilation when a material changes.
+- Materials are data, not code: graphs compile to bytecode executed by the shared interpreter
+  (after Cycles' SVM, `cycles/src/kernel/svm/svm.h`). There is no shader table or pipeline per
+  material. Changes using an already cached stack capacity require no pipeline compilation;
+  a new capacity is compiled once when preparing a scene.
 - No visible change for existing glTF scenes: phase 3 must reproduce today's images.
 
 Non-goals (for now): closure graphs (`mix` / `add` / `layer` of pbrlib BSDFs, Cycles' Mix

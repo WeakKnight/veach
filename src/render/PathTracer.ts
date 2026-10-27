@@ -1,5 +1,6 @@
 // WebGPU pipelines for the megakernel path tracer (PathTracing.wgsl) and the present pass.
 import pathTracingWgsl from '../generated/shaders/PathTracing.wgsl?raw';
+import pathTracingEmptyWgsl from '../generated/shaders/PathTracingEmpty.wgsl?raw';
 import presentWgsl from '../generated/shaders/Present.wgsl?raw';
 import { createToneLUTTexture } from './aces/ToneLUT';
 import { createDisplayTransformGPU, type DisplayTransformGPU } from './color/DisplayTransformGPU';
@@ -27,6 +28,7 @@ export class PathTracer {
 	private readonly accumLayout: GPUBindGroupLayout;
 	private readonly presentLayout: GPUBindGroupLayout;
 	private computePipeline!: GPUComputePipeline;
+	private emptyPipeline!: GPUComputePipeline;
 	private readonly materialPipelines = new Map<MaterialStackCapacity, GPUComputePipeline>();
 	private readonly materialPipelineLoading = new Map<MaterialStackCapacity, Promise<GPUComputePipeline>>();
 	private readonly computeLayout: GPUPipelineLayout;
@@ -43,6 +45,7 @@ export class PathTracer {
 
 	private sceneBindGroup: GPUBindGroup | null = null;
 	private hasAlphaTested = false;
+	private hasGeometry = false;
 	private accumBindGroup: GPUBindGroup | null = null;
 	private presentBindGroup: GPUBindGroup | null = null;
 	private accumBuffer: GPUBuffer | null = null;
@@ -128,18 +131,17 @@ export class PathTracer {
 			],
 		});
 
-		// Empty scenes need no VM slots. Start with the smallest variant so loading common
-		// constant/simple materials does not compile a full stack only to replace it immediately.
-		const ptModule = device.createShaderModule({ label: 'PathTracing', code: specializeMaterialShader(pathTracingWgsl, 'PathTracing', 1) });
+		// Empty scenes only need camera, environment and visible analytic lights. Compile
+		// material/traversal pipelines after the incoming scene establishes its stack bound.
+		const ptModule = device.createShaderModule({ label: 'PathTracingEmpty', code: pathTracingEmptyWgsl });
 		this.computeLayout = device.createPipelineLayout({ bindGroupLayouts: [this.sceneLayout, this.accumLayout] });
-		// nearly all of the compile time
 		const computePipeline = compiler.compute(
 			{
-				label: 'pathTracing',
+				label: 'pathTracing.empty',
 				layout: this.computeLayout,
 				compute: { module: ptModule, entryPoint: 'main' },
 			},
-			60,
+			1,
 		);
 		const presentModule = device.createShaderModule({ label: 'Present', code: presentWgsl });
 		const presentPipeline = compiler.render({
@@ -151,10 +153,10 @@ export class PathTracer {
 		});
 		this.compiled = Promise.all([computePipeline, presentPipeline, this.autoExposure.compiled, this.localExposure.compiled, this.oidnGuides.compiled]).then(([compute, present]) => {
 			this.computePipeline = compute;
-			this.materialPipelines.set(1, compute);
+			this.emptyPipeline = compute;
 			this.presentPipeline = present;
 		});
-		void this.reportShaderErrors(ptModule, 'PathTracing');
+		void this.reportShaderErrors(ptModule, 'PathTracingEmpty');
 		void this.reportShaderErrors(presentModule, 'Present');
 	}
 
@@ -195,18 +197,24 @@ export class PathTracer {
 
 	// Prepare without changing the currently bound scene/pipeline while compilation is pending.
 	async prepareScene(scene: GpuScene): Promise<void> {
-		const capacity = this.sceneCapacity(scene);
-		await Promise.all([this.prepareMaterialPipeline(capacity),
-			this.integrator === 'wavefront' ? this.wavefront!.prepareStack(capacity) : Promise.resolve()]);
 		if (this.destroyed) throw new Error('Path tracer has been destroyed');
+		const capacity = this.sceneCapacity(scene);
+		await Promise.all([this.useEmptyPipeline(scene) ? this.compiled : this.prepareMaterialPipeline(capacity),
+			this.integrator === 'wavefront' && scene.instanceCount > 0 ? this.prepareWavefront(capacity) : Promise.resolve()]);
+		if (this.destroyed) throw new Error('Path tracer has been destroyed');
+	}
+
+	private useEmptyPipeline(scene: GpuScene): boolean {
+		return scene.instanceCount === 0 && this.materialStackOverride === null;
 	}
 
 	setScene(scene: GpuScene, environment: Environment, vt: VirtualTextureSystem): void {
 		this.materialCapacity = this.sceneCapacity(scene);
-		const pipeline = this.materialPipelines.get(this.materialCapacity);
+		const pipeline = this.useEmptyPipeline(scene) ? this.emptyPipeline : this.materialPipelines.get(this.materialCapacity);
 		if (!pipeline) throw new Error('Material pipeline must be prepared before binding a scene');
 		this.computePipeline = pipeline;
 		this.hasAlphaTested = scene.hasAlphaTested;
+		this.hasGeometry = scene.instanceCount > 0;
 		this.sceneBindGroup = this.device.createBindGroup({
 			label: 'scene',
 			layout: this.sceneLayout,
@@ -227,12 +235,15 @@ export class PathTracer {
 				{ binding: 13, resource: this.bsdfTables.createView() },
 			],
 		});
+		// Geometry changes can add/remove wavefront scratch even at the same resolution.
+		if (this.accumBuffer) this.resize(this.width, this.height);
 	}
 
 	resize(width: number, height: number): void {
 		width = Math.max(1, Math.floor(width));
 		height = Math.max(1, Math.floor(height));
-		if (width === this.width && height === this.height && this.accumBuffer) {
+		const size = width * height * ACCUM_BYTES_PER_PIXEL + (this.integrator === 'wavefront' && this.hasGeometry ? this.wavefront!.storageBytes(width * height) : 0);
+		if (width === this.width && height === this.height && this.accumBuffer?.size === size) {
 			return;
 		}
 		this.width = width;
@@ -241,7 +252,7 @@ export class PathTracer {
 		this.accumBuffer?.destroy();
 		this.accumBuffer = this.device.createBuffer({
 			label: 'accumulation',
-			size: width * height * ACCUM_BYTES_PER_PIXEL + (this.integrator === 'wavefront' ? this.wavefront!.storageBytes(width * height) : 0),
+			size,
 			usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC | GPUBufferUsage.COPY_DST,
 		});
 		this.feedbackTexture?.destroy();
@@ -320,35 +331,39 @@ export class PathTracer {
 		return this.feedbackTexture;
 	}
 
+	private async prepareWavefront(capacity: MaterialStackCapacity): Promise<void> {
+		if (this.destroyed) throw new Error('Path tracer has been destroyed');
+		this.wavefrontLoading ??= import('./Wavefront').then(async ({ Wavefront }) => {
+			if (this.destroyed) throw new Error('Path tracer has been destroyed');
+			const wavefront = new Wavefront(this.device, this.sceneLayout, capacity);
+			try {
+				await wavefront.compiled;
+				if (this.destroyed) throw new Error('Path tracer has been destroyed');
+				return wavefront;
+			} catch (error) {
+				wavefront.destroy();
+				throw error;
+			}
+		}).catch(error => {
+			this.wavefrontLoading = null;
+			throw error;
+		});
+		const wavefront = await this.wavefrontLoading;
+		if (this.destroyed) {
+			// Compilation can finish before destroy(), yet reach this await afterward.
+			// Cached instances are already owned/disposed by this tracer; new ones are not.
+			if (wavefront !== this.wavefront) wavefront.destroy();
+			throw new Error('Path tracer has been destroyed');
+		}
+		this.wavefront = wavefront;
+		await wavefront.prepareStack(capacity);
+		if (this.destroyed) throw new Error('Path tracer has been destroyed');
+	}
+
 	async setIntegrator(mode: 'megakernel' | 'wavefront'): Promise<void> {
 		if (this.destroyed) throw new Error('Path tracer has been destroyed');
 		if (mode === this.integrator) return;
-		if (mode === 'wavefront') {
-			this.wavefrontLoading ??= import('./Wavefront').then(async ({ Wavefront }) => {
-				if (this.destroyed) throw new Error('Path tracer has been destroyed');
-				const wavefront = new Wavefront(this.device, this.sceneLayout, this.materialCapacity);
-				try {
-					await wavefront.compiled;
-					if (this.destroyed) throw new Error('Path tracer has been destroyed');
-					return wavefront;
-				} catch (error) {
-					wavefront.destroy();
-					throw error;
-				}
-			}).catch(error => {
-				this.wavefrontLoading = null;
-				throw error;
-			});
-			const wavefront = await this.wavefrontLoading;
-			if (this.destroyed) {
-				// Compilation can finish before destroy(), yet reach this await afterward.
-				// Cached instances are already owned/disposed by this tracer; new ones are not.
-				if (wavefront !== this.wavefront) wavefront.destroy();
-				throw new Error('Path tracer has been destroyed');
-			}
-			this.wavefront = wavefront;
-			await wavefront.prepareStack(this.materialCapacity);
-		}
+		if (mode === 'wavefront' && this.hasGeometry) await this.prepareWavefront(this.materialCapacity);
 		if (this.destroyed) throw new Error('Path tracer has been destroyed');
 		this.integrator = mode;
 		const width = this.width, height = this.height;
@@ -360,7 +375,7 @@ export class PathTracer {
 		if (!this.sceneBindGroup || !this.accumBindGroup) {
 			return;
 		}
-		if (this.integrator === 'wavefront' && debugMode === 0) {
+		if (this.integrator === 'wavefront' && this.hasGeometry && debugMode === 0) {
 			this.wavefront!.encode(encoder, this.sceneBindGroup, this.width, this.height, maxBounces, this.hasAlphaTested, this.materialCapacity);
 			return;
 		}

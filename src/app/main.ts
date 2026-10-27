@@ -70,8 +70,9 @@ async function main(): Promise<void> {
 			showProgress(p.message, p.progress, p.stage === 'shaders');
 		},
 	}).finally(() => clearInterval(ticker));
-	if (params.get('integrator') === 'wavefront') await renderer.setIntegrator('wavefront');
 	(globalThis as unknown as { veach: Renderer }).veach = renderer;
+	// Empty-scene selection is cheap; scene loading prepares the required pipelines together.
+	if (params.get('integrator') === 'wavefront') await renderer.setIntegrator('wavefront');
 	new OrbitController(renderer.camera, canvas, () => renderer.resetAccumulation());
 
 	const reset = () => renderer.resetAccumulation();

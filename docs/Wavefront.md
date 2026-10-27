@@ -53,6 +53,17 @@ order each round and warming the selected pipeline for eight untimed samples bef
 It saves separate `megakernel/` and `wavefront/` reports/captures and image errors per round.
 The screenshot is placed with whichever integrator ran last. Streaming remains frozen through
 presentation, so a late texture upload cannot reset the just-measured accumulation.
+Add `--tail-sweep` to measure multiple schedules within that same renderer/residency: the
+requested base schedule, fully staged, fixed fusion at bounces 0/1/2/3, and adaptive fusion
+at 8,192/32,768/131,072 active paths. Use base `--tail-start 0 --tail-threshold 65536` to
+include that threshold as well. Each round rotates/reverses execution order, checks every
+variant against the reference HDR, and saves separate standard reports/captures by variant.
+Any paired HDR difference above 1e-5 now fails the benchmark rather than only logging it.
+`node scripts/compare-wavefront-sweep.mjs SWEEP_DIRECTORY` validates source/browser identity,
+every saved HDR and per-round comparison, then writes a combined timing table and JSON report.
+Startup records include submitted material shader capacities and compute pipeline compile
+durations. The harness selects wavefront on the empty scene, then scene loading prepares
+only the capacity needed by the incoming geometry.
 
 ## Design constraints
 
@@ -245,14 +256,63 @@ queue counts each bounce; this implementation uses GPU compaction and indirect d
   in these four and 12% in MIS. Empty late-bounce passes alone cannot explain BMW's regression;
   retune tail execution after stack specialization and investigate ray/queue coherence before
   assuming material interpreter or compaction cost is the dominant remaining bottleneck.
+- `sweep-harness-check`: two rounds across nine schedules at 65x63, all 18 comparisons exact
+  and all ten saved HDR files (including reference) hash-identical. This ran concurrently with
+  smoke to validate harness behavior only; its timings are not performance evidence.
+- `sweep-harness-check-v2` adds a third rotated round (27 exact comparisons), explicit planned
+  scene/completion metadata, and pipeline compilation records. A partial or source-mutated run
+  cannot pass the sweep summary. All source files, generated assets, dependency lockfile, Vite
+  configuration, and benchmark code are now fingerprinted and checked again before completion.
+- All 21 adaptive wavefront smoke cases pass after automatic stack selection; alpha/clearcoat
+  screenshots inspected. Repeated Helmet pages take around 40 s because the viewer compiles
+  one-slot wavefront before loading an eight-slot material scene. The viewer now loads the
+  initial scene before enabling wavefront, matching the updated benchmark initialization order;
+  full smoke is being repeated for this change. Full-staged GPU equivalence is also running,
+  since the small adaptive correctness cases mostly choose fused execution immediately.
+- Fully staged automatic-capacity correctness also passes all 24 comparisons with zero error
+  (`correctness-tail-999-0`). The viewer order change alone has not eliminated repeated
+  compilation: subsequent Helmet cases still take roughly 35-39 s. An unintegrated empty-scene
+  specialization now compiles to 19,134 bytes versus about 273 KiB for the full module, with no
+  SVM/BSDF/traversal functions. Its ordinary build remains byte-identical to the existing shader.
+  It shares the camera, analytic-light, environment, feedback, and accumulation code; a new
+  geometry-free analytic-light regression case will verify that lights remain visible.
+- Empty-scene startup is now integrated: the generated module is 18.0 KiB and the full
+  default shader remains unchanged. Geometry-free scenes use it in both integrator modes;
+  explicit stack overrides retain the full reference for equivalence tests. The viewer selects
+  wavefront before scene loading again, but now this defers compilation rather than compiling
+  unused stages. Scene loading prepares reference and wavefront pipelines concurrently.
+  Benchmark `loadMs` now includes that compilation; `integratorInitMs` measures empty-scene
+  mode selection. Compare total startup time or individual pipeline records across versions.
+  All eight empty-sky/analytic-light GPU comparisons pass with zero error against the full
+  16-slot reference, including 1x1 and 513x513 dimensions. Unit tests: 176 passed; typecheck passed.
+  Full staged geometry regressions pass all 28 comparisons with zero error. Eight additional
+  adaptive comparisons pass while loading scenes with wavefront selected, covering empty to
+  geometry and back without changing the mode during scene replacement. Empty-scene tests
+  no longer exercise tiled wavefront dispatch, so the geometry analytic-light case also
+  includes 513x513 coverage. All 21 adaptive wavefront smoke cases pass; empty sky, HDR helmet,
+  and alpha screenshots inspected. Library build passes. The first smoke pages overlapped
+  functional correctness testing, so their wall times are not a controlled startup benchmark.
+- A separate compile-only prototype containing Initialize/IntersectOpaque/ShadowOpaque/Finalize
+  produces 47,656 bytes. Compiling with stack capacity 1 or 16 produces identical SHA256,
+  confirming these stages can share one module/pipeline set across material capacities.
+  This prototype is not yet integrated or GPU-tested.
 
 ## Next experiments
 
 - Finish GPU validation of automatic scene stack selection against the full-stack reference,
   including larger surface programs and emission/opacity evaluation. Measure compilation cost.
+- Measure the light empty-scene startup pipeline, and consider sharing capacity-independent
+  wavefront stages to reduce repeated compilation. Measure a constant-only interpreter path for
+  compiler-reported zero-slot scenes without confusing its gains with scheduling changes.
 - Compare shader-program/material sorting and avoid assuming it helps already coherent glTF work.
 - Reduce the empty dispatch/compaction overhead after an adaptive tail finishes, and test
   thresholds across resolutions and bounce counts rather than hardcoding this GPU's best result.
+- Investigate ping-pong main-path index queues. Intersect reads A, its compaction writes B,
+  Shade reads B, and its compaction writes A; shadow indices stay separate. Compact can then
+  dispatch over the previous active queue instead of scanning every physical path slot.
+  Keep separate A/B counts in the existing header so clearing the output count does not
+  destroy the input count. Separate input/output arrays avoid in-place compaction races.
+  This adds one uint index per slot inside the existing allocation, not a storage binding.
 - Extend beyond pinned-mip exact tests to ordinary stochastic-alpha convergence checks, and
   continue monitoring startup compilation cost and memory at large image sizes.
 

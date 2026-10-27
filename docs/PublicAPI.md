@@ -47,9 +47,12 @@ after uploading the scene and preparing any required material pipeline variant, 
 one scene change before starting the next. The renderer observes canvas size changes.
 
 For experimental GPU A/B comparisons, `await renderer.setIntegrator('wavefront')` lazily
-compiles the staged path tracer and resets accumulation. Use `'megakernel'` to return to
+compiles the staged path tracer when geometry is present and resets accumulation. Use `'megakernel'` to return to
 the default reference. `renderer.integrator` reports the selected mode. Await each switch
 before another; diagnostic views currently use the reference kernel in either mode.
+Selecting wavefront before loading geometry defers compilation until `setScene`, allowing its
+required pipelines to compile together at the scene's material stack capacity. Geometry-free
+scenes use the lightweight camera/environment/analytic-light kernel in either mode.
 
 ## Own the scene-loading workflow
 

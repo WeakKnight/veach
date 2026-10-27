@@ -2,6 +2,13 @@
 
 ## Source layout
 
+Renderer initialization compiles `PathTracingEmpty.wgsl`, an empty-scene specialization of
+`PathTracing.slang` that retains camera rays, analytic-light visibility, background, and
+accumulation. Full material/traversal pipelines are prepared on scene loading, with stack
+capacity selected from compiled materials. Wavefront selection before geometry arrives is
+deferred; scene loading prepares its stages alongside the reference kernel. Geometry-free
+scenes allocate only the accumulation image prefix, without wavefront scratch.
+
 Custom display LUTs use `src/render/color/` for validated data, color-space adapters, GPU resources
 and lazy built-in presets. Present bindings 10 (unfilterable float32 3D LUT) and 11 (64-byte uniform)
 are separate from the compute scene layouts; the eight-storage-buffer budget is unchanged.

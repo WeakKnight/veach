@@ -120,9 +120,11 @@ try {
 		await page.goto(`${base}?${c.query}&integrator=${integrator}`, { waitUntil: 'load' });
 		try {
 			if (Object.keys(wavefrontTuning).length) {
-				await page.waitForFunction(() => !!globalThis.veach?.tracer?.wavefront, { timeout: 120000 });
+				// The first frame proves initial scene loading is complete. Empty scenes need
+				// no wavefront kernels; geometry scenes must receive tuning after preparation.
+				await page.waitForFunction(() => globalThis.veach?.samples > 0, { timeout: 120000 });
 				await page.evaluate(tuning => {
-					Object.assign(globalThis.veach.tracer.wavefront, tuning);
+					if (globalThis.veach.tracer.wavefront) Object.assign(globalThis.veach.tracer.wavefront, tuning);
 					globalThis.veach.resetAccumulation();
 				}, wavefrontTuning);
 			}

@@ -24,6 +24,7 @@ const exe = isWindows ? 'slangc.exe' : 'slangc';
 const programs = [
 	{ name: 'OIDNGuides', source: 'Passes/OIDNGuides.slang', entries: [['Prepare', 'compute'], ['Compose', 'compute']] },
 	{ name: 'PathTracing', source: 'Passes/PathTracing.slang', entries: [['main', 'compute']] },
+	{ name: 'PathTracingEmpty', source: 'Passes/PathTracing.slang', defines: ['VEACH_EMPTY_SCENE=1'], entries: [['main', 'compute']] },
 	{ name: 'Wavefront', source: 'Passes/Wavefront.slang', entries: ['Initialize', 'Intersect', 'IntersectOpaque', 'Shade', 'Shadow', 'ShadowOpaque', 'Tail', 'TailOpaque', 'Finalize'].map(e => [e, 'compute']) },
 	{ name: 'WavefrontCompact', source: 'Passes/WavefrontCompact.slang', entries: [['Compact', 'compute']] },
 	{ name: 'Present', source: 'Passes/Present.slang', entries: [['vsMain', 'vertex'], ['fsMain', 'fragment']] },
@@ -92,6 +93,7 @@ function compile(program, capacity, directory) {
 	mkdirSync(directory, { recursive: true });
 	const output = join(directory, `${program.name}.wgsl`);
 	const args = [join(shaderDir, program.source), '-target', 'wgsl', '-I', shaderDir, '-O2', '-warnings-disable', '41035'];
+	for (const define of program.defines ?? []) args.push(`-D${define}`);
 	if (capacity !== null) args.push(`-DVEACH_MATERIAL_STACK_SIZE=${capacity}`);
 	for (const [entry, stage] of program.entries) {
 		args.push('-entry', entry, '-stage', stage);

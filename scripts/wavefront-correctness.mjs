@@ -11,8 +11,10 @@ const tailOption = process.argv.indexOf('--tail-start');
 const tailStart = tailOption < 0 ? 999 : Number(process.argv[tailOption + 1]);
 const thresholdOption = process.argv.indexOf('--tail-threshold');
 const tailThreshold = thresholdOption < 0 ? 0 : Number(process.argv[thresholdOption + 1]);
+const onlyOption = process.argv.indexOf('--only');
+const only = onlyOption < 0 ? [] : process.argv[onlyOption + 1].split(',');
 if (!Number.isInteger(tailStart) || tailStart < 0) throw new Error('Invalid tail start');
-const output = join(root, `.tools/wavefront/correctness-tail-${tailStart}-${tailThreshold}`);
+const output = join(root, `.tools/wavefront/correctness-tail-${tailStart}-${tailThreshold}${only.length ? '-selected' : ''}`);
 mkdirSync(output, { recursive: true });
 const chrome = [process.env.CHROME_PATH, 'C:/Program Files/Google/Chrome/Application/chrome.exe',
 	'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe', '/usr/bin/google-chrome', '/usr/bin/chromium'].find(p => p && existsSync(p));
@@ -22,13 +24,15 @@ await server.listen();
 const browser = await puppeteer.launch({ executablePath: chrome, headless: true, protocolTimeout: 1800000,
 	args: ['--enable-unsafe-webgpu', '--ignore-gpu-blocklist', '--no-sandbox'] });
 const errors = [];
+const report = { started: new Date().toISOString(), completed: false, browser: await browser.version(), tailStart, tailThreshold, only, results: [], errors };
+writeFileSync(join(output, 'report.json'), JSON.stringify(report, null, 2));
 try {
 	const page = await browser.newPage();
 	await page.setViewport({ width: 640, height: 640, deviceScaleFactor: 1 });
 	page.on('pageerror', e => errors.push(String(e)));
 	page.on('console', msg => { if (msg.type() === 'error') errors.push(msg.text()); if (msg.text().startsWith('[correctness]')) console.log(msg.text()); });
 	await page.goto(server.resolvedUrls.local[0] + 'scripts/benchmark.html');
-	const results = await page.evaluate(async ({ tailStart, tailThreshold }) => {
+	const results = await page.evaluate(async ({ tailStart, tailThreshold, only }) => {
 		const api = await import('/src/index.ts');
 		const check = (value, message) => { if (!value) throw new Error(message); };
 		const requestDevice = GPUAdapter.prototype.requestDevice;
@@ -62,7 +66,7 @@ try {
 			const expectedCapacity = capacity ?? [1, 2, 4, 8, 16].find(n => n >= r.scene.materialStackSize);
 			check(r.tracer.materialCapacity === expectedCapacity, 'Incorrect material capacity selection');
 			await r.setIntegrator(mode);
-			if (mode === 'wavefront') Object.assign(r.tracer.wavefront, { tailStart, tailThreshold });
+			if (mode === 'wavefront' && r.tracer.wavefront) Object.assign(r.tracer.wavefront, { tailStart, tailThreshold });
 			Object.assign(r.settings, { maxBounces: config.bounces, fireflyClamp: config.clamp ?? 0, maxSamples: config.samples });
 			r.resetAccumulation();
 			while (r.samples < config.samples) {
@@ -89,6 +93,9 @@ try {
 				{ width: 7, height: 5, bounces: 8, samples: 4 },
 				{ width: 513, height: 513, bounces: 1, samples: 2 },
 			] },
+			{ name: 'empty-analytic', file: null, emptyAnalytic: true, configurations: [
+				{ width: 129, height: 97, bounces: 8, samples: 8 },
+			] },
 			{ name: 'alpha', file: 'AlphaBlendModeTest.glb', configurations: [
 				{ width: 129, height: 97, bounces: 0, samples: 4 },
 				{ width: 129, height: 97, bounces: 8, samples: 16, clamp: 2 },
@@ -104,6 +111,7 @@ try {
 			] },
 			{ name: 'analytic', file: 'MetalRoughSpheres.glb', analytic: true, configurations: [
 				{ width: 129, height: 97, bounces: 4, samples: 8, clamp: 2 },
+				{ width: 513, height: 513, bounces: 1, samples: 2 },
 			] },
 			{ name: 'helmet', file: 'DamagedHelmet.glb', configurations: [
 				{ width: 129, height: 97, bounces: 4, samples: 8 },
@@ -114,10 +122,17 @@ try {
 			{ name: 'anisotropy', file: 'AnisotropyBarnLamp.glb', configurations: [
 				{ width: 129, height: 97, bounces: 4, samples: 8 },
 			] },
+			{ name: 'empty-return', file: null, configurations: [
+				{ width: 129, height: 97, bounces: 8, samples: 4 },
+			] },
 		];
+		const selectedScenes = scenes.filter(scene => !only.length || only.includes(scene.name));
+		check(selectedScenes.length > 0, 'No selected correctness scenes');
 		try {
-			for (const scene of scenes) {
-				await r.setIntegrator('megakernel');
+			for (const scene of selectedScenes) {
+				// Load with wavefront selected to cover deferred compilation and changes in
+				// scratch allocation as geometry arrives, changes capacity, or disappears.
+				await r.setIntegrator('wavefront');
 				r.updateStreaming = originalUpdate;
 				canvas.style.width = '129px'; canvas.style.height = '97px'; r.resize();
 				const desc = scene.file ? await api.loadGLTF(`/samples/${scene.file}`) : { meshes: [], materials: [], textures: [], instances: [], cameras: [] };
@@ -125,8 +140,14 @@ try {
 					desc.lights = [true, false].map((castShadow, i) => ({ type: i === 0 ? 'point' : 'area', position: [i === 0 ? -2 : 2, 3, 3], direction: [0, -0.7, -0.7],
 						power: [300, 200, 100], radius: 0.1, spotAngle: 1, spotBlend: 0.2, sizeU: [1, 0, 0], sizeV: [0, 0.7, -0.7], ellipse: false, visibleToCamera: true, castShadow }));
 				}
+				if (scene.emptyAnalytic) {
+					desc.cameras = [{ name: 'lights', yfov: 0.7, transform: new Float32Array([1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 5, 1]) }];
+					desc.lights = [false, true].map((area, i) => ({ type: area ? 'area' : 'point', position: [i === 0 ? -0.7 : 0.7, 0, 0], direction: [0, 0, 1],
+						power: [50, 30, 10], radius: 0.4, spotAngle: 1, spotBlend: 0.2, sizeU: [0.6, 0, 0], sizeV: [0, 0.6, 0], ellipse: false, visibleToCamera: true, castShadow: true }));
+				}
 				await r.setScene(desc);
-				Object.assign(r.settings, { maxSamples: 0, maxBounces: 8, fireflyClamp: 0 });
+				Object.assign(r.settings, { maxSamples: 0, maxBounces: 8, fireflyClamp: 0, environmentIntensity: scene.emptyAnalytic ? 0 : 1 });
+				r.sun.enabled = !scene.emptyAnalytic;
 				let quiet = 0;
 				for (let frame = 0; frame < 512; frame++) {
 					r.renderFrame(); await r.device.queue.onSubmittedWorkDone();
@@ -140,6 +161,7 @@ try {
 				for (const config of scene.configurations) {
 					canvas.style.width = `${config.width}px`; canvas.style.height = `${config.height}px`; r.resize();
 					const reference = await render('megakernel', config, 16);
+					if (scene.emptyAnalytic) check(reference.some((value, i) => i % 12 < 3 && value > 0), 'Empty analytic-light test did not see a light');
 					for (const mode of ['megakernel', 'wavefront']) {
 						const candidate = await render(mode, config);
 						let maxError = 0, squared = 0, refSquared = 0;
@@ -161,8 +183,12 @@ try {
 			}
 		} finally { r.destroy(); }
 		return results;
-	}, { tailStart, tailThreshold });
-	writeFileSync(join(output, 'report.json'), JSON.stringify({ browser: await browser.version(), tailStart, tailThreshold, results, errors }, null, 2));
+	}, { tailStart, tailThreshold, only });
 	if (errors.length) throw new Error(errors.join('\n'));
+	Object.assign(report, { completed: true, results, finished: new Date().toISOString() });
+	writeFileSync(join(output, 'report.json'), JSON.stringify(report, null, 2));
 	console.log(`[correctness] ${results.length} GPU regression cases passed`);
+} catch (error) {
+	writeFileSync(join(output, 'report.json'), JSON.stringify({ ...report, completed: false, failure: String(error), finished: new Date().toISOString() }, null, 2));
+	throw error;
 } finally { await browser.close(); await server.close(); }
