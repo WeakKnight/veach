@@ -112,6 +112,10 @@ Presentation reads only the image prefix.
 GPU compaction views that allocation as atomic uints in its own pass; dispatch arguments
 are copied into a small INDIRECT-only buffer. Opaque traversal variants omit the opacity
 interpreter when `GpuScene.hasAlphaTested` is false (derived from instanced materials).
+An experimental opaque-shadow module can evaluate light sources concurrently within a
+workgroup and reduce their contributions in source order; it reuses the same bindings
+and is selected only for scenes without alpha-tested instances. The scene light count
+also permits an environment/sun-only workgroup when no local lights are present.
 An experimental direct-slot dispatch uses the same work allocation and shading helpers,
 but omits compaction/indirect copies and keeps the original pixel groups between stages.
 It supports fully staged execution and fixed-bounce tails; adaptive tails need queue counts.

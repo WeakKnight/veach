@@ -7,6 +7,7 @@ import compactPacketWgsl from '../generated/shaders/WavefrontCompactPacket.wgsl?
 import compactAdaptiveWgsl from '../generated/shaders/WavefrontCompactAdaptive.wgsl?raw';
 import sort64Wgsl from '../generated/shaders/WavefrontSort64.wgsl?raw';
 import sort256Wgsl from '../generated/shaders/WavefrontSort256.wgsl?raw';
+import shadowWgsl from '../generated/shaders/WavefrontShadow.wgsl?raw';
 import { specializeMaterialShader, type MaterialStackCapacity } from './MaterialShaderVariants';
 
 const RECORD_BYTES = 21 * 16; // WAVEFRONT_STRIDE in Wavefront.slang
@@ -16,7 +17,8 @@ const ENTRIES = ['Initialize', 'Intersect', 'IntersectOpaque', 'Shade', 'Shadow'
 	'IntersectDirect', 'IntersectOpaqueDirect', 'ShadeDirect', 'ShadowDirect', 'ShadowOpaqueDirect',
 	'CompactIntersect', 'CompactShade', 'CompactIntersectDense', 'CompactShadeDense', 'CompactIntersectSubgroup', 'CompactShadeSubgroup',
 	'CompactIntersectAdaptive', 'CompactShadeAdaptive', 'CompactIntersectPacket', 'CompactShadePacket',
-	'SortMaterial64', 'SortProgram64', 'SortMaterial256', 'SortProgram256'] as const;
+	'SortMaterial64', 'SortProgram64', 'SortMaterial256', 'SortProgram256',
+	'ShadowOpaqueParallel', 'ShadowOpaqueParallelDirect', 'ShadowOpaqueParallelSky', 'ShadowOpaqueParallelSkyDirect'] as const;
 type Entry = typeof ENTRIES[number];
 
 export class Wavefront {
@@ -31,6 +33,8 @@ export class Wavefront {
 	// Chunk sorting experiments preserve path/RNG storage and change only shading order.
 	sort: 'none' | 'material' | 'program' = 'none';
 	sortSize: 64 | 256 = 64;
+	// Alpha traversal retains serial feedback/RNG ordering; only opaque scenes opt in.
+	shadowMode: 'serial' | 'parallel' | 'parallel-auto' = 'serial';
 	readonly layout: GPUBindGroupLayout;
 	readonly compiled: Promise<void>;
 	private readonly pipelines = new Map<MaterialStackCapacity, Map<Entry, GPUComputePipeline>>();
@@ -43,6 +47,7 @@ export class Wavefront {
 	private readonly compactSubgroupModule: GPUShaderModule | null;
 	private readonly sort64Module: GPUShaderModule;
 	private readonly sort256Module: GPUShaderModule;
+	private readonly shadowModule: GPUShaderModule;
 	private destroyed = false;
 	private parameters: GPUBuffer | null = null;
 	private group: GPUBindGroup | null = null;
@@ -66,6 +71,7 @@ export class Wavefront {
 		this.compactAdaptiveModule = device.createShaderModule({ label: 'WavefrontCompactAdaptive', code: compactAdaptiveWgsl });
 		this.sort64Module = device.createShaderModule({ label: 'WavefrontSort64', code: sort64Wgsl });
 		this.sort256Module = device.createShaderModule({ label: 'WavefrontSort256', code: sort256Wgsl });
+		this.shadowModule = device.createShaderModule({ label: 'WavefrontShadow', code: shadowWgsl });
 		this.compactSubgroupModule = device.features.has('subgroups')
 			? device.createShaderModule({ label: 'WavefrontCompactSubgroup', code: compactSubgroupWgsl }) : null;
 		this.pipelineLayout = device.createPipelineLayout({ bindGroupLayouts: [sceneLayout, this.layout] });
@@ -81,7 +87,8 @@ export class Wavefront {
 			pending = Promise.all(ENTRIES.filter(entry => !entry.endsWith('Subgroup') || this.compactSubgroupModule).map(async entryPoint => {
 				const compact = entryPoint.startsWith('Compact');
 				const sort = entryPoint.startsWith('Sort');
-				const shader = sort ? (entryPoint.endsWith('64') ? this.sort64Module : this.sort256Module)
+				const shader = entryPoint.startsWith('ShadowOpaqueParallel') ? this.shadowModule
+					: sort ? (entryPoint.endsWith('64') ? this.sort64Module : this.sort256Module)
 					: entryPoint.endsWith('Dense') ? this.compactDenseModule
 					: entryPoint.endsWith('Packet') ? this.compactPacketModule
 					: entryPoint.endsWith('Adaptive') ? this.compactAdaptiveModule
@@ -120,11 +127,12 @@ export class Wavefront {
 		this.group = null;
 	}
 
-	encode(encoder: GPUCommandEncoder, scene: GPUBindGroup, width: number, height: number, maxBounces: number, hasAlphaTested: boolean, materialCapacity: MaterialStackCapacity): void {
+	encode(encoder: GPUCommandEncoder, scene: GPUBindGroup, width: number, height: number, maxBounces: number, hasAlphaTested: boolean, materialCapacity: MaterialStackCapacity, lightCount: number): void {
 		if (!this.accumulation || !this.feedback) return;
 		const directStages = this.compaction === 'none' ? 7 : this.directStages;
 		if (!Number.isInteger(directStages) || directStages < 0 || directStages > 7) throw new Error('Invalid direct stage mask');
 		const direct = directStages === 7;
+		if (!['serial', 'parallel', 'parallel-auto'].includes(this.shadowMode)) throw new Error('Invalid shadow mode');
 		if (!['none', 'material', 'program'].includes(this.sort) || ![64, 256].includes(this.sortSize)) throw new Error('Invalid shading sort');
 		if (this.sort !== 'none' && (directStages & 2) !== 0) throw new Error('Shading sort requires queued shading');
 		if (!Number.isInteger(this.packetStages) || this.packetStages < 0 || this.packetStages > 7) throw new Error('Invalid packet stage mask');
@@ -164,6 +172,8 @@ export class Wavefront {
 				const directStage = (directStages & (entry === 'Intersect' ? 1 : entry === 'Shade' ? 2 : entry === 'Shadow' ? 4 : 0)) !== 0;
 				let pipeline = compact ? `${entry}${compactSuffix}` as Entry
 					: !hasAlphaTested && (entry === 'Intersect' || entry === 'Shadow' || entry === 'Tail') ? `${entry}Opaque` as Entry : entry;
+				if (pipeline === 'ShadowOpaque' && this.shadowMode !== 'serial')
+					pipeline = this.shadowMode === 'parallel-auto' && lightCount === 0 ? 'ShadowOpaqueParallelSky' : 'ShadowOpaqueParallel';
 				if (directStage) pipeline = `${pipeline}Direct` as Entry;
 				pass.setPipeline(pipelines.get(pipeline)!);
 				pass.setBindGroup(0, scene);

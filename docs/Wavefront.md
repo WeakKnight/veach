@@ -123,6 +123,17 @@ every sort in the first sample. It verifies exact per-chunk order against CPU ma
 keys, permutation/bounds, and records how many entries actually moved. These diagnostic
 copies are absent from the performance benchmark.
 
+`--shadow serial|parallel|parallel-auto` selects an opaque-shadow experiment. Parallel
+uses a 64x3 workgroup: each source traces independently, then a workgroup barrier and
+one lane per path sum environment, local lights and sun in their original order before
+applying throughput/clamping. Parallel-auto uses 64x2 when the scene contains no local
+light entries, evaluating environment and sun only. It otherwise uses 64x3. Both modes
+retain the serial kernel for alpha-tested scenes, preserving VT feedback/RNG ordering.
+They reuse the same path queues, indirect arguments and storage fields. Direct and packet
+dispatch remain supported. The default is serial. `--shadow-sweep` compares all three
+within the same scene/residency and cannot combine with other sweeps. GPU correctness
+reports record and verify the actual shadow pipeline, including alpha fallback.
+
 ## Design constraints
 
 - Keep at most eight storage buffers per stage. Pack work data into existing bindings.
@@ -663,6 +674,38 @@ comparison was exact. Typecheck, all 181 unit tests, shader generation and libra
 passed. The sort modules add about 16 KB raw / 1.3 KB gzip to the wavefront library chunk.
 Material/64 adaptive smoke passed helmet HDR, alpha and transmission; the final transmission
 screenshot was inspected. Sorting remains an internal experiment, disabled by default.
+
+## Parallel opaque shadow experiment
+
+The `shadow-parallel-sweep-v1` paired run tested serial, 64x3 parallel and source-count-aware
+64x2/64x3 parallel on all five scenes, three rounds and 32 samples at 640x360. All 45
+per-round HDR comparisons were exact, saved-HDR/source checks passed, and all five screenshots
+were inspected. Median GPU spans in milliseconds:
+
+| Shadow mode | classroom | breakfast | BMW | glass | MIS |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Serial | 8.534 | 6.045 | 5.392 | 3.892 | 1.748 |
+| Parallel / three sources | 8.726 | 6.052 | 5.123 | 3.883 | 1.800 |
+| Parallel / source count | 8.961 | 6.171 | 4.850 | 3.884 | 1.794 |
+
+BMW improves by 10.1% with the two-source workgroup, but classroom regresses by 5.0%;
+other differences range from essentially equal to a small regression. BMW shadow time
+improves across bounces 1-7, while classroom's early shadow work slows down. This does
+not justify a universal default. The first three scenes contain no local lights; the
+last two contain emissive geometry and retain the three-source kernel in both parallel
+modes. All 12 selected GPU correctness comparisons passed, verifying actual pipeline
+selection for alpha fallback, all three sources, two sources, partial and multi-tile
+dispatch. A further 36 comparisons covering all direct-stage masks passed with exact RGB
+and AOVs. Typecheck, 181 unit tests, shader generation and library build passed.
+Eight packet/fixed-tail comparisons also passed. Parallel-auto smoke passed helmet HDR,
+alpha and transmission; the final transmission screenshot was inspected. Serial remains
+the default while this stage-dependent tradeoff is investigated.
+
+The material census now records the opcode union across all three programs, including
+fallback and unused materials. Classroom and breakfast use only End/Output/Texture;
+BMW, glass and MIS use End/Output. This motivates a separate pipeline-constant opcode
+specialization experiment rather than assuming the VM's full arithmetic/procedural switch
+is required for these workloads.
 
 ## Work storage
 

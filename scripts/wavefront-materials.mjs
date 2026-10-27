@@ -30,7 +30,10 @@ try {
 		}));
 		const materials = compiled.map((material, index) => {
 			const instructions = material.surface < 0 ? [] : programOps(material, material.surface);
+			const opcodes = [...new Set([material.surface, material.opacity, material.emission]
+				.filter(offset => offset >= 0).flatMap(offset => programOps(material, offset)))].sort((a, b) => a - b);
 			return { index, name: material.name, instanced: instanced.has(index), stack: material.stackSize,
+				opcodes: opcodes.map(op => Op[op]),
 				surfaceInstructions: instructions.length, textures: material.textures.length,
 				textureInstructions: instructions.filter(op => op === Op.Texture).length,
 				proceduralInstructions: instructions.filter(op => [Op.Noise, Op.Magic, Op.Checker].includes(op)).length,
@@ -40,7 +43,8 @@ try {
 		const stackHistogram = {};
 		for (const material of active) stackHistogram[material.stack] = (stackHistogram[material.stack] ?? 0) + 1;
 		const result = { name, sha256: hash(bytes), totalMaterials: materials.length, instancedMaterials: active.length,
-			uniqueCode: new Set(active.map(material => material.codeHash)).size, stackHistogram, materials };
+			uniqueCode: new Set(active.map(material => material.codeHash)).size, stackHistogram,
+			opcodes: [...new Set(materials.flatMap(material => material.opcodes))].sort(), materials };
 		results.push(result);
 		console.log(JSON.stringify({ ...result, materials: undefined }));
 	}

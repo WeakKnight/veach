@@ -45,6 +45,7 @@ export class PathTracer {
 
 	private sceneBindGroup: GPUBindGroup | null = null;
 	private hasAlphaTested = false;
+	private lightCount = 0;
 	private hasGeometry = false;
 	private accumBindGroup: GPUBindGroup | null = null;
 	private presentBindGroup: GPUBindGroup | null = null;
@@ -214,6 +215,7 @@ export class PathTracer {
 		if (!pipeline) throw new Error('Material pipeline must be prepared before binding a scene');
 		this.computePipeline = pipeline;
 		this.hasAlphaTested = scene.hasAlphaTested;
+		this.lightCount = scene.lightCount;
 		this.hasGeometry = scene.instanceCount > 0;
 		this.sceneBindGroup = this.device.createBindGroup({
 			label: 'scene',
@@ -376,7 +378,7 @@ export class PathTracer {
 			return;
 		}
 		if (this.integrator === 'wavefront' && this.hasGeometry && debugMode === 0) {
-			this.wavefront!.encode(encoder, this.sceneBindGroup, this.width, this.height, maxBounces, this.hasAlphaTested, this.materialCapacity);
+			this.wavefront!.encode(encoder, this.sceneBindGroup, this.width, this.height, maxBounces, this.hasAlphaTested, this.materialCapacity, this.lightCount);
 			return;
 		}
 		const pass = encoder.beginComputePass({ label: 'pathTracing' });

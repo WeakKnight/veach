@@ -54,6 +54,13 @@ if (integratorFlag >= 0) {
 	only.splice(integratorFlag, 2);
 }
 const wavefrontTuning = {};
+const shadowFlag = only.indexOf('--shadow');
+if (shadowFlag >= 0) {
+	const mode = only[shadowFlag + 1];
+	if (integrator !== 'wavefront' || !['serial', 'parallel', 'parallel-auto'].includes(mode)) throw new Error('Invalid --shadow');
+	wavefrontTuning.shadowMode = mode;
+	only.splice(shadowFlag, 2);
+}
 for (const [flag, name] of [['--sort', 'sort'], ['--sort-size', 'sortSize']]) {
 	const i = only.indexOf(flag);
 	if (i < 0) continue;

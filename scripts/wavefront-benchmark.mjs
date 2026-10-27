@@ -42,8 +42,13 @@ const config = {
 	sort: option('sort', 'none'),
 	sortSize: Number(option('sort-size', 64)),
 	sortSweep: args.includes('--sort-sweep'),
+	shadowMode: option('shadow', 'serial'),
+	shadowSweep: args.includes('--shadow-sweep'),
 	variantWarmup: Number(option('variant-warmup', args.includes('--material-sweep') ? 64 : 8)),
 };
+if (!['serial', 'parallel', 'parallel-auto'].includes(config.shadowMode)) throw new Error('Invalid shadow mode');
+if (config.shadowSweep && (!config.paired || config.tailSweep || config.packetSweep || config.materialSweep || config.sortSweep || config.dispatchSweep || config.compactionSweep || config.shadowMode !== 'serial'))
+	throw new Error('--shadow-sweep requires paired serial base and cannot combine with other sweeps');
 if (!['none', 'material', 'program'].includes(config.sort) || ![64, 256].includes(config.sortSize)) throw new Error('Invalid shading sort');
 if ((config.sort !== 'none' || config.sortSweep) && (config.compaction === 'none' || (config.directStages & 2) !== 0 || config.dispatchSweep || config.compactionSweep))
 	throw new Error('Sorting requires queued shading and a fixed compaction/direct-stage choice');
@@ -93,6 +98,10 @@ if (config.sortSweep) {
 	for (const sort of ['material', 'program']) for (const sortSize of [64, 256])
 		config.variants.push({ name: `sort-${sort}-${sortSize}`, sort, sortSize, tailStart: config.tailStart, tailThreshold: config.tailThreshold });
 }
+if (config.shadowSweep) {
+	for (const shadowMode of ['parallel', 'parallel-auto'])
+		config.variants.push({ name: `shadow-${shadowMode}`, shadowMode, tailStart: config.tailStart, tailThreshold: config.tailThreshold });
+}
 for (const variant of config.variants) {
 	variant.mode ??= 'wavefront';
 	variant.materialStack ??= config.materialStack;
@@ -101,6 +110,7 @@ for (const variant of config.variants) {
 	variant.packetStages ??= config.packetStages;
 	variant.sort ??= config.sort;
 	variant.sortSize ??= config.sortSize;
+	variant.shadowMode ??= config.shadowMode;
 }
 for (const key of ['width', 'height', 'warmup', 'variantWarmup', 'samples', 'repeats', 'bounces']) {
 	if (!Number.isInteger(config[key]) || config[key] < (key === 'bounces' ? 0 : 1)) throw new Error(`Invalid ${key}`);
@@ -163,7 +173,7 @@ const assertUnchangedSources = () => {
 const referenceReport = { ...report, config: { ...config, mode: 'megakernel' }, results: [] };
 const variantReports = Object.fromEntries(config.variants.slice(1).map(variant => {
 	mkdirSync(join(output, variant.name), { recursive: true });
-	return [variant.name, { ...report, config: { ...config, mode: variant.mode, materialStack: variant.materialStack, tailStart: variant.tailStart, tailThreshold: variant.tailThreshold, compaction: variant.compaction, directStages: variant.directStages, packetStages: variant.packetStages, sort: variant.sort, sortSize: variant.sortSize }, results: [] }];
+	return [variant.name, { ...report, config: { ...config, mode: variant.mode, materialStack: variant.materialStack, tailStart: variant.tailStart, tailThreshold: variant.tailThreshold, compaction: variant.compaction, directStages: variant.directStages, packetStages: variant.packetStages, sort: variant.sort, sortSize: variant.sortSize, shadowMode: variant.shadowMode }, results: [] }];
 }));
 writeFileSync(join(candidateOutput, 'report.json'), JSON.stringify(report, null, 2));
 try {
@@ -253,6 +263,7 @@ try {
 				renderer.tracer.wavefront.packetStages = config.packetStages;
 				renderer.tracer.wavefront.sort = config.sort;
 				renderer.tracer.wavefront.sortSize = config.sortSize;
+				renderer.tracer.wavefront.shadowMode = config.shadowMode;
 			}
 			const materialCapacity = renderer.tracer.materialCapacity;
 			const expectedCapacity = config.materialStack ?? [0, 1, 2, 4, 8, 16].find(capacity => capacity >= materialStackRequired);
@@ -323,10 +334,10 @@ try {
 			let presentationVariant = config.mode;
 			const pairedErrors = [];
 			for (let repeat = 0; repeat < config.repeats; repeat++) {
-				const schedule = config.paired ? [{ name: 'megakernel' }, ...config.variants] : [{ name: config.mode, tailStart: config.tailStart, tailThreshold: config.tailThreshold, compaction: config.compaction, directStages: config.directStages, packetStages: config.packetStages, sort: config.sort, sortSize: config.sortSize }];
+				const schedule = config.paired ? [{ name: 'megakernel' }, ...config.variants] : [{ name: config.mode, tailStart: config.tailStart, tailThreshold: config.tailThreshold, compaction: config.compaction, directStages: config.directStages, packetStages: config.packetStages, sort: config.sort, sortSize: config.sortSize, shadowMode: config.shadowMode }];
 				// Rotate the sweep and reverse alternating rounds to avoid always measuring a
 				// configuration at the same position relative to GPU warmup and clock changes.
-				if (config.tailSweep || config.compactionSweep || config.dispatchSweep || config.packetSweep || config.materialSweep || config.sortSweep) schedule.push(...schedule.splice(0, repeat % schedule.length));
+				if (config.tailSweep || config.compactionSweep || config.dispatchSweep || config.packetSweep || config.materialSweep || config.sortSweep || config.shadowSweep) schedule.push(...schedule.splice(0, repeat % schedule.length));
 				if (config.paired && repeat % 2 !== 0) schedule.reverse();
 				for (const variant of schedule) {
 					const mode = variant.mode ?? (variant.name === 'megakernel' ? 'megakernel' : 'wavefront');
@@ -342,7 +353,7 @@ try {
 						const expectedStack = requestedStack ?? [0, 1, 2, 4, 8, 16].find(n => n >= materialStackRequired);
 						if (renderer.tracer.materialCapacity !== expectedStack) throw new Error('Material sweep selected the wrong capacity');
 						await renderer.setIntegrator(mode);
-						if (mode === 'wavefront') Object.assign(renderer.tracer.wavefront, { tailStart: variant.tailStart, tailThreshold: variant.tailThreshold, compaction: variant.compaction, directStages: variant.directStages, packetStages: variant.packetStages, sort: variant.sort, sortSize: variant.sortSize });
+						if (mode === 'wavefront') Object.assign(renderer.tracer.wavefront, { tailStart: variant.tailStart, tailThreshold: variant.tailThreshold, compaction: variant.compaction, directStages: variant.directStages, packetStages: variant.packetStages, sort: variant.sort, sortSize: variant.sortSize, shadowMode: variant.shadowMode });
 						// Warm each selected pipeline before timing while retaining identical scene/VT data.
 						for (let warm = 0; warm < config.variantWarmup; warm++) { renderer.renderFrame(); await device.queue.onSubmittedWorkDone(); }
 					}
