@@ -142,7 +142,7 @@ void IntersectImpl<let ALPHA : bool>(uint3 tid)
 	uint base = WorkBase(index);
 	WavefrontPath s = LoadPath(base);
 	if (s.active == 0u) return;
-	LoadFeedbackState(base);
+	if (ALPHA) LoadFeedbackState(base);
 	gRayCone = float2(s.path.coneWidth, s.path.coneSpread);
 	Ray ray = Ray(s.path.origin, s.path.direction);
 	HitRecord hit = TraceClosest<ALPHA>(ray);
@@ -182,8 +182,10 @@ void IntersectImpl<let ALPHA : bool>(uint3 tid)
 		gAccum[Field(base, 8u)] = float4(hit.t, hit.barycentrics, asfloat(hit.instanceIndex));
 		gAccum[Field(base, 9u)] = asfloat(uint4(hit.primitiveIndex, 0u, 0u, 0u));
 	}
-	StorePath(base, s);
-	StoreFeedbackState(base);
+	// Intersection only changes radiance and liveness. Do not keep every other field
+	// live across traversal just to write it back unchanged.
+	gAccum[base] = float4(s.path.radiance, asfloat(s.active));
+	if (ALPHA) StoreFeedbackState(base);
 }
 
 void QueueDirectLighting(uint base, SurfaceInteraction si, BSDF bsdf, float2 cone, float3 throughput, inout RandomSequence rng)
@@ -330,7 +332,7 @@ void ShadowImpl<let ALPHA : bool>(uint3 tid)
 	float4 info = gAccum[Field(base, 11u)];
 	uint mask = asuint(info.z);
 	if (mask == 0u) return;
-	LoadFeedbackState(base);
+	if (ALPHA) LoadFeedbackState(base);
 	gRayCone = info.xy;
 	float3 sum = float3(0.0);
 	[loop]
@@ -348,7 +350,7 @@ void ShadowImpl<let ALPHA : bool>(uint3 tid)
 	path.xyz += contribution;
 	gAccum[base] = path;
 	gAccum[Field(base, 11u)] = float4(0.0);
-	StoreFeedbackState(base);
+	if (ALPHA) StoreFeedbackState(base);
 }
 
 [shader("compute")]

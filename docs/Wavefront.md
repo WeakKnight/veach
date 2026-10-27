@@ -52,6 +52,29 @@ scene-table order); the HDR and all tracing use the same manual exposure setting
 - Explore compaction, shader/program grouping, opaque traversal, and specialization based on measurements.
 - Commit generated shader outputs and keep the megakernel available for A/B testing.
 
+## Cycles reference and register-pressure hypothesis
+
+The local `E:/GitHub/cycles` implementation uses the same broad decomposition on GPU:
+`src/kernel/integrator/shade_surface.h` evaluates surface shaders, samples direct light,
+and samples the continuation BSDF in the shading stage; closest-hit and shadow traversal
+are separate scheduled kernels. `src/integrator/path_trace_work_gpu.cpp` builds queued
+path arrays and groups surface work by shader, with partitioned sorting on supported devices.
+Integrator state is stored between kernels rather than keeping the entire path live.
+
+Wavefront does not remove SVM storage. `src/kernel/svm/svm.h::svm_eval_nodes` still declares
+`float stack[SVM_STACK_SIZE]`. Veach likewise retains its 16-entry float4 VM stack in
+`MaterialProgram.slang`. These source-language local arrays are not proof that every slot
+resides in a hardware register: dynamic indexing and compiler decisions may produce private
+memory accesses or spills. The intended benefit is smaller live state and independently
+compiled resource usage for traversal versus shading. Shader grouping can improve control
+flow and locality without necessarily changing the shading kernel's register allocation.
+
+Timestamp improvements below establish performance changes, not measured register counts
+or occupancy. WebGPU exposes neither directly in this harness. Queue traffic, compaction,
+dispatch boundaries, and underfilled late bounces can outweigh the resource benefit.
+Cycles' host/device scheduling cannot be copied directly into a browser loop that reads back
+queue counts each bounce; this implementation uses GPU compaction and indirect dispatch.
+
 ## Evidence log
 
 - Initial checkout clean; working branch `codex/wavefront-path-tracing`.
@@ -92,6 +115,21 @@ scene-table order); the HDR and all tracing use the same manual exposure setting
 - `edge-mega-v1` / `edge-wave-v1`: 641x359, one bounce, firefly clamp 2, four samples,
   exactly eight storage buffers, BMW and Veach MIS both produce bit-identical HDR.
   Low bounce counts still favor the megakernel; this is not yet a universal replacement.
+- `ab-lean-v1`: intersection now writes only radiance/liveness; opaque traversal does
+  not load/store VT feedback. Two interleaved rounds reverse integrator order per scene,
+  each with 2 x 32 timed samples. Chrome updated to 156, so both modes were remeasured.
+  All five captures remain bit-identical. Median-of-repeat total GPU spans, mega/wave:
+  classroom 15.131/8.871, breakfast 7.053/6.487, BMW 4.229/5.606,
+  glass 6.522/4.295, MIS 2.402/2.116 ms/sample. BMW's fresh reference is faster than
+  the original baseline, making its regression about 33%, not the earlier estimate of 10%.
+  `scripts/wavefront-ab.mjs` preserves per-round evidence and aggregate comparisons.
+- `node scripts/wavefront-correctness.mjs`: nine GPU cases compare radiance plus albedo
+  and normal guides, including 1x1, odd dimensions, a 513x513 multi-tile image, zero/one/eight
+  bounces, empty scenes, alpha, transmission, clearcoat, emission, analytic lights, and clamping.
+  All are bit-identical with exactly eight storage buffers. Integrator switches and presentation
+  changes are checked on the same renderer. The test pins mip choice with bias -16 to separate
+  stage correctness from stochastic VT request reordering on alpha shadow rays; ordinary
+  streaming and mip behavior remain covered by smoke tests rather than an exact-image claim.
 
 ## Current work allocation
 

@@ -4651,15 +4651,6 @@ fn Field_0( base_6 : u32,  field_0 : u32) -> u32
     return base_6 + field_0 * gWavefront_0.capacity_0;
 }
 
-fn LoadFeedbackState_0( base_7 : u32)
-{
-    var state_0 : vec4<u32> = (bitcast<vec4<u32>>((gAccum_0[Field_0(base_7, u32(7))])));
-    gVTRequest_0 = state_0.x;
-    gVTRequestCount_0 = state_0.y;
-    gVTRandom_0 = state_0.z;
-    return;
-}
-
 fn Ray_x24init_0( o_9 : vec3<f32>,  d_9 : vec3<f32>,  tmax_0 : f32) -> Ray_0
 {
     var _S256 : Ray_0;
@@ -4670,12 +4661,6 @@ fn Ray_x24init_0( o_9 : vec3<f32>,  d_9 : vec3<f32>,  tmax_0 : f32) -> Ray_0
     return _S256;
 }
 
-fn StoreFeedbackState_0( base_8 : u32)
-{
-    gAccum_0[Field_0(base_8, u32(7))] = (bitcast<vec4<f32>>((vec4<u32>(gVTRequest_0, gVTRequestCount_0, gVTRandom_0, u32(0)))));
-    return;
-}
-
 fn ShadowImpl_0( tid_0 : vec3<u32>)
 {
     var sum_5 : vec3<f32>;
@@ -4684,15 +4669,14 @@ fn ShadowImpl_0( tid_0 : vec3<u32>)
     {
         return;
     }
-    var base_9 : u32 = WorkBase_0(QueueIndex_0(ShadowQueueBase_0(), _S257));
-    var _S258 : u32 = Field_0(base_9, u32(11));
+    var base_7 : u32 = WorkBase_0(QueueIndex_0(ShadowQueueBase_0(), _S257));
+    var _S258 : u32 = Field_0(base_7, u32(11));
     var info_0 : vec4<f32> = gAccum_0[_S258];
     var mask_0 : u32 = (bitcast<u32>((gAccum_0[_S258].z)));
     if(mask_0 == u32(0))
     {
         return;
     }
-    LoadFeedbackState_0(base_9);
     gRayCone_0 = info_0.xy;
     var _S259 : vec3<f32> = vec3<f32>(0.0f);
     var source_0 : u32 = u32(0);
@@ -4712,10 +4696,10 @@ fn ShadowImpl_0( tid_0 : vec3<u32>)
             continue;
         }
         var offset_1 : u32 = u32(12) + source_0 * u32(3);
-        var origin_1 : vec4<f32> = gAccum_0[Field_0(base_9, offset_1)];
-        var direction_1 : vec4<f32> = gAccum_0[Field_0(base_9, offset_1 + u32(1))];
+        var origin_1 : vec4<f32> = gAccum_0[Field_0(base_7, offset_1)];
+        var direction_1 : vec4<f32> = gAccum_0[Field_0(base_7, offset_1 + u32(1))];
         var _S260 : bool;
-        if((bitcast<u32>((gAccum_0[Field_0(base_9, offset_1 + u32(1))].w))) == u32(0))
+        if((bitcast<u32>((gAccum_0[Field_0(base_7, offset_1 + u32(1))].w))) == u32(0))
         {
             _S260 = true;
         }
@@ -4726,7 +4710,7 @@ fn ShadowImpl_0( tid_0 : vec3<u32>)
         }
         if(_S260)
         {
-            sum_5 = sum_6 + gAccum_0[Field_0(base_9, offset_1 + u32(2))].xyz;
+            sum_5 = sum_6 + gAccum_0[Field_0(base_7, offset_1 + u32(2))].xyz;
         }
         else
         {
@@ -4735,8 +4719,8 @@ fn ShadowImpl_0( tid_0 : vec3<u32>)
         sum_6 = sum_5;
         source_0 = source_0 + u32(1);
     }
-    var contribution_0 : vec3<f32> = gAccum_0[Field_0(base_9, u32(10))].xyz * sum_6;
-    var _S262 : f32 = gAccum_0[Field_0(base_9, u32(10))].w;
+    var contribution_0 : vec3<f32> = gAccum_0[Field_0(base_7, u32(10))].xyz * sum_6;
+    var _S262 : f32 = gAccum_0[Field_0(base_7, u32(10))].w;
     if((_S262 > 0.0f))
     {
         sum_5 = min(contribution_0, vec3<f32>(_S262));
@@ -4745,14 +4729,28 @@ fn ShadowImpl_0( tid_0 : vec3<u32>)
     {
         sum_5 = contribution_0;
     }
-    var path_0 : vec4<f32> = gAccum_0[base_9];
-    var _S263 : vec3<f32> = gAccum_0[base_9].xyz + sum_5;
+    var path_0 : vec4<f32> = gAccum_0[base_7];
+    var _S263 : vec3<f32> = gAccum_0[base_7].xyz + sum_5;
     path_0.x = _S263.x;
     path_0.y = _S263.y;
     path_0.z = _S263.z;
-    gAccum_0[base_9] = path_0;
+    gAccum_0[base_7] = path_0;
     gAccum_0[_S258] = vec4<f32>(0.0f);
-    StoreFeedbackState_0(base_9);
+    return;
+}
+
+fn LoadFeedbackState_0( base_8 : u32)
+{
+    var state_0 : vec4<u32> = (bitcast<vec4<u32>>((gAccum_0[Field_0(base_8, u32(7))])));
+    gVTRequest_0 = state_0.x;
+    gVTRequestCount_0 = state_0.y;
+    gVTRandom_0 = state_0.z;
+    return;
+}
+
+fn StoreFeedbackState_0( base_9 : u32)
+{
+    gAccum_0[Field_0(base_9, u32(7))] = (bitcast<vec4<f32>>((vec4<u32>(gVTRequest_0, gVTRequestCount_0, gVTRandom_0, u32(0)))));
     return;
 }
 
@@ -5939,18 +5937,6 @@ fn EnvironmentPdf_0( dir_5 : vec3<f32>) -> f32
     return (EnvCdf_0(_S327 + u32(1), _S329) - EnvCdf_0(_S327, _S329)) * _S326 * ((EnvCdf_0(_S329 + u32(1), H_0) - EnvCdf_0(_S329, H_0)) * _S328) / (2.0f * PI_3 * PI_3 * sqrt(clamp(1.0f - _S330 * _S330, 9.99999997475242708e-07f, 1.0f)));
 }
 
-fn StorePath_0( base_14 : u32,  s_16 : WavefrontPath_0)
-{
-    gAccum_0[base_14] = vec4<f32>(s_16.path_2.radiance_0, (bitcast<f32>((s_16.active_0))));
-    gAccum_0[Field_0(base_14, u32(1))] = vec4<f32>(s_16.path_2.throughput_12, (bitcast<f32>((s_16.randomSeed_0))));
-    gAccum_0[Field_0(base_14, u32(2))] = vec4<f32>(s_16.path_2.origin_3, s_16.path_2.scatterPdf_0);
-    gAccum_0[Field_0(base_14, u32(3))] = vec4<f32>(s_16.path_2.direction_3, (bitcast<f32>((select(u32(0), u32(1), s_16.path_2.lightsSampled_0)))));
-    gAccum_0[Field_0(base_14, u32(4))] = vec4<f32>(s_16.path_2.absorption_0, s_16.path_2.coneWidth_2);
-    gAccum_0[Field_0(base_14, u32(5))] = vec4<f32>(s_16.albedo_1, s_16.path_2.coneSpread_0);
-    gAccum_0[Field_0(base_14, u32(6))] = vec4<f32>(s_16.normal_12, 0.0f);
-    return;
-}
-
 fn IntersectImpl_0( tid_2 : vec3<u32>)
 {
     var _S331 : u32 = tid_2.x;
@@ -5958,15 +5944,14 @@ fn IntersectImpl_0( tid_2 : vec3<u32>)
     {
         return;
     }
-    var base_15 : u32 = WorkBase_0(QueueIndex_0(MainQueueBase_0(), _S331));
-    var s_17 : WavefrontPath_0 = LoadPath_0(base_15);
-    if((s_17.active_0) == u32(0))
+    var base_14 : u32 = WorkBase_0(QueueIndex_0(MainQueueBase_0(), _S331));
+    var s_16 : WavefrontPath_0 = LoadPath_0(base_14);
+    if((s_16.active_0) == u32(0))
     {
         return;
     }
-    LoadFeedbackState_0(base_15);
-    gRayCone_0 = vec2<f32>(s_17.path_2.coneWidth_2, s_17.path_2.coneSpread_0);
-    var ray_6 : Ray_0 = Ray_x24init_0(s_17.path_2.origin_3, s_17.path_2.direction_3, 1.00000001504746622e+30f);
+    gRayCone_0 = vec2<f32>(s_16.path_2.coneWidth_2, s_16.path_2.coneSpread_0);
+    var ray_6 : Ray_0 = Ray_x24init_0(s_16.path_2.origin_3, s_16.path_2.direction_3, 1.00000001504746622e+30f);
     var hit_6 : HitRecord_0 = TraceClosest_0(ray_6);
     var clampValue_0 : f32 = gFrame_0.envParams_0.w / gFrame_0.envParams_0.z;
     var bounce_1 : u32 = gWavefront_0.bounce_0;
@@ -5991,7 +5976,7 @@ fn IntersectImpl_0( tid_2 : vec3<u32>)
             var _S334 : bool = (bounce_1 > u32(0));
             if(_S334)
             {
-                _S332 = s_17.path_2.lightsSampled_0;
+                _S332 = s_16.path_2.lightsSampled_0;
             }
             else
             {
@@ -5999,13 +5984,13 @@ fn IntersectImpl_0( tid_2 : vec3<u32>)
             }
             if(_S332)
             {
-                mis_0 = EvalMISRobust_0(s_17.path_2.scatterPdf_0, pdf_15);
+                mis_0 = EvalMISRobust_0(s_16.path_2.scatterPdf_0, pdf_15);
             }
             else
             {
                 mis_0 = 1.0f;
             }
-            var contribution_3 : vec3<f32> = s_17.path_2.throughput_12 * vec3<f32>(mis_0) * radiance_2;
+            var contribution_3 : vec3<f32> = s_16.path_2.throughput_12 * vec3<f32>(mis_0) * radiance_2;
             if((clampValue_0 > 0.0f))
             {
                 _S332 = _S334;
@@ -6022,7 +6007,7 @@ fn IntersectImpl_0( tid_2 : vec3<u32>)
             {
                 contribution_2 = contribution_3;
             }
-            s_17.path_2.radiance_0 = s_17.path_2.radiance_0 + contribution_2;
+            s_16.path_2.radiance_0 = s_16.path_2.radiance_0 + contribution_2;
         }
     }
     if(!HitRecord_IsHit_0(hit_6))
@@ -6038,7 +6023,7 @@ fn IntersectImpl_0( tid_2 : vec3<u32>)
             {
                 contribution_2 = gFrame_0.background_0.xyz;
             }
-            s_17.path_2.radiance_0 = s_17.path_2.radiance_0 + contribution_2;
+            s_16.path_2.radiance_0 = s_16.path_2.radiance_0 + contribution_2;
             if(visible_0)
             {
                 _S332 = HitsSun_0(ray_6.direction_0);
@@ -6049,21 +6034,21 @@ fn IntersectImpl_0( tid_2 : vec3<u32>)
             }
             if(_S332)
             {
-                s_17.path_2.radiance_0 = s_17.path_2.radiance_0 + gFrame_0.sunRadiance_0.xyz;
+                s_16.path_2.radiance_0 = s_16.path_2.radiance_0 + gFrame_0.sunRadiance_0.xyz;
             }
         }
         else
         {
-            if(s_17.path_2.lightsSampled_0)
+            if(s_16.path_2.lightsSampled_0)
             {
-                mis_0 = EvalMISRobust_0(s_17.path_2.scatterPdf_0, EnvironmentPdf_0(ray_6.direction_0));
+                mis_0 = EvalMISRobust_0(s_16.path_2.scatterPdf_0, EnvironmentPdf_0(ray_6.direction_0));
             }
             else
             {
                 mis_0 = 1.0f;
             }
-            var contribution_4 : vec3<f32> = s_17.path_2.throughput_12 * vec3<f32>(mis_0) * EvalEnvironment_0(ray_6.direction_0);
-            if(!s_17.path_2.lightsSampled_0)
+            var contribution_4 : vec3<f32> = s_16.path_2.throughput_12 * vec3<f32>(mis_0) * EvalEnvironment_0(ray_6.direction_0);
+            if(!s_16.path_2.lightsSampled_0)
             {
                 _S332 = SunEnabled_0();
             }
@@ -6081,7 +6066,7 @@ fn IntersectImpl_0( tid_2 : vec3<u32>)
             }
             if(_S332)
             {
-                contribution_2 = contribution_4 + s_17.path_2.throughput_12 * gFrame_0.sunRadiance_0.xyz;
+                contribution_2 = contribution_4 + s_16.path_2.throughput_12 * gFrame_0.sunRadiance_0.xyz;
             }
             else
             {
@@ -6091,17 +6076,16 @@ fn IntersectImpl_0( tid_2 : vec3<u32>)
             {
                 contribution_2 = min(contribution_2, vec3<f32>(clampValue_0));
             }
-            s_17.path_2.radiance_0 = s_17.path_2.radiance_0 + contribution_2;
+            s_16.path_2.radiance_0 = s_16.path_2.radiance_0 + contribution_2;
         }
-        s_17.active_0 = u32(0);
+        s_16.active_0 = u32(0);
     }
     else
     {
-        gAccum_0[Field_0(base_15, u32(8))] = vec4<f32>(hit_6.t_0, hit_6.barycentrics_0, (bitcast<f32>((hit_6.instanceIndex_0))));
-        gAccum_0[Field_0(base_15, u32(9))] = (bitcast<vec4<f32>>((vec4<u32>(hit_6.primitiveIndex_0, u32(0), u32(0), u32(0)))));
+        gAccum_0[Field_0(base_14, u32(8))] = vec4<f32>(hit_6.t_0, hit_6.barycentrics_0, (bitcast<f32>((hit_6.instanceIndex_0))));
+        gAccum_0[Field_0(base_14, u32(9))] = (bitcast<vec4<f32>>((vec4<u32>(hit_6.primitiveIndex_0, u32(0), u32(0), u32(0)))));
     }
-    StorePath_0(base_15, s_17);
-    StoreFeedbackState_0(base_15);
+    gAccum_0[base_14] = vec4<f32>(s_16.path_2.radiance_0, (bitcast<f32>((s_16.active_0))));
     return;
 }
 
@@ -6112,15 +6096,15 @@ fn IntersectImpl_1( tid_3 : vec3<u32>)
     {
         return;
     }
-    var base_16 : u32 = WorkBase_0(QueueIndex_0(MainQueueBase_0(), _S335));
-    var s_18 : WavefrontPath_0 = LoadPath_0(base_16);
-    if((s_18.active_0) == u32(0))
+    var base_15 : u32 = WorkBase_0(QueueIndex_0(MainQueueBase_0(), _S335));
+    var s_17 : WavefrontPath_0 = LoadPath_0(base_15);
+    if((s_17.active_0) == u32(0))
     {
         return;
     }
-    LoadFeedbackState_0(base_16);
-    gRayCone_0 = vec2<f32>(s_18.path_2.coneWidth_2, s_18.path_2.coneSpread_0);
-    var ray_7 : Ray_0 = Ray_x24init_0(s_18.path_2.origin_3, s_18.path_2.direction_3, 1.00000001504746622e+30f);
+    LoadFeedbackState_0(base_15);
+    gRayCone_0 = vec2<f32>(s_17.path_2.coneWidth_2, s_17.path_2.coneSpread_0);
+    var ray_7 : Ray_0 = Ray_x24init_0(s_17.path_2.origin_3, s_17.path_2.direction_3, 1.00000001504746622e+30f);
     var hit_7 : HitRecord_0 = TraceClosest_1(ray_7);
     var clampValue_1 : f32 = gFrame_0.envParams_0.w / gFrame_0.envParams_0.z;
     var bounce_2 : u32 = gWavefront_0.bounce_0;
@@ -6145,7 +6129,7 @@ fn IntersectImpl_1( tid_3 : vec3<u32>)
             var _S338 : bool = (bounce_2 > u32(0));
             if(_S338)
             {
-                _S336 = s_18.path_2.lightsSampled_0;
+                _S336 = s_17.path_2.lightsSampled_0;
             }
             else
             {
@@ -6153,13 +6137,13 @@ fn IntersectImpl_1( tid_3 : vec3<u32>)
             }
             if(_S336)
             {
-                mis_1 = EvalMISRobust_0(s_18.path_2.scatterPdf_0, pdf_16);
+                mis_1 = EvalMISRobust_0(s_17.path_2.scatterPdf_0, pdf_16);
             }
             else
             {
                 mis_1 = 1.0f;
             }
-            var contribution_6 : vec3<f32> = s_18.path_2.throughput_12 * vec3<f32>(mis_1) * radiance_3;
+            var contribution_6 : vec3<f32> = s_17.path_2.throughput_12 * vec3<f32>(mis_1) * radiance_3;
             if((clampValue_1 > 0.0f))
             {
                 _S336 = _S338;
@@ -6176,7 +6160,7 @@ fn IntersectImpl_1( tid_3 : vec3<u32>)
             {
                 contribution_5 = contribution_6;
             }
-            s_18.path_2.radiance_0 = s_18.path_2.radiance_0 + contribution_5;
+            s_17.path_2.radiance_0 = s_17.path_2.radiance_0 + contribution_5;
         }
     }
     if(!HitRecord_IsHit_0(hit_7))
@@ -6192,7 +6176,7 @@ fn IntersectImpl_1( tid_3 : vec3<u32>)
             {
                 contribution_5 = gFrame_0.background_0.xyz;
             }
-            s_18.path_2.radiance_0 = s_18.path_2.radiance_0 + contribution_5;
+            s_17.path_2.radiance_0 = s_17.path_2.radiance_0 + contribution_5;
             if(visible_1)
             {
                 _S336 = HitsSun_0(ray_7.direction_0);
@@ -6203,21 +6187,21 @@ fn IntersectImpl_1( tid_3 : vec3<u32>)
             }
             if(_S336)
             {
-                s_18.path_2.radiance_0 = s_18.path_2.radiance_0 + gFrame_0.sunRadiance_0.xyz;
+                s_17.path_2.radiance_0 = s_17.path_2.radiance_0 + gFrame_0.sunRadiance_0.xyz;
             }
         }
         else
         {
-            if(s_18.path_2.lightsSampled_0)
+            if(s_17.path_2.lightsSampled_0)
             {
-                mis_1 = EvalMISRobust_0(s_18.path_2.scatterPdf_0, EnvironmentPdf_0(ray_7.direction_0));
+                mis_1 = EvalMISRobust_0(s_17.path_2.scatterPdf_0, EnvironmentPdf_0(ray_7.direction_0));
             }
             else
             {
                 mis_1 = 1.0f;
             }
-            var contribution_7 : vec3<f32> = s_18.path_2.throughput_12 * vec3<f32>(mis_1) * EvalEnvironment_0(ray_7.direction_0);
-            if(!s_18.path_2.lightsSampled_0)
+            var contribution_7 : vec3<f32> = s_17.path_2.throughput_12 * vec3<f32>(mis_1) * EvalEnvironment_0(ray_7.direction_0);
+            if(!s_17.path_2.lightsSampled_0)
             {
                 _S336 = SunEnabled_0();
             }
@@ -6235,7 +6219,7 @@ fn IntersectImpl_1( tid_3 : vec3<u32>)
             }
             if(_S336)
             {
-                contribution_5 = contribution_7 + s_18.path_2.throughput_12 * gFrame_0.sunRadiance_0.xyz;
+                contribution_5 = contribution_7 + s_17.path_2.throughput_12 * gFrame_0.sunRadiance_0.xyz;
             }
             else
             {
@@ -6245,17 +6229,17 @@ fn IntersectImpl_1( tid_3 : vec3<u32>)
             {
                 contribution_5 = min(contribution_5, vec3<f32>(clampValue_1));
             }
-            s_18.path_2.radiance_0 = s_18.path_2.radiance_0 + contribution_5;
+            s_17.path_2.radiance_0 = s_17.path_2.radiance_0 + contribution_5;
         }
-        s_18.active_0 = u32(0);
+        s_17.active_0 = u32(0);
     }
     else
     {
-        gAccum_0[Field_0(base_16, u32(8))] = vec4<f32>(hit_7.t_0, hit_7.barycentrics_0, (bitcast<f32>((hit_7.instanceIndex_0))));
-        gAccum_0[Field_0(base_16, u32(9))] = (bitcast<vec4<f32>>((vec4<u32>(hit_7.primitiveIndex_0, u32(0), u32(0), u32(0)))));
+        gAccum_0[Field_0(base_15, u32(8))] = vec4<f32>(hit_7.t_0, hit_7.barycentrics_0, (bitcast<f32>((hit_7.instanceIndex_0))));
+        gAccum_0[Field_0(base_15, u32(9))] = (bitcast<vec4<f32>>((vec4<u32>(hit_7.primitiveIndex_0, u32(0), u32(0), u32(0)))));
     }
-    StorePath_0(base_16, s_18);
-    StoreFeedbackState_0(base_16);
+    gAccum_0[base_15] = vec4<f32>(s_17.path_2.radiance_0, (bitcast<f32>((s_17.active_0))));
+    StoreFeedbackState_0(base_15);
     return;
 }
 
@@ -6337,6 +6321,18 @@ fn GenerateCameraRay_0( pixel_1 : vec2<u32>,  rng_0 : ptr<function, RandomSequen
         origin_6 = origin_5;
     }
     return Ray_x24init_0(origin_6, dir_7, 1.00000001504746622e+30f);
+}
+
+fn StorePath_0( base_16 : u32,  s_18 : WavefrontPath_0)
+{
+    gAccum_0[base_16] = vec4<f32>(s_18.path_2.radiance_0, (bitcast<f32>((s_18.active_0))));
+    gAccum_0[Field_0(base_16, u32(1))] = vec4<f32>(s_18.path_2.throughput_12, (bitcast<f32>((s_18.randomSeed_0))));
+    gAccum_0[Field_0(base_16, u32(2))] = vec4<f32>(s_18.path_2.origin_3, s_18.path_2.scatterPdf_0);
+    gAccum_0[Field_0(base_16, u32(3))] = vec4<f32>(s_18.path_2.direction_3, (bitcast<f32>((select(u32(0), u32(1), s_18.path_2.lightsSampled_0)))));
+    gAccum_0[Field_0(base_16, u32(4))] = vec4<f32>(s_18.path_2.absorption_0, s_18.path_2.coneWidth_2);
+    gAccum_0[Field_0(base_16, u32(5))] = vec4<f32>(s_18.albedo_1, s_18.path_2.coneSpread_0);
+    gAccum_0[Field_0(base_16, u32(6))] = vec4<f32>(s_18.normal_12, 0.0f);
+    return;
 }
 
 fn InitVirtualTextureFeedback_0( pixel_2 : vec2<u32>)
