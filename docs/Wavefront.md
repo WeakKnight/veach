@@ -130,6 +130,17 @@ queue counts each bounce; this implementation uses GPU compaction and indirect d
   changes are checked on the same renderer. The test pins mip choice with bias -16 to separate
   stage correctness from stochastic VT request reordering on alpha shadow rays; ordinary
   streaming and mip behavior remain covered by smoke tests rather than an exact-image claim.
+- `compact-once-v1`: skip compaction between intersection and shading, relying on Shade's
+  inactive-path early return. Images remain exact, but timings are mixed: spans
+  8.796/6.302/5.470/4.395/2.154 ms. Kept as evidence rather than adopting an uncertain
+  small gain that regresses glass/MIS. Restored the prior schedule for subsequent experiments.
+- CPU material inspection finds only 0-1 float4 live VM stack slots across the five scenes;
+  all BMW/glass/MIS materials need zero. The generic shader still compiles a 16-slot array.
+  Scene stack specialization is a separate hypothesis to measure, including on the reference
+  megakernel so its benefit is not misattributed to wavefront scheduling.
+- Added asynchronous compiler ownership checks: destroying a tracer while stage compilation
+  is pending releases the eventual resources, and failed compilation releases resources and
+  permits retry. These checks reproduced the original leak/lifecycle issues before the fix.
 
 ## Current work allocation
 

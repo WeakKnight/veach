@@ -42,6 +42,7 @@ export class PathTracer {
 	private feedbackTexture: GPUTexture | null = null;
 	private wavefront: Wavefront | null = null;
 	private wavefrontLoading: Promise<Wavefront> | null = null;
+	private destroyed = false;
 	integrator: 'megakernel' | 'wavefront' = 'megakernel';
 	width = 0;
 	height = 0;
@@ -271,15 +272,27 @@ export class PathTracer {
 	}
 
 	async setIntegrator(mode: 'megakernel' | 'wavefront'): Promise<void> {
+		if (this.destroyed) throw new Error('Path tracer has been destroyed');
 		if (mode === this.integrator) return;
 		if (mode === 'wavefront') {
 			this.wavefrontLoading ??= import('./Wavefront').then(async ({ Wavefront }) => {
+				if (this.destroyed) throw new Error('Path tracer has been destroyed');
 				const wavefront = new Wavefront(this.device, this.sceneLayout);
-				await wavefront.compiled;
-				return wavefront;
+				try {
+					await wavefront.compiled;
+					if (this.destroyed) throw new Error('Path tracer has been destroyed');
+					return wavefront;
+				} catch (error) {
+					wavefront.destroy();
+					throw error;
+				}
+			}).catch(error => {
+				this.wavefrontLoading = null;
+				throw error;
 			});
 			this.wavefront = await this.wavefrontLoading;
 		}
+		if (this.destroyed) throw new Error('Path tracer has been destroyed');
 		this.integrator = mode;
 		const width = this.width, height = this.height;
 		this.width = 0;
@@ -317,6 +330,8 @@ export class PathTracer {
 	}
 
 	destroy(): void {
+		if (this.destroyed) return;
+		this.destroyed = true;
 		this.wavefront?.destroy();
 		this.uniformBuffer.destroy();
 		this.accumBuffer?.destroy();
