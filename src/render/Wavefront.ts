@@ -10,6 +10,7 @@ const RECORD_BYTES = 21 * 16; // WAVEFRONT_STRIDE in Wavefront.slang
 const TILE_CAPACITY = 262144;
 const WORKGROUP_SIZE = 64;
 const ENTRIES = ['Initialize', 'Intersect', 'IntersectOpaque', 'Shade', 'Shadow', 'ShadowOpaque', 'Tail', 'TailOpaque', 'Finalize',
+	'IntersectDirect', 'IntersectOpaqueDirect', 'ShadeDirect', 'ShadowDirect', 'ShadowOpaqueDirect',
 	'CompactIntersect', 'CompactShade', 'CompactIntersectDense', 'CompactShadeDense', 'CompactIntersectSubgroup', 'CompactShadeSubgroup',
 	'CompactIntersectAdaptive', 'CompactShadeAdaptive'] as const;
 type Entry = typeof ENTRIES[number];
@@ -18,7 +19,7 @@ export class Wavefront {
 	// Experimental tuning knob for the benchmark; keep the fully staged default until measured.
 	tailStart = Number.POSITIVE_INFINITY;
 	tailThreshold = 0;
-	compaction: 'dense' | 'queued' | 'subgroup' | 'adaptive' = 'dense';
+	compaction: 'dense' | 'queued' | 'subgroup' | 'adaptive' | 'none' = 'dense';
 	readonly layout: GPUBindGroupLayout;
 	readonly compiled: Promise<void>;
 	private readonly pipelines = new Map<MaterialStackCapacity, Map<Entry, GPUComputePipeline>>();
@@ -101,10 +102,12 @@ export class Wavefront {
 
 	encode(encoder: GPUCommandEncoder, scene: GPUBindGroup, width: number, height: number, maxBounces: number, hasAlphaTested: boolean, materialCapacity: MaterialStackCapacity): void {
 		if (!this.accumulation || !this.feedback) return;
+		const direct = this.compaction === 'none';
+		if (direct && this.tailThreshold !== 0) throw new Error('Direct dispatch supports fixed tails only; adaptive tails require queue counts');
 		if (this.compaction === 'subgroup' && !this.compactSubgroupModule) throw new Error('Subgroup compaction requires the subgroups device feature');
 		const pipelines = this.pipelines.get(materialCapacity);
 		if (!pipelines) throw new Error('Wavefront material pipelines have not been prepared');
-		const compactSuffix = { dense: 'Dense', queued: '', subgroup: 'Subgroup', adaptive: 'Adaptive' }[this.compaction];
+		const compactSuffix = { dense: 'Dense', queued: '', subgroup: 'Subgroup', adaptive: 'Adaptive', none: '' }[this.compaction];
 		const pixels = width * height, capacity = this.capacity(pixels);
 		const workItems = Math.ceil(width / 8) * Math.ceil(height / 8) * 64;
 		const tiles = Math.ceil(workItems / capacity), bounces = Math.max(0, Math.floor(maxBounces));
@@ -132,12 +135,13 @@ export class Wavefront {
 			const dispatch = (entry: Entry, bounce: number) => {
 				const pass = encoder.beginComputePass({ label: `wavefront.${entry}.b${bounce}` });
 				const compact = entry === 'CompactIntersect' || entry === 'CompactShade';
-				const pipeline = compact ? `${entry}${compactSuffix}` as Entry
+				let pipeline = compact ? `${entry}${compactSuffix}` as Entry
 					: !hasAlphaTested && (entry === 'Intersect' || entry === 'Shadow' || entry === 'Tail') ? `${entry}Opaque` as Entry : entry;
+				if (direct && (entry === 'Intersect' || entry === 'Shade' || entry === 'Shadow')) pipeline = `${pipeline}Direct` as Entry;
 				pass.setPipeline(pipelines.get(pipeline)!);
 				pass.setBindGroup(0, scene);
 				pass.setBindGroup(1, this.group!, [(tile * (bounces + 1) + bounce) * this.alignment]);
-				if (entry !== 'Initialize' && entry !== 'Finalize' && !(compact && this.compaction === 'dense')) {
+				if (!direct && entry !== 'Initialize' && entry !== 'Finalize' && !(compact && this.compaction === 'dense')) {
 					pass.dispatchWorkgroupsIndirect(this.indirect, entry === 'Shadow' ? 16 : 0);
 				} else {
 					pass.dispatchWorkgroups(Math.ceil(count / WORKGROUP_SIZE));
@@ -154,7 +158,7 @@ export class Wavefront {
 				copyArguments();
 			};
 			dispatch('Initialize', 0);
-			copyArguments();
+			if (!direct) copyArguments();
 			for (let bounce = 0; bounce <= bounces; bounce++) {
 				if (bounce >= this.tailStart) {
 					dispatch('Tail', bounce);
@@ -163,10 +167,10 @@ export class Wavefront {
 					// Following stages observe liveness; compaction drives their indirect counts to zero.
 				}
 				dispatch('Intersect', bounce);
-				compact(bounce, false);
+				if (!direct) compact(bounce, false);
 				dispatch('Shade', bounce);
 				if (bounce < bounces) {
-					compact(bounce, true);
+					if (!direct) compact(bounce, true);
 					dispatch('Shadow', bounce);
 				}
 			}

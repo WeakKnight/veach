@@ -32,6 +32,8 @@ Optional arguments: `--mode`, `--only` (comma-separated names), `--width`, `--he
 1/2/4/8/16 forces a capacity for controlled comparisons and rejects undersized choices.
 Both integrators use the same capacity. The harness checks submitted WGSL array sizes
 and records the selected capacity, generated variant table, and relevant source hashes.
+It also records material stack histograms, constant/textured material counts and distinct
+bytecode blocks, including fallback and unused materials as in the scene-wide capacity bound.
 
 The harness enables timestamp queries only in its own browser context. It measures
 compute passes labelled `pathTracing` or `wavefront.*`, records each stage, and stores
@@ -66,13 +68,18 @@ Startup records include submitted material shader capacities and compute pipelin
 durations. The harness selects wavefront on the empty scene, then scene loading prepares
 only the capacity needed by the incoming geometry.
 
-`--compaction dense|queued|subgroup|adaptive` selects the internal queue implementation. Dense is
+`--compaction dense|queued|subgroup|adaptive|none` selects the internal queue implementation. Dense is
 the conservative default; queued scans only input indices, and subgroup uses the same queued
 layout with subgroup arithmetic and one global reservation per workgroup. `--compaction-sweep`
-compares all four within one renderer using the requested tail schedule; it is separate from
+compares the supported modes within one renderer using the requested tail schedule; it is separate from
 `--tail-sweep`. Adaptive scans physical slots above half occupancy and the input queue below
 that threshold. `--disable-subgroups` tests adapters without that optional device feature,
 omitting the subgroup variant from a compaction sweep.
+`none` uses separate direct-slot entry points for intersection, shading and shadow, with no
+compaction passes or indirect-argument copies. It preserves pixel groups and returns early
+for inactive slots. This mode supports fully staged execution and fixed tails; sweeps omit
+it when an adaptive tail is requested, and its tail sweep includes only fixed schedules.
+The initial identity queue remains available to fixed tails; work allocation is unchanged.
 
 ## Design constraints
 
@@ -411,12 +418,30 @@ from this browser session, not a controlled cold-cache startup comparison.
   checks for classroom and glass show no tile seams or missing regions. Both resolutions
   support retaining the adaptive option, but the conservative default remains dense while
   larger scheduling/coherence experiments continue. GPU register counts remain unmeasured.
+  Adaptive compaction with the 65,536-path adaptive tail also passes ten selected exact
+  comparisons covering alpha, analytic lights at two sizes, and return to an empty scene.
 - Revisit uncompacted stage dispatch after the SoA, spatial grouping, opaque traversal and
   stack-capacity improvements. The original `staged-v1` used AoS and a fixed 16-slot VM, so it
   cannot isolate current compaction/coherence tradeoffs. A direct-slot dispatch variant can
   retain 8x8 pixel groups across stages, with inactive lanes returning immediately. Compare
   that against compacted dispatch using the current kernels and identical stack capacity;
   this tests stage isolation separately from queue packing.
+  The direct-slot implementation passes 30 full GPU comparisons and ten additional fixed-tail
+  comparisons (tail at bounce 2), all exactly equal to the full-stack megakernel reference.
+  The 176 unit tests, typecheck, library build and HDR helmet/alpha/transmission smoke cases
+  pass; HDR helmet and transmission screenshots were inspected. The first current-kernel
+  five-scene interleaved comparison against all queue modes is now being measured.
+  `compaction-direct-sweep-v1` completes all 75 HDR comparisons exactly. Direct/adaptive
+  spans are 10.258/8.576, 5.727/6.007, 4.187/5.417, 4.016/3.911 and 1.722/1.841 ms.
+  Direct dispatch materially helps BMW, but regresses classroom. Mean stage timings identify
+  the next experiment: breakfast intersection falls from 3.98 to 3.15 ms, BMW intersection
+  from 2.55 to 1.92 ms and BMW shadow from 2.02 to 1.51 ms. Direct shading is slower in all
+  five scenes. Test stage-specific direct dispatch, retaining compacted shading; do not
+  assume full direct dispatch is a universally better default.
+  The material census reports 45/16/27/8/9 compiled materials (including fallback) and
+  7/7/9/5/4 distinct code blocks. Only classroom/breakfast have textures (three materials
+  each, requiring one slot); BMW/glass/MIS require zero VM slots. This motivates a future
+  constant-output interpreter specialization, applied fairly to both integrators.
 - Extend beyond pinned-mip exact tests to ordinary stochastic-alpha convergence checks, and
   continue monitoring startup compilation cost and memory at large image sizes.
 

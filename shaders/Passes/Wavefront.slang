@@ -175,10 +175,11 @@ HitRecord IntersectPath<let ALPHA : bool>(inout WavefrontPath s, uint bounce)
 	return hit;
 }
 
-void IntersectImpl<let ALPHA : bool>(uint3 tid)
+void IntersectImpl<let ALPHA : bool, let DIRECT : bool>(uint3 tid)
 {
-	if (tid.x >= asuint(gAccum[HeaderBase()].x)) return;
-	uint index = QueueIndex(MainQueueBase(), tid.x);
+	uint count = DIRECT ? gWavefront.pathCount : asuint(gAccum[HeaderBase()].x);
+	if (tid.x >= count) return;
+	uint index = DIRECT ? tid.x : QueueIndex(MainQueueBase(), tid.x);
 	uint base = WorkBase(index);
 	WavefrontPath s = LoadPath(base);
 	if (s.active == 0u) return;
@@ -323,12 +324,11 @@ void ShadePath<let DEFERRED : bool, let ALPHA : bool>(uint base, inout Wavefront
 	s.active = 1u;
 }
 
-[shader("compute")]
-[numthreads(64, 1, 1)]
-void Shade(uint3 tid : SV_DispatchThreadID)
+void ShadeImpl<let DIRECT : bool>(uint3 tid)
 {
-	if (tid.x >= asuint(gAccum[HeaderBase()].z)) return;
-	uint index = QueueIndex(ShadeQueueBase(), tid.x);
+	uint count = DIRECT ? gWavefront.pathCount : asuint(gAccum[HeaderBase()].z);
+	if (tid.x >= count) return;
+	uint index = DIRECT ? tid.x : QueueIndex(ShadeQueueBase(), tid.x);
 	uint base = WorkBase(index);
 	gAccum[Field(base, 11u)] = float4(0.0);
 	WavefrontPath s = LoadPath(base);
@@ -342,6 +342,14 @@ void Shade(uint3 tid : SV_DispatchThreadID)
 	StorePath(base, s);
 	StoreFeedbackState(base);
 }
+
+[shader("compute")]
+[numthreads(64, 1, 1)]
+void Shade(uint3 tid : SV_DispatchThreadID) { ShadeImpl<false>(tid); }
+
+[shader("compute")]
+[numthreads(64, 1, 1)]
+void ShadeDirect(uint3 tid : SV_DispatchThreadID) { ShadeImpl<true>(tid); }
 
 // Finish sparse tail paths without repeatedly materializing state and launching stages.
 // The shared intersection/shading helpers preserve the staged estimator and random sequence.
@@ -372,10 +380,11 @@ void Tail(uint3 tid : SV_DispatchThreadID) { TailImpl<true>(tid); }
 [numthreads(64, 1, 1)]
 void TailOpaque(uint3 tid : SV_DispatchThreadID) { TailImpl<false>(tid); }
 
-void ShadowImpl<let ALPHA : bool>(uint3 tid)
+void ShadowImpl<let ALPHA : bool, let DIRECT : bool>(uint3 tid)
 {
-	if (tid.x >= asuint(gAccum[HeaderBase()].y)) return;
-	uint index = QueueIndex(ShadowQueueBase(), tid.x);
+	uint count = DIRECT ? gWavefront.pathCount : asuint(gAccum[HeaderBase()].y);
+	if (tid.x >= count) return;
+	uint index = DIRECT ? tid.x : QueueIndex(ShadowQueueBase(), tid.x);
 	uint base = WorkBase(index);
 	float4 info = gAccum[Field(base, 11u)];
 	uint mask = asuint(info.z);
@@ -403,19 +412,37 @@ void ShadowImpl<let ALPHA : bool>(uint3 tid)
 
 [shader("compute")]
 [numthreads(64, 1, 1)]
-void Intersect(uint3 tid : SV_DispatchThreadID) { IntersectImpl<true>(tid); }
+void Intersect(uint3 tid : SV_DispatchThreadID) { IntersectImpl<true, false>(tid); }
 
 [shader("compute")]
 [numthreads(64, 1, 1)]
-void IntersectOpaque(uint3 tid : SV_DispatchThreadID) { IntersectImpl<false>(tid); }
+void IntersectOpaque(uint3 tid : SV_DispatchThreadID) { IntersectImpl<false, false>(tid); }
 
 [shader("compute")]
 [numthreads(64, 1, 1)]
-void Shadow(uint3 tid : SV_DispatchThreadID) { ShadowImpl<true>(tid); }
+void Shadow(uint3 tid : SV_DispatchThreadID) { ShadowImpl<true, false>(tid); }
 
 [shader("compute")]
 [numthreads(64, 1, 1)]
-void ShadowOpaque(uint3 tid : SV_DispatchThreadID) { ShadowImpl<false>(tid); }
+void ShadowOpaque(uint3 tid : SV_DispatchThreadID) { ShadowImpl<false, false>(tid); }
+
+// Direct-slot dispatch preserves the original pixel groups instead of packing live paths.
+// Separate entry points let the compiler remove queue addressing and count loads entirely.
+[shader("compute")]
+[numthreads(64, 1, 1)]
+void IntersectDirect(uint3 tid : SV_DispatchThreadID) { IntersectImpl<true, true>(tid); }
+
+[shader("compute")]
+[numthreads(64, 1, 1)]
+void IntersectOpaqueDirect(uint3 tid : SV_DispatchThreadID) { IntersectImpl<false, true>(tid); }
+
+[shader("compute")]
+[numthreads(64, 1, 1)]
+void ShadowDirect(uint3 tid : SV_DispatchThreadID) { ShadowImpl<true, true>(tid); }
+
+[shader("compute")]
+[numthreads(64, 1, 1)]
+void ShadowOpaqueDirect(uint3 tid : SV_DispatchThreadID) { ShadowImpl<false, true>(tid); }
 
 [shader("compute")]
 [numthreads(64, 1, 1)]

@@ -1188,11 +1188,11 @@ export const materialStackVariants: Record<'PathTracing' | 'Wavefront', Material
 		}
 	},
 	"Wavefront": {
-		"length": 333878,
-		"checksum": 841220951,
+		"length": 342760,
+		"checksum": 644457957,
 		"variants": {
 			"1": {
-				"sha256": "35b1496a58592006b662b7a8469b5bfe574351fba0e11fb4ee66da14b2286942",
+				"sha256": "e4319b6d7ef17406980b948a1543062f85d04b53758aa202eed9affb188c837a",
 				"edits": [
 					[
 						45451,
@@ -1487,7 +1487,7 @@ export const materialStackVariants: Record<'PathTracing' | 'Wavefront', Material
 				]
 			},
 			"2": {
-				"sha256": "7fae394ef4b7bdb36b6cb0d65f35a7c2923e9100269e9f178c71297f8713cbad",
+				"sha256": "40cef6bceaf391238419e83363a7019dd9272219c33a07ab42dffd4991c63928",
 				"edits": [
 					[
 						45450,
@@ -1782,7 +1782,7 @@ export const materialStackVariants: Record<'PathTracing' | 'Wavefront', Material
 				]
 			},
 			"4": {
-				"sha256": "672a90ff0d14884eb8f79409ad812196c01d651db85ac269dc5deef68e42c334",
+				"sha256": "ac55a3ec2b5070f2fcc1a89a3524ee9756edc308d23edd39dfaa49959ede004a",
 				"edits": [
 					[
 						45450,
@@ -2077,7 +2077,7 @@ export const materialStackVariants: Record<'PathTracing' | 'Wavefront', Material
 				]
 			},
 			"8": {
-				"sha256": "ea0c63c9d0c11108a6cf948bee9ff8652d3d7795da12dc7f31c186d09a19f968",
+				"sha256": "7062927ef56e9f34e4a971aa5b0b1406ebcc20be560b4bca684120d8cfe8340d",
 				"edits": [
 					[
 						45450,

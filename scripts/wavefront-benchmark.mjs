@@ -35,7 +35,8 @@ const config = {
 	compaction: option('compaction', 'dense'),
 	compactionSweep: args.includes('--compaction-sweep'),
 };
-if (!['dense', 'queued', 'subgroup', 'adaptive'].includes(config.compaction)) throw new Error('Invalid compaction mode');
+if (!['dense', 'queued', 'subgroup', 'adaptive', 'none'].includes(config.compaction)) throw new Error('Invalid compaction mode');
+if (config.compaction === 'none' && config.tailThreshold !== 0) throw new Error('Direct dispatch supports fixed tails only');
 if (config.materialStack !== null && ![1, 2, 4, 8, 16].includes(config.materialStack)) throw new Error('Invalid material stack capacity');
 if (config.paired && config.mode !== 'wavefront') throw new Error('--paired requires --mode wavefront');
 if (config.tailSweep && !config.paired) throw new Error('--tail-sweep requires --paired --mode wavefront');
@@ -44,10 +45,11 @@ config.variants = [{ name: 'wavefront', tailStart: config.tailStart, tailThresho
 if (config.tailSweep) {
 	config.variants.push({ name: 'staged', tailStart: 999, tailThreshold: 0 },
 		...[0, 1, 2, 3].map(tailStart => ({ name: `fixed-${tailStart}`, tailStart, tailThreshold: 0 })),
-		...[8192, 32768, 131072].map(tailThreshold => ({ name: `adaptive-${tailThreshold}`, tailStart: 0, tailThreshold })));
+		...(config.compaction === 'none' ? [] : [8192, 32768, 131072]).map(tailThreshold => ({ name: `adaptive-${tailThreshold}`, tailStart: 0, tailThreshold })));
 }
 if (config.compactionSweep) {
-	for (const compaction of ['dense', 'queued', 'subgroup', 'adaptive'].filter(mode => mode !== config.compaction && (mode !== 'subgroup' || config.subgroups)))
+	for (const compaction of ['dense', 'queued', 'subgroup', 'adaptive', 'none'].filter(mode => mode !== config.compaction
+		&& (mode !== 'subgroup' || config.subgroups) && (mode !== 'none' || config.tailThreshold === 0)))
 		config.variants.push({ name: `compact-${compaction}`, tailStart: config.tailStart, tailThreshold: config.tailThreshold, compaction });
 }
 for (const variant of config.variants) variant.compaction ??= config.compaction;
@@ -181,7 +183,15 @@ try {
 			const loadStart = performance.now();
 			const sceneDescription = await loadGLTF(`/__research/${c.name}.glb`);
 			const { compileSceneMaterials } = await import('/src/render/SceneMaterials.ts');
-			const materialStackRequired = Math.max(0, ...compileSceneMaterials(sceneDescription).map(material => material.stackSize));
+			const compiledMaterials = compileSceneMaterials(sceneDescription);
+			const materialStackRequired = Math.max(0, ...compiledMaterials.map(material => material.stackSize));
+			// Includes the fallback and unused materials, matching the conservative pipeline bound.
+			const materialPrograms = { count: compiledMaterials.length,
+				uniqueCodeBlocks: new Set(compiledMaterials.map(material => material.code.join(','))).size,
+				constantOnly: compiledMaterials.filter(material => material.stackSize === 0).length,
+				textured: compiledMaterials.filter(material => material.textures.length > 0).length,
+				stackHistogram: Object.fromEntries([...new Set(compiledMaterials.map(material => material.stackSize))].sort((a, b) => a - b)
+					.map(size => [size, compiledMaterials.filter(material => material.stackSize === size).length])) };
 			if (config.materialStack !== null && materialStackRequired > config.materialStack) throw new Error(`Scene needs ${materialStackRequired} stack slots; variant has ${config.materialStack}`);
 			await renderer.setScene(sceneDescription);
 			const loadMs = performance.now() - loadStart;
@@ -271,6 +281,8 @@ try {
 						captureQueues = false;
 						measuring = false;
 						if (!labels.length) throw new Error('No trace passes were measured');
+						if (mode === 'wavefront' && variant.compaction === 'none' && labels.some(label => label.includes('.Compact')))
+							throw new Error('Direct dispatch unexpectedly ran compaction');
 						const encoder = device.createCommandEncoder();
 						encoder.resolveQuerySet(queries, 0, labels.length * 2, resolved, 0);
 						encoder.copyBufferToBuffer(resolved, 0, readback, 0, labels.length * 16);
@@ -369,7 +381,7 @@ try {
 			await device.queue.onSubmittedWorkDone();
 			queries.destroy(); resolved.destroy(); readback.destroy();
 			globalThis.benchmarkRenderer = renderer;
-			return { adapterInfo, deviceFeatures: [...device.features], initMs, integratorInitMs, loadMs, materialStackRequired, materialCapacity, observedStackCapacities,
+			return { adapterInfo, deviceFeatures: [...device.features], initMs, integratorInitMs, loadMs, materialPrograms, materialStackRequired, materialCapacity, observedStackCapacities,
 				shaderCompilations, pipelineCompilations, warmFrames: warmFrames + 1,
 				presentationIntegrator: renderer.integrator, presentationVariant, presentationExposure: c.presentationExposure, scene: renderer.sceneStats, vt: renderer.virtualTextureStats,
 				camera: { position: renderer.camera.position, target: renderer.camera.target, up: renderer.camera.up, fovY: renderer.camera.fovY },

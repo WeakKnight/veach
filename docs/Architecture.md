@@ -110,6 +110,9 @@ Presentation reads only the image prefix.
 GPU compaction views that allocation as atomic uints in its own pass; dispatch arguments
 are copied into a small INDIRECT-only buffer. Opaque traversal variants omit the opacity
 interpreter when `GpuScene.hasAlphaTested` is false (derived from instanced materials).
+An experimental direct-slot dispatch uses the same work allocation and shading helpers,
+but omits compaction/indirect copies and keeps the original pixel groups between stages.
+It supports fully staged execution and fixed-bounce tails; adaptive tails need queue counts.
 
 Bind group layouts are explicit in `PathTracer.ts`.
 
