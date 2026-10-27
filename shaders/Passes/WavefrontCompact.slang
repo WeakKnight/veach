@@ -11,6 +11,9 @@ import Scene.SceneBindings;
 #ifndef VEACH_DENSE_COMPACTION
 #define VEACH_DENSE_COMPACTION 0
 #endif
+#ifndef VEACH_ADAPTIVE_COMPACTION
+#define VEACH_ADAPTIVE_COMPACTION 0
+#endif
 
 struct WavefrontUniforms
 {
@@ -36,7 +39,14 @@ uint2 ReserveQueues<let AFTER_SHADE : bool>(uint header, uint2 count)
 	if (count.x > 0u)
 	{
 		offset.x = gWork[header + (AFTER_SHADE ? 0u : 2u)].add(count.x);
-		gWork[header + 4u].max((offset.x + count.x + 63u) / 64u);
+		uint nextCount = offset.x + count.x;
+#if VEACH_ADAPTIVE_COMPACTION
+		// The next compaction scans physical slots while the queue is dense. Its
+		// dispatch shares the main-stage arguments; those stages guard by real count.
+		// This bound grows monotonically, so workgroup reservation order is irrelevant.
+		if (nextCount > gWavefront.pathCount / 2u) nextCount = gWavefront.pathCount;
+#endif
+		gWork[header + 4u].max((nextCount + 63u) / 64u);
 	}
 	if (count.y > 0u)
 	{
@@ -51,6 +61,7 @@ void CompactImpl<let AFTER_SHADE : bool>(uint3 tid, uint3 local)
 	uint lane = local.x;
 	uint header = gFrame.frame.x * gFrame.frame.y * 12u;
 #if VEACH_DENSE_COMPACTION
+	bool dense = true;
 	uint count = gWavefront.pathCount;
 #else
 	// Reading one atomic location from every lane can serialize the whole dispatch.
@@ -64,7 +75,12 @@ void CompactImpl<let AFTER_SHADE : bool>(uint3 tid, uint3 local)
 #endif
 	}
 	GroupMemoryBarrierWithGroupSync();
-	uint count = gInputCount;
+#if VEACH_ADAPTIVE_COMPACTION
+	bool dense = gInputCount > gWavefront.pathCount / 2u;
+#else
+	bool dense = false;
+#endif
+	uint count = dense ? gWavefront.pathCount : gInputCount;
 #endif
 	uint queue = header + 12u + gWavefront.capacity * 84u;
 	uint queueStride = ((gWavefront.capacity + 3u) / 4u) * 4u;
@@ -74,11 +90,8 @@ void CompactImpl<let AFTER_SHADE : bool>(uint3 tid, uint3 local)
 	uint2 flags = uint2(0u);
 	if (tid.x < count)
 	{
-#if VEACH_DENSE_COMPACTION
 		index = tid.x;
-#else
-		index = gWork[inputQueue + tid.x].load();
-#endif
+		if (!dense) index = gWork[inputQueue + tid.x].load();
 		uint base = header + 12u + index * 4u;
 		flags.x = uint(gWork[base + 3u].load() != 0u);
 		if (AFTER_SHADE) flags.y = uint(gWork[base + 44u * gWavefront.capacity + 2u].load() != 0u);

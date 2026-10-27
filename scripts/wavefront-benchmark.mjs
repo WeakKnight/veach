@@ -35,7 +35,7 @@ const config = {
 	compaction: option('compaction', 'dense'),
 	compactionSweep: args.includes('--compaction-sweep'),
 };
-if (!['dense', 'queued', 'subgroup'].includes(config.compaction)) throw new Error('Invalid compaction mode');
+if (!['dense', 'queued', 'subgroup', 'adaptive'].includes(config.compaction)) throw new Error('Invalid compaction mode');
 if (config.materialStack !== null && ![1, 2, 4, 8, 16].includes(config.materialStack)) throw new Error('Invalid material stack capacity');
 if (config.paired && config.mode !== 'wavefront') throw new Error('--paired requires --mode wavefront');
 if (config.tailSweep && !config.paired) throw new Error('--tail-sweep requires --paired --mode wavefront');
@@ -47,7 +47,7 @@ if (config.tailSweep) {
 		...[8192, 32768, 131072].map(tailThreshold => ({ name: `adaptive-${tailThreshold}`, tailStart: 0, tailThreshold })));
 }
 if (config.compactionSweep) {
-	for (const compaction of ['dense', 'queued', 'subgroup'].filter(mode => mode !== config.compaction))
+	for (const compaction of ['dense', 'queued', 'subgroup', 'adaptive'].filter(mode => mode !== config.compaction && (mode !== 'subgroup' || config.subgroups)))
 		config.variants.push({ name: `compact-${compaction}`, tailStart: config.tailStart, tailThreshold: config.tailThreshold, compaction });
 }
 for (const variant of config.variants) variant.compaction ??= config.compaction;
@@ -220,7 +220,8 @@ try {
 			const readback = device.createBuffer({ size: queryCapacity * 8, usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ });
 			const begin = GPUCommandEncoder.prototype.beginComputePass;
 			const copyBuffer = GPUCommandEncoder.prototype.copyBufferToBuffer;
-			const queueReadback = config.diagnose ? device.createBuffer({ size: 65536, usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ }) : null;
+			const queueRecordBytes = 48; // Counts plus both indirect argument records.
+			const queueReadback = config.diagnose ? device.createBuffer({ size: 4096 * queueRecordBytes, usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ }) : null;
 			let queueCopies = 0, captureQueues = false, queueSnapshots = [];
 			const queuePhases = [];
 			GPUCommandEncoder.prototype.copyBufferToBuffer = function(source, sourceOffset, destination, destinationOffset, size) {
@@ -228,7 +229,7 @@ try {
 				if (captureQueues && destination.label === 'wavefrontDispatch') {
 					if (queueCopies >= 4096) throw new Error('Queue diagnostic capacity exceeded');
 					queuePhases.push(labels.at(-1));
-					copyBuffer.call(this, source, sourceOffset - 16, queueReadback, queueCopies++ * 16, 16);
+					copyBuffer.call(this, source, sourceOffset - 16, queueReadback, queueCopies++ * queueRecordBytes, queueRecordBytes);
 				}
 			};
 			let labels = [], measuring = false;
@@ -322,9 +323,17 @@ try {
 			if (queueReadback) {
 				await queueReadback.mapAsync(GPUMapMode.READ);
 				const counters = new Uint32Array(queueReadback.getMappedRange());
-				for (let i = 0; i < queueCopies; i++) queueSnapshots.push({ phase: queuePhases[i],
-					active: counters[i * 4 + (queuePhases[i].includes('CompactIntersect') ? 2 : 0)],
-					shadow: counters[i * 4 + 1], mainA: counters[i * 4], mainB: counters[i * 4 + 2] });
+				let tilePathCount = 0;
+				for (let i = 0; i < queueCopies; i++) {
+					const offset = i * queueRecordBytes / 4, phase = queuePhases[i];
+					const active = counters[offset + (phase.includes('CompactIntersect') ? 2 : 0)], shadow = counters[offset + 1];
+					if (phase.includes('.Initialize.')) tilePathCount = active;
+					const denseBound = config.compaction === 'adaptive' && active > Math.floor(tilePathCount / 2);
+					const mainGroups = counters[offset + 4], shadowGroups = counters[offset + 8];
+					if (active > tilePathCount || shadow > tilePathCount || mainGroups !== Math.ceil((denseBound ? tilePathCount : active) / 64)
+						|| shadowGroups !== Math.ceil(shadow / 64)) throw new Error(`Invalid queue/dispatch bounds after ${phase}`);
+					queueSnapshots.push({ phase, tilePathCount, active, shadow, mainA: counters[offset], mainB: counters[offset + 2], mainGroups, shadowGroups });
+				}
 				queueReadback.unmap(); queueReadback.destroy();
 			}
 			const hdr = candidateHDR ?? await renderer.readRadiance();

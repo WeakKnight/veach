@@ -57,7 +57,7 @@ const wavefrontTuning = {};
 const compactionFlag = only.indexOf('--compaction');
 if (compactionFlag >= 0) {
 	const mode = only[compactionFlag + 1];
-	if (integrator !== 'wavefront' || !['dense', 'queued', 'subgroup'].includes(mode)) throw new Error('--compaction requires wavefront and dense, queued or subgroup');
+	if (integrator !== 'wavefront' || !['dense', 'queued', 'subgroup', 'adaptive'].includes(mode)) throw new Error('--compaction requires wavefront and dense, queued, subgroup or adaptive');
 	wavefrontTuning.compaction = mode;
 	only.splice(compactionFlag, 2);
 }

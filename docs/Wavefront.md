@@ -42,7 +42,8 @@ repeatable measurements; ordinary streaming remains covered by smoke tests.
 GPU pass timings exclude command dispatch gaps/copies. The harness now also records the
 GPU span from the first trace pass to the final trace pass, including inter-stage gaps,
 plus CPU/readback wall time. Shader and host source hashes identify uncommitted variants.
-`--diagnose` records queue counters after compactions for the first measured sample.
+`--diagnose` records queue counters and both indirect dispatch bounds after compactions for
+the first measured sample, checking them against the tile size and selected compaction mode.
 `node scripts/analyze-wavefront-stages.mjs REPORT_DIRECTORY` sums stage and bounce timings
 over the recorded samples, checks that attribution equals total GPU pass time, and writes
 `stage-analysis.json`. These are arithmetic means, distinct from the comparison's medians.
@@ -65,11 +66,13 @@ Startup records include submitted material shader capacities and compute pipelin
 durations. The harness selects wavefront on the empty scene, then scene loading prepares
 only the capacity needed by the incoming geometry.
 
-`--compaction dense|queued|subgroup` selects the internal queue implementation. Dense is
+`--compaction dense|queued|subgroup|adaptive` selects the internal queue implementation. Dense is
 the conservative default; queued scans only input indices, and subgroup uses the same queued
 layout with subgroup arithmetic and one global reservation per workgroup. `--compaction-sweep`
-compares all three within one renderer using the requested tail schedule; it is separate from
-`--tail-sweep`. `--disable-subgroups` tests adapters without that optional device feature.
+compares all four within one renderer using the requested tail schedule; it is separate from
+`--tail-sweep`. Adaptive scans physical slots above half occupancy and the input queue below
+that threshold. `--disable-subgroups` tests adapters without that optional device feature,
+omitting the subgroup variant from a compaction sweep.
 
 ## Design constraints
 
@@ -387,6 +390,33 @@ from this browser session, not a controlled cold-cache startup comparison.
   tile in dense mode; generating that bound from the output count avoids CPU readback and
   additional storage bindings, at the expense of extra inactive shading/traversal invocations.
   This is an experiment to measure, not an assumed improvement.
+  The density-adaptive implementation passes 30 exact GPU comparisons with subgroups
+  disabled, 176 unit tests, typecheck, library build, and smoke renders of HDR helmet,
+  alpha and transmission (alpha/transmission screenshots inspected). The first four-mode
+  five-scene sweep (`compaction-adaptive-sweep-v1`) completes all 60 HDR comparisons exactly.
+  Adaptive versus dense GPU spans are 8.589/8.729 ms (classroom), 6.055/6.358 (breakfast),
+  5.572/5.551 (BMW), 3.836/3.973 (glass), and 1.842/1.887 (MIS). These modest improvements
+  need repeated and higher-resolution checks before changing the default. BMW still favors
+  the purely queued scan (5.422 ms), and full staging remains slower than the reference in
+  breakfast/BMW/glass. Queue optimization alone does not close that gap.
+  `compaction-adaptive-diagnostics-v1` checks the generated dispatch bounds after every
+  queue update in classroom and breakfast. Classroom remains dense through the intersection
+  at bounce 3, then switches after shading (104,392 of 230,400 slots); breakfast switches
+  after bounce-0 shading (113,149 slots). Both branches are exercised and both HDR comparisons
+  remain exact. Diagnostic-copy timings are not used as performance evidence.
+  The 1920x1080 follow-up (`compaction-adaptive-1080p-v1`, same five scenes, 32 samples,
+  three interleaved rounds) passes all 60 comparisons exactly. Adaptive/dense spans are
+  73.458/73.374, 41.247/42.424, 38.058/38.950, 27.943/28.915 and 16.008/16.545 ms.
+  Classroom is effectively tied; the other four improve by about 2-3.4%. The screenshot
+  checks for classroom and glass show no tile seams or missing regions. Both resolutions
+  support retaining the adaptive option, but the conservative default remains dense while
+  larger scheduling/coherence experiments continue. GPU register counts remain unmeasured.
+- Revisit uncompacted stage dispatch after the SoA, spatial grouping, opaque traversal and
+  stack-capacity improvements. The original `staged-v1` used AoS and a fixed 16-slot VM, so it
+  cannot isolate current compaction/coherence tradeoffs. A direct-slot dispatch variant can
+  retain 8x8 pixel groups across stages, with inactive lanes returning immediately. Compare
+  that against compacted dispatch using the current kernels and identical stack capacity;
+  this tests stage isolation separately from queue packing.
 - Extend beyond pinned-mip exact tests to ordinary stochastic-alpha convergence checks, and
   continue monitoring startup compilation cost and memory at large image sizes.
 
@@ -408,8 +438,12 @@ indirect arguments; clearing the output count preserves the input count. An empt
 dispatches no further compaction work. This applies to queued/subgroup modes. The default
 dense mode scans physical path slots and writes the same alternating output queues, preserving
 the earlier traversal ordering behavior and avoiding input-index loads.
-Compaction has three separately compiled modules: dense and queued shared-memory scans and
-an optional subgroup scan. The renderer requests `subgroups` only if the adapter supports it;
+Compaction has four separately compiled modules: dense, queued and adaptive shared-memory scans,
+and an optional subgroup scan. Adaptive compaction generates a full-tile main dispatch bound
+when its output exceeds half the tile, otherwise an exact queue-sized bound. Main stages
+still guard using their actual queue count; this trades a few inactive invocations for
+GPU-only scan selection. No additional work storage or bind group entry is required.
+The renderer requests `subgroups` only if the adapter supports it;
 no subgroup operation appears in either portable module. The subgroup implementation uses
 prefix sums, subgroup totals and broadcast-first for local reservations, then one global
 reservation per workgroup. Three barriers publish the input count, local totals and global offsets.

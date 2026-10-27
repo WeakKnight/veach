@@ -16,7 +16,7 @@ const only = onlyOption < 0 ? [] : process.argv[onlyOption + 1].split(',');
 const disableSubgroups = process.argv.includes('--disable-subgroups');
 const compactionOption = process.argv.indexOf('--compaction');
 const compaction = compactionOption < 0 ? 'dense' : process.argv[compactionOption + 1];
-if (!['dense', 'queued', 'subgroup'].includes(compaction)) throw new Error('Invalid compaction mode');
+if (!['dense', 'queued', 'subgroup', 'adaptive'].includes(compaction)) throw new Error('Invalid compaction mode');
 if (!Number.isInteger(tailStart) || tailStart < 0) throw new Error('Invalid tail start');
 const output = join(root, `.tools/wavefront/correctness-tail-${tailStart}-${tailThreshold}${only.length ? '-selected' : ''}${disableSubgroups ? '-no-subgroups' : ''}-${compaction}`);
 mkdirSync(output, { recursive: true });
