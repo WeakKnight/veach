@@ -38,8 +38,8 @@ const config = {
 	dispatchSweep: args.includes('--dispatch-sweep'),
 };
 if (!Number.isInteger(config.directStages) || config.directStages < 0 || config.directStages > 7) throw new Error('Invalid direct stage mask');
-if (!['dense', 'queued', 'subgroup', 'adaptive', 'none'].includes(config.compaction)) throw new Error('Invalid compaction mode');
-if ((config.compaction === 'none' || config.directStages === 7) && config.tailThreshold !== 0) throw new Error('Direct dispatch supports fixed tails only');
+if (!['dense', 'queued', 'subgroup', 'adaptive', 'packet', 'none'].includes(config.compaction)) throw new Error('Invalid compaction mode');
+if ((config.compaction === 'none' || config.compaction === 'packet' || config.directStages === 7) && config.tailThreshold !== 0) throw new Error('Direct/packet dispatch supports fixed tails only');
 if (config.materialStack !== null && ![1, 2, 4, 8, 16].includes(config.materialStack)) throw new Error('Invalid material stack capacity');
 if (config.paired && config.mode !== 'wavefront') throw new Error('--paired requires --mode wavefront');
 if (config.tailSweep && !config.paired) throw new Error('--tail-sweep requires --paired --mode wavefront');
@@ -50,11 +50,11 @@ config.variants = [{ name: 'wavefront', tailStart: config.tailStart, tailThresho
 if (config.tailSweep) {
 	config.variants.push({ name: 'staged', tailStart: 999, tailThreshold: 0 },
 		...[0, 1, 2, 3].map(tailStart => ({ name: `fixed-${tailStart}`, tailStart, tailThreshold: 0 })),
-		...(config.compaction === 'none' || config.directStages === 7 ? [] : [8192, 32768, 131072]).map(tailThreshold => ({ name: `adaptive-${tailThreshold}`, tailStart: 0, tailThreshold })));
+		...(config.compaction === 'none' || config.compaction === 'packet' || config.directStages === 7 ? [] : [8192, 32768, 131072]).map(tailThreshold => ({ name: `adaptive-${tailThreshold}`, tailStart: 0, tailThreshold })));
 }
 if (config.compactionSweep) {
-	for (const compaction of ['dense', 'queued', 'subgroup', 'adaptive', 'none'].filter(mode => mode !== config.compaction
-		&& (mode !== 'subgroup' || config.subgroups) && (mode !== 'none' || config.tailThreshold === 0)))
+	for (const compaction of ['dense', 'queued', 'subgroup', 'adaptive', 'packet', 'none'].filter(mode => mode !== config.compaction
+		&& (mode !== 'subgroup' || config.subgroups) && (!['none', 'packet'].includes(mode) || config.tailThreshold === 0)))
 		config.variants.push({ name: `compact-${compaction}`, tailStart: config.tailStart, tailThreshold: config.tailThreshold, compaction });
 }
 if (config.dispatchSweep) {
@@ -359,7 +359,7 @@ try {
 					const mainGroups = counters[offset + 4], shadowGroups = counters[offset + 8];
 					if (active > tilePathCount || shadow > tilePathCount || mainGroups !== Math.ceil((denseBound ? tilePathCount : active) / 64)
 						|| shadowGroups !== Math.ceil(shadow / 64)) throw new Error(`Invalid queue/dispatch bounds after ${phase}`);
-					queueSnapshots.push({ phase, tilePathCount, active, shadow, mainA: counters[offset], mainB: counters[offset + 2], mainGroups, shadowGroups });
+					queueSnapshots.push({ countUnit: config.compaction === 'packet' ? 'retained-slots' : 'active-paths', phase, tilePathCount, active, shadow, mainA: counters[offset], mainB: counters[offset + 2], mainGroups, shadowGroups });
 				}
 				queueReadback.unmap(); queueReadback.destroy();
 			}

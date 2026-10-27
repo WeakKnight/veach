@@ -3,6 +3,7 @@ import wavefrontWgsl from '../generated/shaders/Wavefront.wgsl?raw';
 import compactWgsl from '../generated/shaders/WavefrontCompact.wgsl?raw';
 import compactSubgroupWgsl from '../generated/shaders/WavefrontCompactSubgroup.wgsl?raw';
 import compactDenseWgsl from '../generated/shaders/WavefrontCompactDense.wgsl?raw';
+import compactPacketWgsl from '../generated/shaders/WavefrontCompactPacket.wgsl?raw';
 import compactAdaptiveWgsl from '../generated/shaders/WavefrontCompactAdaptive.wgsl?raw';
 import { specializeMaterialShader, type MaterialStackCapacity } from './MaterialShaderVariants';
 
@@ -12,14 +13,14 @@ const WORKGROUP_SIZE = 64;
 const ENTRIES = ['Initialize', 'Intersect', 'IntersectOpaque', 'Shade', 'Shadow', 'ShadowOpaque', 'Tail', 'TailOpaque', 'Finalize',
 	'IntersectDirect', 'IntersectOpaqueDirect', 'ShadeDirect', 'ShadowDirect', 'ShadowOpaqueDirect',
 	'CompactIntersect', 'CompactShade', 'CompactIntersectDense', 'CompactShadeDense', 'CompactIntersectSubgroup', 'CompactShadeSubgroup',
-	'CompactIntersectAdaptive', 'CompactShadeAdaptive'] as const;
+	'CompactIntersectAdaptive', 'CompactShadeAdaptive', 'CompactIntersectPacket', 'CompactShadePacket'] as const;
 type Entry = typeof ENTRIES[number];
 
 export class Wavefront {
 	// Experimental tuning knob for the benchmark; keep the fully staged default until measured.
 	tailStart = Number.POSITIVE_INFINITY;
 	tailThreshold = 0;
-	compaction: 'dense' | 'queued' | 'subgroup' | 'adaptive' | 'none' = 'dense';
+	compaction: 'dense' | 'queued' | 'subgroup' | 'adaptive' | 'packet' | 'none' = 'dense';
 	// Internal experiment: bits 1/2/4 select direct intersection/shading/shadow dispatch.
 	directStages = 0;
 	readonly layout: GPUBindGroupLayout;
@@ -29,6 +30,7 @@ export class Wavefront {
 	private readonly pipelineLayout: GPUPipelineLayout;
 	private readonly compactModule: GPUShaderModule;
 	private readonly compactDenseModule: GPUShaderModule;
+	private readonly compactPacketModule: GPUShaderModule;
 	private readonly compactAdaptiveModule: GPUShaderModule;
 	private readonly compactSubgroupModule: GPUShaderModule | null;
 	private destroyed = false;
@@ -50,6 +52,7 @@ export class Wavefront {
 		] });
 		this.compactModule = device.createShaderModule({ label: 'WavefrontCompact', code: compactWgsl });
 		this.compactDenseModule = device.createShaderModule({ label: 'WavefrontCompactDense', code: compactDenseWgsl });
+		this.compactPacketModule = device.createShaderModule({ label: 'WavefrontCompactPacket', code: compactPacketWgsl });
 		this.compactAdaptiveModule = device.createShaderModule({ label: 'WavefrontCompactAdaptive', code: compactAdaptiveWgsl });
 		this.compactSubgroupModule = device.features.has('subgroups')
 			? device.createShaderModule({ label: 'WavefrontCompactSubgroup', code: compactSubgroupWgsl }) : null;
@@ -66,10 +69,11 @@ export class Wavefront {
 			pending = Promise.all(ENTRIES.filter(entry => !entry.endsWith('Subgroup') || this.compactSubgroupModule).map(async entryPoint => {
 				const compact = entryPoint.startsWith('Compact');
 				const shader = entryPoint.endsWith('Dense') ? this.compactDenseModule
+					: entryPoint.endsWith('Packet') ? this.compactPacketModule
 					: entryPoint.endsWith('Adaptive') ? this.compactAdaptiveModule
 					: entryPoint.endsWith('Subgroup') ? this.compactSubgroupModule! : compact ? this.compactModule : module;
 				const pipeline = await this.device.createComputePipelineAsync({ label: `wavefront.${entryPoint}.stack${capacity}`, layout: this.pipelineLayout,
-					compute: { module: shader, entryPoint: compact ? entryPoint.replace(/Dense|Subgroup|Adaptive/g, '') : entryPoint } });
+					compute: { module: shader, entryPoint: compact ? entryPoint.replace(/Dense|Subgroup|Adaptive|Packet/g, '') : entryPoint } });
 				return [entryPoint, pipeline] as const;
 			})).then(entries => {
 				if (this.destroyed) throw new Error('Wavefront has been destroyed');
@@ -107,11 +111,12 @@ export class Wavefront {
 		const directStages = this.compaction === 'none' ? 7 : this.directStages;
 		if (!Number.isInteger(directStages) || directStages < 0 || directStages > 7) throw new Error('Invalid direct stage mask');
 		const direct = directStages === 7;
+		if (this.compaction === 'packet' && this.tailThreshold !== 0) throw new Error('Packet counts include inactive slots; use fixed tails');
 		if (direct && this.tailThreshold !== 0) throw new Error('Direct dispatch supports fixed tails only; adaptive tails require queue counts');
 		if (this.compaction === 'subgroup' && !this.compactSubgroupModule) throw new Error('Subgroup compaction requires the subgroups device feature');
 		const pipelines = this.pipelines.get(materialCapacity);
 		if (!pipelines) throw new Error('Wavefront material pipelines have not been prepared');
-		const compactSuffix = { dense: 'Dense', queued: '', subgroup: 'Subgroup', adaptive: 'Adaptive', none: '' }[this.compaction];
+		const compactSuffix = { dense: 'Dense', queued: '', subgroup: 'Subgroup', adaptive: 'Adaptive', packet: 'Packet', none: '' }[this.compaction];
 		const pixels = width * height, capacity = this.capacity(pixels);
 		const workItems = Math.ceil(width / 8) * Math.ceil(height / 8) * 64;
 		const tiles = Math.ceil(workItems / capacity), bounces = Math.max(0, Math.floor(maxBounces));
@@ -146,7 +151,7 @@ export class Wavefront {
 				pass.setPipeline(pipelines.get(pipeline)!);
 				pass.setBindGroup(0, scene);
 				pass.setBindGroup(1, this.group!, [(tile * (bounces + 1) + bounce) * this.alignment]);
-				if (!direct && !directStage && entry !== 'Initialize' && entry !== 'Finalize' && !(compact && this.compaction === 'dense')) {
+				if (!direct && !directStage && entry !== 'Initialize' && entry !== 'Finalize' && !(compact && (this.compaction === 'dense' || this.compaction === 'packet'))) {
 					pass.dispatchWorkgroupsIndirect(this.indirect, entry === 'Shadow' ? 16 : 0);
 				} else {
 					pass.dispatchWorkgroups(Math.ceil(count / WORKGROUP_SIZE));

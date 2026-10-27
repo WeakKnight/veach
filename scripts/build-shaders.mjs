@@ -29,6 +29,7 @@ const programs = [
 		'IntersectDirect', 'IntersectOpaqueDirect', 'ShadeDirect', 'ShadowDirect', 'ShadowOpaqueDirect'].map(e => [e, 'compute']) },
 	{ name: 'WavefrontCompact', source: 'Passes/WavefrontCompact.slang', entries: [['CompactIntersect', 'compute'], ['CompactShade', 'compute']] },
 	{ name: 'WavefrontCompactSubgroup', source: 'Passes/WavefrontCompact.slang', defines: ['VEACH_SUBGROUP_COMPACTION=1'], entries: [['CompactIntersect', 'compute'], ['CompactShade', 'compute']] },
+	{ name: 'WavefrontCompactPacket', source: 'Passes/WavefrontCompact.slang', defines: ['VEACH_PACKET_COMPACTION=1'], entries: [['CompactIntersect', 'compute'], ['CompactShade', 'compute']] },
 	{ name: 'WavefrontCompactDense', source: 'Passes/WavefrontCompact.slang', defines: ['VEACH_DENSE_COMPACTION=1'], entries: [['CompactIntersect', 'compute'], ['CompactShade', 'compute']] },
 	{ name: 'WavefrontCompactAdaptive', source: 'Passes/WavefrontCompact.slang', defines: ['VEACH_ADAPTIVE_COMPACTION=1'], entries: [['CompactIntersect', 'compute'], ['CompactShade', 'compute']] },
 	{ name: 'Present', source: 'Passes/Present.slang', entries: [['vsMain', 'vertex'], ['fsMain', 'fragment']] },

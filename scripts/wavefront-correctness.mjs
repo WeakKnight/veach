@@ -21,8 +21,8 @@ const directStages = directOption < 0 ? 0 : Number(process.argv[directOption + 1
 const dispatchSweep = process.argv.includes('--dispatch-sweep');
 if (!Number.isInteger(directStages) || directStages < 0 || directStages > 7) throw new Error('Invalid direct stage mask');
 if (dispatchSweep && compaction === 'none') throw new Error('Dispatch sweep requires a compaction mode');
-if (!['dense', 'queued', 'subgroup', 'adaptive', 'none'].includes(compaction)) throw new Error('Invalid compaction mode');
-if ((compaction === 'none' || directStages === 7) && tailThreshold !== 0) throw new Error('Direct dispatch supports fixed tails only');
+if (!['dense', 'queued', 'subgroup', 'adaptive', 'packet', 'none'].includes(compaction)) throw new Error('Invalid compaction mode');
+if ((compaction === 'none' || compaction === 'packet' || directStages === 7) && tailThreshold !== 0) throw new Error('Direct/packet dispatch supports fixed tails only');
 if (!Number.isInteger(tailStart) || tailStart < 0) throw new Error('Invalid tail start');
 const output = join(root, `.tools/wavefront/correctness-tail-${tailStart}-${tailThreshold}${only.length ? '-selected' : ''}${disableSubgroups ? '-no-subgroups' : ''}-${compaction}${dispatchSweep ? '-dispatch-sweep' : directStages ? `-direct-${directStages}` : ''}`);
 mkdirSync(output, { recursive: true });

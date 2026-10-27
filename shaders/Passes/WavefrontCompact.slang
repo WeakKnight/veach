@@ -14,6 +14,9 @@ import Scene.SceneBindings;
 #ifndef VEACH_ADAPTIVE_COMPACTION
 #define VEACH_ADAPTIVE_COMPACTION 0
 #endif
+#ifndef VEACH_PACKET_COMPACTION
+#define VEACH_PACKET_COMPACTION 0
+#endif
 
 struct WavefrontUniforms
 {
@@ -60,7 +63,7 @@ void CompactImpl<let AFTER_SHADE : bool>(uint3 tid, uint3 local)
 {
 	uint lane = local.x;
 	uint header = gFrame.frame.x * gFrame.frame.y * 12u;
-#if VEACH_DENSE_COMPACTION
+#if VEACH_DENSE_COMPACTION || VEACH_PACKET_COMPACTION
 	bool dense = true;
 	uint count = gWavefront.pathCount;
 #else
@@ -125,15 +128,32 @@ void CompactImpl<let AFTER_SHADE : bool>(uint3 tid, uint3 local)
 	}
 	if (lane == 0u)
 	{
+#if VEACH_PACKET_COMPACTION
+		// Keep every valid slot in a nonempty physical packet. Queue entries remain
+		// ordinary path indices, so existing stage/tail guards handle inactive lanes.
+		uint packetSize = min(64u, gWavefront.pathCount - (tid.x - lane));
+		uint2 slots = uint2(gPrefix[63u].x > 0u ? packetSize : 0u,
+			gPrefix[63u].y > 0u ? packetSize : 0u);
+		gOffsets = ReserveQueues<AFTER_SHADE>(header, slots);
+#else
 		gOffsets = ReserveQueues<AFTER_SHADE>(header, gPrefix[63u]);
+#endif
 	}
 	GroupMemoryBarrierWithGroupSync();
 	uint2 offsets = gOffsets;
 	uint2 prefix = gPrefix[lane] - flags;
 #endif
+#if VEACH_PACKET_COMPACTION
+	if (tid.x < count)
+	{
+		if (gPrefix[63u].x > 0u) gWork[outputQueue + offsets.x + lane].store(index);
+		if (gPrefix[63u].y > 0u) gWork[queue + 2u * queueStride + offsets.y + lane].store(index);
+	}
+#else
 	prefix += offsets;
 	if (flags.x != 0u) gWork[outputQueue + prefix.x].store(index);
 	if (flags.y != 0u) gWork[queue + 2u * queueStride + prefix.y].store(index);
+#endif
 }
 
 [shader("compute")]

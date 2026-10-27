@@ -68,13 +68,15 @@ Startup records include submitted material shader capacities and compute pipelin
 durations. The harness selects wavefront on the empty scene, then scene loading prepares
 only the capacity needed by the incoming geometry.
 
-`--compaction dense|queued|subgroup|adaptive|none` selects the internal queue implementation. Dense is
+`--compaction dense|queued|subgroup|adaptive|packet|none` selects the internal queue implementation. Dense is
 the conservative default; queued scans only input indices, and subgroup uses the same queued
 layout with subgroup arithmetic and one global reservation per workgroup. `--compaction-sweep`
 compares the supported modes within one renderer using the requested tail schedule; it is separate from
 `--tail-sweep`. Adaptive scans physical slots above half occupancy and the input queue below
 that threshold. `--disable-subgroups` tests adapters without that optional device feature,
 omitting the subgroup variant from a compaction sweep.
+`packet` retains all valid slots in nonempty physical groups, supports fixed tails only,
+and is omitted from sweeps with positive adaptive-tail thresholds.
 `none` uses separate direct-slot entry points for intersection, shading and shadow, with no
 compaction passes or indirect-argument copies. It preserves pixel groups and returns early
 for inactive slots. This mode supports fully staged execution and fixed tails; sweeps omit
@@ -484,6 +486,44 @@ enables the GPU count test. Tail pipelines include alpha-capable and opaque vari
 
 ## Current work allocation
 
+An experimental `--compaction packet` mode scans physical slots and retains every valid
+slot in each nonempty 64-slot packet, independently for the main and shadow queues.
+It preserves ordinary path-index queue entries and existing liveness checks, with no
+additional bindings or per-path storage. Full packets retain their lane order; the final
+partial packet is truncated to the tile boundary, so counters never exceed tile capacity.
+When that partial packet reserves before another packet, subsequent packet starts may be
+unaligned in the dispatched queue. Packet boundaries correspond to 8x8 pixels when tile
+starts are aligned; arbitrary capacity-limited tile starts remain correct.
+Counters describe retained slots, including inactive lanes, rather than live paths.
+Diagnostics label this unit explicitly. Positive adaptive-tail thresholds are rejected;
+fixed tails and independent direct-stage controls remain available. The purpose is to
+test spatial coherence and parallelism for sparse queues; speedup is not assumed.
+Initial GPU validation passed 30 standard comparisons with subgroups disabled, 10 fixed-tail
+comparisons at bounce 2 (alpha, analytic and empty-return), and 36 comparisons covering all
+eight direct-stage masks on alpha/analytic cases. All RGB/albedo/normal differences were
+exactly zero against the full-stack reference, including the 513x513 tile-boundary case.
+All 21 smoke scenes passed; helmet HDR and alpha screenshots were inspected. Typecheck,
+176 unit tests, shader regeneration and library build passed.
+
+The `compaction-packet-sweep-v1` paired run completed all five research scenes, six wavefront
+modes, three rounds and 32 samples per round at 640x360. All 90 per-round HDR comparisons
+were exact, the saved-HDR/source-identity comparator passed, and all five screenshots were
+inspected. Median GPU spans in fixed scene order were:
+
+| Mode | classroom | breakfast | BMW | glass | MIS |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Packet | 11.039 | 6.363 | 4.685 | 4.573 | 2.146 |
+| Adaptive per-path | 8.636 | 6.164 | 5.614 | 4.036 | 1.850 |
+| Direct slots | 10.273 | 5.804 | 4.156 | 3.898 | 1.730 |
+
+Packet mode improves BMW relative to per-path compaction but loses to direct slots on all
+five scenes. Stage arithmetic means explain the tradeoff: breakfast intersection improves
+from 3.959 to 3.131 ms versus adaptive, but shading grows from 0.680 to 1.115 ms and shadow
+from 1.109 to 1.538 ms. BMW intersection/shadow improve from 2.511/2.151 to 1.994/1.599 ms,
+while shading grows from 0.612 to 0.736 ms. These are timing observations, not measured
+occupancy or register counts. The next experiment should retain packets independently by
+stage, especially keeping shading tightly compacted while preserving traversal packets.
+
 Group 1 binding 0 contains the original image prefix (three float4 per pixel), then
 three float4 headers, 21 float4 field arrays at the current tile capacity, then three
 packed uint index queues (main A, main B, shadow). Header words 0/1/2 store A/shadow/B counts.
@@ -493,8 +533,8 @@ indirect arguments; clearing the output count preserves the input count. An empt
 dispatches no further compaction work. This applies to queued/subgroup modes. The default
 dense mode scans physical path slots and writes the same alternating output queues, preserving
 the earlier traversal ordering behavior and avoiding input-index loads.
-Compaction has four separately compiled modules: dense, queued and adaptive shared-memory scans,
-and an optional subgroup scan. Adaptive compaction generates a full-tile main dispatch bound
+Compaction has five separately compiled modules: dense, queued, adaptive and packet
+shared-memory scans, and an optional subgroup scan. Adaptive compaction generates a full-tile main dispatch bound
 when its output exceeds half the tile, otherwise an exact queue-sized bound. Main stages
 still guard using their actual queue count; this trades a few inactive invocations for
 GPU-only scan selection. No additional work storage or bind group entry is required.
