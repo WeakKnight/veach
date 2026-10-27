@@ -3522,7 +3522,84 @@ fn RunMaterialProgram_0( header_1 : MaterialHeader_0,  program_0 : u32,  ctx_2 :
             }
             if(write_0)
             {
-                a_13 = stack_0[((ins_0.y) & (u32(15)))];
+                if(((gMaterialOperandMode_0 & (u32(4)))) == u32(0))
+                {
+                    a_13 = stack_0[((ins_0.y) & (u32(15)))];
+                }
+                else
+                {
+                    switch(((ins_0.y) & (u32(15))))
+                    {
+                    case u32(0):
+                        {
+                            a_13 = stack_0[i32(0)];
+                        }
+                    case u32(1):
+                        {
+                            a_13 = stack_0[i32(1)];
+                        }
+                    case u32(2):
+                        {
+                            a_13 = stack_0[i32(2)];
+                        }
+                    case u32(3):
+                        {
+                            a_13 = stack_0[i32(3)];
+                        }
+                    case u32(4):
+                        {
+                            a_13 = stack_0[i32(4)];
+                        }
+                    case u32(5):
+                        {
+                            a_13 = stack_0[i32(5)];
+                        }
+                    case u32(6):
+                        {
+                            a_13 = stack_0[i32(6)];
+                        }
+                    case u32(7):
+                        {
+                            a_13 = stack_0[i32(7)];
+                        }
+                    case u32(8):
+                        {
+                            a_13 = stack_0[i32(8)];
+                        }
+                    case u32(9):
+                        {
+                            a_13 = stack_0[i32(9)];
+                        }
+                    case u32(10):
+                        {
+                            a_13 = stack_0[i32(10)];
+                        }
+                    case u32(11):
+                        {
+                            a_13 = stack_0[i32(11)];
+                        }
+                    case u32(12):
+                        {
+                            a_13 = stack_0[i32(12)];
+                        }
+                    case u32(13):
+                        {
+                            a_13 = stack_0[i32(13)];
+                        }
+                    case u32(14):
+                        {
+                            a_13 = stack_0[i32(14)];
+                        }
+                    case u32(15):
+                        {
+                            a_13 = stack_0[i32(15)];
+                        }
+                    default :
+                        {
+                            a_13 = _S168;
+                        }
+                    }
+                }
             }
             else
             {
@@ -3540,7 +3617,84 @@ fn RunMaterialProgram_0( header_1 : MaterialHeader_0,  program_0 : u32,  ctx_2 :
             }
             if(_S171)
             {
-                b_9 = stack_0[((ins_0.z) & (u32(15)))];
+                if(((gMaterialOperandMode_0 & (u32(4)))) == u32(0))
+                {
+                    b_9 = stack_0[((ins_0.z) & (u32(15)))];
+                }
+                else
+                {
+                    switch(((ins_0.z) & (u32(15))))
+                    {
+                    case u32(0):
+                        {
+                            b_9 = stack_0[i32(0)];
+                        }
+                    case u32(1):
+                        {
+                            b_9 = stack_0[i32(1)];
+                        }
+                    case u32(2):
+                        {
+                            b_9 = stack_0[i32(2)];
+                        }
+                    case u32(3):
+                        {
+                            b_9 = stack_0[i32(3)];
+                        }
+                    case u32(4):
+                        {
+                            b_9 = stack_0[i32(4)];
+                        }
+                    case u32(5):
+                        {
+                            b_9 = stack_0[i32(5)];
+                        }
+                    case u32(6):
+                        {
+                            b_9 = stack_0[i32(6)];
+                        }
+                    case u32(7):
+                        {
+                            b_9 = stack_0[i32(7)];
+                        }
+                    case u32(8):
+                        {
+                            b_9 = stack_0[i32(8)];
+                        }
+                    case u32(9):
+                        {
+                            b_9 = stack_0[i32(9)];
+                        }
+                    case u32(10):
+                        {
+                            b_9 = stack_0[i32(10)];
+                        }
+                    case u32(11):
+                        {
+                            b_9 = stack_0[i32(11)];
+                        }
+                    case u32(12):
+                        {
+                            b_9 = stack_0[i32(12)];
+                        }
+                    case u32(13):
+                        {
+                            b_9 = stack_0[i32(13)];
+                        }
+                    case u32(14):
+                        {
+                            b_9 = stack_0[i32(14)];
+                        }
+                    case u32(15):
+                        {
+                            b_9 = stack_0[i32(15)];
+                        }
+                    default :
+                        {
+                            b_9 = _S168;
+                        }
+                    }
+                }
             }
             else
             {
@@ -3558,7 +3712,84 @@ fn RunMaterialProgram_0( header_1 : MaterialHeader_0,  program_0 : u32,  ctx_2 :
             }
             if(_S173)
             {
-                c_9 = stack_0[((ins_0.w) & (u32(15)))];
+                if(((gMaterialOperandMode_0 & (u32(4)))) == u32(0))
+                {
+                    c_9 = stack_0[((ins_0.w) & (u32(15)))];
+                }
+                else
+                {
+                    switch(((ins_0.w) & (u32(15))))
+                    {
+                    case u32(0):
+                        {
+                            c_9 = stack_0[i32(0)];
+                        }
+                    case u32(1):
+                        {
+                            c_9 = stack_0[i32(1)];
+                        }
+                    case u32(2):
+                        {
+                            c_9 = stack_0[i32(2)];
+                        }
+                    case u32(3):
+                        {
+                            c_9 = stack_0[i32(3)];
+                        }
+                    case u32(4):
+                        {
+                            c_9 = stack_0[i32(4)];
+                        }
+                    case u32(5):
+                        {
+                            c_9 = stack_0[i32(5)];
+                        }
+                    case u32(6):
+                        {
+                            c_9 = stack_0[i32(6)];
+                        }
+                    case u32(7):
+                        {
+                            c_9 = stack_0[i32(7)];
+                        }
+                    case u32(8):
+                        {
+                            c_9 = stack_0[i32(8)];
+                        }
+                    case u32(9):
+                        {
+                            c_9 = stack_0[i32(9)];
+                        }
+                    case u32(10):
+                        {
+                            c_9 = stack_0[i32(10)];
+                        }
+                    case u32(11):
+                        {
+                            c_9 = stack_0[i32(11)];
+                        }
+                    case u32(12):
+                        {
+                            c_9 = stack_0[i32(12)];
+                        }
+                    case u32(13):
+                        {
+                            c_9 = stack_0[i32(13)];
+                        }
+                    case u32(14):
+                        {
+                            c_9 = stack_0[i32(14)];
+                        }
+                    case u32(15):
+                        {
+                            c_9 = stack_0[i32(15)];
+                        }
+                    default :
+                        {
+                            c_9 = _S168;
+                        }
+                    }
+                }
             }
             else
             {
@@ -3778,7 +4009,84 @@ fn RunMaterialProgram_0( header_1 : MaterialHeader_0,  program_0 : u32,  ctx_2 :
                     }
                     if(write_0)
                     {
-                        slot_1 = stack_0[(o_2 & (u32(15)))];
+                        if(((gMaterialOperandMode_0 & (u32(4)))) == u32(0))
+                        {
+                            slot_1 = stack_0[(o_2 & (u32(15)))];
+                        }
+                        else
+                        {
+                            switch((o_2 & (u32(15))))
+                            {
+                            case u32(0):
+                                {
+                                    slot_1 = stack_0[i32(0)];
+                                }
+                            case u32(1):
+                                {
+                                    slot_1 = stack_0[i32(1)];
+                                }
+                            case u32(2):
+                                {
+                                    slot_1 = stack_0[i32(2)];
+                                }
+                            case u32(3):
+                                {
+                                    slot_1 = stack_0[i32(3)];
+                                }
+                            case u32(4):
+                                {
+                                    slot_1 = stack_0[i32(4)];
+                                }
+                            case u32(5):
+                                {
+                                    slot_1 = stack_0[i32(5)];
+                                }
+                            case u32(6):
+                                {
+                                    slot_1 = stack_0[i32(6)];
+                                }
+                            case u32(7):
+                                {
+                                    slot_1 = stack_0[i32(7)];
+                                }
+                            case u32(8):
+                                {
+                                    slot_1 = stack_0[i32(8)];
+                                }
+                            case u32(9):
+                                {
+                                    slot_1 = stack_0[i32(9)];
+                                }
+                            case u32(10):
+                                {
+                                    slot_1 = stack_0[i32(10)];
+                                }
+                            case u32(11):
+                                {
+                                    slot_1 = stack_0[i32(11)];
+                                }
+                            case u32(12):
+                                {
+                                    slot_1 = stack_0[i32(12)];
+                                }
+                            case u32(13):
+                                {
+                                    slot_1 = stack_0[i32(13)];
+                                }
+                            case u32(14):
+                                {
+                                    slot_1 = stack_0[i32(14)];
+                                }
+                            case u32(15):
+                                {
+                                    slot_1 = stack_0[i32(15)];
+                                }
+                            default :
+                                {
+                                    slot_1 = _S168;
+                                }
+                            }
+                        }
                     }
                     else
                     {
@@ -4037,7 +4345,84 @@ fn RunMaterialProgram_0( header_1 : MaterialHeader_0,  program_0 : u32,  ctx_2 :
                             }
                             if(write_0)
                             {
-                                slot_1 = stack_0[(o_3 & (u32(15)))];
+                                if(((gMaterialOperandMode_0 & (u32(4)))) == u32(0))
+                                {
+                                    slot_1 = stack_0[(o_3 & (u32(15)))];
+                                }
+                                else
+                                {
+                                    switch((o_3 & (u32(15))))
+                                    {
+                                    case u32(0):
+                                        {
+                                            slot_1 = stack_0[i32(0)];
+                                        }
+                                    case u32(1):
+                                        {
+                                            slot_1 = stack_0[i32(1)];
+                                        }
+                                    case u32(2):
+                                        {
+                                            slot_1 = stack_0[i32(2)];
+                                        }
+                                    case u32(3):
+                                        {
+                                            slot_1 = stack_0[i32(3)];
+                                        }
+                                    case u32(4):
+                                        {
+                                            slot_1 = stack_0[i32(4)];
+                                        }
+                                    case u32(5):
+                                        {
+                                            slot_1 = stack_0[i32(5)];
+                                        }
+                                    case u32(6):
+                                        {
+                                            slot_1 = stack_0[i32(6)];
+                                        }
+                                    case u32(7):
+                                        {
+                                            slot_1 = stack_0[i32(7)];
+                                        }
+                                    case u32(8):
+                                        {
+                                            slot_1 = stack_0[i32(8)];
+                                        }
+                                    case u32(9):
+                                        {
+                                            slot_1 = stack_0[i32(9)];
+                                        }
+                                    case u32(10):
+                                        {
+                                            slot_1 = stack_0[i32(10)];
+                                        }
+                                    case u32(11):
+                                        {
+                                            slot_1 = stack_0[i32(11)];
+                                        }
+                                    case u32(12):
+                                        {
+                                            slot_1 = stack_0[i32(12)];
+                                        }
+                                    case u32(13):
+                                        {
+                                            slot_1 = stack_0[i32(13)];
+                                        }
+                                    case u32(14):
+                                        {
+                                            slot_1 = stack_0[i32(14)];
+                                        }
+                                    case u32(15):
+                                        {
+                                            slot_1 = stack_0[i32(15)];
+                                        }
+                                    default :
+                                        {
+                                            slot_1 = _S168;
+                                        }
+                                    }
+                                }
                             }
                             else
                             {
@@ -4058,7 +4443,84 @@ fn RunMaterialProgram_0( header_1 : MaterialHeader_0,  program_0 : u32,  ctx_2 :
                             }
                             if(write_0)
                             {
-                                slot_1 = stack_0[(o_4 & (u32(15)))];
+                                if(((gMaterialOperandMode_0 & (u32(4)))) == u32(0))
+                                {
+                                    slot_1 = stack_0[(o_4 & (u32(15)))];
+                                }
+                                else
+                                {
+                                    switch((o_4 & (u32(15))))
+                                    {
+                                    case u32(0):
+                                        {
+                                            slot_1 = stack_0[i32(0)];
+                                        }
+                                    case u32(1):
+                                        {
+                                            slot_1 = stack_0[i32(1)];
+                                        }
+                                    case u32(2):
+                                        {
+                                            slot_1 = stack_0[i32(2)];
+                                        }
+                                    case u32(3):
+                                        {
+                                            slot_1 = stack_0[i32(3)];
+                                        }
+                                    case u32(4):
+                                        {
+                                            slot_1 = stack_0[i32(4)];
+                                        }
+                                    case u32(5):
+                                        {
+                                            slot_1 = stack_0[i32(5)];
+                                        }
+                                    case u32(6):
+                                        {
+                                            slot_1 = stack_0[i32(6)];
+                                        }
+                                    case u32(7):
+                                        {
+                                            slot_1 = stack_0[i32(7)];
+                                        }
+                                    case u32(8):
+                                        {
+                                            slot_1 = stack_0[i32(8)];
+                                        }
+                                    case u32(9):
+                                        {
+                                            slot_1 = stack_0[i32(9)];
+                                        }
+                                    case u32(10):
+                                        {
+                                            slot_1 = stack_0[i32(10)];
+                                        }
+                                    case u32(11):
+                                        {
+                                            slot_1 = stack_0[i32(11)];
+                                        }
+                                    case u32(12):
+                                        {
+                                            slot_1 = stack_0[i32(12)];
+                                        }
+                                    case u32(13):
+                                        {
+                                            slot_1 = stack_0[i32(13)];
+                                        }
+                                    case u32(14):
+                                        {
+                                            slot_1 = stack_0[i32(14)];
+                                        }
+                                    case u32(15):
+                                        {
+                                            slot_1 = stack_0[i32(15)];
+                                        }
+                                    default :
+                                        {
+                                            slot_1 = _S168;
+                                        }
+                                    }
+                                }
                             }
                             else
                             {
@@ -4082,7 +4544,84 @@ fn RunMaterialProgram_0( header_1 : MaterialHeader_0,  program_0 : u32,  ctx_2 :
                             }
                             if(write_0)
                             {
-                                slot_1 = stack_0[(o_5 & (u32(15)))];
+                                if(((gMaterialOperandMode_0 & (u32(4)))) == u32(0))
+                                {
+                                    slot_1 = stack_0[(o_5 & (u32(15)))];
+                                }
+                                else
+                                {
+                                    switch((o_5 & (u32(15))))
+                                    {
+                                    case u32(0):
+                                        {
+                                            slot_1 = stack_0[i32(0)];
+                                        }
+                                    case u32(1):
+                                        {
+                                            slot_1 = stack_0[i32(1)];
+                                        }
+                                    case u32(2):
+                                        {
+                                            slot_1 = stack_0[i32(2)];
+                                        }
+                                    case u32(3):
+                                        {
+                                            slot_1 = stack_0[i32(3)];
+                                        }
+                                    case u32(4):
+                                        {
+                                            slot_1 = stack_0[i32(4)];
+                                        }
+                                    case u32(5):
+                                        {
+                                            slot_1 = stack_0[i32(5)];
+                                        }
+                                    case u32(6):
+                                        {
+                                            slot_1 = stack_0[i32(6)];
+                                        }
+                                    case u32(7):
+                                        {
+                                            slot_1 = stack_0[i32(7)];
+                                        }
+                                    case u32(8):
+                                        {
+                                            slot_1 = stack_0[i32(8)];
+                                        }
+                                    case u32(9):
+                                        {
+                                            slot_1 = stack_0[i32(9)];
+                                        }
+                                    case u32(10):
+                                        {
+                                            slot_1 = stack_0[i32(10)];
+                                        }
+                                    case u32(11):
+                                        {
+                                            slot_1 = stack_0[i32(11)];
+                                        }
+                                    case u32(12):
+                                        {
+                                            slot_1 = stack_0[i32(12)];
+                                        }
+                                    case u32(13):
+                                        {
+                                            slot_1 = stack_0[i32(13)];
+                                        }
+                                    case u32(14):
+                                        {
+                                            slot_1 = stack_0[i32(14)];
+                                        }
+                                    case u32(15):
+                                        {
+                                            slot_1 = stack_0[i32(15)];
+                                        }
+                                    default :
+                                        {
+                                            slot_1 = _S168;
+                                        }
+                                    }
+                                }
                             }
                             else
                             {
@@ -4103,7 +4642,84 @@ fn RunMaterialProgram_0( header_1 : MaterialHeader_0,  program_0 : u32,  ctx_2 :
                             }
                             if(write_0)
                             {
-                                slot_1 = stack_0[(o_6 & (u32(15)))];
+                                if(((gMaterialOperandMode_0 & (u32(4)))) == u32(0))
+                                {
+                                    slot_1 = stack_0[(o_6 & (u32(15)))];
+                                }
+                                else
+                                {
+                                    switch((o_6 & (u32(15))))
+                                    {
+                                    case u32(0):
+                                        {
+                                            slot_1 = stack_0[i32(0)];
+                                        }
+                                    case u32(1):
+                                        {
+                                            slot_1 = stack_0[i32(1)];
+                                        }
+                                    case u32(2):
+                                        {
+                                            slot_1 = stack_0[i32(2)];
+                                        }
+                                    case u32(3):
+                                        {
+                                            slot_1 = stack_0[i32(3)];
+                                        }
+                                    case u32(4):
+                                        {
+                                            slot_1 = stack_0[i32(4)];
+                                        }
+                                    case u32(5):
+                                        {
+                                            slot_1 = stack_0[i32(5)];
+                                        }
+                                    case u32(6):
+                                        {
+                                            slot_1 = stack_0[i32(6)];
+                                        }
+                                    case u32(7):
+                                        {
+                                            slot_1 = stack_0[i32(7)];
+                                        }
+                                    case u32(8):
+                                        {
+                                            slot_1 = stack_0[i32(8)];
+                                        }
+                                    case u32(9):
+                                        {
+                                            slot_1 = stack_0[i32(9)];
+                                        }
+                                    case u32(10):
+                                        {
+                                            slot_1 = stack_0[i32(10)];
+                                        }
+                                    case u32(11):
+                                        {
+                                            slot_1 = stack_0[i32(11)];
+                                        }
+                                    case u32(12):
+                                        {
+                                            slot_1 = stack_0[i32(12)];
+                                        }
+                                    case u32(13):
+                                        {
+                                            slot_1 = stack_0[i32(13)];
+                                        }
+                                    case u32(14):
+                                        {
+                                            slot_1 = stack_0[i32(14)];
+                                        }
+                                    case u32(15):
+                                        {
+                                            slot_1 = stack_0[i32(15)];
+                                        }
+                                    default :
+                                        {
+                                            slot_1 = _S168;
+                                        }
+                                    }
+                                }
                             }
                             else
                             {
@@ -4122,7 +4738,83 @@ fn RunMaterialProgram_0( header_1 : MaterialHeader_0,  program_0 : u32,  ctx_2 :
         }
         if(write_0)
         {
-            stack_0[dst_0] = r_6;
+            if(((gMaterialOperandMode_0 & (u32(4)))) == u32(0))
+            {
+                stack_0[dst_0] = r_6;
+            }
+            else
+            {
+                switch(dst_0)
+                {
+                case u32(0):
+                    {
+                        stack_0[i32(0)] = r_6;
+                    }
+                case u32(1):
+                    {
+                        stack_0[i32(1)] = r_6;
+                    }
+                case u32(2):
+                    {
+                        stack_0[i32(2)] = r_6;
+                    }
+                case u32(3):
+                    {
+                        stack_0[i32(3)] = r_6;
+                    }
+                case u32(4):
+                    {
+                        stack_0[i32(4)] = r_6;
+                    }
+                case u32(5):
+                    {
+                        stack_0[i32(5)] = r_6;
+                    }
+                case u32(6):
+                    {
+                        stack_0[i32(6)] = r_6;
+                    }
+                case u32(7):
+                    {
+                        stack_0[i32(7)] = r_6;
+                    }
+                case u32(8):
+                    {
+                        stack_0[i32(8)] = r_6;
+                    }
+                case u32(9):
+                    {
+                        stack_0[i32(9)] = r_6;
+                    }
+                case u32(10):
+                    {
+                        stack_0[i32(10)] = r_6;
+                    }
+                case u32(11):
+                    {
+                        stack_0[i32(11)] = r_6;
+                    }
+                case u32(12):
+                    {
+                        stack_0[i32(12)] = r_6;
+                    }
+                case u32(13):
+                    {
+                        stack_0[i32(13)] = r_6;
+                    }
+                case u32(14):
+                    {
+                        stack_0[i32(14)] = r_6;
+                    }
+                case u32(15):
+                    {
+                        stack_0[i32(15)] = r_6;
+                    }
+                default :
+                    {
+                    }
+                }
+            }
         }
         n_7 = n_7 + u32(1);
         pc_0 = pc_1;
@@ -6060,7 +6752,84 @@ fn RunMaterialProgram_1( header_5 : MaterialHeader_0,  program_2 : u32,  ctx_4 :
             }
             if(write_1)
             {
-                a_16 = stack_5[((ins_1.y) & (u32(15)))];
+                if(((gMaterialOperandMode_0 & (u32(4)))) == u32(0))
+                {
+                    a_16 = stack_5[((ins_1.y) & (u32(15)))];
+                }
+                else
+                {
+                    switch(((ins_1.y) & (u32(15))))
+                    {
+                    case u32(0):
+                        {
+                            a_16 = stack_5[i32(0)];
+                        }
+                    case u32(1):
+                        {
+                            a_16 = stack_5[i32(1)];
+                        }
+                    case u32(2):
+                        {
+                            a_16 = stack_5[i32(2)];
+                        }
+                    case u32(3):
+                        {
+                            a_16 = stack_5[i32(3)];
+                        }
+                    case u32(4):
+                        {
+                            a_16 = stack_5[i32(4)];
+                        }
+                    case u32(5):
+                        {
+                            a_16 = stack_5[i32(5)];
+                        }
+                    case u32(6):
+                        {
+                            a_16 = stack_5[i32(6)];
+                        }
+                    case u32(7):
+                        {
+                            a_16 = stack_5[i32(7)];
+                        }
+                    case u32(8):
+                        {
+                            a_16 = stack_5[i32(8)];
+                        }
+                    case u32(9):
+                        {
+                            a_16 = stack_5[i32(9)];
+                        }
+                    case u32(10):
+                        {
+                            a_16 = stack_5[i32(10)];
+                        }
+                    case u32(11):
+                        {
+                            a_16 = stack_5[i32(11)];
+                        }
+                    case u32(12):
+                        {
+                            a_16 = stack_5[i32(12)];
+                        }
+                    case u32(13):
+                        {
+                            a_16 = stack_5[i32(13)];
+                        }
+                    case u32(14):
+                        {
+                            a_16 = stack_5[i32(14)];
+                        }
+                    case u32(15):
+                        {
+                            a_16 = stack_5[i32(15)];
+                        }
+                    default :
+                        {
+                            a_16 = _S376;
+                        }
+                    }
+                }
             }
             else
             {
@@ -6078,7 +6847,84 @@ fn RunMaterialProgram_1( header_5 : MaterialHeader_0,  program_2 : u32,  ctx_4 :
             }
             if(_S379)
             {
-                b_13 = stack_5[((ins_1.z) & (u32(15)))];
+                if(((gMaterialOperandMode_0 & (u32(4)))) == u32(0))
+                {
+                    b_13 = stack_5[((ins_1.z) & (u32(15)))];
+                }
+                else
+                {
+                    switch(((ins_1.z) & (u32(15))))
+                    {
+                    case u32(0):
+                        {
+                            b_13 = stack_5[i32(0)];
+                        }
+                    case u32(1):
+                        {
+                            b_13 = stack_5[i32(1)];
+                        }
+                    case u32(2):
+                        {
+                            b_13 = stack_5[i32(2)];
+                        }
+                    case u32(3):
+                        {
+                            b_13 = stack_5[i32(3)];
+                        }
+                    case u32(4):
+                        {
+                            b_13 = stack_5[i32(4)];
+                        }
+                    case u32(5):
+                        {
+                            b_13 = stack_5[i32(5)];
+                        }
+                    case u32(6):
+                        {
+                            b_13 = stack_5[i32(6)];
+                        }
+                    case u32(7):
+                        {
+                            b_13 = stack_5[i32(7)];
+                        }
+                    case u32(8):
+                        {
+                            b_13 = stack_5[i32(8)];
+                        }
+                    case u32(9):
+                        {
+                            b_13 = stack_5[i32(9)];
+                        }
+                    case u32(10):
+                        {
+                            b_13 = stack_5[i32(10)];
+                        }
+                    case u32(11):
+                        {
+                            b_13 = stack_5[i32(11)];
+                        }
+                    case u32(12):
+                        {
+                            b_13 = stack_5[i32(12)];
+                        }
+                    case u32(13):
+                        {
+                            b_13 = stack_5[i32(13)];
+                        }
+                    case u32(14):
+                        {
+                            b_13 = stack_5[i32(14)];
+                        }
+                    case u32(15):
+                        {
+                            b_13 = stack_5[i32(15)];
+                        }
+                    default :
+                        {
+                            b_13 = _S376;
+                        }
+                    }
+                }
             }
             else
             {
@@ -6096,7 +6942,84 @@ fn RunMaterialProgram_1( header_5 : MaterialHeader_0,  program_2 : u32,  ctx_4 :
             }
             if(_S381)
             {
-                c_12 = stack_5[((ins_1.w) & (u32(15)))];
+                if(((gMaterialOperandMode_0 & (u32(4)))) == u32(0))
+                {
+                    c_12 = stack_5[((ins_1.w) & (u32(15)))];
+                }
+                else
+                {
+                    switch(((ins_1.w) & (u32(15))))
+                    {
+                    case u32(0):
+                        {
+                            c_12 = stack_5[i32(0)];
+                        }
+                    case u32(1):
+                        {
+                            c_12 = stack_5[i32(1)];
+                        }
+                    case u32(2):
+                        {
+                            c_12 = stack_5[i32(2)];
+                        }
+                    case u32(3):
+                        {
+                            c_12 = stack_5[i32(3)];
+                        }
+                    case u32(4):
+                        {
+                            c_12 = stack_5[i32(4)];
+                        }
+                    case u32(5):
+                        {
+                            c_12 = stack_5[i32(5)];
+                        }
+                    case u32(6):
+                        {
+                            c_12 = stack_5[i32(6)];
+                        }
+                    case u32(7):
+                        {
+                            c_12 = stack_5[i32(7)];
+                        }
+                    case u32(8):
+                        {
+                            c_12 = stack_5[i32(8)];
+                        }
+                    case u32(9):
+                        {
+                            c_12 = stack_5[i32(9)];
+                        }
+                    case u32(10):
+                        {
+                            c_12 = stack_5[i32(10)];
+                        }
+                    case u32(11):
+                        {
+                            c_12 = stack_5[i32(11)];
+                        }
+                    case u32(12):
+                        {
+                            c_12 = stack_5[i32(12)];
+                        }
+                    case u32(13):
+                        {
+                            c_12 = stack_5[i32(13)];
+                        }
+                    case u32(14):
+                        {
+                            c_12 = stack_5[i32(14)];
+                        }
+                    case u32(15):
+                        {
+                            c_12 = stack_5[i32(15)];
+                        }
+                    default :
+                        {
+                            c_12 = _S376;
+                        }
+                    }
+                }
             }
             else
             {
@@ -6316,7 +7239,84 @@ fn RunMaterialProgram_1( header_5 : MaterialHeader_0,  program_2 : u32,  ctx_4 :
                     }
                     if(write_1)
                     {
-                        slot_2 = stack_5[(o_12 & (u32(15)))];
+                        if(((gMaterialOperandMode_0 & (u32(4)))) == u32(0))
+                        {
+                            slot_2 = stack_5[(o_12 & (u32(15)))];
+                        }
+                        else
+                        {
+                            switch((o_12 & (u32(15))))
+                            {
+                            case u32(0):
+                                {
+                                    slot_2 = stack_5[i32(0)];
+                                }
+                            case u32(1):
+                                {
+                                    slot_2 = stack_5[i32(1)];
+                                }
+                            case u32(2):
+                                {
+                                    slot_2 = stack_5[i32(2)];
+                                }
+                            case u32(3):
+                                {
+                                    slot_2 = stack_5[i32(3)];
+                                }
+                            case u32(4):
+                                {
+                                    slot_2 = stack_5[i32(4)];
+                                }
+                            case u32(5):
+                                {
+                                    slot_2 = stack_5[i32(5)];
+                                }
+                            case u32(6):
+                                {
+                                    slot_2 = stack_5[i32(6)];
+                                }
+                            case u32(7):
+                                {
+                                    slot_2 = stack_5[i32(7)];
+                                }
+                            case u32(8):
+                                {
+                                    slot_2 = stack_5[i32(8)];
+                                }
+                            case u32(9):
+                                {
+                                    slot_2 = stack_5[i32(9)];
+                                }
+                            case u32(10):
+                                {
+                                    slot_2 = stack_5[i32(10)];
+                                }
+                            case u32(11):
+                                {
+                                    slot_2 = stack_5[i32(11)];
+                                }
+                            case u32(12):
+                                {
+                                    slot_2 = stack_5[i32(12)];
+                                }
+                            case u32(13):
+                                {
+                                    slot_2 = stack_5[i32(13)];
+                                }
+                            case u32(14):
+                                {
+                                    slot_2 = stack_5[i32(14)];
+                                }
+                            case u32(15):
+                                {
+                                    slot_2 = stack_5[i32(15)];
+                                }
+                            default :
+                                {
+                                    slot_2 = _S376;
+                                }
+                            }
+                        }
                     }
                     else
                     {
@@ -6587,7 +7587,84 @@ fn RunMaterialProgram_1( header_5 : MaterialHeader_0,  program_2 : u32,  ctx_4 :
                             }
                             if(write_1)
                             {
-                                slot_2 = stack_5[(o_13 & (u32(15)))];
+                                if(((gMaterialOperandMode_0 & (u32(4)))) == u32(0))
+                                {
+                                    slot_2 = stack_5[(o_13 & (u32(15)))];
+                                }
+                                else
+                                {
+                                    switch((o_13 & (u32(15))))
+                                    {
+                                    case u32(0):
+                                        {
+                                            slot_2 = stack_5[i32(0)];
+                                        }
+                                    case u32(1):
+                                        {
+                                            slot_2 = stack_5[i32(1)];
+                                        }
+                                    case u32(2):
+                                        {
+                                            slot_2 = stack_5[i32(2)];
+                                        }
+                                    case u32(3):
+                                        {
+                                            slot_2 = stack_5[i32(3)];
+                                        }
+                                    case u32(4):
+                                        {
+                                            slot_2 = stack_5[i32(4)];
+                                        }
+                                    case u32(5):
+                                        {
+                                            slot_2 = stack_5[i32(5)];
+                                        }
+                                    case u32(6):
+                                        {
+                                            slot_2 = stack_5[i32(6)];
+                                        }
+                                    case u32(7):
+                                        {
+                                            slot_2 = stack_5[i32(7)];
+                                        }
+                                    case u32(8):
+                                        {
+                                            slot_2 = stack_5[i32(8)];
+                                        }
+                                    case u32(9):
+                                        {
+                                            slot_2 = stack_5[i32(9)];
+                                        }
+                                    case u32(10):
+                                        {
+                                            slot_2 = stack_5[i32(10)];
+                                        }
+                                    case u32(11):
+                                        {
+                                            slot_2 = stack_5[i32(11)];
+                                        }
+                                    case u32(12):
+                                        {
+                                            slot_2 = stack_5[i32(12)];
+                                        }
+                                    case u32(13):
+                                        {
+                                            slot_2 = stack_5[i32(13)];
+                                        }
+                                    case u32(14):
+                                        {
+                                            slot_2 = stack_5[i32(14)];
+                                        }
+                                    case u32(15):
+                                        {
+                                            slot_2 = stack_5[i32(15)];
+                                        }
+                                    default :
+                                        {
+                                            slot_2 = _S376;
+                                        }
+                                    }
+                                }
                             }
                             else
                             {
@@ -6608,7 +7685,84 @@ fn RunMaterialProgram_1( header_5 : MaterialHeader_0,  program_2 : u32,  ctx_4 :
                             }
                             if(write_1)
                             {
-                                slot_2 = stack_5[(o_14 & (u32(15)))];
+                                if(((gMaterialOperandMode_0 & (u32(4)))) == u32(0))
+                                {
+                                    slot_2 = stack_5[(o_14 & (u32(15)))];
+                                }
+                                else
+                                {
+                                    switch((o_14 & (u32(15))))
+                                    {
+                                    case u32(0):
+                                        {
+                                            slot_2 = stack_5[i32(0)];
+                                        }
+                                    case u32(1):
+                                        {
+                                            slot_2 = stack_5[i32(1)];
+                                        }
+                                    case u32(2):
+                                        {
+                                            slot_2 = stack_5[i32(2)];
+                                        }
+                                    case u32(3):
+                                        {
+                                            slot_2 = stack_5[i32(3)];
+                                        }
+                                    case u32(4):
+                                        {
+                                            slot_2 = stack_5[i32(4)];
+                                        }
+                                    case u32(5):
+                                        {
+                                            slot_2 = stack_5[i32(5)];
+                                        }
+                                    case u32(6):
+                                        {
+                                            slot_2 = stack_5[i32(6)];
+                                        }
+                                    case u32(7):
+                                        {
+                                            slot_2 = stack_5[i32(7)];
+                                        }
+                                    case u32(8):
+                                        {
+                                            slot_2 = stack_5[i32(8)];
+                                        }
+                                    case u32(9):
+                                        {
+                                            slot_2 = stack_5[i32(9)];
+                                        }
+                                    case u32(10):
+                                        {
+                                            slot_2 = stack_5[i32(10)];
+                                        }
+                                    case u32(11):
+                                        {
+                                            slot_2 = stack_5[i32(11)];
+                                        }
+                                    case u32(12):
+                                        {
+                                            slot_2 = stack_5[i32(12)];
+                                        }
+                                    case u32(13):
+                                        {
+                                            slot_2 = stack_5[i32(13)];
+                                        }
+                                    case u32(14):
+                                        {
+                                            slot_2 = stack_5[i32(14)];
+                                        }
+                                    case u32(15):
+                                        {
+                                            slot_2 = stack_5[i32(15)];
+                                        }
+                                    default :
+                                        {
+                                            slot_2 = _S376;
+                                        }
+                                    }
+                                }
                             }
                             else
                             {
@@ -6629,7 +7783,84 @@ fn RunMaterialProgram_1( header_5 : MaterialHeader_0,  program_2 : u32,  ctx_4 :
                             }
                             if(write_1)
                             {
-                                slot_2 = stack_5[(o_15 & (u32(15)))];
+                                if(((gMaterialOperandMode_0 & (u32(4)))) == u32(0))
+                                {
+                                    slot_2 = stack_5[(o_15 & (u32(15)))];
+                                }
+                                else
+                                {
+                                    switch((o_15 & (u32(15))))
+                                    {
+                                    case u32(0):
+                                        {
+                                            slot_2 = stack_5[i32(0)];
+                                        }
+                                    case u32(1):
+                                        {
+                                            slot_2 = stack_5[i32(1)];
+                                        }
+                                    case u32(2):
+                                        {
+                                            slot_2 = stack_5[i32(2)];
+                                        }
+                                    case u32(3):
+                                        {
+                                            slot_2 = stack_5[i32(3)];
+                                        }
+                                    case u32(4):
+                                        {
+                                            slot_2 = stack_5[i32(4)];
+                                        }
+                                    case u32(5):
+                                        {
+                                            slot_2 = stack_5[i32(5)];
+                                        }
+                                    case u32(6):
+                                        {
+                                            slot_2 = stack_5[i32(6)];
+                                        }
+                                    case u32(7):
+                                        {
+                                            slot_2 = stack_5[i32(7)];
+                                        }
+                                    case u32(8):
+                                        {
+                                            slot_2 = stack_5[i32(8)];
+                                        }
+                                    case u32(9):
+                                        {
+                                            slot_2 = stack_5[i32(9)];
+                                        }
+                                    case u32(10):
+                                        {
+                                            slot_2 = stack_5[i32(10)];
+                                        }
+                                    case u32(11):
+                                        {
+                                            slot_2 = stack_5[i32(11)];
+                                        }
+                                    case u32(12):
+                                        {
+                                            slot_2 = stack_5[i32(12)];
+                                        }
+                                    case u32(13):
+                                        {
+                                            slot_2 = stack_5[i32(13)];
+                                        }
+                                    case u32(14):
+                                        {
+                                            slot_2 = stack_5[i32(14)];
+                                        }
+                                    case u32(15):
+                                        {
+                                            slot_2 = stack_5[i32(15)];
+                                        }
+                                    default :
+                                        {
+                                            slot_2 = _S376;
+                                        }
+                                    }
+                                }
                             }
                             else
                             {
@@ -6650,7 +7881,84 @@ fn RunMaterialProgram_1( header_5 : MaterialHeader_0,  program_2 : u32,  ctx_4 :
                             }
                             if(write_1)
                             {
-                                slot_2 = stack_5[(o_16 & (u32(15)))];
+                                if(((gMaterialOperandMode_0 & (u32(4)))) == u32(0))
+                                {
+                                    slot_2 = stack_5[(o_16 & (u32(15)))];
+                                }
+                                else
+                                {
+                                    switch((o_16 & (u32(15))))
+                                    {
+                                    case u32(0):
+                                        {
+                                            slot_2 = stack_5[i32(0)];
+                                        }
+                                    case u32(1):
+                                        {
+                                            slot_2 = stack_5[i32(1)];
+                                        }
+                                    case u32(2):
+                                        {
+                                            slot_2 = stack_5[i32(2)];
+                                        }
+                                    case u32(3):
+                                        {
+                                            slot_2 = stack_5[i32(3)];
+                                        }
+                                    case u32(4):
+                                        {
+                                            slot_2 = stack_5[i32(4)];
+                                        }
+                                    case u32(5):
+                                        {
+                                            slot_2 = stack_5[i32(5)];
+                                        }
+                                    case u32(6):
+                                        {
+                                            slot_2 = stack_5[i32(6)];
+                                        }
+                                    case u32(7):
+                                        {
+                                            slot_2 = stack_5[i32(7)];
+                                        }
+                                    case u32(8):
+                                        {
+                                            slot_2 = stack_5[i32(8)];
+                                        }
+                                    case u32(9):
+                                        {
+                                            slot_2 = stack_5[i32(9)];
+                                        }
+                                    case u32(10):
+                                        {
+                                            slot_2 = stack_5[i32(10)];
+                                        }
+                                    case u32(11):
+                                        {
+                                            slot_2 = stack_5[i32(11)];
+                                        }
+                                    case u32(12):
+                                        {
+                                            slot_2 = stack_5[i32(12)];
+                                        }
+                                    case u32(13):
+                                        {
+                                            slot_2 = stack_5[i32(13)];
+                                        }
+                                    case u32(14):
+                                        {
+                                            slot_2 = stack_5[i32(14)];
+                                        }
+                                    case u32(15):
+                                        {
+                                            slot_2 = stack_5[i32(15)];
+                                        }
+                                    default :
+                                        {
+                                            slot_2 = _S376;
+                                        }
+                                    }
+                                }
                             }
                             else
                             {
@@ -6674,7 +7982,84 @@ fn RunMaterialProgram_1( header_5 : MaterialHeader_0,  program_2 : u32,  ctx_4 :
                             }
                             if(write_1)
                             {
-                                slot_2 = stack_5[(o_17 & (u32(15)))];
+                                if(((gMaterialOperandMode_0 & (u32(4)))) == u32(0))
+                                {
+                                    slot_2 = stack_5[(o_17 & (u32(15)))];
+                                }
+                                else
+                                {
+                                    switch((o_17 & (u32(15))))
+                                    {
+                                    case u32(0):
+                                        {
+                                            slot_2 = stack_5[i32(0)];
+                                        }
+                                    case u32(1):
+                                        {
+                                            slot_2 = stack_5[i32(1)];
+                                        }
+                                    case u32(2):
+                                        {
+                                            slot_2 = stack_5[i32(2)];
+                                        }
+                                    case u32(3):
+                                        {
+                                            slot_2 = stack_5[i32(3)];
+                                        }
+                                    case u32(4):
+                                        {
+                                            slot_2 = stack_5[i32(4)];
+                                        }
+                                    case u32(5):
+                                        {
+                                            slot_2 = stack_5[i32(5)];
+                                        }
+                                    case u32(6):
+                                        {
+                                            slot_2 = stack_5[i32(6)];
+                                        }
+                                    case u32(7):
+                                        {
+                                            slot_2 = stack_5[i32(7)];
+                                        }
+                                    case u32(8):
+                                        {
+                                            slot_2 = stack_5[i32(8)];
+                                        }
+                                    case u32(9):
+                                        {
+                                            slot_2 = stack_5[i32(9)];
+                                        }
+                                    case u32(10):
+                                        {
+                                            slot_2 = stack_5[i32(10)];
+                                        }
+                                    case u32(11):
+                                        {
+                                            slot_2 = stack_5[i32(11)];
+                                        }
+                                    case u32(12):
+                                        {
+                                            slot_2 = stack_5[i32(12)];
+                                        }
+                                    case u32(13):
+                                        {
+                                            slot_2 = stack_5[i32(13)];
+                                        }
+                                    case u32(14):
+                                        {
+                                            slot_2 = stack_5[i32(14)];
+                                        }
+                                    case u32(15):
+                                        {
+                                            slot_2 = stack_5[i32(15)];
+                                        }
+                                    default :
+                                        {
+                                            slot_2 = _S376;
+                                        }
+                                    }
+                                }
                             }
                             else
                             {
@@ -6695,7 +8080,84 @@ fn RunMaterialProgram_1( header_5 : MaterialHeader_0,  program_2 : u32,  ctx_4 :
                             }
                             if(write_1)
                             {
-                                slot_2 = stack_5[(o_18 & (u32(15)))];
+                                if(((gMaterialOperandMode_0 & (u32(4)))) == u32(0))
+                                {
+                                    slot_2 = stack_5[(o_18 & (u32(15)))];
+                                }
+                                else
+                                {
+                                    switch((o_18 & (u32(15))))
+                                    {
+                                    case u32(0):
+                                        {
+                                            slot_2 = stack_5[i32(0)];
+                                        }
+                                    case u32(1):
+                                        {
+                                            slot_2 = stack_5[i32(1)];
+                                        }
+                                    case u32(2):
+                                        {
+                                            slot_2 = stack_5[i32(2)];
+                                        }
+                                    case u32(3):
+                                        {
+                                            slot_2 = stack_5[i32(3)];
+                                        }
+                                    case u32(4):
+                                        {
+                                            slot_2 = stack_5[i32(4)];
+                                        }
+                                    case u32(5):
+                                        {
+                                            slot_2 = stack_5[i32(5)];
+                                        }
+                                    case u32(6):
+                                        {
+                                            slot_2 = stack_5[i32(6)];
+                                        }
+                                    case u32(7):
+                                        {
+                                            slot_2 = stack_5[i32(7)];
+                                        }
+                                    case u32(8):
+                                        {
+                                            slot_2 = stack_5[i32(8)];
+                                        }
+                                    case u32(9):
+                                        {
+                                            slot_2 = stack_5[i32(9)];
+                                        }
+                                    case u32(10):
+                                        {
+                                            slot_2 = stack_5[i32(10)];
+                                        }
+                                    case u32(11):
+                                        {
+                                            slot_2 = stack_5[i32(11)];
+                                        }
+                                    case u32(12):
+                                        {
+                                            slot_2 = stack_5[i32(12)];
+                                        }
+                                    case u32(13):
+                                        {
+                                            slot_2 = stack_5[i32(13)];
+                                        }
+                                    case u32(14):
+                                        {
+                                            slot_2 = stack_5[i32(14)];
+                                        }
+                                    case u32(15):
+                                        {
+                                            slot_2 = stack_5[i32(15)];
+                                        }
+                                    default :
+                                        {
+                                            slot_2 = _S376;
+                                        }
+                                    }
+                                }
                             }
                             else
                             {
@@ -6716,7 +8178,84 @@ fn RunMaterialProgram_1( header_5 : MaterialHeader_0,  program_2 : u32,  ctx_4 :
                             }
                             if(write_1)
                             {
-                                slot_2 = stack_5[(o_19 & (u32(15)))];
+                                if(((gMaterialOperandMode_0 & (u32(4)))) == u32(0))
+                                {
+                                    slot_2 = stack_5[(o_19 & (u32(15)))];
+                                }
+                                else
+                                {
+                                    switch((o_19 & (u32(15))))
+                                    {
+                                    case u32(0):
+                                        {
+                                            slot_2 = stack_5[i32(0)];
+                                        }
+                                    case u32(1):
+                                        {
+                                            slot_2 = stack_5[i32(1)];
+                                        }
+                                    case u32(2):
+                                        {
+                                            slot_2 = stack_5[i32(2)];
+                                        }
+                                    case u32(3):
+                                        {
+                                            slot_2 = stack_5[i32(3)];
+                                        }
+                                    case u32(4):
+                                        {
+                                            slot_2 = stack_5[i32(4)];
+                                        }
+                                    case u32(5):
+                                        {
+                                            slot_2 = stack_5[i32(5)];
+                                        }
+                                    case u32(6):
+                                        {
+                                            slot_2 = stack_5[i32(6)];
+                                        }
+                                    case u32(7):
+                                        {
+                                            slot_2 = stack_5[i32(7)];
+                                        }
+                                    case u32(8):
+                                        {
+                                            slot_2 = stack_5[i32(8)];
+                                        }
+                                    case u32(9):
+                                        {
+                                            slot_2 = stack_5[i32(9)];
+                                        }
+                                    case u32(10):
+                                        {
+                                            slot_2 = stack_5[i32(10)];
+                                        }
+                                    case u32(11):
+                                        {
+                                            slot_2 = stack_5[i32(11)];
+                                        }
+                                    case u32(12):
+                                        {
+                                            slot_2 = stack_5[i32(12)];
+                                        }
+                                    case u32(13):
+                                        {
+                                            slot_2 = stack_5[i32(13)];
+                                        }
+                                    case u32(14):
+                                        {
+                                            slot_2 = stack_5[i32(14)];
+                                        }
+                                    case u32(15):
+                                        {
+                                            slot_2 = stack_5[i32(15)];
+                                        }
+                                    default :
+                                        {
+                                            slot_2 = _S376;
+                                        }
+                                    }
+                                }
                             }
                             else
                             {
@@ -6737,7 +8276,84 @@ fn RunMaterialProgram_1( header_5 : MaterialHeader_0,  program_2 : u32,  ctx_4 :
                             }
                             if(write_1)
                             {
-                                slot_2 = stack_5[(o_20 & (u32(15)))];
+                                if(((gMaterialOperandMode_0 & (u32(4)))) == u32(0))
+                                {
+                                    slot_2 = stack_5[(o_20 & (u32(15)))];
+                                }
+                                else
+                                {
+                                    switch((o_20 & (u32(15))))
+                                    {
+                                    case u32(0):
+                                        {
+                                            slot_2 = stack_5[i32(0)];
+                                        }
+                                    case u32(1):
+                                        {
+                                            slot_2 = stack_5[i32(1)];
+                                        }
+                                    case u32(2):
+                                        {
+                                            slot_2 = stack_5[i32(2)];
+                                        }
+                                    case u32(3):
+                                        {
+                                            slot_2 = stack_5[i32(3)];
+                                        }
+                                    case u32(4):
+                                        {
+                                            slot_2 = stack_5[i32(4)];
+                                        }
+                                    case u32(5):
+                                        {
+                                            slot_2 = stack_5[i32(5)];
+                                        }
+                                    case u32(6):
+                                        {
+                                            slot_2 = stack_5[i32(6)];
+                                        }
+                                    case u32(7):
+                                        {
+                                            slot_2 = stack_5[i32(7)];
+                                        }
+                                    case u32(8):
+                                        {
+                                            slot_2 = stack_5[i32(8)];
+                                        }
+                                    case u32(9):
+                                        {
+                                            slot_2 = stack_5[i32(9)];
+                                        }
+                                    case u32(10):
+                                        {
+                                            slot_2 = stack_5[i32(10)];
+                                        }
+                                    case u32(11):
+                                        {
+                                            slot_2 = stack_5[i32(11)];
+                                        }
+                                    case u32(12):
+                                        {
+                                            slot_2 = stack_5[i32(12)];
+                                        }
+                                    case u32(13):
+                                        {
+                                            slot_2 = stack_5[i32(13)];
+                                        }
+                                    case u32(14):
+                                        {
+                                            slot_2 = stack_5[i32(14)];
+                                        }
+                                    case u32(15):
+                                        {
+                                            slot_2 = stack_5[i32(15)];
+                                        }
+                                    default :
+                                        {
+                                            slot_2 = _S376;
+                                        }
+                                    }
+                                }
                             }
                             else
                             {
@@ -6758,7 +8374,84 @@ fn RunMaterialProgram_1( header_5 : MaterialHeader_0,  program_2 : u32,  ctx_4 :
                             }
                             if(write_1)
                             {
-                                slot_2 = stack_5[(o_21 & (u32(15)))];
+                                if(((gMaterialOperandMode_0 & (u32(4)))) == u32(0))
+                                {
+                                    slot_2 = stack_5[(o_21 & (u32(15)))];
+                                }
+                                else
+                                {
+                                    switch((o_21 & (u32(15))))
+                                    {
+                                    case u32(0):
+                                        {
+                                            slot_2 = stack_5[i32(0)];
+                                        }
+                                    case u32(1):
+                                        {
+                                            slot_2 = stack_5[i32(1)];
+                                        }
+                                    case u32(2):
+                                        {
+                                            slot_2 = stack_5[i32(2)];
+                                        }
+                                    case u32(3):
+                                        {
+                                            slot_2 = stack_5[i32(3)];
+                                        }
+                                    case u32(4):
+                                        {
+                                            slot_2 = stack_5[i32(4)];
+                                        }
+                                    case u32(5):
+                                        {
+                                            slot_2 = stack_5[i32(5)];
+                                        }
+                                    case u32(6):
+                                        {
+                                            slot_2 = stack_5[i32(6)];
+                                        }
+                                    case u32(7):
+                                        {
+                                            slot_2 = stack_5[i32(7)];
+                                        }
+                                    case u32(8):
+                                        {
+                                            slot_2 = stack_5[i32(8)];
+                                        }
+                                    case u32(9):
+                                        {
+                                            slot_2 = stack_5[i32(9)];
+                                        }
+                                    case u32(10):
+                                        {
+                                            slot_2 = stack_5[i32(10)];
+                                        }
+                                    case u32(11):
+                                        {
+                                            slot_2 = stack_5[i32(11)];
+                                        }
+                                    case u32(12):
+                                        {
+                                            slot_2 = stack_5[i32(12)];
+                                        }
+                                    case u32(13):
+                                        {
+                                            slot_2 = stack_5[i32(13)];
+                                        }
+                                    case u32(14):
+                                        {
+                                            slot_2 = stack_5[i32(14)];
+                                        }
+                                    case u32(15):
+                                        {
+                                            slot_2 = stack_5[i32(15)];
+                                        }
+                                    default :
+                                        {
+                                            slot_2 = _S376;
+                                        }
+                                    }
+                                }
                             }
                             else
                             {
@@ -6782,7 +8475,84 @@ fn RunMaterialProgram_1( header_5 : MaterialHeader_0,  program_2 : u32,  ctx_4 :
                             }
                             if(write_1)
                             {
-                                slot_2 = stack_5[(o_22 & (u32(15)))];
+                                if(((gMaterialOperandMode_0 & (u32(4)))) == u32(0))
+                                {
+                                    slot_2 = stack_5[(o_22 & (u32(15)))];
+                                }
+                                else
+                                {
+                                    switch((o_22 & (u32(15))))
+                                    {
+                                    case u32(0):
+                                        {
+                                            slot_2 = stack_5[i32(0)];
+                                        }
+                                    case u32(1):
+                                        {
+                                            slot_2 = stack_5[i32(1)];
+                                        }
+                                    case u32(2):
+                                        {
+                                            slot_2 = stack_5[i32(2)];
+                                        }
+                                    case u32(3):
+                                        {
+                                            slot_2 = stack_5[i32(3)];
+                                        }
+                                    case u32(4):
+                                        {
+                                            slot_2 = stack_5[i32(4)];
+                                        }
+                                    case u32(5):
+                                        {
+                                            slot_2 = stack_5[i32(5)];
+                                        }
+                                    case u32(6):
+                                        {
+                                            slot_2 = stack_5[i32(6)];
+                                        }
+                                    case u32(7):
+                                        {
+                                            slot_2 = stack_5[i32(7)];
+                                        }
+                                    case u32(8):
+                                        {
+                                            slot_2 = stack_5[i32(8)];
+                                        }
+                                    case u32(9):
+                                        {
+                                            slot_2 = stack_5[i32(9)];
+                                        }
+                                    case u32(10):
+                                        {
+                                            slot_2 = stack_5[i32(10)];
+                                        }
+                                    case u32(11):
+                                        {
+                                            slot_2 = stack_5[i32(11)];
+                                        }
+                                    case u32(12):
+                                        {
+                                            slot_2 = stack_5[i32(12)];
+                                        }
+                                    case u32(13):
+                                        {
+                                            slot_2 = stack_5[i32(13)];
+                                        }
+                                    case u32(14):
+                                        {
+                                            slot_2 = stack_5[i32(14)];
+                                        }
+                                    case u32(15):
+                                        {
+                                            slot_2 = stack_5[i32(15)];
+                                        }
+                                    default :
+                                        {
+                                            slot_2 = _S376;
+                                        }
+                                    }
+                                }
                             }
                             else
                             {
@@ -6803,7 +8573,84 @@ fn RunMaterialProgram_1( header_5 : MaterialHeader_0,  program_2 : u32,  ctx_4 :
                             }
                             if(write_1)
                             {
-                                slot_2 = stack_5[(o_23 & (u32(15)))];
+                                if(((gMaterialOperandMode_0 & (u32(4)))) == u32(0))
+                                {
+                                    slot_2 = stack_5[(o_23 & (u32(15)))];
+                                }
+                                else
+                                {
+                                    switch((o_23 & (u32(15))))
+                                    {
+                                    case u32(0):
+                                        {
+                                            slot_2 = stack_5[i32(0)];
+                                        }
+                                    case u32(1):
+                                        {
+                                            slot_2 = stack_5[i32(1)];
+                                        }
+                                    case u32(2):
+                                        {
+                                            slot_2 = stack_5[i32(2)];
+                                        }
+                                    case u32(3):
+                                        {
+                                            slot_2 = stack_5[i32(3)];
+                                        }
+                                    case u32(4):
+                                        {
+                                            slot_2 = stack_5[i32(4)];
+                                        }
+                                    case u32(5):
+                                        {
+                                            slot_2 = stack_5[i32(5)];
+                                        }
+                                    case u32(6):
+                                        {
+                                            slot_2 = stack_5[i32(6)];
+                                        }
+                                    case u32(7):
+                                        {
+                                            slot_2 = stack_5[i32(7)];
+                                        }
+                                    case u32(8):
+                                        {
+                                            slot_2 = stack_5[i32(8)];
+                                        }
+                                    case u32(9):
+                                        {
+                                            slot_2 = stack_5[i32(9)];
+                                        }
+                                    case u32(10):
+                                        {
+                                            slot_2 = stack_5[i32(10)];
+                                        }
+                                    case u32(11):
+                                        {
+                                            slot_2 = stack_5[i32(11)];
+                                        }
+                                    case u32(12):
+                                        {
+                                            slot_2 = stack_5[i32(12)];
+                                        }
+                                    case u32(13):
+                                        {
+                                            slot_2 = stack_5[i32(13)];
+                                        }
+                                    case u32(14):
+                                        {
+                                            slot_2 = stack_5[i32(14)];
+                                        }
+                                    case u32(15):
+                                        {
+                                            slot_2 = stack_5[i32(15)];
+                                        }
+                                    default :
+                                        {
+                                            slot_2 = _S376;
+                                        }
+                                    }
+                                }
                             }
                             else
                             {
@@ -6827,7 +8674,84 @@ fn RunMaterialProgram_1( header_5 : MaterialHeader_0,  program_2 : u32,  ctx_4 :
                             }
                             if(write_1)
                             {
-                                slot_2 = stack_5[(o_24 & (u32(15)))];
+                                if(((gMaterialOperandMode_0 & (u32(4)))) == u32(0))
+                                {
+                                    slot_2 = stack_5[(o_24 & (u32(15)))];
+                                }
+                                else
+                                {
+                                    switch((o_24 & (u32(15))))
+                                    {
+                                    case u32(0):
+                                        {
+                                            slot_2 = stack_5[i32(0)];
+                                        }
+                                    case u32(1):
+                                        {
+                                            slot_2 = stack_5[i32(1)];
+                                        }
+                                    case u32(2):
+                                        {
+                                            slot_2 = stack_5[i32(2)];
+                                        }
+                                    case u32(3):
+                                        {
+                                            slot_2 = stack_5[i32(3)];
+                                        }
+                                    case u32(4):
+                                        {
+                                            slot_2 = stack_5[i32(4)];
+                                        }
+                                    case u32(5):
+                                        {
+                                            slot_2 = stack_5[i32(5)];
+                                        }
+                                    case u32(6):
+                                        {
+                                            slot_2 = stack_5[i32(6)];
+                                        }
+                                    case u32(7):
+                                        {
+                                            slot_2 = stack_5[i32(7)];
+                                        }
+                                    case u32(8):
+                                        {
+                                            slot_2 = stack_5[i32(8)];
+                                        }
+                                    case u32(9):
+                                        {
+                                            slot_2 = stack_5[i32(9)];
+                                        }
+                                    case u32(10):
+                                        {
+                                            slot_2 = stack_5[i32(10)];
+                                        }
+                                    case u32(11):
+                                        {
+                                            slot_2 = stack_5[i32(11)];
+                                        }
+                                    case u32(12):
+                                        {
+                                            slot_2 = stack_5[i32(12)];
+                                        }
+                                    case u32(13):
+                                        {
+                                            slot_2 = stack_5[i32(13)];
+                                        }
+                                    case u32(14):
+                                        {
+                                            slot_2 = stack_5[i32(14)];
+                                        }
+                                    case u32(15):
+                                        {
+                                            slot_2 = stack_5[i32(15)];
+                                        }
+                                    default :
+                                        {
+                                            slot_2 = _S376;
+                                        }
+                                    }
+                                }
                             }
                             else
                             {
@@ -6848,7 +8772,84 @@ fn RunMaterialProgram_1( header_5 : MaterialHeader_0,  program_2 : u32,  ctx_4 :
                             }
                             if(write_1)
                             {
-                                slot_2 = stack_5[(o_25 & (u32(15)))];
+                                if(((gMaterialOperandMode_0 & (u32(4)))) == u32(0))
+                                {
+                                    slot_2 = stack_5[(o_25 & (u32(15)))];
+                                }
+                                else
+                                {
+                                    switch((o_25 & (u32(15))))
+                                    {
+                                    case u32(0):
+                                        {
+                                            slot_2 = stack_5[i32(0)];
+                                        }
+                                    case u32(1):
+                                        {
+                                            slot_2 = stack_5[i32(1)];
+                                        }
+                                    case u32(2):
+                                        {
+                                            slot_2 = stack_5[i32(2)];
+                                        }
+                                    case u32(3):
+                                        {
+                                            slot_2 = stack_5[i32(3)];
+                                        }
+                                    case u32(4):
+                                        {
+                                            slot_2 = stack_5[i32(4)];
+                                        }
+                                    case u32(5):
+                                        {
+                                            slot_2 = stack_5[i32(5)];
+                                        }
+                                    case u32(6):
+                                        {
+                                            slot_2 = stack_5[i32(6)];
+                                        }
+                                    case u32(7):
+                                        {
+                                            slot_2 = stack_5[i32(7)];
+                                        }
+                                    case u32(8):
+                                        {
+                                            slot_2 = stack_5[i32(8)];
+                                        }
+                                    case u32(9):
+                                        {
+                                            slot_2 = stack_5[i32(9)];
+                                        }
+                                    case u32(10):
+                                        {
+                                            slot_2 = stack_5[i32(10)];
+                                        }
+                                    case u32(11):
+                                        {
+                                            slot_2 = stack_5[i32(11)];
+                                        }
+                                    case u32(12):
+                                        {
+                                            slot_2 = stack_5[i32(12)];
+                                        }
+                                    case u32(13):
+                                        {
+                                            slot_2 = stack_5[i32(13)];
+                                        }
+                                    case u32(14):
+                                        {
+                                            slot_2 = stack_5[i32(14)];
+                                        }
+                                    case u32(15):
+                                        {
+                                            slot_2 = stack_5[i32(15)];
+                                        }
+                                    default :
+                                        {
+                                            slot_2 = _S376;
+                                        }
+                                    }
+                                }
                             }
                             else
                             {
@@ -6869,7 +8870,84 @@ fn RunMaterialProgram_1( header_5 : MaterialHeader_0,  program_2 : u32,  ctx_4 :
                             }
                             if(write_1)
                             {
-                                slot_2 = stack_5[(o_26 & (u32(15)))];
+                                if(((gMaterialOperandMode_0 & (u32(4)))) == u32(0))
+                                {
+                                    slot_2 = stack_5[(o_26 & (u32(15)))];
+                                }
+                                else
+                                {
+                                    switch((o_26 & (u32(15))))
+                                    {
+                                    case u32(0):
+                                        {
+                                            slot_2 = stack_5[i32(0)];
+                                        }
+                                    case u32(1):
+                                        {
+                                            slot_2 = stack_5[i32(1)];
+                                        }
+                                    case u32(2):
+                                        {
+                                            slot_2 = stack_5[i32(2)];
+                                        }
+                                    case u32(3):
+                                        {
+                                            slot_2 = stack_5[i32(3)];
+                                        }
+                                    case u32(4):
+                                        {
+                                            slot_2 = stack_5[i32(4)];
+                                        }
+                                    case u32(5):
+                                        {
+                                            slot_2 = stack_5[i32(5)];
+                                        }
+                                    case u32(6):
+                                        {
+                                            slot_2 = stack_5[i32(6)];
+                                        }
+                                    case u32(7):
+                                        {
+                                            slot_2 = stack_5[i32(7)];
+                                        }
+                                    case u32(8):
+                                        {
+                                            slot_2 = stack_5[i32(8)];
+                                        }
+                                    case u32(9):
+                                        {
+                                            slot_2 = stack_5[i32(9)];
+                                        }
+                                    case u32(10):
+                                        {
+                                            slot_2 = stack_5[i32(10)];
+                                        }
+                                    case u32(11):
+                                        {
+                                            slot_2 = stack_5[i32(11)];
+                                        }
+                                    case u32(12):
+                                        {
+                                            slot_2 = stack_5[i32(12)];
+                                        }
+                                    case u32(13):
+                                        {
+                                            slot_2 = stack_5[i32(13)];
+                                        }
+                                    case u32(14):
+                                        {
+                                            slot_2 = stack_5[i32(14)];
+                                        }
+                                    case u32(15):
+                                        {
+                                            slot_2 = stack_5[i32(15)];
+                                        }
+                                    default :
+                                        {
+                                            slot_2 = _S376;
+                                        }
+                                    }
+                                }
                             }
                             else
                             {
@@ -6890,7 +8968,84 @@ fn RunMaterialProgram_1( header_5 : MaterialHeader_0,  program_2 : u32,  ctx_4 :
                             }
                             if(write_1)
                             {
-                                slot_2 = stack_5[(o_27 & (u32(15)))];
+                                if(((gMaterialOperandMode_0 & (u32(4)))) == u32(0))
+                                {
+                                    slot_2 = stack_5[(o_27 & (u32(15)))];
+                                }
+                                else
+                                {
+                                    switch((o_27 & (u32(15))))
+                                    {
+                                    case u32(0):
+                                        {
+                                            slot_2 = stack_5[i32(0)];
+                                        }
+                                    case u32(1):
+                                        {
+                                            slot_2 = stack_5[i32(1)];
+                                        }
+                                    case u32(2):
+                                        {
+                                            slot_2 = stack_5[i32(2)];
+                                        }
+                                    case u32(3):
+                                        {
+                                            slot_2 = stack_5[i32(3)];
+                                        }
+                                    case u32(4):
+                                        {
+                                            slot_2 = stack_5[i32(4)];
+                                        }
+                                    case u32(5):
+                                        {
+                                            slot_2 = stack_5[i32(5)];
+                                        }
+                                    case u32(6):
+                                        {
+                                            slot_2 = stack_5[i32(6)];
+                                        }
+                                    case u32(7):
+                                        {
+                                            slot_2 = stack_5[i32(7)];
+                                        }
+                                    case u32(8):
+                                        {
+                                            slot_2 = stack_5[i32(8)];
+                                        }
+                                    case u32(9):
+                                        {
+                                            slot_2 = stack_5[i32(9)];
+                                        }
+                                    case u32(10):
+                                        {
+                                            slot_2 = stack_5[i32(10)];
+                                        }
+                                    case u32(11):
+                                        {
+                                            slot_2 = stack_5[i32(11)];
+                                        }
+                                    case u32(12):
+                                        {
+                                            slot_2 = stack_5[i32(12)];
+                                        }
+                                    case u32(13):
+                                        {
+                                            slot_2 = stack_5[i32(13)];
+                                        }
+                                    case u32(14):
+                                        {
+                                            slot_2 = stack_5[i32(14)];
+                                        }
+                                    case u32(15):
+                                        {
+                                            slot_2 = stack_5[i32(15)];
+                                        }
+                                    default :
+                                        {
+                                            slot_2 = _S376;
+                                        }
+                                    }
+                                }
                             }
                             else
                             {
@@ -6911,7 +9066,84 @@ fn RunMaterialProgram_1( header_5 : MaterialHeader_0,  program_2 : u32,  ctx_4 :
                             }
                             if(write_1)
                             {
-                                slot_2 = stack_5[(o_28 & (u32(15)))];
+                                if(((gMaterialOperandMode_0 & (u32(4)))) == u32(0))
+                                {
+                                    slot_2 = stack_5[(o_28 & (u32(15)))];
+                                }
+                                else
+                                {
+                                    switch((o_28 & (u32(15))))
+                                    {
+                                    case u32(0):
+                                        {
+                                            slot_2 = stack_5[i32(0)];
+                                        }
+                                    case u32(1):
+                                        {
+                                            slot_2 = stack_5[i32(1)];
+                                        }
+                                    case u32(2):
+                                        {
+                                            slot_2 = stack_5[i32(2)];
+                                        }
+                                    case u32(3):
+                                        {
+                                            slot_2 = stack_5[i32(3)];
+                                        }
+                                    case u32(4):
+                                        {
+                                            slot_2 = stack_5[i32(4)];
+                                        }
+                                    case u32(5):
+                                        {
+                                            slot_2 = stack_5[i32(5)];
+                                        }
+                                    case u32(6):
+                                        {
+                                            slot_2 = stack_5[i32(6)];
+                                        }
+                                    case u32(7):
+                                        {
+                                            slot_2 = stack_5[i32(7)];
+                                        }
+                                    case u32(8):
+                                        {
+                                            slot_2 = stack_5[i32(8)];
+                                        }
+                                    case u32(9):
+                                        {
+                                            slot_2 = stack_5[i32(9)];
+                                        }
+                                    case u32(10):
+                                        {
+                                            slot_2 = stack_5[i32(10)];
+                                        }
+                                    case u32(11):
+                                        {
+                                            slot_2 = stack_5[i32(11)];
+                                        }
+                                    case u32(12):
+                                        {
+                                            slot_2 = stack_5[i32(12)];
+                                        }
+                                    case u32(13):
+                                        {
+                                            slot_2 = stack_5[i32(13)];
+                                        }
+                                    case u32(14):
+                                        {
+                                            slot_2 = stack_5[i32(14)];
+                                        }
+                                    case u32(15):
+                                        {
+                                            slot_2 = stack_5[i32(15)];
+                                        }
+                                    default :
+                                        {
+                                            slot_2 = _S376;
+                                        }
+                                    }
+                                }
                             }
                             else
                             {
@@ -6932,7 +9164,84 @@ fn RunMaterialProgram_1( header_5 : MaterialHeader_0,  program_2 : u32,  ctx_4 :
                             }
                             if(write_1)
                             {
-                                slot_2 = stack_5[(o_29 & (u32(15)))];
+                                if(((gMaterialOperandMode_0 & (u32(4)))) == u32(0))
+                                {
+                                    slot_2 = stack_5[(o_29 & (u32(15)))];
+                                }
+                                else
+                                {
+                                    switch((o_29 & (u32(15))))
+                                    {
+                                    case u32(0):
+                                        {
+                                            slot_2 = stack_5[i32(0)];
+                                        }
+                                    case u32(1):
+                                        {
+                                            slot_2 = stack_5[i32(1)];
+                                        }
+                                    case u32(2):
+                                        {
+                                            slot_2 = stack_5[i32(2)];
+                                        }
+                                    case u32(3):
+                                        {
+                                            slot_2 = stack_5[i32(3)];
+                                        }
+                                    case u32(4):
+                                        {
+                                            slot_2 = stack_5[i32(4)];
+                                        }
+                                    case u32(5):
+                                        {
+                                            slot_2 = stack_5[i32(5)];
+                                        }
+                                    case u32(6):
+                                        {
+                                            slot_2 = stack_5[i32(6)];
+                                        }
+                                    case u32(7):
+                                        {
+                                            slot_2 = stack_5[i32(7)];
+                                        }
+                                    case u32(8):
+                                        {
+                                            slot_2 = stack_5[i32(8)];
+                                        }
+                                    case u32(9):
+                                        {
+                                            slot_2 = stack_5[i32(9)];
+                                        }
+                                    case u32(10):
+                                        {
+                                            slot_2 = stack_5[i32(10)];
+                                        }
+                                    case u32(11):
+                                        {
+                                            slot_2 = stack_5[i32(11)];
+                                        }
+                                    case u32(12):
+                                        {
+                                            slot_2 = stack_5[i32(12)];
+                                        }
+                                    case u32(13):
+                                        {
+                                            slot_2 = stack_5[i32(13)];
+                                        }
+                                    case u32(14):
+                                        {
+                                            slot_2 = stack_5[i32(14)];
+                                        }
+                                    case u32(15):
+                                        {
+                                            slot_2 = stack_5[i32(15)];
+                                        }
+                                    default :
+                                        {
+                                            slot_2 = _S376;
+                                        }
+                                    }
+                                }
                             }
                             else
                             {
@@ -6953,7 +9262,84 @@ fn RunMaterialProgram_1( header_5 : MaterialHeader_0,  program_2 : u32,  ctx_4 :
                             }
                             if(write_1)
                             {
-                                slot_2 = stack_5[(o_30 & (u32(15)))];
+                                if(((gMaterialOperandMode_0 & (u32(4)))) == u32(0))
+                                {
+                                    slot_2 = stack_5[(o_30 & (u32(15)))];
+                                }
+                                else
+                                {
+                                    switch((o_30 & (u32(15))))
+                                    {
+                                    case u32(0):
+                                        {
+                                            slot_2 = stack_5[i32(0)];
+                                        }
+                                    case u32(1):
+                                        {
+                                            slot_2 = stack_5[i32(1)];
+                                        }
+                                    case u32(2):
+                                        {
+                                            slot_2 = stack_5[i32(2)];
+                                        }
+                                    case u32(3):
+                                        {
+                                            slot_2 = stack_5[i32(3)];
+                                        }
+                                    case u32(4):
+                                        {
+                                            slot_2 = stack_5[i32(4)];
+                                        }
+                                    case u32(5):
+                                        {
+                                            slot_2 = stack_5[i32(5)];
+                                        }
+                                    case u32(6):
+                                        {
+                                            slot_2 = stack_5[i32(6)];
+                                        }
+                                    case u32(7):
+                                        {
+                                            slot_2 = stack_5[i32(7)];
+                                        }
+                                    case u32(8):
+                                        {
+                                            slot_2 = stack_5[i32(8)];
+                                        }
+                                    case u32(9):
+                                        {
+                                            slot_2 = stack_5[i32(9)];
+                                        }
+                                    case u32(10):
+                                        {
+                                            slot_2 = stack_5[i32(10)];
+                                        }
+                                    case u32(11):
+                                        {
+                                            slot_2 = stack_5[i32(11)];
+                                        }
+                                    case u32(12):
+                                        {
+                                            slot_2 = stack_5[i32(12)];
+                                        }
+                                    case u32(13):
+                                        {
+                                            slot_2 = stack_5[i32(13)];
+                                        }
+                                    case u32(14):
+                                        {
+                                            slot_2 = stack_5[i32(14)];
+                                        }
+                                    case u32(15):
+                                        {
+                                            slot_2 = stack_5[i32(15)];
+                                        }
+                                    default :
+                                        {
+                                            slot_2 = _S376;
+                                        }
+                                    }
+                                }
                             }
                             else
                             {
@@ -6977,7 +9363,84 @@ fn RunMaterialProgram_1( header_5 : MaterialHeader_0,  program_2 : u32,  ctx_4 :
                             }
                             if(write_1)
                             {
-                                slot_2 = stack_5[(o_31 & (u32(15)))];
+                                if(((gMaterialOperandMode_0 & (u32(4)))) == u32(0))
+                                {
+                                    slot_2 = stack_5[(o_31 & (u32(15)))];
+                                }
+                                else
+                                {
+                                    switch((o_31 & (u32(15))))
+                                    {
+                                    case u32(0):
+                                        {
+                                            slot_2 = stack_5[i32(0)];
+                                        }
+                                    case u32(1):
+                                        {
+                                            slot_2 = stack_5[i32(1)];
+                                        }
+                                    case u32(2):
+                                        {
+                                            slot_2 = stack_5[i32(2)];
+                                        }
+                                    case u32(3):
+                                        {
+                                            slot_2 = stack_5[i32(3)];
+                                        }
+                                    case u32(4):
+                                        {
+                                            slot_2 = stack_5[i32(4)];
+                                        }
+                                    case u32(5):
+                                        {
+                                            slot_2 = stack_5[i32(5)];
+                                        }
+                                    case u32(6):
+                                        {
+                                            slot_2 = stack_5[i32(6)];
+                                        }
+                                    case u32(7):
+                                        {
+                                            slot_2 = stack_5[i32(7)];
+                                        }
+                                    case u32(8):
+                                        {
+                                            slot_2 = stack_5[i32(8)];
+                                        }
+                                    case u32(9):
+                                        {
+                                            slot_2 = stack_5[i32(9)];
+                                        }
+                                    case u32(10):
+                                        {
+                                            slot_2 = stack_5[i32(10)];
+                                        }
+                                    case u32(11):
+                                        {
+                                            slot_2 = stack_5[i32(11)];
+                                        }
+                                    case u32(12):
+                                        {
+                                            slot_2 = stack_5[i32(12)];
+                                        }
+                                    case u32(13):
+                                        {
+                                            slot_2 = stack_5[i32(13)];
+                                        }
+                                    case u32(14):
+                                        {
+                                            slot_2 = stack_5[i32(14)];
+                                        }
+                                    case u32(15):
+                                        {
+                                            slot_2 = stack_5[i32(15)];
+                                        }
+                                    default :
+                                        {
+                                            slot_2 = _S376;
+                                        }
+                                    }
+                                }
                             }
                             else
                             {
@@ -6998,7 +9461,84 @@ fn RunMaterialProgram_1( header_5 : MaterialHeader_0,  program_2 : u32,  ctx_4 :
                             }
                             if(write_1)
                             {
-                                slot_2 = stack_5[(o_32 & (u32(15)))];
+                                if(((gMaterialOperandMode_0 & (u32(4)))) == u32(0))
+                                {
+                                    slot_2 = stack_5[(o_32 & (u32(15)))];
+                                }
+                                else
+                                {
+                                    switch((o_32 & (u32(15))))
+                                    {
+                                    case u32(0):
+                                        {
+                                            slot_2 = stack_5[i32(0)];
+                                        }
+                                    case u32(1):
+                                        {
+                                            slot_2 = stack_5[i32(1)];
+                                        }
+                                    case u32(2):
+                                        {
+                                            slot_2 = stack_5[i32(2)];
+                                        }
+                                    case u32(3):
+                                        {
+                                            slot_2 = stack_5[i32(3)];
+                                        }
+                                    case u32(4):
+                                        {
+                                            slot_2 = stack_5[i32(4)];
+                                        }
+                                    case u32(5):
+                                        {
+                                            slot_2 = stack_5[i32(5)];
+                                        }
+                                    case u32(6):
+                                        {
+                                            slot_2 = stack_5[i32(6)];
+                                        }
+                                    case u32(7):
+                                        {
+                                            slot_2 = stack_5[i32(7)];
+                                        }
+                                    case u32(8):
+                                        {
+                                            slot_2 = stack_5[i32(8)];
+                                        }
+                                    case u32(9):
+                                        {
+                                            slot_2 = stack_5[i32(9)];
+                                        }
+                                    case u32(10):
+                                        {
+                                            slot_2 = stack_5[i32(10)];
+                                        }
+                                    case u32(11):
+                                        {
+                                            slot_2 = stack_5[i32(11)];
+                                        }
+                                    case u32(12):
+                                        {
+                                            slot_2 = stack_5[i32(12)];
+                                        }
+                                    case u32(13):
+                                        {
+                                            slot_2 = stack_5[i32(13)];
+                                        }
+                                    case u32(14):
+                                        {
+                                            slot_2 = stack_5[i32(14)];
+                                        }
+                                    case u32(15):
+                                        {
+                                            slot_2 = stack_5[i32(15)];
+                                        }
+                                    default :
+                                        {
+                                            slot_2 = _S376;
+                                        }
+                                    }
+                                }
                             }
                             else
                             {
@@ -7019,7 +9559,84 @@ fn RunMaterialProgram_1( header_5 : MaterialHeader_0,  program_2 : u32,  ctx_4 :
                             }
                             if(write_1)
                             {
-                                slot_2 = stack_5[(o_33 & (u32(15)))];
+                                if(((gMaterialOperandMode_0 & (u32(4)))) == u32(0))
+                                {
+                                    slot_2 = stack_5[(o_33 & (u32(15)))];
+                                }
+                                else
+                                {
+                                    switch((o_33 & (u32(15))))
+                                    {
+                                    case u32(0):
+                                        {
+                                            slot_2 = stack_5[i32(0)];
+                                        }
+                                    case u32(1):
+                                        {
+                                            slot_2 = stack_5[i32(1)];
+                                        }
+                                    case u32(2):
+                                        {
+                                            slot_2 = stack_5[i32(2)];
+                                        }
+                                    case u32(3):
+                                        {
+                                            slot_2 = stack_5[i32(3)];
+                                        }
+                                    case u32(4):
+                                        {
+                                            slot_2 = stack_5[i32(4)];
+                                        }
+                                    case u32(5):
+                                        {
+                                            slot_2 = stack_5[i32(5)];
+                                        }
+                                    case u32(6):
+                                        {
+                                            slot_2 = stack_5[i32(6)];
+                                        }
+                                    case u32(7):
+                                        {
+                                            slot_2 = stack_5[i32(7)];
+                                        }
+                                    case u32(8):
+                                        {
+                                            slot_2 = stack_5[i32(8)];
+                                        }
+                                    case u32(9):
+                                        {
+                                            slot_2 = stack_5[i32(9)];
+                                        }
+                                    case u32(10):
+                                        {
+                                            slot_2 = stack_5[i32(10)];
+                                        }
+                                    case u32(11):
+                                        {
+                                            slot_2 = stack_5[i32(11)];
+                                        }
+                                    case u32(12):
+                                        {
+                                            slot_2 = stack_5[i32(12)];
+                                        }
+                                    case u32(13):
+                                        {
+                                            slot_2 = stack_5[i32(13)];
+                                        }
+                                    case u32(14):
+                                        {
+                                            slot_2 = stack_5[i32(14)];
+                                        }
+                                    case u32(15):
+                                        {
+                                            slot_2 = stack_5[i32(15)];
+                                        }
+                                    default :
+                                        {
+                                            slot_2 = _S376;
+                                        }
+                                    }
+                                }
                             }
                             else
                             {
@@ -7040,7 +9657,84 @@ fn RunMaterialProgram_1( header_5 : MaterialHeader_0,  program_2 : u32,  ctx_4 :
                             }
                             if(write_1)
                             {
-                                slot_2 = stack_5[(o_34 & (u32(15)))];
+                                if(((gMaterialOperandMode_0 & (u32(4)))) == u32(0))
+                                {
+                                    slot_2 = stack_5[(o_34 & (u32(15)))];
+                                }
+                                else
+                                {
+                                    switch((o_34 & (u32(15))))
+                                    {
+                                    case u32(0):
+                                        {
+                                            slot_2 = stack_5[i32(0)];
+                                        }
+                                    case u32(1):
+                                        {
+                                            slot_2 = stack_5[i32(1)];
+                                        }
+                                    case u32(2):
+                                        {
+                                            slot_2 = stack_5[i32(2)];
+                                        }
+                                    case u32(3):
+                                        {
+                                            slot_2 = stack_5[i32(3)];
+                                        }
+                                    case u32(4):
+                                        {
+                                            slot_2 = stack_5[i32(4)];
+                                        }
+                                    case u32(5):
+                                        {
+                                            slot_2 = stack_5[i32(5)];
+                                        }
+                                    case u32(6):
+                                        {
+                                            slot_2 = stack_5[i32(6)];
+                                        }
+                                    case u32(7):
+                                        {
+                                            slot_2 = stack_5[i32(7)];
+                                        }
+                                    case u32(8):
+                                        {
+                                            slot_2 = stack_5[i32(8)];
+                                        }
+                                    case u32(9):
+                                        {
+                                            slot_2 = stack_5[i32(9)];
+                                        }
+                                    case u32(10):
+                                        {
+                                            slot_2 = stack_5[i32(10)];
+                                        }
+                                    case u32(11):
+                                        {
+                                            slot_2 = stack_5[i32(11)];
+                                        }
+                                    case u32(12):
+                                        {
+                                            slot_2 = stack_5[i32(12)];
+                                        }
+                                    case u32(13):
+                                        {
+                                            slot_2 = stack_5[i32(13)];
+                                        }
+                                    case u32(14):
+                                        {
+                                            slot_2 = stack_5[i32(14)];
+                                        }
+                                    case u32(15):
+                                        {
+                                            slot_2 = stack_5[i32(15)];
+                                        }
+                                    default :
+                                        {
+                                            slot_2 = _S376;
+                                        }
+                                    }
+                                }
                             }
                             else
                             {
@@ -7061,7 +9755,84 @@ fn RunMaterialProgram_1( header_5 : MaterialHeader_0,  program_2 : u32,  ctx_4 :
                             }
                             if(write_1)
                             {
-                                slot_2 = stack_5[(o_35 & (u32(15)))];
+                                if(((gMaterialOperandMode_0 & (u32(4)))) == u32(0))
+                                {
+                                    slot_2 = stack_5[(o_35 & (u32(15)))];
+                                }
+                                else
+                                {
+                                    switch((o_35 & (u32(15))))
+                                    {
+                                    case u32(0):
+                                        {
+                                            slot_2 = stack_5[i32(0)];
+                                        }
+                                    case u32(1):
+                                        {
+                                            slot_2 = stack_5[i32(1)];
+                                        }
+                                    case u32(2):
+                                        {
+                                            slot_2 = stack_5[i32(2)];
+                                        }
+                                    case u32(3):
+                                        {
+                                            slot_2 = stack_5[i32(3)];
+                                        }
+                                    case u32(4):
+                                        {
+                                            slot_2 = stack_5[i32(4)];
+                                        }
+                                    case u32(5):
+                                        {
+                                            slot_2 = stack_5[i32(5)];
+                                        }
+                                    case u32(6):
+                                        {
+                                            slot_2 = stack_5[i32(6)];
+                                        }
+                                    case u32(7):
+                                        {
+                                            slot_2 = stack_5[i32(7)];
+                                        }
+                                    case u32(8):
+                                        {
+                                            slot_2 = stack_5[i32(8)];
+                                        }
+                                    case u32(9):
+                                        {
+                                            slot_2 = stack_5[i32(9)];
+                                        }
+                                    case u32(10):
+                                        {
+                                            slot_2 = stack_5[i32(10)];
+                                        }
+                                    case u32(11):
+                                        {
+                                            slot_2 = stack_5[i32(11)];
+                                        }
+                                    case u32(12):
+                                        {
+                                            slot_2 = stack_5[i32(12)];
+                                        }
+                                    case u32(13):
+                                        {
+                                            slot_2 = stack_5[i32(13)];
+                                        }
+                                    case u32(14):
+                                        {
+                                            slot_2 = stack_5[i32(14)];
+                                        }
+                                    case u32(15):
+                                        {
+                                            slot_2 = stack_5[i32(15)];
+                                        }
+                                    default :
+                                        {
+                                            slot_2 = _S376;
+                                        }
+                                    }
+                                }
                             }
                             else
                             {
@@ -7085,7 +9856,84 @@ fn RunMaterialProgram_1( header_5 : MaterialHeader_0,  program_2 : u32,  ctx_4 :
                             }
                             if(write_1)
                             {
-                                slot_2 = stack_5[(o_36 & (u32(15)))];
+                                if(((gMaterialOperandMode_0 & (u32(4)))) == u32(0))
+                                {
+                                    slot_2 = stack_5[(o_36 & (u32(15)))];
+                                }
+                                else
+                                {
+                                    switch((o_36 & (u32(15))))
+                                    {
+                                    case u32(0):
+                                        {
+                                            slot_2 = stack_5[i32(0)];
+                                        }
+                                    case u32(1):
+                                        {
+                                            slot_2 = stack_5[i32(1)];
+                                        }
+                                    case u32(2):
+                                        {
+                                            slot_2 = stack_5[i32(2)];
+                                        }
+                                    case u32(3):
+                                        {
+                                            slot_2 = stack_5[i32(3)];
+                                        }
+                                    case u32(4):
+                                        {
+                                            slot_2 = stack_5[i32(4)];
+                                        }
+                                    case u32(5):
+                                        {
+                                            slot_2 = stack_5[i32(5)];
+                                        }
+                                    case u32(6):
+                                        {
+                                            slot_2 = stack_5[i32(6)];
+                                        }
+                                    case u32(7):
+                                        {
+                                            slot_2 = stack_5[i32(7)];
+                                        }
+                                    case u32(8):
+                                        {
+                                            slot_2 = stack_5[i32(8)];
+                                        }
+                                    case u32(9):
+                                        {
+                                            slot_2 = stack_5[i32(9)];
+                                        }
+                                    case u32(10):
+                                        {
+                                            slot_2 = stack_5[i32(10)];
+                                        }
+                                    case u32(11):
+                                        {
+                                            slot_2 = stack_5[i32(11)];
+                                        }
+                                    case u32(12):
+                                        {
+                                            slot_2 = stack_5[i32(12)];
+                                        }
+                                    case u32(13):
+                                        {
+                                            slot_2 = stack_5[i32(13)];
+                                        }
+                                    case u32(14):
+                                        {
+                                            slot_2 = stack_5[i32(14)];
+                                        }
+                                    case u32(15):
+                                        {
+                                            slot_2 = stack_5[i32(15)];
+                                        }
+                                    default :
+                                        {
+                                            slot_2 = _S376;
+                                        }
+                                    }
+                                }
                             }
                             else
                             {
@@ -7106,7 +9954,84 @@ fn RunMaterialProgram_1( header_5 : MaterialHeader_0,  program_2 : u32,  ctx_4 :
                             }
                             if(write_1)
                             {
-                                slot_2 = stack_5[(o_37 & (u32(15)))];
+                                if(((gMaterialOperandMode_0 & (u32(4)))) == u32(0))
+                                {
+                                    slot_2 = stack_5[(o_37 & (u32(15)))];
+                                }
+                                else
+                                {
+                                    switch((o_37 & (u32(15))))
+                                    {
+                                    case u32(0):
+                                        {
+                                            slot_2 = stack_5[i32(0)];
+                                        }
+                                    case u32(1):
+                                        {
+                                            slot_2 = stack_5[i32(1)];
+                                        }
+                                    case u32(2):
+                                        {
+                                            slot_2 = stack_5[i32(2)];
+                                        }
+                                    case u32(3):
+                                        {
+                                            slot_2 = stack_5[i32(3)];
+                                        }
+                                    case u32(4):
+                                        {
+                                            slot_2 = stack_5[i32(4)];
+                                        }
+                                    case u32(5):
+                                        {
+                                            slot_2 = stack_5[i32(5)];
+                                        }
+                                    case u32(6):
+                                        {
+                                            slot_2 = stack_5[i32(6)];
+                                        }
+                                    case u32(7):
+                                        {
+                                            slot_2 = stack_5[i32(7)];
+                                        }
+                                    case u32(8):
+                                        {
+                                            slot_2 = stack_5[i32(8)];
+                                        }
+                                    case u32(9):
+                                        {
+                                            slot_2 = stack_5[i32(9)];
+                                        }
+                                    case u32(10):
+                                        {
+                                            slot_2 = stack_5[i32(10)];
+                                        }
+                                    case u32(11):
+                                        {
+                                            slot_2 = stack_5[i32(11)];
+                                        }
+                                    case u32(12):
+                                        {
+                                            slot_2 = stack_5[i32(12)];
+                                        }
+                                    case u32(13):
+                                        {
+                                            slot_2 = stack_5[i32(13)];
+                                        }
+                                    case u32(14):
+                                        {
+                                            slot_2 = stack_5[i32(14)];
+                                        }
+                                    case u32(15):
+                                        {
+                                            slot_2 = stack_5[i32(15)];
+                                        }
+                                    default :
+                                        {
+                                            slot_2 = _S376;
+                                        }
+                                    }
+                                }
                             }
                             else
                             {
@@ -7127,7 +10052,84 @@ fn RunMaterialProgram_1( header_5 : MaterialHeader_0,  program_2 : u32,  ctx_4 :
                             }
                             if(write_1)
                             {
-                                slot_2 = stack_5[(o_38 & (u32(15)))];
+                                if(((gMaterialOperandMode_0 & (u32(4)))) == u32(0))
+                                {
+                                    slot_2 = stack_5[(o_38 & (u32(15)))];
+                                }
+                                else
+                                {
+                                    switch((o_38 & (u32(15))))
+                                    {
+                                    case u32(0):
+                                        {
+                                            slot_2 = stack_5[i32(0)];
+                                        }
+                                    case u32(1):
+                                        {
+                                            slot_2 = stack_5[i32(1)];
+                                        }
+                                    case u32(2):
+                                        {
+                                            slot_2 = stack_5[i32(2)];
+                                        }
+                                    case u32(3):
+                                        {
+                                            slot_2 = stack_5[i32(3)];
+                                        }
+                                    case u32(4):
+                                        {
+                                            slot_2 = stack_5[i32(4)];
+                                        }
+                                    case u32(5):
+                                        {
+                                            slot_2 = stack_5[i32(5)];
+                                        }
+                                    case u32(6):
+                                        {
+                                            slot_2 = stack_5[i32(6)];
+                                        }
+                                    case u32(7):
+                                        {
+                                            slot_2 = stack_5[i32(7)];
+                                        }
+                                    case u32(8):
+                                        {
+                                            slot_2 = stack_5[i32(8)];
+                                        }
+                                    case u32(9):
+                                        {
+                                            slot_2 = stack_5[i32(9)];
+                                        }
+                                    case u32(10):
+                                        {
+                                            slot_2 = stack_5[i32(10)];
+                                        }
+                                    case u32(11):
+                                        {
+                                            slot_2 = stack_5[i32(11)];
+                                        }
+                                    case u32(12):
+                                        {
+                                            slot_2 = stack_5[i32(12)];
+                                        }
+                                    case u32(13):
+                                        {
+                                            slot_2 = stack_5[i32(13)];
+                                        }
+                                    case u32(14):
+                                        {
+                                            slot_2 = stack_5[i32(14)];
+                                        }
+                                    case u32(15):
+                                        {
+                                            slot_2 = stack_5[i32(15)];
+                                        }
+                                    default :
+                                        {
+                                            slot_2 = _S376;
+                                        }
+                                    }
+                                }
                             }
                             else
                             {
@@ -7148,7 +10150,84 @@ fn RunMaterialProgram_1( header_5 : MaterialHeader_0,  program_2 : u32,  ctx_4 :
                             }
                             if(write_1)
                             {
-                                slot_2 = stack_5[(o_39 & (u32(15)))];
+                                if(((gMaterialOperandMode_0 & (u32(4)))) == u32(0))
+                                {
+                                    slot_2 = stack_5[(o_39 & (u32(15)))];
+                                }
+                                else
+                                {
+                                    switch((o_39 & (u32(15))))
+                                    {
+                                    case u32(0):
+                                        {
+                                            slot_2 = stack_5[i32(0)];
+                                        }
+                                    case u32(1):
+                                        {
+                                            slot_2 = stack_5[i32(1)];
+                                        }
+                                    case u32(2):
+                                        {
+                                            slot_2 = stack_5[i32(2)];
+                                        }
+                                    case u32(3):
+                                        {
+                                            slot_2 = stack_5[i32(3)];
+                                        }
+                                    case u32(4):
+                                        {
+                                            slot_2 = stack_5[i32(4)];
+                                        }
+                                    case u32(5):
+                                        {
+                                            slot_2 = stack_5[i32(5)];
+                                        }
+                                    case u32(6):
+                                        {
+                                            slot_2 = stack_5[i32(6)];
+                                        }
+                                    case u32(7):
+                                        {
+                                            slot_2 = stack_5[i32(7)];
+                                        }
+                                    case u32(8):
+                                        {
+                                            slot_2 = stack_5[i32(8)];
+                                        }
+                                    case u32(9):
+                                        {
+                                            slot_2 = stack_5[i32(9)];
+                                        }
+                                    case u32(10):
+                                        {
+                                            slot_2 = stack_5[i32(10)];
+                                        }
+                                    case u32(11):
+                                        {
+                                            slot_2 = stack_5[i32(11)];
+                                        }
+                                    case u32(12):
+                                        {
+                                            slot_2 = stack_5[i32(12)];
+                                        }
+                                    case u32(13):
+                                        {
+                                            slot_2 = stack_5[i32(13)];
+                                        }
+                                    case u32(14):
+                                        {
+                                            slot_2 = stack_5[i32(14)];
+                                        }
+                                    case u32(15):
+                                        {
+                                            slot_2 = stack_5[i32(15)];
+                                        }
+                                    default :
+                                        {
+                                            slot_2 = _S376;
+                                        }
+                                    }
+                                }
                             }
                             else
                             {
@@ -7169,7 +10248,84 @@ fn RunMaterialProgram_1( header_5 : MaterialHeader_0,  program_2 : u32,  ctx_4 :
                             }
                             if(write_1)
                             {
-                                slot_2 = stack_5[(o_40 & (u32(15)))];
+                                if(((gMaterialOperandMode_0 & (u32(4)))) == u32(0))
+                                {
+                                    slot_2 = stack_5[(o_40 & (u32(15)))];
+                                }
+                                else
+                                {
+                                    switch((o_40 & (u32(15))))
+                                    {
+                                    case u32(0):
+                                        {
+                                            slot_2 = stack_5[i32(0)];
+                                        }
+                                    case u32(1):
+                                        {
+                                            slot_2 = stack_5[i32(1)];
+                                        }
+                                    case u32(2):
+                                        {
+                                            slot_2 = stack_5[i32(2)];
+                                        }
+                                    case u32(3):
+                                        {
+                                            slot_2 = stack_5[i32(3)];
+                                        }
+                                    case u32(4):
+                                        {
+                                            slot_2 = stack_5[i32(4)];
+                                        }
+                                    case u32(5):
+                                        {
+                                            slot_2 = stack_5[i32(5)];
+                                        }
+                                    case u32(6):
+                                        {
+                                            slot_2 = stack_5[i32(6)];
+                                        }
+                                    case u32(7):
+                                        {
+                                            slot_2 = stack_5[i32(7)];
+                                        }
+                                    case u32(8):
+                                        {
+                                            slot_2 = stack_5[i32(8)];
+                                        }
+                                    case u32(9):
+                                        {
+                                            slot_2 = stack_5[i32(9)];
+                                        }
+                                    case u32(10):
+                                        {
+                                            slot_2 = stack_5[i32(10)];
+                                        }
+                                    case u32(11):
+                                        {
+                                            slot_2 = stack_5[i32(11)];
+                                        }
+                                    case u32(12):
+                                        {
+                                            slot_2 = stack_5[i32(12)];
+                                        }
+                                    case u32(13):
+                                        {
+                                            slot_2 = stack_5[i32(13)];
+                                        }
+                                    case u32(14):
+                                        {
+                                            slot_2 = stack_5[i32(14)];
+                                        }
+                                    case u32(15):
+                                        {
+                                            slot_2 = stack_5[i32(15)];
+                                        }
+                                    default :
+                                        {
+                                            slot_2 = _S376;
+                                        }
+                                    }
+                                }
                             }
                             else
                             {
@@ -7190,7 +10346,84 @@ fn RunMaterialProgram_1( header_5 : MaterialHeader_0,  program_2 : u32,  ctx_4 :
                             }
                             if(write_1)
                             {
-                                slot_2 = stack_5[(o_41 & (u32(15)))];
+                                if(((gMaterialOperandMode_0 & (u32(4)))) == u32(0))
+                                {
+                                    slot_2 = stack_5[(o_41 & (u32(15)))];
+                                }
+                                else
+                                {
+                                    switch((o_41 & (u32(15))))
+                                    {
+                                    case u32(0):
+                                        {
+                                            slot_2 = stack_5[i32(0)];
+                                        }
+                                    case u32(1):
+                                        {
+                                            slot_2 = stack_5[i32(1)];
+                                        }
+                                    case u32(2):
+                                        {
+                                            slot_2 = stack_5[i32(2)];
+                                        }
+                                    case u32(3):
+                                        {
+                                            slot_2 = stack_5[i32(3)];
+                                        }
+                                    case u32(4):
+                                        {
+                                            slot_2 = stack_5[i32(4)];
+                                        }
+                                    case u32(5):
+                                        {
+                                            slot_2 = stack_5[i32(5)];
+                                        }
+                                    case u32(6):
+                                        {
+                                            slot_2 = stack_5[i32(6)];
+                                        }
+                                    case u32(7):
+                                        {
+                                            slot_2 = stack_5[i32(7)];
+                                        }
+                                    case u32(8):
+                                        {
+                                            slot_2 = stack_5[i32(8)];
+                                        }
+                                    case u32(9):
+                                        {
+                                            slot_2 = stack_5[i32(9)];
+                                        }
+                                    case u32(10):
+                                        {
+                                            slot_2 = stack_5[i32(10)];
+                                        }
+                                    case u32(11):
+                                        {
+                                            slot_2 = stack_5[i32(11)];
+                                        }
+                                    case u32(12):
+                                        {
+                                            slot_2 = stack_5[i32(12)];
+                                        }
+                                    case u32(13):
+                                        {
+                                            slot_2 = stack_5[i32(13)];
+                                        }
+                                    case u32(14):
+                                        {
+                                            slot_2 = stack_5[i32(14)];
+                                        }
+                                    case u32(15):
+                                        {
+                                            slot_2 = stack_5[i32(15)];
+                                        }
+                                    default :
+                                        {
+                                            slot_2 = _S376;
+                                        }
+                                    }
+                                }
                             }
                             else
                             {
@@ -7211,7 +10444,84 @@ fn RunMaterialProgram_1( header_5 : MaterialHeader_0,  program_2 : u32,  ctx_4 :
                             }
                             if(write_1)
                             {
-                                slot_2 = stack_5[(o_42 & (u32(15)))];
+                                if(((gMaterialOperandMode_0 & (u32(4)))) == u32(0))
+                                {
+                                    slot_2 = stack_5[(o_42 & (u32(15)))];
+                                }
+                                else
+                                {
+                                    switch((o_42 & (u32(15))))
+                                    {
+                                    case u32(0):
+                                        {
+                                            slot_2 = stack_5[i32(0)];
+                                        }
+                                    case u32(1):
+                                        {
+                                            slot_2 = stack_5[i32(1)];
+                                        }
+                                    case u32(2):
+                                        {
+                                            slot_2 = stack_5[i32(2)];
+                                        }
+                                    case u32(3):
+                                        {
+                                            slot_2 = stack_5[i32(3)];
+                                        }
+                                    case u32(4):
+                                        {
+                                            slot_2 = stack_5[i32(4)];
+                                        }
+                                    case u32(5):
+                                        {
+                                            slot_2 = stack_5[i32(5)];
+                                        }
+                                    case u32(6):
+                                        {
+                                            slot_2 = stack_5[i32(6)];
+                                        }
+                                    case u32(7):
+                                        {
+                                            slot_2 = stack_5[i32(7)];
+                                        }
+                                    case u32(8):
+                                        {
+                                            slot_2 = stack_5[i32(8)];
+                                        }
+                                    case u32(9):
+                                        {
+                                            slot_2 = stack_5[i32(9)];
+                                        }
+                                    case u32(10):
+                                        {
+                                            slot_2 = stack_5[i32(10)];
+                                        }
+                                    case u32(11):
+                                        {
+                                            slot_2 = stack_5[i32(11)];
+                                        }
+                                    case u32(12):
+                                        {
+                                            slot_2 = stack_5[i32(12)];
+                                        }
+                                    case u32(13):
+                                        {
+                                            slot_2 = stack_5[i32(13)];
+                                        }
+                                    case u32(14):
+                                        {
+                                            slot_2 = stack_5[i32(14)];
+                                        }
+                                    case u32(15):
+                                        {
+                                            slot_2 = stack_5[i32(15)];
+                                        }
+                                    default :
+                                        {
+                                            slot_2 = _S376;
+                                        }
+                                    }
+                                }
                             }
                             else
                             {
@@ -7232,7 +10542,84 @@ fn RunMaterialProgram_1( header_5 : MaterialHeader_0,  program_2 : u32,  ctx_4 :
                             }
                             if(write_1)
                             {
-                                slot_2 = stack_5[(o_43 & (u32(15)))];
+                                if(((gMaterialOperandMode_0 & (u32(4)))) == u32(0))
+                                {
+                                    slot_2 = stack_5[(o_43 & (u32(15)))];
+                                }
+                                else
+                                {
+                                    switch((o_43 & (u32(15))))
+                                    {
+                                    case u32(0):
+                                        {
+                                            slot_2 = stack_5[i32(0)];
+                                        }
+                                    case u32(1):
+                                        {
+                                            slot_2 = stack_5[i32(1)];
+                                        }
+                                    case u32(2):
+                                        {
+                                            slot_2 = stack_5[i32(2)];
+                                        }
+                                    case u32(3):
+                                        {
+                                            slot_2 = stack_5[i32(3)];
+                                        }
+                                    case u32(4):
+                                        {
+                                            slot_2 = stack_5[i32(4)];
+                                        }
+                                    case u32(5):
+                                        {
+                                            slot_2 = stack_5[i32(5)];
+                                        }
+                                    case u32(6):
+                                        {
+                                            slot_2 = stack_5[i32(6)];
+                                        }
+                                    case u32(7):
+                                        {
+                                            slot_2 = stack_5[i32(7)];
+                                        }
+                                    case u32(8):
+                                        {
+                                            slot_2 = stack_5[i32(8)];
+                                        }
+                                    case u32(9):
+                                        {
+                                            slot_2 = stack_5[i32(9)];
+                                        }
+                                    case u32(10):
+                                        {
+                                            slot_2 = stack_5[i32(10)];
+                                        }
+                                    case u32(11):
+                                        {
+                                            slot_2 = stack_5[i32(11)];
+                                        }
+                                    case u32(12):
+                                        {
+                                            slot_2 = stack_5[i32(12)];
+                                        }
+                                    case u32(13):
+                                        {
+                                            slot_2 = stack_5[i32(13)];
+                                        }
+                                    case u32(14):
+                                        {
+                                            slot_2 = stack_5[i32(14)];
+                                        }
+                                    case u32(15):
+                                        {
+                                            slot_2 = stack_5[i32(15)];
+                                        }
+                                    default :
+                                        {
+                                            slot_2 = _S376;
+                                        }
+                                    }
+                                }
                             }
                             else
                             {
@@ -7256,7 +10643,84 @@ fn RunMaterialProgram_1( header_5 : MaterialHeader_0,  program_2 : u32,  ctx_4 :
                             }
                             if(write_1)
                             {
-                                slot_2 = stack_5[(o_44 & (u32(15)))];
+                                if(((gMaterialOperandMode_0 & (u32(4)))) == u32(0))
+                                {
+                                    slot_2 = stack_5[(o_44 & (u32(15)))];
+                                }
+                                else
+                                {
+                                    switch((o_44 & (u32(15))))
+                                    {
+                                    case u32(0):
+                                        {
+                                            slot_2 = stack_5[i32(0)];
+                                        }
+                                    case u32(1):
+                                        {
+                                            slot_2 = stack_5[i32(1)];
+                                        }
+                                    case u32(2):
+                                        {
+                                            slot_2 = stack_5[i32(2)];
+                                        }
+                                    case u32(3):
+                                        {
+                                            slot_2 = stack_5[i32(3)];
+                                        }
+                                    case u32(4):
+                                        {
+                                            slot_2 = stack_5[i32(4)];
+                                        }
+                                    case u32(5):
+                                        {
+                                            slot_2 = stack_5[i32(5)];
+                                        }
+                                    case u32(6):
+                                        {
+                                            slot_2 = stack_5[i32(6)];
+                                        }
+                                    case u32(7):
+                                        {
+                                            slot_2 = stack_5[i32(7)];
+                                        }
+                                    case u32(8):
+                                        {
+                                            slot_2 = stack_5[i32(8)];
+                                        }
+                                    case u32(9):
+                                        {
+                                            slot_2 = stack_5[i32(9)];
+                                        }
+                                    case u32(10):
+                                        {
+                                            slot_2 = stack_5[i32(10)];
+                                        }
+                                    case u32(11):
+                                        {
+                                            slot_2 = stack_5[i32(11)];
+                                        }
+                                    case u32(12):
+                                        {
+                                            slot_2 = stack_5[i32(12)];
+                                        }
+                                    case u32(13):
+                                        {
+                                            slot_2 = stack_5[i32(13)];
+                                        }
+                                    case u32(14):
+                                        {
+                                            slot_2 = stack_5[i32(14)];
+                                        }
+                                    case u32(15):
+                                        {
+                                            slot_2 = stack_5[i32(15)];
+                                        }
+                                    default :
+                                        {
+                                            slot_2 = _S376;
+                                        }
+                                    }
+                                }
                             }
                             else
                             {
@@ -7277,7 +10741,84 @@ fn RunMaterialProgram_1( header_5 : MaterialHeader_0,  program_2 : u32,  ctx_4 :
                             }
                             if(write_1)
                             {
-                                slot_2 = stack_5[(o_45 & (u32(15)))];
+                                if(((gMaterialOperandMode_0 & (u32(4)))) == u32(0))
+                                {
+                                    slot_2 = stack_5[(o_45 & (u32(15)))];
+                                }
+                                else
+                                {
+                                    switch((o_45 & (u32(15))))
+                                    {
+                                    case u32(0):
+                                        {
+                                            slot_2 = stack_5[i32(0)];
+                                        }
+                                    case u32(1):
+                                        {
+                                            slot_2 = stack_5[i32(1)];
+                                        }
+                                    case u32(2):
+                                        {
+                                            slot_2 = stack_5[i32(2)];
+                                        }
+                                    case u32(3):
+                                        {
+                                            slot_2 = stack_5[i32(3)];
+                                        }
+                                    case u32(4):
+                                        {
+                                            slot_2 = stack_5[i32(4)];
+                                        }
+                                    case u32(5):
+                                        {
+                                            slot_2 = stack_5[i32(5)];
+                                        }
+                                    case u32(6):
+                                        {
+                                            slot_2 = stack_5[i32(6)];
+                                        }
+                                    case u32(7):
+                                        {
+                                            slot_2 = stack_5[i32(7)];
+                                        }
+                                    case u32(8):
+                                        {
+                                            slot_2 = stack_5[i32(8)];
+                                        }
+                                    case u32(9):
+                                        {
+                                            slot_2 = stack_5[i32(9)];
+                                        }
+                                    case u32(10):
+                                        {
+                                            slot_2 = stack_5[i32(10)];
+                                        }
+                                    case u32(11):
+                                        {
+                                            slot_2 = stack_5[i32(11)];
+                                        }
+                                    case u32(12):
+                                        {
+                                            slot_2 = stack_5[i32(12)];
+                                        }
+                                    case u32(13):
+                                        {
+                                            slot_2 = stack_5[i32(13)];
+                                        }
+                                    case u32(14):
+                                        {
+                                            slot_2 = stack_5[i32(14)];
+                                        }
+                                    case u32(15):
+                                        {
+                                            slot_2 = stack_5[i32(15)];
+                                        }
+                                    default :
+                                        {
+                                            slot_2 = _S376;
+                                        }
+                                    }
+                                }
                             }
                             else
                             {
@@ -7298,7 +10839,84 @@ fn RunMaterialProgram_1( header_5 : MaterialHeader_0,  program_2 : u32,  ctx_4 :
                             }
                             if(write_1)
                             {
-                                slot_2 = stack_5[(o_46 & (u32(15)))];
+                                if(((gMaterialOperandMode_0 & (u32(4)))) == u32(0))
+                                {
+                                    slot_2 = stack_5[(o_46 & (u32(15)))];
+                                }
+                                else
+                                {
+                                    switch((o_46 & (u32(15))))
+                                    {
+                                    case u32(0):
+                                        {
+                                            slot_2 = stack_5[i32(0)];
+                                        }
+                                    case u32(1):
+                                        {
+                                            slot_2 = stack_5[i32(1)];
+                                        }
+                                    case u32(2):
+                                        {
+                                            slot_2 = stack_5[i32(2)];
+                                        }
+                                    case u32(3):
+                                        {
+                                            slot_2 = stack_5[i32(3)];
+                                        }
+                                    case u32(4):
+                                        {
+                                            slot_2 = stack_5[i32(4)];
+                                        }
+                                    case u32(5):
+                                        {
+                                            slot_2 = stack_5[i32(5)];
+                                        }
+                                    case u32(6):
+                                        {
+                                            slot_2 = stack_5[i32(6)];
+                                        }
+                                    case u32(7):
+                                        {
+                                            slot_2 = stack_5[i32(7)];
+                                        }
+                                    case u32(8):
+                                        {
+                                            slot_2 = stack_5[i32(8)];
+                                        }
+                                    case u32(9):
+                                        {
+                                            slot_2 = stack_5[i32(9)];
+                                        }
+                                    case u32(10):
+                                        {
+                                            slot_2 = stack_5[i32(10)];
+                                        }
+                                    case u32(11):
+                                        {
+                                            slot_2 = stack_5[i32(11)];
+                                        }
+                                    case u32(12):
+                                        {
+                                            slot_2 = stack_5[i32(12)];
+                                        }
+                                    case u32(13):
+                                        {
+                                            slot_2 = stack_5[i32(13)];
+                                        }
+                                    case u32(14):
+                                        {
+                                            slot_2 = stack_5[i32(14)];
+                                        }
+                                    case u32(15):
+                                        {
+                                            slot_2 = stack_5[i32(15)];
+                                        }
+                                    default :
+                                        {
+                                            slot_2 = _S376;
+                                        }
+                                    }
+                                }
                             }
                             else
                             {
@@ -7322,7 +10940,84 @@ fn RunMaterialProgram_1( header_5 : MaterialHeader_0,  program_2 : u32,  ctx_4 :
                             }
                             if(write_1)
                             {
-                                slot_2 = stack_5[(o_47 & (u32(15)))];
+                                if(((gMaterialOperandMode_0 & (u32(4)))) == u32(0))
+                                {
+                                    slot_2 = stack_5[(o_47 & (u32(15)))];
+                                }
+                                else
+                                {
+                                    switch((o_47 & (u32(15))))
+                                    {
+                                    case u32(0):
+                                        {
+                                            slot_2 = stack_5[i32(0)];
+                                        }
+                                    case u32(1):
+                                        {
+                                            slot_2 = stack_5[i32(1)];
+                                        }
+                                    case u32(2):
+                                        {
+                                            slot_2 = stack_5[i32(2)];
+                                        }
+                                    case u32(3):
+                                        {
+                                            slot_2 = stack_5[i32(3)];
+                                        }
+                                    case u32(4):
+                                        {
+                                            slot_2 = stack_5[i32(4)];
+                                        }
+                                    case u32(5):
+                                        {
+                                            slot_2 = stack_5[i32(5)];
+                                        }
+                                    case u32(6):
+                                        {
+                                            slot_2 = stack_5[i32(6)];
+                                        }
+                                    case u32(7):
+                                        {
+                                            slot_2 = stack_5[i32(7)];
+                                        }
+                                    case u32(8):
+                                        {
+                                            slot_2 = stack_5[i32(8)];
+                                        }
+                                    case u32(9):
+                                        {
+                                            slot_2 = stack_5[i32(9)];
+                                        }
+                                    case u32(10):
+                                        {
+                                            slot_2 = stack_5[i32(10)];
+                                        }
+                                    case u32(11):
+                                        {
+                                            slot_2 = stack_5[i32(11)];
+                                        }
+                                    case u32(12):
+                                        {
+                                            slot_2 = stack_5[i32(12)];
+                                        }
+                                    case u32(13):
+                                        {
+                                            slot_2 = stack_5[i32(13)];
+                                        }
+                                    case u32(14):
+                                        {
+                                            slot_2 = stack_5[i32(14)];
+                                        }
+                                    case u32(15):
+                                        {
+                                            slot_2 = stack_5[i32(15)];
+                                        }
+                                    default :
+                                        {
+                                            slot_2 = _S376;
+                                        }
+                                    }
+                                }
                             }
                             else
                             {
@@ -7343,7 +11038,84 @@ fn RunMaterialProgram_1( header_5 : MaterialHeader_0,  program_2 : u32,  ctx_4 :
                             }
                             if(write_1)
                             {
-                                slot_2 = stack_5[(o_48 & (u32(15)))];
+                                if(((gMaterialOperandMode_0 & (u32(4)))) == u32(0))
+                                {
+                                    slot_2 = stack_5[(o_48 & (u32(15)))];
+                                }
+                                else
+                                {
+                                    switch((o_48 & (u32(15))))
+                                    {
+                                    case u32(0):
+                                        {
+                                            slot_2 = stack_5[i32(0)];
+                                        }
+                                    case u32(1):
+                                        {
+                                            slot_2 = stack_5[i32(1)];
+                                        }
+                                    case u32(2):
+                                        {
+                                            slot_2 = stack_5[i32(2)];
+                                        }
+                                    case u32(3):
+                                        {
+                                            slot_2 = stack_5[i32(3)];
+                                        }
+                                    case u32(4):
+                                        {
+                                            slot_2 = stack_5[i32(4)];
+                                        }
+                                    case u32(5):
+                                        {
+                                            slot_2 = stack_5[i32(5)];
+                                        }
+                                    case u32(6):
+                                        {
+                                            slot_2 = stack_5[i32(6)];
+                                        }
+                                    case u32(7):
+                                        {
+                                            slot_2 = stack_5[i32(7)];
+                                        }
+                                    case u32(8):
+                                        {
+                                            slot_2 = stack_5[i32(8)];
+                                        }
+                                    case u32(9):
+                                        {
+                                            slot_2 = stack_5[i32(9)];
+                                        }
+                                    case u32(10):
+                                        {
+                                            slot_2 = stack_5[i32(10)];
+                                        }
+                                    case u32(11):
+                                        {
+                                            slot_2 = stack_5[i32(11)];
+                                        }
+                                    case u32(12):
+                                        {
+                                            slot_2 = stack_5[i32(12)];
+                                        }
+                                    case u32(13):
+                                        {
+                                            slot_2 = stack_5[i32(13)];
+                                        }
+                                    case u32(14):
+                                        {
+                                            slot_2 = stack_5[i32(14)];
+                                        }
+                                    case u32(15):
+                                        {
+                                            slot_2 = stack_5[i32(15)];
+                                        }
+                                    default :
+                                        {
+                                            slot_2 = _S376;
+                                        }
+                                    }
+                                }
                             }
                             else
                             {
@@ -7364,7 +11136,84 @@ fn RunMaterialProgram_1( header_5 : MaterialHeader_0,  program_2 : u32,  ctx_4 :
                             }
                             if(write_1)
                             {
-                                slot_2 = stack_5[(o_49 & (u32(15)))];
+                                if(((gMaterialOperandMode_0 & (u32(4)))) == u32(0))
+                                {
+                                    slot_2 = stack_5[(o_49 & (u32(15)))];
+                                }
+                                else
+                                {
+                                    switch((o_49 & (u32(15))))
+                                    {
+                                    case u32(0):
+                                        {
+                                            slot_2 = stack_5[i32(0)];
+                                        }
+                                    case u32(1):
+                                        {
+                                            slot_2 = stack_5[i32(1)];
+                                        }
+                                    case u32(2):
+                                        {
+                                            slot_2 = stack_5[i32(2)];
+                                        }
+                                    case u32(3):
+                                        {
+                                            slot_2 = stack_5[i32(3)];
+                                        }
+                                    case u32(4):
+                                        {
+                                            slot_2 = stack_5[i32(4)];
+                                        }
+                                    case u32(5):
+                                        {
+                                            slot_2 = stack_5[i32(5)];
+                                        }
+                                    case u32(6):
+                                        {
+                                            slot_2 = stack_5[i32(6)];
+                                        }
+                                    case u32(7):
+                                        {
+                                            slot_2 = stack_5[i32(7)];
+                                        }
+                                    case u32(8):
+                                        {
+                                            slot_2 = stack_5[i32(8)];
+                                        }
+                                    case u32(9):
+                                        {
+                                            slot_2 = stack_5[i32(9)];
+                                        }
+                                    case u32(10):
+                                        {
+                                            slot_2 = stack_5[i32(10)];
+                                        }
+                                    case u32(11):
+                                        {
+                                            slot_2 = stack_5[i32(11)];
+                                        }
+                                    case u32(12):
+                                        {
+                                            slot_2 = stack_5[i32(12)];
+                                        }
+                                    case u32(13):
+                                        {
+                                            slot_2 = stack_5[i32(13)];
+                                        }
+                                    case u32(14):
+                                        {
+                                            slot_2 = stack_5[i32(14)];
+                                        }
+                                    case u32(15):
+                                        {
+                                            slot_2 = stack_5[i32(15)];
+                                        }
+                                    default :
+                                        {
+                                            slot_2 = _S376;
+                                        }
+                                    }
+                                }
                             }
                             else
                             {
@@ -7388,7 +11237,84 @@ fn RunMaterialProgram_1( header_5 : MaterialHeader_0,  program_2 : u32,  ctx_4 :
                             }
                             if(write_1)
                             {
-                                slot_2 = stack_5[(o_50 & (u32(15)))];
+                                if(((gMaterialOperandMode_0 & (u32(4)))) == u32(0))
+                                {
+                                    slot_2 = stack_5[(o_50 & (u32(15)))];
+                                }
+                                else
+                                {
+                                    switch((o_50 & (u32(15))))
+                                    {
+                                    case u32(0):
+                                        {
+                                            slot_2 = stack_5[i32(0)];
+                                        }
+                                    case u32(1):
+                                        {
+                                            slot_2 = stack_5[i32(1)];
+                                        }
+                                    case u32(2):
+                                        {
+                                            slot_2 = stack_5[i32(2)];
+                                        }
+                                    case u32(3):
+                                        {
+                                            slot_2 = stack_5[i32(3)];
+                                        }
+                                    case u32(4):
+                                        {
+                                            slot_2 = stack_5[i32(4)];
+                                        }
+                                    case u32(5):
+                                        {
+                                            slot_2 = stack_5[i32(5)];
+                                        }
+                                    case u32(6):
+                                        {
+                                            slot_2 = stack_5[i32(6)];
+                                        }
+                                    case u32(7):
+                                        {
+                                            slot_2 = stack_5[i32(7)];
+                                        }
+                                    case u32(8):
+                                        {
+                                            slot_2 = stack_5[i32(8)];
+                                        }
+                                    case u32(9):
+                                        {
+                                            slot_2 = stack_5[i32(9)];
+                                        }
+                                    case u32(10):
+                                        {
+                                            slot_2 = stack_5[i32(10)];
+                                        }
+                                    case u32(11):
+                                        {
+                                            slot_2 = stack_5[i32(11)];
+                                        }
+                                    case u32(12):
+                                        {
+                                            slot_2 = stack_5[i32(12)];
+                                        }
+                                    case u32(13):
+                                        {
+                                            slot_2 = stack_5[i32(13)];
+                                        }
+                                    case u32(14):
+                                        {
+                                            slot_2 = stack_5[i32(14)];
+                                        }
+                                    case u32(15):
+                                        {
+                                            slot_2 = stack_5[i32(15)];
+                                        }
+                                    default :
+                                        {
+                                            slot_2 = _S376;
+                                        }
+                                    }
+                                }
                             }
                             else
                             {
@@ -7409,7 +11335,84 @@ fn RunMaterialProgram_1( header_5 : MaterialHeader_0,  program_2 : u32,  ctx_4 :
                             }
                             if(write_1)
                             {
-                                slot_2 = stack_5[(o_51 & (u32(15)))];
+                                if(((gMaterialOperandMode_0 & (u32(4)))) == u32(0))
+                                {
+                                    slot_2 = stack_5[(o_51 & (u32(15)))];
+                                }
+                                else
+                                {
+                                    switch((o_51 & (u32(15))))
+                                    {
+                                    case u32(0):
+                                        {
+                                            slot_2 = stack_5[i32(0)];
+                                        }
+                                    case u32(1):
+                                        {
+                                            slot_2 = stack_5[i32(1)];
+                                        }
+                                    case u32(2):
+                                        {
+                                            slot_2 = stack_5[i32(2)];
+                                        }
+                                    case u32(3):
+                                        {
+                                            slot_2 = stack_5[i32(3)];
+                                        }
+                                    case u32(4):
+                                        {
+                                            slot_2 = stack_5[i32(4)];
+                                        }
+                                    case u32(5):
+                                        {
+                                            slot_2 = stack_5[i32(5)];
+                                        }
+                                    case u32(6):
+                                        {
+                                            slot_2 = stack_5[i32(6)];
+                                        }
+                                    case u32(7):
+                                        {
+                                            slot_2 = stack_5[i32(7)];
+                                        }
+                                    case u32(8):
+                                        {
+                                            slot_2 = stack_5[i32(8)];
+                                        }
+                                    case u32(9):
+                                        {
+                                            slot_2 = stack_5[i32(9)];
+                                        }
+                                    case u32(10):
+                                        {
+                                            slot_2 = stack_5[i32(10)];
+                                        }
+                                    case u32(11):
+                                        {
+                                            slot_2 = stack_5[i32(11)];
+                                        }
+                                    case u32(12):
+                                        {
+                                            slot_2 = stack_5[i32(12)];
+                                        }
+                                    case u32(13):
+                                        {
+                                            slot_2 = stack_5[i32(13)];
+                                        }
+                                    case u32(14):
+                                        {
+                                            slot_2 = stack_5[i32(14)];
+                                        }
+                                    case u32(15):
+                                        {
+                                            slot_2 = stack_5[i32(15)];
+                                        }
+                                    default :
+                                        {
+                                            slot_2 = _S376;
+                                        }
+                                    }
+                                }
                             }
                             else
                             {
@@ -7433,7 +11436,84 @@ fn RunMaterialProgram_1( header_5 : MaterialHeader_0,  program_2 : u32,  ctx_4 :
                             }
                             if(write_1)
                             {
-                                slot_2 = stack_5[(o_52 & (u32(15)))];
+                                if(((gMaterialOperandMode_0 & (u32(4)))) == u32(0))
+                                {
+                                    slot_2 = stack_5[(o_52 & (u32(15)))];
+                                }
+                                else
+                                {
+                                    switch((o_52 & (u32(15))))
+                                    {
+                                    case u32(0):
+                                        {
+                                            slot_2 = stack_5[i32(0)];
+                                        }
+                                    case u32(1):
+                                        {
+                                            slot_2 = stack_5[i32(1)];
+                                        }
+                                    case u32(2):
+                                        {
+                                            slot_2 = stack_5[i32(2)];
+                                        }
+                                    case u32(3):
+                                        {
+                                            slot_2 = stack_5[i32(3)];
+                                        }
+                                    case u32(4):
+                                        {
+                                            slot_2 = stack_5[i32(4)];
+                                        }
+                                    case u32(5):
+                                        {
+                                            slot_2 = stack_5[i32(5)];
+                                        }
+                                    case u32(6):
+                                        {
+                                            slot_2 = stack_5[i32(6)];
+                                        }
+                                    case u32(7):
+                                        {
+                                            slot_2 = stack_5[i32(7)];
+                                        }
+                                    case u32(8):
+                                        {
+                                            slot_2 = stack_5[i32(8)];
+                                        }
+                                    case u32(9):
+                                        {
+                                            slot_2 = stack_5[i32(9)];
+                                        }
+                                    case u32(10):
+                                        {
+                                            slot_2 = stack_5[i32(10)];
+                                        }
+                                    case u32(11):
+                                        {
+                                            slot_2 = stack_5[i32(11)];
+                                        }
+                                    case u32(12):
+                                        {
+                                            slot_2 = stack_5[i32(12)];
+                                        }
+                                    case u32(13):
+                                        {
+                                            slot_2 = stack_5[i32(13)];
+                                        }
+                                    case u32(14):
+                                        {
+                                            slot_2 = stack_5[i32(14)];
+                                        }
+                                    case u32(15):
+                                        {
+                                            slot_2 = stack_5[i32(15)];
+                                        }
+                                    default :
+                                        {
+                                            slot_2 = _S376;
+                                        }
+                                    }
+                                }
                             }
                             else
                             {
@@ -7454,7 +11534,84 @@ fn RunMaterialProgram_1( header_5 : MaterialHeader_0,  program_2 : u32,  ctx_4 :
                             }
                             if(write_1)
                             {
-                                slot_2 = stack_5[(o_53 & (u32(15)))];
+                                if(((gMaterialOperandMode_0 & (u32(4)))) == u32(0))
+                                {
+                                    slot_2 = stack_5[(o_53 & (u32(15)))];
+                                }
+                                else
+                                {
+                                    switch((o_53 & (u32(15))))
+                                    {
+                                    case u32(0):
+                                        {
+                                            slot_2 = stack_5[i32(0)];
+                                        }
+                                    case u32(1):
+                                        {
+                                            slot_2 = stack_5[i32(1)];
+                                        }
+                                    case u32(2):
+                                        {
+                                            slot_2 = stack_5[i32(2)];
+                                        }
+                                    case u32(3):
+                                        {
+                                            slot_2 = stack_5[i32(3)];
+                                        }
+                                    case u32(4):
+                                        {
+                                            slot_2 = stack_5[i32(4)];
+                                        }
+                                    case u32(5):
+                                        {
+                                            slot_2 = stack_5[i32(5)];
+                                        }
+                                    case u32(6):
+                                        {
+                                            slot_2 = stack_5[i32(6)];
+                                        }
+                                    case u32(7):
+                                        {
+                                            slot_2 = stack_5[i32(7)];
+                                        }
+                                    case u32(8):
+                                        {
+                                            slot_2 = stack_5[i32(8)];
+                                        }
+                                    case u32(9):
+                                        {
+                                            slot_2 = stack_5[i32(9)];
+                                        }
+                                    case u32(10):
+                                        {
+                                            slot_2 = stack_5[i32(10)];
+                                        }
+                                    case u32(11):
+                                        {
+                                            slot_2 = stack_5[i32(11)];
+                                        }
+                                    case u32(12):
+                                        {
+                                            slot_2 = stack_5[i32(12)];
+                                        }
+                                    case u32(13):
+                                        {
+                                            slot_2 = stack_5[i32(13)];
+                                        }
+                                    case u32(14):
+                                        {
+                                            slot_2 = stack_5[i32(14)];
+                                        }
+                                    case u32(15):
+                                        {
+                                            slot_2 = stack_5[i32(15)];
+                                        }
+                                    default :
+                                        {
+                                            slot_2 = _S376;
+                                        }
+                                    }
+                                }
                             }
                             else
                             {
@@ -7475,7 +11632,84 @@ fn RunMaterialProgram_1( header_5 : MaterialHeader_0,  program_2 : u32,  ctx_4 :
                             }
                             if(write_1)
                             {
-                                slot_2 = stack_5[(o_54 & (u32(15)))];
+                                if(((gMaterialOperandMode_0 & (u32(4)))) == u32(0))
+                                {
+                                    slot_2 = stack_5[(o_54 & (u32(15)))];
+                                }
+                                else
+                                {
+                                    switch((o_54 & (u32(15))))
+                                    {
+                                    case u32(0):
+                                        {
+                                            slot_2 = stack_5[i32(0)];
+                                        }
+                                    case u32(1):
+                                        {
+                                            slot_2 = stack_5[i32(1)];
+                                        }
+                                    case u32(2):
+                                        {
+                                            slot_2 = stack_5[i32(2)];
+                                        }
+                                    case u32(3):
+                                        {
+                                            slot_2 = stack_5[i32(3)];
+                                        }
+                                    case u32(4):
+                                        {
+                                            slot_2 = stack_5[i32(4)];
+                                        }
+                                    case u32(5):
+                                        {
+                                            slot_2 = stack_5[i32(5)];
+                                        }
+                                    case u32(6):
+                                        {
+                                            slot_2 = stack_5[i32(6)];
+                                        }
+                                    case u32(7):
+                                        {
+                                            slot_2 = stack_5[i32(7)];
+                                        }
+                                    case u32(8):
+                                        {
+                                            slot_2 = stack_5[i32(8)];
+                                        }
+                                    case u32(9):
+                                        {
+                                            slot_2 = stack_5[i32(9)];
+                                        }
+                                    case u32(10):
+                                        {
+                                            slot_2 = stack_5[i32(10)];
+                                        }
+                                    case u32(11):
+                                        {
+                                            slot_2 = stack_5[i32(11)];
+                                        }
+                                    case u32(12):
+                                        {
+                                            slot_2 = stack_5[i32(12)];
+                                        }
+                                    case u32(13):
+                                        {
+                                            slot_2 = stack_5[i32(13)];
+                                        }
+                                    case u32(14):
+                                        {
+                                            slot_2 = stack_5[i32(14)];
+                                        }
+                                    case u32(15):
+                                        {
+                                            slot_2 = stack_5[i32(15)];
+                                        }
+                                    default :
+                                        {
+                                            slot_2 = _S376;
+                                        }
+                                    }
+                                }
                             }
                             else
                             {
@@ -7494,7 +11728,83 @@ fn RunMaterialProgram_1( header_5 : MaterialHeader_0,  program_2 : u32,  ctx_4 :
         }
         if(write_1)
         {
-            stack_5[dst_1] = r_8;
+            if(((gMaterialOperandMode_0 & (u32(4)))) == u32(0))
+            {
+                stack_5[dst_1] = r_8;
+            }
+            else
+            {
+                switch(dst_1)
+                {
+                case u32(0):
+                    {
+                        stack_5[i32(0)] = r_8;
+                    }
+                case u32(1):
+                    {
+                        stack_5[i32(1)] = r_8;
+                    }
+                case u32(2):
+                    {
+                        stack_5[i32(2)] = r_8;
+                    }
+                case u32(3):
+                    {
+                        stack_5[i32(3)] = r_8;
+                    }
+                case u32(4):
+                    {
+                        stack_5[i32(4)] = r_8;
+                    }
+                case u32(5):
+                    {
+                        stack_5[i32(5)] = r_8;
+                    }
+                case u32(6):
+                    {
+                        stack_5[i32(6)] = r_8;
+                    }
+                case u32(7):
+                    {
+                        stack_5[i32(7)] = r_8;
+                    }
+                case u32(8):
+                    {
+                        stack_5[i32(8)] = r_8;
+                    }
+                case u32(9):
+                    {
+                        stack_5[i32(9)] = r_8;
+                    }
+                case u32(10):
+                    {
+                        stack_5[i32(10)] = r_8;
+                    }
+                case u32(11):
+                    {
+                        stack_5[i32(11)] = r_8;
+                    }
+                case u32(12):
+                    {
+                        stack_5[i32(12)] = r_8;
+                    }
+                case u32(13):
+                    {
+                        stack_5[i32(13)] = r_8;
+                    }
+                case u32(14):
+                    {
+                        stack_5[i32(14)] = r_8;
+                    }
+                case u32(15):
+                    {
+                        stack_5[i32(15)] = r_8;
+                    }
+                default :
+                    {
+                    }
+                }
+            }
         }
         n_11 = n_11 + u32(1);
         pc_2 = pc_3;

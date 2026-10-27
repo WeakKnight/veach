@@ -9,7 +9,24 @@ const directory = process.argv[2];
 if (!directory) throw new Error('Usage: node scripts/compare-wavefront-sweep.mjs SWEEP_DIRECTORY');
 const referencePath = join(directory, 'megakernel');
 const reference = JSON.parse(readFileSync(join(referencePath, 'report.json'), 'utf8'));
+function validateBalancedOrder(report) {
+	if (!report.config.balancedOrder) return;
+	const size = report.config.variants.length + 1;
+	if (report.config.repeats % size !== 0) throw new Error('Incomplete balanced measurement cycle');
+	for (const scene of report.results) {
+		const positions = Array(size).fill(0), rounds = new Set();
+		for (const block of scene.repeats) {
+			if (report.config.measurementOrders?.[block.repeat]?.[block.measurementPosition] !== block.variant)
+				throw new Error(`Wrong measured position: ${scene.name}/${block.variant}`);
+			positions[block.measurementPosition]++;
+			rounds.add(block.repeat);
+		}
+		if (rounds.size !== report.config.repeats || positions.some(n => n !== report.config.repeats / size))
+			throw new Error(`Unbalanced measured positions: ${scene.name}`);
+	}
+}
 if (!reference.completed || JSON.stringify(reference.plannedScenes) !== JSON.stringify(reference.results.map(r => r.name))) throw new Error('Reference sweep did not complete all planned scenes');
+validateBalancedOrder(reference);
 const variants = [];
 const expectedVariants = new Set(reference.config.variants.map(variant => variant.name));
 for (const entry of readdirSync(directory, { withFileTypes: true })) {
@@ -22,6 +39,7 @@ for (const entry of readdirSync(directory, { withFileTypes: true })) {
 		throw new Error(`Inconsistent browser/source identity for ${entry.name}`);
 	}
 	if (!report.completed || JSON.stringify(report.results.map(r => r.name)) !== JSON.stringify(reference.plannedScenes)) throw new Error(`Incomplete sweep: ${entry.name}`);
+	validateBalancedOrder(report);
 	const result = spawnSync(process.execPath, ['scripts/compare-wavefront.mjs', referencePath, candidatePath], { cwd: root, encoding: 'utf8' });
 	if (result.status !== 0) throw new Error(result.stderr || `Comparison failed: ${entry.name}`);
 	const comparison = JSON.parse(readFileSync(join(candidatePath, 'comparison.json'), 'utf8'));

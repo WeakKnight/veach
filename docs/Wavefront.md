@@ -1032,10 +1032,10 @@ unstable. The telemetry monitor exited normally after the run.
 
 ## Experimental SVM operand loading
 
-`--operand-mode 0|1|2|3` selects the material operand policy in benchmark, correctness and
+`--operand-mode 0..7` selects the material operand policy in benchmark, correctness and
 smoke scripts. Mode 0 keeps eager loads, mode 1 avoids private-stack reads for constants or
 missing operands, mode 2 avoids generic operand preloads for Output, and mode 3 combines them.
-`--operand-sweep` compares all modes in both integrators in one paired run, rotating/reversing
+`--operand-sweep` compares modes 1/2/3 against mode 0 in both integrators in one paired run, rotating/reversing
 block order and warming each variant for 64 frames. It cannot combine with another sweep.
 Each block verifies actual pipeline constants and records its selected mode. Capacity-zero
 modules are shared, omit ID 2, and were byte-identical in the isolated compiler probe.
@@ -1047,6 +1047,106 @@ capacity-zero SHA256 values also match the preceding commit, beyond the isolated
 The library build passes (wavefront 487.25 kB, 75.74 kB gzip; shared chunk 1,464.90 kB,
 434.82 kB gzip). Wavefront/adaptive mode-3 smoke passes helmet HDR, alpha and transmission;
 all three screenshots were inspected. Performance measurements follow.
+
+`operand-original-v1` compares modes 0/1/2/3 on all five original scenes with three paired
+32-sample rounds and 64-frame variant warmup. All 105 HDR comparisons are exact, the sweep
+verifier passes and all five screenshots were inspected. Median spans:
+
+| Integrator / mode | classroom | breakfast-room | bmw-m6 | glass-of-water | veach-mis |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Megakernel / 0 | 10.134 | 4.326 | 2.660 | 2.847 | 1.547 |
+| Megakernel / 1 | 10.171 | 4.365 | 2.621 | 2.842 | 1.556 |
+| Megakernel / 2 | 10.249 | 4.254 | 2.637 | 2.831 | 1.552 |
+| Megakernel / 3 | 10.282 | 4.295 | 2.701 | 2.864 | 1.552 |
+| Wavefront / 0 | 8.562 | 6.079 | 5.366 | 3.699 | 1.738 |
+| Wavefront / 1 | 8.589 | 6.020 | 5.459 | 3.869 | 1.733 |
+| Wavefront / 2 | 8.569 | 6.048 | 5.362 | 3.705 | 1.738 |
+| Wavefront / 3 | 8.520 | 6.107 | 5.365 | 3.703 | 1.745 |
+
+The first two scenes use capacity 1 and establish no clear gain. The final three use capacity
+zero: all modes share the identical cached pipeline, so their timing differences are control
+variation, not consequences of operand loading. In particular the glass mode-1 wavefront
+block is 4.6% slower despite identical code. Small effects require longer paired follow-ups.
+The mode-0 baseline remains broadly consistent with the preceding original-scene measurements.
+
+`operand-stress8-v1` repeats the same sweep on uniform eight-layer materials in their
+original instruction order (capacity 16 throughout). All 105 paired HDR comparisons are
+exact, the verifier passes and all five screenshots were inspected. Median spans:
+
+| Integrator / mode | classroom | breakfast-room | bmw-m6 | glass-of-water | veach-mis |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Megakernel / 0 | 27.212 | 13.839 | 9.226 | 12.019 | 7.039 |
+| Megakernel / 1 | 31.533 | 14.954 | 10.019 | 12.553 | 7.176 |
+| Megakernel / 2 | 28.515 | 14.241 | 9.330 | 11.993 | 6.910 |
+| Megakernel / 3 | 31.894 | 14.925 | 9.943 | 12.630 | 6.944 |
+| Wavefront / 0 | 12.068 | 9.153 | 7.725 | 6.608 | 4.250 |
+| Wavefront / 1 | 12.213 | 9.338 | 7.737 | 6.696 | 4.330 |
+| Wavefront / 2 | 12.665 | 9.543 | 7.748 | 6.818 | 4.395 |
+| Wavefront / 3 | 12.695 | 9.614 | 7.763 | 6.878 | 4.329 |
+
+Guarding loads does not improve this workload overall. Classroom Shade grows from a median
+6.842 ms/sample in mode 0 to 7.022/7.529/7.584 in modes 1/2/3. Source-level removal of loads
+therefore does not establish a lower hardware cost; branch structure and compiler allocation
+remain possible explanations, not measured causes. The default stays at mode 0.
+
+`operand-scheduled8-v1` repeats the sweep with the scheduled instruction order and automatic
+capacities 8/8/4/4/4. All 105 paired HDR comparisons are exact, the sweep verifier passes,
+and all five screenshots were inspected. Median spans:
+
+| Integrator / mode | classroom | breakfast-room | bmw-m6 | glass-of-water | veach-mis |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Megakernel / 0 | 24.523 | 11.880 | 6.250 | 9.850 | 6.193 |
+| Megakernel / 1 | 26.657 | 12.607 | 7.986 | 10.066 | 6.220 |
+| Megakernel / 2 | 23.515 | 11.779 | 6.291 | 9.872 | 5.694 |
+| Megakernel / 3 | 27.089 | 12.533 | 6.811 | 10.479 | 6.036 |
+| Wavefront / 0 | 12.510 | 9.531 | 8.269 | 7.858 | 4.513 |
+| Wavefront / 1 | 12.289 | 9.554 | 8.373 | 8.006 | 4.581 |
+| Wavefront / 2 | 13.123 | 10.034 | 8.371 | 8.267 | 4.723 |
+| Wavefront / 3 | 12.962 | 10.053 | 8.425 | 8.422 | 4.788 |
+
+Classroom wavefront mode 1 has a small 1.8% median gain, but it does not extend across the
+other scenes or recover original-order performance. Megakernel mode 2 has possible gains
+in classroom/MIS, with substantial per-round variation requiring a balanced follow-up.
+Neither result justifies a global default change or identifies a hardware register effect.
+
+### Constant-index stack experiment and balanced measurement order
+
+Operand bit 4 selects switch reads/writes whose individual array indices are compile-time
+constants. The generated cases match the selected capacity (1/2/4/8/16), including masked
+source/destination indices. Mode 4 retains eager operands; 5/6/7 additionally select the
+existing load guards. Capacity-zero output is unchanged by SHA256. This creates a backend
+scalarization opportunity without changing bytecode, arithmetic, RNG, resources or the CPU
+interpreter. It may increase register pressure or branch cost, so performance must be measured.
+Isolated switch and unrolled-if prototypes both compiled; switch was selected for this
+experiment because its WGSL is smaller. This is a code-size choice, not a performance result.
+
+Stage attribution of the preceding mode-zero original-scene run (`operand-original-v1`)
+puts Intersect at 44.9/66.4/47.4/52.9/21.3% of measured GPU pass time in fixed scene order;
+Shadow contributes another 31.1/17.1/38.4/25.4/39.3%. These are sample means, not the
+median spans above, and attribution sums were checked against all recorded pass timings.
+The eight-layer workload instead spends 39.1..68.8% in Shade. This motivates treating
+traversal coherence and SVM storage as separate experiments rather than assuming that
+material register pressure dominates both workloads. An isolated octant-key sorting
+prototype compiles for 64/256-path chunks; it has not yet been integrated or GPU-measured.
+
+`--operand-modes 4` selects just that candidate for `--operand-sweep`; the default list stays
+1,2,3 for reproducibility. `--balanced-order` requires paired repeats in multiples of the
+total variant count (including the megakernel reference). Each complete cycle places every
+variant in every measurement position once; alternate cycles reverse direction. Reports
+store planned orders and actual positions, and the sweep verifier checks position counts
+and round coverage for every scene and variant. This balances position, not every possible
+predecessor pair, and does not eliminate GPU timing noise. Six unit tests cover odd/even
+variant counts, both cycle directions, permutations and invalid inputs. All 198 unit tests,
+shader regeneration and typecheck pass. Mode 4 passes all 46 GPU regression comparisons
+with exact HDR and AOVs against the original full-stack reference. The library build passes
+(wavefront 690.71 kB / 80.60 kB gzip, shared chunk 1,735.96 kB / 445.03 kB gzip), so the
+experiment's larger generated source is also an explicit deployment cost. Mode 7 passes
+eight additional alpha/stress comparisons with 256-path program sorting and exact queue
+permutation checks. Mode 5 passes eight procedural/stress comparisons with subgroups
+disabled and a fixed tail from bounce 2. Mode 6 passes four transmission/clearcoat cases
+with direct stages 7. All 66 GPU comparisons are exact. Mode-4 wavefront/adaptive smoke
+passes helmet HDR, alpha and transmission with normal streaming; all three screenshots
+were inspected. Balanced performance measurements follow.
 
 ## Work storage layout
 

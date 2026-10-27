@@ -46,11 +46,15 @@ selection (same expectation, visible only at 1 spp), and `clearcoatNormalTexture
 - Experimental operand loading uses pipeline constant ID 2, with `materialOperandMode = 0`
   retaining eager stack reads. Bit 1 guards stack reads for constant/absent operands;
   bit 2 skips generic a/b/c loads for Output instructions, which decode their own operands.
-  Mode 3 combines both. The stack remains function-local; no bytecode, arithmetic, CPU
+  Mode 3 combines both. Bit 4 replaces dynamic stack indexing with a switch whose cases
+  access constant slot indices, for both reads and writes; modes 4..7 compose this with
+  the existing loading policies. This may enable backend scalarization but does not prove
+  that the array resides in hardware registers. The stack remains function-local; no bytecode, arithmetic, CPU
   interpreter or storage binding changes are involved. Pipeline caches include the mode,
   and the bound mode remains separate from the requested mode during asynchronous preparation.
   Capacity-zero modules omit the override and share their existing constant-only pipeline.
-  This remains opt-in pending performance measurements. Mode 3 passes all 46 GPU regression
+  These options remain opt-in: loading modes 1..3 do not establish a broad performance gain.
+  Modes 3 and 4 each pass all 46 GPU regression
   comparisons against the original interpreter, including HDR/AOVs, alpha, procedural
   materials, partial workgroups and multiple tiles; actual pipeline constants are verified.
 - Three programs per material: surface (every input but opacity, run by `EvalMaterial`), opacity

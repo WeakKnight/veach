@@ -7,6 +7,7 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import puppeteer from 'puppeteer-core';
 import { createServer } from 'vite';
+import { balancedMeasurementOrder } from './benchmark-order.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const args = process.argv.slice(2);
@@ -49,6 +50,8 @@ const config = {
 	shadowSweep: args.includes('--shadow-sweep'),
 	operandMode: Number(option('operand-mode', 0)),
 	operandSweep: args.includes('--operand-sweep'),
+	operandModes: option('operand-modes', '1,2,3').split(',').map(Number),
+	balancedOrder: args.includes('--balanced-order'),
 	opcodeMode: option('opcodes', 'full'),
 	opcodeSweep: args.includes('--opcode-sweep'),
 	materialLayers: Number(option('material-layers', 0)),
@@ -57,7 +60,8 @@ const config = {
 	scheduleSweep: args.includes('--schedule-sweep'),
 	variantWarmup: Number(option('variant-warmup', args.includes('--material-sweep') || args.includes('--opcode-sweep') || args.includes('--schedule-sweep') || args.includes('--spatial-sweep') || args.includes('--operand-sweep') ? 64 : 8)),
 };
-if (![0, 1, 2, 3].includes(config.operandMode)) throw new Error('Invalid operand mode');
+if (![0, 1, 2, 3, 4, 5, 6, 7].includes(config.operandMode)) throw new Error('Invalid operand mode');
+if (!config.operandModes.length || config.operandModes.some(mode => !Number.isInteger(mode) || mode < 1 || mode > 7) || new Set(config.operandModes).size !== config.operandModes.length) throw new Error('Invalid operand sweep modes');
 if (config.operandSweep && (!config.paired || config.operandMode !== 0 || config.tailSweep || config.packetSweep || config.materialSweep || config.sortSweep || config.shadowSweep || config.opcodeSweep || config.scheduleSweep || config.spatialSweep || config.dispatchSweep || config.compactionSweep)) throw new Error('--operand-sweep requires a paired mode-zero base without other sweeps');
 if ((config.spatialQueues || config.spatialSweep) && (config.compaction !== 'adaptive' || config.directStages === 7 || config.compactionSweep || config.dispatchSweep)) throw new Error('Spatial queues require fixed adaptive compaction');
 if (config.spatialSweep && (!config.paired || config.spatialQueues || config.sort !== 'none' || (config.directStages & 2) !== 0 || config.tailSweep || config.packetSweep || config.materialSweep || config.sortSweep || config.shadowSweep || config.opcodeSweep || config.scheduleSweep)) throw new Error('--spatial-sweep requires a paired unsorted base without other sweeps');
@@ -139,7 +143,7 @@ if (config.scheduleSweep) {
 		config.variants.push({ name: `${mode}-scheduled`, mode, materialSchedule: 'optimized', tailStart: config.tailStart, tailThreshold: config.tailThreshold });
 }
 if (config.operandSweep) {
-	for (const operandMode of [1, 2, 3]) for (const mode of ['megakernel', 'wavefront'])
+	for (const operandMode of config.operandModes) for (const mode of ['megakernel', 'wavefront'])
 		config.variants.push({ name: `${mode}-operands-${operandMode}`, mode, operandMode, tailStart: config.tailStart, tailThreshold: config.tailThreshold });
 }
 for (const variant of config.variants) {
@@ -159,6 +163,9 @@ for (const variant of config.variants) {
 for (const key of ['width', 'height', 'warmup', 'variantWarmup', 'samples', 'repeats', 'bounces']) {
 	if (!Number.isInteger(config[key]) || config[key] < (key === 'bounces' ? 0 : 1)) throw new Error(`Invalid ${key}`);
 }
+const measurementVariants = ['megakernel', ...config.variants.map(v => v.name)];
+if (config.balancedOrder && (!config.paired || config.repeats % measurementVariants.length !== 0)) throw new Error(`--balanced-order requires paired repeats in multiples of ${measurementVariants.length}`);
+config.measurementOrders = config.balancedOrder ? Array.from({ length: config.repeats }, (_, repeat) => balancedMeasurementOrder(measurementVariants, repeat)) : null;
 const cases = [
 	{ name: 'classroom', file: 'classroom/gltf/classroom_extended.glb', environment: 1, presentationExposure: 4 },
 	{ name: 'breakfast-room', file: 'breakfast-room/gltf/breakfast_room_extended.glb', environment: 1, presentationExposure: 6 },
@@ -197,7 +204,7 @@ const browser = await puppeteer.launch({ executablePath: chrome, headless: true,
 	args: ['--enable-unsafe-webgpu', '--ignore-gpu-blocklist', '--no-sandbox', '--disable-background-timer-throttling'],
 });
 const sourceHashes = () => {
-	const paths = ['scripts/wavefront-benchmark.mjs', 'scripts/wavefront-material-stress.ts', 'scripts/wavefront-material-variants.ts', 'package.json', 'package-lock.json', 'vite.config.ts'];
+	const paths = ['scripts/wavefront-benchmark.mjs', 'scripts/benchmark-order.mjs', 'scripts/wavefront-material-stress.ts', 'scripts/wavefront-material-variants.ts', 'package.json', 'package-lock.json', 'vite.config.ts'];
 	const visit = directory => {
 		for (const entry of readdirSync(join(root, directory), { withFileTypes: true })) {
 			const path = `${directory}/${entry.name}`;
@@ -419,11 +426,16 @@ try {
 			const pairedErrors = [];
 			for (let repeat = 0; repeat < config.repeats; repeat++) {
 				const schedule = config.paired ? [{ name: 'megakernel' }, ...config.variants] : [{ name: config.mode, tailStart: config.tailStart, tailThreshold: config.tailThreshold, compaction: config.compaction, directStages: config.directStages, packetStages: config.packetStages, sort: config.sort, sortSize: config.sortSize, spatialQueues: config.spatialQueues, shadowMode: config.shadowMode, opcodeMode: config.opcodeMode }];
-				// Rotate the sweep and reverse alternating rounds to avoid always measuring a
-				// configuration at the same position relative to GPU warmup and clock changes.
-				if (config.tailSweep || config.compactionSweep || config.dispatchSweep || config.packetSweep || config.materialSweep || config.sortSweep || config.shadowSweep || config.opcodeSweep || config.scheduleSweep || config.spatialSweep || config.operandSweep) schedule.push(...schedule.splice(0, repeat % schedule.length));
-				if (config.paired && repeat % 2 !== 0) schedule.reverse();
-				for (const variant of schedule) {
+				// Legacy sweeps rotate/reverse each round. Balanced sweeps cover every position
+				// once per full cycle and reverse alternate cycles.
+				if (config.balancedOrder) {
+					const order = config.measurementOrders[repeat];
+					schedule.sort((a, b) => order.indexOf(a.name) - order.indexOf(b.name));
+				} else {
+					if (config.tailSweep || config.compactionSweep || config.dispatchSweep || config.packetSweep || config.materialSweep || config.sortSweep || config.shadowSweep || config.opcodeSweep || config.scheduleSweep || config.spatialSweep || config.operandSweep) schedule.push(...schedule.splice(0, repeat % schedule.length));
+					if (config.paired && repeat % 2 !== 0) schedule.reverse();
+				}
+				for (const [measurementPosition, variant] of schedule.entries()) {
 					const mode = variant.mode ?? (variant.name === 'megakernel' ? 'megakernel' : 'wavefront');
 					presentationVariant = variant.name;
 					if (config.paired) {
@@ -493,7 +505,7 @@ try {
 						const spatial = [...observedPipelines].some(label => label.includes('.CompactShadeSpatial.'));
 						if (spatial !== variant.spatialQueues) throw new Error('Wrong spatial queue pipeline');
 					}
-					repeats.push({ measurementStartedAt, measurementFinishedAt, mode, operandMode: renderer.tracer.boundMaterialOperandMode, materialSchedule: currentMaterialSchedule, boundMaterialSchedules: [...observedMaterialSchedules], materialStackRequired: renderer.scene.materialStackSize, materialCapacity: renderer.tracer.materialCapacity, pipelineLabels: [...observedPipelines], opcodeConstants: Object.fromEntries(observedConstants), materialOpcodes: renderer.tracer.materialOpcodes, variant: variant.name, repeat, medianMs, medianSpanMs, meanMs: timings.reduce((a, b) => a + b) / timings.length, wallMs, timings, spanTimings, stages });
+					repeats.push({ measurementPosition, measurementStartedAt, measurementFinishedAt, mode, operandMode: renderer.tracer.boundMaterialOperandMode, materialSchedule: currentMaterialSchedule, boundMaterialSchedules: [...observedMaterialSchedules], materialStackRequired: renderer.scene.materialStackSize, materialCapacity: renderer.tracer.materialCapacity, pipelineLabels: [...observedPipelines], opcodeConstants: Object.fromEntries(observedConstants), materialOpcodes: renderer.tracer.materialOpcodes, variant: variant.name, repeat, medianMs, medianSpanMs, meanMs: timings.reduce((a, b) => a + b) / timings.length, wallMs, timings, spanTimings, stages });
 					console.log(`[benchmark] ${c.name}: ${variant.name} repeat ${repeat + 1}, GPU passes ${medianMs.toFixed(3)}, span ${medianSpanMs.toFixed(3)} ms/sample`);
 					if (config.paired) {
 						const hdr = await renderer.readRadiance();

@@ -22,7 +22,7 @@ export function materialOpcodeMask(materials: readonly CompiledMaterial[]): Mate
 }
 
 function validateOperandMode(mode: number): void {
-	if (!Number.isInteger(mode) || mode < 0 || mode > 3) throw new Error('Invalid material operand mode');
+	if (!Number.isInteger(mode) || mode < 0 || mode > 7) throw new Error('Invalid material operand mode');
 }
 
 export function materialPipelineKey(capacity: MaterialStackCapacity, mask: MaterialOpcodeMask, operandMode = 0): string {

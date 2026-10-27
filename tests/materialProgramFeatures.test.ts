@@ -29,14 +29,14 @@ describe('scene material opcode bounds', () => {
 	});
 
 	it('separates operand modes while sharing constant-only modules', () => {
-		const keys = [0, 1, 2, 3].map(mode => materialPipelineKey(4, ALL_MATERIAL_OPCODES, mode));
-		expect(new Set(keys).size).toBe(4);
-		for (const mode of [0, 1, 2, 3]) {
+		const keys = [0, 1, 2, 3, 4, 5, 6, 7].map(mode => materialPipelineKey(4, ALL_MATERIAL_OPCODES, mode));
+		expect(new Set(keys).size).toBe(8);
+		for (const mode of [0, 1, 2, 3, 4, 5, 6, 7]) {
 			expect(materialPipelineConstants(4, ALL_MATERIAL_OPCODES, mode)['2']).toBe(mode);
 			expect(materialPipelineConstants(0, ALL_MATERIAL_OPCODES, mode)).toEqual({});
 			expect(materialPipelineKey(0, ALL_MATERIAL_OPCODES, mode)).toBe('0');
 		}
-		for (const mode of [-1, 4, 0.5, Number.NaN]) {
+		for (const mode of [-1, 8, 0.5, Number.NaN]) {
 			expect(() => materialPipelineKey(4, ALL_MATERIAL_OPCODES, mode)).toThrow('operand');
 			expect(() => materialPipelineConstants(0, ALL_MATERIAL_OPCODES, mode)).toThrow('operand');
 		}

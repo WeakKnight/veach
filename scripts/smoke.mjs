@@ -58,7 +58,7 @@ const operandFlag = only.indexOf('--operand-mode');
 let operandMode = null;
 if (operandFlag >= 0) {
 	operandMode = Number(only[operandFlag + 1]);
-	if (![0, 1, 2, 3].includes(operandMode)) throw new Error('Invalid --operand-mode');
+	if (![0, 1, 2, 3, 4, 5, 6, 7].includes(operandMode)) throw new Error('Invalid --operand-mode');
 	only.splice(operandFlag, 2);
 }
 const opcodeFlag = only.indexOf('--opcodes');

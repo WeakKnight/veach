@@ -128,11 +128,11 @@ describe('material pipeline preparation', () => {
 		const device = { createShaderModule: vi.fn(() => ({})), createComputePipelineAsync: vi.fn().mockResolvedValue({}) };
 		const pathTracer = tracer();
 		Object.assign(pathTracer, { device });
-		for (const mode of [0, 1, 2, 3, 1, 0]) {
+		for (const mode of [0, 1, 2, 3, 4, 7, 1, 0]) {
 			pathTracer.materialOperandMode = mode;
 			await pathTracer.prepareScene(scene);
 		}
-		expect(device.createComputePipelineAsync.mock.calls.map(([d]) => d.compute.constants['2'])).toEqual([0, 1, 2, 3]);
+		expect(device.createComputePipelineAsync.mock.calls.map(([d]) => d.compute.constants['2'])).toEqual([0, 1, 2, 3, 4, 7]);
 		expect(pathTracer.boundMaterialOperandMode).toBe(0);
 	});
 

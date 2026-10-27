@@ -22,7 +22,7 @@ const packetOption = process.argv.indexOf('--packet-stages');
 const packetStages = packetOption < 0 ? 7 : Number(process.argv[packetOption + 1]);
 const operandOption = process.argv.indexOf('--operand-mode');
 const operandMode = operandOption < 0 ? 0 : Number(process.argv[operandOption + 1]);
-if (![0, 1, 2, 3].includes(operandMode)) throw new Error('Invalid operand mode');
+if (![0, 1, 2, 3, 4, 5, 6, 7].includes(operandMode)) throw new Error('Invalid operand mode');
 const spatialQueues = process.argv.includes('--spatial-queues');
 if (spatialQueues && (compaction !== 'adaptive' || directStages === 7)) throw new Error('Spatial queues require adaptive compaction');
 const packetSweep = process.argv.includes('--packet-sweep');

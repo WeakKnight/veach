@@ -21,7 +21,8 @@ static const uint MATERIAL_STACK_SIZE = VEACH_MATERIAL_STACK_SIZE;
 [[vk::constant_id(0)]] const uint gMaterialOpcodesLow = 0xffffffffu;
 [[vk::constant_id(1)]] const uint gMaterialOpcodesHigh = 0xffffffffu;
 // Experimental operand loading: bit 1 guards private stack reads; bit 2 skips
-// generic a/b/c loads for Output. Zero retains the original eager load policy.
+// generic a/b/c loads for Output. Bit 4 selects constant-index switch reads/writes.
+// Zero retains the original eager, dynamically indexed load policy.
 [[vk::constant_id(2)]] const uint gMaterialOperandMode = 0u;
 #define MATERIAL_OPCODE_ENABLED(op) (((((op) < 32u) ? gMaterialOpcodesLow : gMaterialOpcodesHigh) >> ((op) & 31u)) & 1u)
 static const uint MATERIAL_MAX_INSTRUCTIONS = 1024u; // a malformed program must not hang the device
@@ -232,13 +233,40 @@ bool4 LanesBelow(uint size)
 #define MATERIAL_SLOT(o) stack[o & (MATERIAL_STACK_SIZE - 1u)]
 #endif
 
+#if VEACH_MATERIAL_STACK_SIZE > 0
+// Keep every stack access in the switch variant statically indexed. This gives
+// the backend a scalarization opportunity, but does not guarantee register storage.
+#define MATERIAL_STACK_SLOTS_1(F) F(0)
+#define MATERIAL_STACK_SLOTS_2(F) MATERIAL_STACK_SLOTS_1(F) F(1)
+#define MATERIAL_STACK_SLOTS_4(F) MATERIAL_STACK_SLOTS_2(F) F(2) F(3)
+#define MATERIAL_STACK_SLOTS_8(F) MATERIAL_STACK_SLOTS_4(F) F(4) F(5) F(6) F(7)
+#define MATERIAL_STACK_SLOTS_16(F) MATERIAL_STACK_SLOTS_8(F) F(8) F(9) F(10) F(11) F(12) F(13) F(14) F(15)
+#if VEACH_MATERIAL_STACK_SIZE == 16
+#define MATERIAL_STACK_SLOTS(F) MATERIAL_STACK_SLOTS_16(F)
+#elif VEACH_MATERIAL_STACK_SIZE == 8
+#define MATERIAL_STACK_SLOTS(F) MATERIAL_STACK_SLOTS_8(F)
+#elif VEACH_MATERIAL_STACK_SIZE == 4
+#define MATERIAL_STACK_SLOTS(F) MATERIAL_STACK_SLOTS_4(F)
+#elif VEACH_MATERIAL_STACK_SIZE == 2
+#define MATERIAL_STACK_SLOTS(F) MATERIAL_STACK_SLOTS_2(F)
+#else
+#define MATERIAL_STACK_SLOTS(F) MATERIAL_STACK_SLOTS_1(F)
+#endif
+#define MATERIAL_STACK_READ_CASE(i) case i: slot = stack[i]; break;
+#define MATERIAL_STACK_WRITE_CASE(i) case i: stack[i] = r; break;
+#endif
+
 #if VEACH_MATERIAL_STACK_SIZE == 0
 #define MATERIAL_READ(o, value) value = MaterialOperand(o, float4(0.0), header.constantBase)
 #else
 #define MATERIAL_READ(o, value) \
 	{ \
 		float4 slot = float4(0.0); \
-		if ((gMaterialOperandMode & 1u) == 0u || ((o) & OPERAND_CONSTANT) == 0u) slot = MATERIAL_SLOT(o); \
+		if ((gMaterialOperandMode & 1u) == 0u || ((o) & OPERAND_CONSTANT) == 0u) \
+		{ \
+			if ((gMaterialOperandMode & 4u) == 0u) slot = MATERIAL_SLOT(o); \
+			else { switch ((o) & (MATERIAL_STACK_SIZE - 1u)) { MATERIAL_STACK_SLOTS(MATERIAL_STACK_READ_CASE) } } \
+		} \
 		value = MaterialOperand(o, slot, header.constantBase); \
 	}
 #endif
@@ -506,7 +534,11 @@ void RunMaterialProgram<let SURFACE : int>(MaterialHeader header, uint program, 
 #if VEACH_MATERIAL_STACK_SIZE > 0
 		if (write)
 		{
-			stack[dst] = r;
+			if ((gMaterialOperandMode & 4u) == 0u) stack[dst] = r;
+			else
+			{
+				switch (dst) { MATERIAL_STACK_SLOTS(MATERIAL_STACK_WRITE_CASE) }
+			}
 		}
 #endif
 	}
