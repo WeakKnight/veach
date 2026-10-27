@@ -86,6 +86,19 @@ block is deduplicated independently from constants; neither format nor interpret
 
 ## Pipeline
 
+Instruction scheduling is experimental and disabled by default: the measured reduction
+in temporary slots helps complex megakernels but regresses some wavefront workloads.
+`compileMaterial(graph, { schedule: true })` enables it. After slicing and resolving
+free convert aliases, `Schedule.ts` optionally reorders the
+live expression DAG before assigning stack slots. It prioritizes instructions that release
+operands, then deeper dependency chains, with original node order as a deterministic tie
+break. Additional dependency edges preserve the original relative order of texture reads,
+including their stochastic mip RNG consumption. Surface outputs remain at the end of each
+program, and arithmetic is never reassociated or recomputed. A simulated slot peak must be
+strictly smaller than the original order; equal/worse schedules keep the original bytecode
+order. `compileMaterial(graph, { schedule: false })` retains the reference for CPU/GPU tests.
+Both orders use the existing bytecode format and CPU/GPU interpreters.
+
 ```text
 glTF material ─┐
 .mtlx (later) ─┼─> MaterialGraph (TS, MaterialX subset) ─> lower ─> optimize ─> codegen ─> gMaterialData

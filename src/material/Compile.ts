@@ -6,6 +6,12 @@ import type { TextureSampling } from './Evaluate';
 import { TYPE_SIZE, constantOf, isConnection, toArg, type GraphNode, type Input, type MaterialGraph } from './Graph';
 import { lowerGraph } from './Lower';
 import { optimizeGraph } from './Optimize';
+import { scheduleInstructions } from './Schedule';
+
+export interface MaterialCompileOptions {
+	// Experimental live-range scheduling, off by default; preserves arithmetic and texture order.
+	schedule?: boolean;
+}
 
 export interface CompiledMaterial {
 	name: string;
@@ -82,7 +88,7 @@ class ProgramCompiler {
 	readonly textureOfNode = new Map<number, number>();
 	stackSize = 0;
 
-	constructor(private readonly graph: MaterialGraph) {}
+	constructor(private readonly graph: MaterialGraph, private readonly schedule: boolean) {}
 
 	private sizeOf(input: Input | undefined): number {
 		if (input === undefined) {
@@ -153,6 +159,12 @@ class ProgramCompiler {
 		}
 
 		const operandsOf = (inputs: Iterable<Input | undefined>) => [...inputs].filter((i): i is Input => !!i && isConnection(i)).map((i) => root((i as { node: number }).node));
+		if (this.schedule) {
+			const dependencies = new Map(instructions.map(n => [n, new Set(operandsOf(Object.values(graph.nodes[n].inputs)))]));
+			const outputs = new Set(operandsOf(present.map(f => surface.inputs[f])));
+			const textures = new Set(instructions.filter(n => graph.nodes[n].category === 'veach_texture'));
+			instructions.splice(0, instructions.length, ...scheduleInstructions(instructions, dependencies, outputs, textures));
+		}
 		const lastUse = new Map<number, number>();
 		instructions.forEach((n, i) => operandsOf(Object.values(graph.nodes[n].inputs)).forEach((r) => lastUse.set(r, i)));
 		operandsOf(present.map((f) => surface.inputs[f])).forEach((r) => lastUse.set(r, instructions.length));
@@ -330,10 +342,10 @@ class ProgramCompiler {
 	}
 }
 
-export function compileMaterial(graph: MaterialGraph): CompiledMaterial {
+export function compileMaterial(graph: MaterialGraph, options: MaterialCompileOptions = {}): CompiledMaterial {
 	const g = optimizeGraph(lowerGraph(graph));
 	const surfaceInputs = g.nodes[g.surface].inputs;
-	const c = new ProgramCompiler(g);
+	const c = new ProgramCompiler(g, options.schedule ?? false);
 	const surface = c.compile(SURFACE_FIELDS);
 	const opacity = c.compile(OPACITY_FIELDS, true);
 	const emission = c.compile(EMISSION_FIELDS, true);

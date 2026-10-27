@@ -820,6 +820,90 @@ on 2,554 entries, 2,429 moved. Typecheck, all 186 unit tests, and wavefront helm
 pass; the smoke screenshot was inspected. No production shader or default changed in this
 benchmark extension.
 
+### Material instruction scheduling
+
+The compiler can shorten live ranges before assigning SVM slots while preserving every
+arithmetic operation and the relative texture sampling order. It uses a deterministic
+dependency-ready heuristic and adopts the result only if a simulated peak is strictly
+smaller. See [MaterialSystem.md](MaterialSystem.md). The bytecode format and shader
+interpreter are unchanged; existing capacity selection consumes the smaller compiler bound.
+
+`--schedule-sweep` compares original-order megakernel/wavefront with optimized-order
+megakernel/wavefront in the same renderer. `--material-schedule original|optimized` selects
+one order; default is original. A fixture prepares two material buffers and their
+stack/opcode bounds, retaining the same geometry, light distribution and frozen VT residency.
+It checks unchanged alpha/emission/texture metadata; CPU tests compare all evaluated inputs
+and texture call sequences. Timed blocks verify the actual bound material buffer, pipeline
+capacity and opcode constants. The schedule sweep uses 64-frame per-variant warmup.
+
+The complete 46-case GPU suite compares original-order/full-16/full-opcode reference outputs
+with optimized-order production pipelines and passes exactly. The stress sphere scene drops
+from 12 to 7 required slots; the ordinary anisotropy sample drops from 9 to 8, selecting
+capacity 8 instead of 16. The simpler standalone four/eight/twelve-layer graphs drop from
+5/9/13 to 4 slots. These are virtual stack bounds, not hardware register measurements.
+All 190 unit tests, typecheck (including the GPU buffer fixture) and library build pass.
+
+`material-schedule-stress8-v1` applies eight procedural layers to the five fixed scenes.
+Three paired rounds of 32 samples with 64 warmup frames give 45 exact HDR comparisons;
+the sweep verifier and all five screenshot inspections pass. Original stack bounds
+10/10/9/9/9 become 5/5/4/4/4, selecting capacities 8/8/4/4/4 instead of 16 throughout.
+
+| Variant | classroom | breakfast-room | bmw-m6 | glass-of-water | veach-mis |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Megakernel, original order | 27.158 | 13.528 | 9.061 | 11.709 | 6.980 |
+| Megakernel, scheduled | 23.720 | 12.339 | 7.720 | 10.129 | 6.311 |
+| Wavefront, original order | 12.100 | 9.230 | 7.658 | 6.659 | 4.294 |
+| Wavefront, scheduled | 12.256 | 9.593 | 8.262 | 7.863 | 4.482 |
+
+Shorter virtual live ranges improve megakernel here but regress wavefront, by up to 18.1%.
+This is not evidence of reduced hardware register pressure or a universal optimization.
+`material-schedule-capacity-v1` keeps the scheduled bytecode and compares automatic capacity
+with forced 8/16. All 75 paired HDR comparisons are exact, the verifier passes, and all five
+screenshots were inspected. Wavefront spans are:
+
+| Capacity | classroom | breakfast-room | bmw-m6 | glass-of-water | veach-mis |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Automatic | 12.330 | 9.548 | 8.268 | 7.955 | 4.548 |
+| 8 | 12.408 | 9.531 | 8.531 | 7.988 | 4.487 |
+| 16 | 12.421 | 9.662 | 8.458 | 8.113 | 4.739 |
+
+Restoring the larger capacity does not restore original-order performance. Instruction
+ordering, operand access and execution coherence remain possible causes, requiring separate
+experiments; these timings do not identify a hardware mechanism by themselves.
+
+`material-schedule-sort-v1` adds the existing material/program sorter to scheduled
+eight-layer bytecode. All 75 paired HDR comparisons are exact; the sweep verifier and
+five screenshot inspections pass. Median spans:
+
+| Wavefront variant | classroom | breakfast-room | bmw-m6 | glass-of-water | veach-mis |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Unsorted | 12.238 | 9.580 | 8.267 | 7.930 | 4.535 |
+| Material, 64 | 12.210 | 9.636 | 8.527 | 7.752 | 4.698 |
+| Material, 256 | 11.319 | 10.118 | 8.810 | 7.709 | 4.667 |
+| Program, 64 | 12.380 | 9.667 | 8.450 | 7.759 | 4.660 |
+| Program, 256 | 11.334 | 9.913 | 8.600 | 7.599 | 4.610 |
+
+Sorting helps classroom and glass, but does not generally recover the original-order
+performance. Program-256 reduces classroom Shade from 7.081 to 6.095 ms/sample and
+glass Shade from 4.685 to 4.122 ms/sample. This supports a coherence contribution in
+those workloads, without identifying it as the sole cause of the scheduling regression.
+
+`material-schedule-original-scenes-v1` also completes the unmodified five scenes with
+45 exact comparisons, a passing verifier and inspected screenshots. Original/scheduled
+wavefront spans are 8.551/8.678, 6.022/6.087, 5.350/5.315, 3.689/3.742 and 1.739/1.744 ms.
+These simple materials do not establish a scheduling gain. Scheduling therefore remains
+explicitly opt-in in both the compiler and benchmark; production keeps the original order.
+The earlier scheduled-bytecode experiments explicitly recorded their chosen order and are
+still valid. Reproducing them now requires `--material-schedule optimized` (schedule sweeps
+already select both orders automatically).
+
+After restoring the original-order default, all 190 unit tests and typecheck pass again.
+The full 46-case GPU suite and six additional program-256/adaptive comparisons pass exactly
+with the final buffer-selection fixture. The latter verifies actual sorted queue permutation
+and program order on procedural and anisotropic materials. Program keys are compiled using
+the explicitly scheduled order, independently of the production default. Wavefront smoke
+passes helmet HDR, alpha, transmission and anisotropy; all four screenshots were inspected.
+
 ## Work storage
 
 Group 1 binding 0 contains the original image prefix (three float4 per pixel), then

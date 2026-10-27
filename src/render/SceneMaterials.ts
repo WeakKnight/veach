@@ -1,6 +1,6 @@
 // Compiles a scene's material graphs for the GPU (docs/MaterialSystem.md) and answers the host's
 // questions about them: texture usage for the virtual texture system, emitted radiance.
-import { compileMaterial, type CompiledMaterial } from '../material/Compile';
+import { compileMaterial, type CompiledMaterial, type MaterialCompileOptions } from '../material/Compile';
 import { defaultSurfaceValues, type ShadingContext } from '../material/Evaluate';
 import { defaultMaterialGraph } from '../material/GLTFMaterial';
 import { isConstantProgram, runProgram } from '../material/Interpreter';
@@ -15,13 +15,13 @@ export interface TextureUsage {
 }
 
 // scene.materials followed by the default material (index scene.materials.length).
-export function compileSceneMaterials(scene: SceneDesc): CompiledMaterial[] {
+export function compileSceneMaterials(scene: SceneDesc, options: MaterialCompileOptions = {}): CompiledMaterial[] {
 	return [...scene.materials.map((m) => m.graph), defaultMaterialGraph()].map((graph) => {
 		try {
-			return compileMaterial(graph);
+			return compileMaterial(graph, options);
 		} catch (e) {
 			console.warn(`material ${graph.name}: ${e instanceof Error ? e.message : e}; using the default material`);
-			return { ...compileMaterial(defaultMaterialGraph()), name: graph.name };
+			return { ...compileMaterial(defaultMaterialGraph(), options), name: graph.name };
 		}
 	});
 }

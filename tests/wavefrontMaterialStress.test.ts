@@ -18,7 +18,7 @@ describe('optional wavefront material stress', () => {
 	it('preserves transport fields and source graphs while adding real procedural work', () => {
 		const before = JSON.stringify(graph), original = compileMaterial(graph);
 		for (const layers of [1, 4, 8, 12]) {
-			const result = stressMaterial(graph, layers), compiled = compileMaterial(result);
+			const result = stressMaterial(graph, layers), compiled = compileMaterial(result, { schedule: false });
 			expect(programOps(compiled, compiled.surface).filter(op => op === Op.Noise)).toHaveLength(layers);
 			expect(compiled.stackSize).toBeGreaterThanOrEqual(layers);
 			expect(compiled.alphaTested).toBe(true);

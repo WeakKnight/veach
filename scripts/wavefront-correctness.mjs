@@ -60,6 +60,12 @@ try {
 		const api = await import('/src/index.ts');
 		const check = (value, message) => { if (!value) throw new Error(message); };
 		const pipelineOpcodes = new WeakMap(), createPipeline = GPUDevice.prototype.createComputePipelineAsync;
+		const sceneMaterials = new WeakMap(), createBindGroup = GPUDevice.prototype.createBindGroup;
+		GPUDevice.prototype.createBindGroup = function(descriptor) {
+			const group = createBindGroup.call(this, descriptor);
+			if (descriptor.label === 'scene') sceneMaterials.set(group, descriptor.entries.find(e => e.binding === 6).resource.buffer);
+			return group;
+		};
 		GPUDevice.prototype.createComputePipelineAsync = function(descriptor) {
 			return createPipeline.call(this, descriptor).then(pipeline => {
 				pipelineOpcodes.set(pipeline, descriptor.compute.constants ?? {});
@@ -87,6 +93,11 @@ try {
 		let sortVerification = { passes: 0, entries: 0, reordered: 0 };
 		let shadowPipelines = [];
 		let opcodeConstants = [];
+		let materialVariants = null;
+		const releaseUnusedMaterials = () => {
+			if (materialVariants) for (const variant of Object.values(materialVariants)) if (variant.buffer !== r.scene.materials) variant.buffer.destroy();
+			materialVariants = null;
+		};
 		async function renderSortCheckedFrame() {
 			const captures = [];
 			const begin = GPUCommandEncoder.prototype.beginComputePass;
@@ -150,10 +161,13 @@ try {
 			return values;
 		}
 		async function render(mode, config, capacity = null, stageMask = directStages, packetMask = packetStages) {
+			const material = materialVariants[capacity === null ? 'optimized' : 'original'];
+			Object.assign(r.scene, { materials: material.buffer, materialStackSize: material.stack, materialOpcodes: material.opcodes });
 			r.tracer.materialStackOverride = capacity;
 			r.tracer.materialOpcodeSpecialization = capacity === null;
 			await r.tracer.prepareScene(r.scene);
 			r.bindScene();
+			check(sceneMaterials.get(r.tracer.sceneBindGroup) === material.buffer, 'Wrong bound material bytecode schedule');
 			const expectedCapacity = capacity ?? [0, 1, 2, 4, 8, 16].find(n => n >= r.scene.materialStackSize);
 			check(r.tracer.materialCapacity === expectedCapacity, 'Incorrect material capacity selection');
 			await r.setIntegrator(mode);
@@ -259,6 +273,7 @@ try {
 		check(selectedScenes.length > 0, 'No selected correctness scenes');
 		try {
 			for (const scene of selectedScenes) {
+				releaseUnusedMaterials();
 				// Load with wavefront selected to cover deferred compilation and changes in
 				// scratch allocation as geometry arrives, changes capacity, or disappears.
 				await r.setIntegrator('wavefront');
@@ -313,14 +328,16 @@ try {
 					applyMaterialStress(desc, scene.stressLayers);
 				}
 				await r.setScene(desc);
-				if (scene.stressLayers) check(r.scene.materialStackSize >= scene.stressLayers && r.scene.materialOpcodes[1] === 1,
+				const { materialScheduleVariants } = await import('/scripts/wavefront-material-variants.ts');
+				materialVariants = materialScheduleVariants(r.device, desc, r.vt.descriptorOf, r.scene.materials);
+				if (scene.stressLayers) check(materialVariants.original.stack >= scene.stressLayers && r.scene.materialOpcodes[1] === 1,
 					'Material stress regression did not exercise the large procedural stack');
 				if (scene.procedural) check((r.scene.materialOpcodes[1] & 7) === 7 && (r.scene.materialOpcodes[0] >>> 31) === 1,
 					'Procedural regression did not compile Transform/Noise/Magic/Checker');
 				if (sort !== 'none') {
 					const { compileSceneMaterials } = await import('/src/render/SceneMaterials.ts');
 					const { packMaterialData } = await import('/src/render/GpuLayout.ts');
-					const compiled = compileSceneMaterials(desc);
+					const compiled = compileSceneMaterials(desc, { schedule: true });
 					// Texture descriptor contents do not affect packed program offsets.
 					sortPrograms = packMaterialData(compiled, () => null);
 					sortMaterialOf = desc.instances.map(instance => {
@@ -356,7 +373,7 @@ try {
 							maxError = Math.max(maxError, error); squared += error * error; refSquared += reference[i] * reference[i];
 						}
 						const relativeL2 = Math.sqrt(squared / Math.max(refSquared, 1e-30));
-						const result = { scene: scene.name, mode, compaction, directStages: stageMask, packetStages: packetMask, sort, sortSize, shadowMode, shadowPipelines, sortVerification, opcodeConstants, subgroups: r.device.features.has('subgroups'), materialCapacity: r.tracer.materialCapacity, ...config, maxError, relativeL2 };
+						const result = { scene: scene.name, mode, compaction, directStages: stageMask, packetStages: packetMask, sort, sortSize, shadowMode, shadowPipelines, sortVerification, opcodeConstants, materialSchedules: { original: materialVariants.original.stack, optimized: materialVariants.optimized.stack }, subgroups: r.device.features.has('subgroups'), materialCapacity: r.tracer.materialCapacity, ...config, maxError, relativeL2 };
 						results.push(result);
 						console.log(`[correctness] ${JSON.stringify(result)}`);
 						check(maxError <= 1e-5, `${scene.name}: GPU integrators differ by ${maxError}`);
@@ -366,7 +383,7 @@ try {
 					check(r.samples === 0, 'Integrator switch failed to reset samples');
 				}
 			}
-		} finally { r.destroy(); GPUDevice.prototype.createComputePipelineAsync = createPipeline; }
+		} finally { releaseUnusedMaterials(); r.destroy(); GPUDevice.prototype.createComputePipelineAsync = createPipeline; GPUDevice.prototype.createBindGroup = createBindGroup; }
 		return results;
 	}, { tailStart, tailThreshold, only, disableSubgroups, compaction, directStages, dispatchSweep, packetStages, packetSweep, sort, sortSize, shadowMode });
 	if (errors.length) throw new Error(errors.join('\n'));
