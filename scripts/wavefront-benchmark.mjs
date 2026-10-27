@@ -36,7 +36,12 @@ const config = {
 	compactionSweep: args.includes('--compaction-sweep'),
 	directStages: Number(option('direct-stages', 0)),
 	dispatchSweep: args.includes('--dispatch-sweep'),
+	packetStages: Number(option('packet-stages', 7)),
+	packetSweep: args.includes('--packet-sweep'),
 };
+if (!Number.isInteger(config.packetStages) || config.packetStages < 0 || config.packetStages > 7) throw new Error('Invalid packet stage mask');
+if (config.packetSweep && (!config.paired || config.compaction !== 'packet' || config.tailSweep || config.compactionSweep || config.dispatchSweep))
+	throw new Error('--packet-sweep requires paired packet compaction and cannot combine with other sweeps');
 if (!Number.isInteger(config.directStages) || config.directStages < 0 || config.directStages > 7) throw new Error('Invalid direct stage mask');
 if (!['dense', 'queued', 'subgroup', 'adaptive', 'packet', 'none'].includes(config.compaction)) throw new Error('Invalid compaction mode');
 if ((config.compaction === 'none' || config.compaction === 'packet' || config.directStages === 7) && config.tailThreshold !== 0) throw new Error('Direct/packet dispatch supports fixed tails only');
@@ -63,9 +68,15 @@ if (config.dispatchSweep) {
 			config.variants.push({ name: `dispatch-${directStages}`, tailStart: config.tailStart, tailThreshold: config.tailThreshold, directStages });
 	}
 }
+if (config.packetSweep) {
+	for (let packetStages = 0; packetStages < 8; packetStages++) {
+		if (packetStages !== config.packetStages) config.variants.push({ name: `packet-${packetStages}`, tailStart: config.tailStart, tailThreshold: config.tailThreshold, packetStages });
+	}
+}
 for (const variant of config.variants) {
 	variant.compaction ??= config.compaction;
 	variant.directStages ??= config.directStages;
+	variant.packetStages ??= config.packetStages;
 }
 for (const key of ['width', 'height', 'warmup', 'samples', 'repeats', 'bounces']) {
 	if (!Number.isInteger(config[key]) || config[key] < (key === 'bounces' ? 0 : 1)) throw new Error(`Invalid ${key}`);
@@ -128,7 +139,7 @@ const assertUnchangedSources = () => {
 const referenceReport = { ...report, config: { ...config, mode: 'megakernel' }, results: [] };
 const variantReports = Object.fromEntries(config.variants.slice(1).map(variant => {
 	mkdirSync(join(output, variant.name), { recursive: true });
-	return [variant.name, { ...report, config: { ...config, tailStart: variant.tailStart, tailThreshold: variant.tailThreshold, compaction: variant.compaction, directStages: variant.directStages }, results: [] }];
+	return [variant.name, { ...report, config: { ...config, tailStart: variant.tailStart, tailThreshold: variant.tailThreshold, compaction: variant.compaction, directStages: variant.directStages, packetStages: variant.packetStages }, results: [] }];
 }));
 writeFileSync(join(candidateOutput, 'report.json'), JSON.stringify(report, null, 2));
 try {
@@ -214,6 +225,7 @@ try {
 				renderer.tracer.wavefront.tailThreshold = config.tailThreshold;
 				renderer.tracer.wavefront.compaction = config.compaction;
 				renderer.tracer.wavefront.directStages = config.directStages;
+				renderer.tracer.wavefront.packetStages = config.packetStages;
 			}
 			const materialCapacity = renderer.tracer.materialCapacity;
 			const expectedCapacity = config.materialStack ?? [1, 2, 4, 8, 16].find(capacity => capacity >= materialStackRequired);
@@ -273,17 +285,17 @@ try {
 			let presentationVariant = config.mode;
 			const pairedErrors = [];
 			for (let repeat = 0; repeat < config.repeats; repeat++) {
-				const schedule = config.paired ? [{ name: 'megakernel' }, ...config.variants] : [{ name: config.mode, tailStart: config.tailStart, tailThreshold: config.tailThreshold, compaction: config.compaction, directStages: config.directStages }];
+				const schedule = config.paired ? [{ name: 'megakernel' }, ...config.variants] : [{ name: config.mode, tailStart: config.tailStart, tailThreshold: config.tailThreshold, compaction: config.compaction, directStages: config.directStages, packetStages: config.packetStages }];
 				// Rotate the sweep and reverse alternating rounds to avoid always measuring a
 				// configuration at the same position relative to GPU warmup and clock changes.
-				if (config.tailSweep || config.compactionSweep || config.dispatchSweep) schedule.push(...schedule.splice(0, repeat % schedule.length));
+				if (config.tailSweep || config.compactionSweep || config.dispatchSweep || config.packetSweep) schedule.push(...schedule.splice(0, repeat % schedule.length));
 				if (config.paired && repeat % 2 !== 0) schedule.reverse();
 				for (const variant of schedule) {
 					const mode = variant.name === 'megakernel' ? 'megakernel' : 'wavefront';
 					presentationVariant = variant.name;
 					if (config.paired) {
 						await renderer.setIntegrator(mode);
-						if (mode === 'wavefront') Object.assign(renderer.tracer.wavefront, { tailStart: variant.tailStart, tailThreshold: variant.tailThreshold, compaction: variant.compaction, directStages: variant.directStages });
+						if (mode === 'wavefront') Object.assign(renderer.tracer.wavefront, { tailStart: variant.tailStart, tailThreshold: variant.tailThreshold, compaction: variant.compaction, directStages: variant.directStages, packetStages: variant.packetStages });
 						// Warm each selected pipeline before timing while retaining identical scene/VT data.
 						for (let warm = 0; warm < 8; warm++) { renderer.renderFrame(); await device.queue.onSubmittedWorkDone(); }
 					}
@@ -359,7 +371,11 @@ try {
 					const mainGroups = counters[offset + 4], shadowGroups = counters[offset + 8];
 					if (active > tilePathCount || shadow > tilePathCount || mainGroups !== Math.ceil((denseBound ? tilePathCount : active) / 64)
 						|| shadowGroups !== Math.ceil(shadow / 64)) throw new Error(`Invalid queue/dispatch bounds after ${phase}`);
-					queueSnapshots.push({ countUnit: config.compaction === 'packet' ? 'retained-slots' : 'active-paths', phase, tilePathCount, active, shadow, mainA: counters[offset], mainB: counters[offset + 2], mainGroups, shadowGroups });
+					const mainPacket = config.compaction === 'packet' && (config.packetStages & (phase.includes('CompactIntersect') ? 2 : 1));
+					const shadowPacket = config.compaction === 'packet' && (config.packetStages & 4);
+					queueSnapshots.push({ countUnit: mainPacket ? 'retained-slots' : 'active-paths',
+						shadowCountUnit: shadowPacket ? 'retained-slots' : 'active-paths', phase, tilePathCount, active, shadow,
+						mainA: counters[offset], mainB: counters[offset + 2], mainGroups, shadowGroups });
 				}
 				queueReadback.unmap(); queueReadback.destroy();
 			}

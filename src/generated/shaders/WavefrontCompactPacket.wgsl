@@ -1,6 +1,17 @@
 // Generated from shaders/Passes/WavefrontCompact.slang by scripts/build-shaders.mjs. Do not edit.
 @binding(0) @group(1) var<storage, read_write> gWork_0 : array<atomic<u32>>;
 
+struct WavefrontUniforms_std140_0
+{
+    @align(16) tileStart_0 : u32,
+    @align(4) pathCount_0 : u32,
+    @align(8) bounce_0 : u32,
+    @align(4) capacity_0 : u32,
+    @align(16) tailThreshold_0 : u32,
+    @align(4) packetStages_0 : u32,
+};
+
+@binding(2) @group(1) var<uniform> gWavefront_0 : WavefrontUniforms_std140_0;
 struct FrameUniforms_std140_0
 {
     @align(16) cameraPosition_0 : vec4<f32>,
@@ -20,16 +31,6 @@ struct FrameUniforms_std140_0
 };
 
 @binding(0) @group(0) var<uniform> gFrame_0 : FrameUniforms_std140_0;
-struct WavefrontUniforms_std140_0
-{
-    @align(16) tileStart_0 : u32,
-    @align(4) pathCount_0 : u32,
-    @align(8) bounce_0 : u32,
-    @align(4) capacity_0 : u32,
-    @align(16) tailThreshold_0 : u32,
-};
-
-@binding(2) @group(1) var<uniform> gWavefront_0 : WavefrontUniforms_std140_0;
 fn ReserveQueues_0( header_0 : u32,  count_0 : vec2<u32>) -> vec2<u32>
 {
     var offset_0 : vec2<u32> = vec2<u32>(u32(0));
@@ -77,6 +78,8 @@ var<workgroup> gOffsets_0 : vec2<u32>;
 fn CompactImpl_0( tid_0 : vec3<u32>,  local_0 : vec3<u32>)
 {
     var lane_0 : u32 = local_0.x;
+    var packetMain_0 : bool = (((gWavefront_0.packetStages_0) & (u32(1)))) != u32(0);
+    var packetShadow_0 : bool = (((gWavefront_0.packetStages_0) & (u32(4)))) != u32(0);
     var header_2 : u32 = gFrame_0.frame_0.x * gFrame_0.frame_0.y * u32(12);
     var _S13 : u32 = header_2 + u32(12);
     var queue_0 : u32 = _S13 + gWavefront_0.capacity_0 * u32(84);
@@ -128,37 +131,87 @@ fn CompactImpl_0( tid_0 : vec3<u32>,  local_0 : vec3<u32>)
     if(lane_0 == u32(0))
     {
         var _S19 : u32 = min(u32(64), gWavefront_0.pathCount_0 - (_S15 - lane_0));
-        if(((gPrefix_0[u32(63)].x) > u32(0)))
+        if(packetMain_0)
         {
-            offset_2 = _S19;
+            if(((gPrefix_0[u32(63)].x) > u32(0)))
+            {
+                offset_2 = _S19;
+            }
+            else
+            {
+                offset_2 = u32(0);
+            }
         }
         else
         {
-            offset_2 = u32(0);
+            offset_2 = gPrefix_0[u32(63)].x;
         }
         var _S20 : u32;
-        if(((gPrefix_0[u32(63)].y) > u32(0)))
+        if(packetShadow_0)
         {
-            _S20 = _S19;
+            if(((gPrefix_0[u32(63)].y) > u32(0)))
+            {
+                _S20 = _S19;
+            }
+            else
+            {
+                _S20 = u32(0);
+            }
         }
         else
         {
-            _S20 = u32(0);
+            _S20 = gPrefix_0[u32(63)].y;
         }
         var _S21 : vec2<u32> = ReserveQueues_0(header_2, vec2<u32>(offset_2, _S20));
         gOffsets_0 = _S21;
     }
     workgroupBarrier();
     var offsets_0 : vec2<u32> = gOffsets_0;
+    var prefix_0 : vec2<u32> = gPrefix_0[lane_0] - flags_0;
     if(_S16)
     {
-        if(((gPrefix_0[u32(63)].x) > u32(0)))
+        var _S22 : bool;
+        if(packetMain_0)
         {
-            atomicStore(&(gWork_0[queue_0 + offsets_0.x + lane_0]), index_0);
+            _S22 = ((gPrefix_0[u32(63)].x) > u32(0));
         }
-        if(((gPrefix_0[u32(63)].y) > u32(0)))
+        else
         {
-            atomicStore(&(gWork_0[queue_0 + u32(2) * queueStride_0 + offsets_0.y + lane_0]), index_0);
+            _S22 = (flags_0.x) != u32(0);
+        }
+        if(_S22)
+        {
+            var _S23 : u32 = queue_0 + offsets_0.x;
+            if(packetMain_0)
+            {
+                offset_2 = lane_0;
+            }
+            else
+            {
+                offset_2 = prefix_0.x;
+            }
+            atomicStore(&(gWork_0[_S23 + offset_2]), index_0);
+        }
+        if(packetShadow_0)
+        {
+            _S22 = ((gPrefix_0[u32(63)].y) > u32(0));
+        }
+        else
+        {
+            _S22 = (flags_0.y) != u32(0);
+        }
+        if(_S22)
+        {
+            var _S24 : u32 = queue_0 + u32(2) * queueStride_0 + offsets_0.y;
+            if(packetShadow_0)
+            {
+                offset_2 = lane_0;
+            }
+            else
+            {
+                offset_2 = prefix_0.y;
+            }
+            atomicStore(&(gWork_0[_S24 + offset_2]), index_0);
         }
     }
     return;
@@ -167,21 +220,23 @@ fn CompactImpl_0( tid_0 : vec3<u32>,  local_0 : vec3<u32>)
 fn CompactImpl_1( tid_1 : vec3<u32>,  local_1 : vec3<u32>)
 {
     var lane_1 : u32 = local_1.x;
+    var packetMain_1 : bool = (((gWavefront_0.packetStages_0) & (u32(2)))) != u32(0);
+    var packetShadow_1 : bool = (((gWavefront_0.packetStages_0) & (u32(4)))) != u32(0);
     var header_3 : u32 = gFrame_0.frame_0.x * gFrame_0.frame_0.y * u32(12);
-    var _S22 : u32 = header_3 + u32(12);
-    var queue_1 : u32 = _S22 + gWavefront_0.capacity_0 * u32(84);
+    var _S25 : u32 = header_3 + u32(12);
+    var queue_1 : u32 = _S25 + gWavefront_0.capacity_0 * u32(84);
     var queueStride_1 : u32 = (gWavefront_0.capacity_0 + u32(3)) / u32(4) * u32(4);
     var outputQueue_0 : u32 = queue_1 + queueStride_1;
-    var _S23 : vec2<u32> = vec2<u32>(u32(0));
-    var flags_1 : vec2<u32> = _S23;
-    var _S24 : u32 = tid_1.x;
-    var _S25 : bool = (_S24 < (gWavefront_0.pathCount_0));
+    var _S26 : vec2<u32> = vec2<u32>(u32(0));
+    var flags_1 : vec2<u32> = _S26;
+    var _S27 : u32 = tid_1.x;
+    var _S28 : bool = (_S27 < (gWavefront_0.pathCount_0));
     var index_1 : u32;
-    if(_S25)
+    if(_S28)
     {
-        var _S26 : u32 = atomicLoad(&(gWork_0[_S22 + _S24 * u32(4) + u32(3)]));
-        flags_1[i32(0)] = select(u32(0), u32(1), _S26 != u32(0));
-        index_1 = _S24;
+        var _S29 : u32 = atomicLoad(&(gWork_0[_S25 + _S27 * u32(4) + u32(3)]));
+        flags_1[i32(0)] = select(u32(0), u32(1), _S29 != u32(0));
+        index_1 = _S27;
     }
     else
     {
@@ -206,7 +261,7 @@ fn CompactImpl_1( tid_1 : vec3<u32>,  local_1 : vec3<u32>)
         }
         else
         {
-            value_1 = _S23;
+            value_1 = _S26;
         }
         workgroupBarrier();
         gPrefix_0[lane_1] = gPrefix_0[lane_1] + value_1;
@@ -215,38 +270,88 @@ fn CompactImpl_1( tid_1 : vec3<u32>,  local_1 : vec3<u32>)
     }
     if(lane_1 == u32(0))
     {
-        var _S27 : u32 = min(u32(64), gWavefront_0.pathCount_0 - (_S24 - lane_1));
-        if(((gPrefix_0[u32(63)].x) > u32(0)))
+        var _S30 : u32 = min(u32(64), gWavefront_0.pathCount_0 - (_S27 - lane_1));
+        if(packetMain_1)
         {
-            offset_3 = _S27;
+            if(((gPrefix_0[u32(63)].x) > u32(0)))
+            {
+                offset_3 = _S30;
+            }
+            else
+            {
+                offset_3 = u32(0);
+            }
         }
         else
         {
-            offset_3 = u32(0);
+            offset_3 = gPrefix_0[u32(63)].x;
         }
-        var _S28 : u32;
-        if(((gPrefix_0[u32(63)].y) > u32(0)))
+        var _S31 : u32;
+        if(packetShadow_1)
         {
-            _S28 = _S27;
+            if(((gPrefix_0[u32(63)].y) > u32(0)))
+            {
+                _S31 = _S30;
+            }
+            else
+            {
+                _S31 = u32(0);
+            }
         }
         else
         {
-            _S28 = u32(0);
+            _S31 = gPrefix_0[u32(63)].y;
         }
-        var _S29 : vec2<u32> = ReserveQueues_1(header_3, vec2<u32>(offset_3, _S28));
-        gOffsets_0 = _S29;
+        var _S32 : vec2<u32> = ReserveQueues_1(header_3, vec2<u32>(offset_3, _S31));
+        gOffsets_0 = _S32;
     }
     workgroupBarrier();
     var offsets_1 : vec2<u32> = gOffsets_0;
-    if(_S25)
+    var prefix_1 : vec2<u32> = gPrefix_0[lane_1] - flags_1;
+    if(_S28)
     {
-        if(((gPrefix_0[u32(63)].x) > u32(0)))
+        var _S33 : bool;
+        if(packetMain_1)
         {
-            atomicStore(&(gWork_0[outputQueue_0 + offsets_1.x + lane_1]), index_1);
+            _S33 = ((gPrefix_0[u32(63)].x) > u32(0));
         }
-        if(((gPrefix_0[u32(63)].y) > u32(0)))
+        else
         {
-            atomicStore(&(gWork_0[queue_1 + u32(2) * queueStride_1 + offsets_1.y + lane_1]), index_1);
+            _S33 = (flags_1.x) != u32(0);
+        }
+        if(_S33)
+        {
+            var _S34 : u32 = outputQueue_0 + offsets_1.x;
+            if(packetMain_1)
+            {
+                offset_3 = lane_1;
+            }
+            else
+            {
+                offset_3 = prefix_1.x;
+            }
+            atomicStore(&(gWork_0[_S34 + offset_3]), index_1);
+        }
+        if(packetShadow_1)
+        {
+            _S33 = ((gPrefix_0[u32(63)].y) > u32(0));
+        }
+        else
+        {
+            _S33 = (flags_1.y) != u32(0);
+        }
+        if(_S33)
+        {
+            var _S35 : u32 = queue_1 + u32(2) * queueStride_1 + offsets_1.y;
+            if(packetShadow_1)
+            {
+                offset_3 = lane_1;
+            }
+            else
+            {
+                offset_3 = prefix_1.y;
+            }
+            atomicStore(&(gWork_0[_S35 + offset_3]), index_1);
         }
     }
     return;

@@ -23,6 +23,8 @@ export class Wavefront {
 	compaction: 'dense' | 'queued' | 'subgroup' | 'adaptive' | 'packet' | 'none' = 'dense';
 	// Internal experiment: bits 1/2/4 select direct intersection/shading/shadow dispatch.
 	directStages = 0;
+	// Bits select packet retention in the queues consumed by intersection/shading/shadow.
+	packetStages = 7;
 	readonly layout: GPUBindGroupLayout;
 	readonly compiled: Promise<void>;
 	private readonly pipelines = new Map<MaterialStackCapacity, Map<Entry, GPUComputePipeline>>();
@@ -111,6 +113,7 @@ export class Wavefront {
 		const directStages = this.compaction === 'none' ? 7 : this.directStages;
 		if (!Number.isInteger(directStages) || directStages < 0 || directStages > 7) throw new Error('Invalid direct stage mask');
 		const direct = directStages === 7;
+		if (!Number.isInteger(this.packetStages) || this.packetStages < 0 || this.packetStages > 7) throw new Error('Invalid packet stage mask');
 		if (this.compaction === 'packet' && this.tailThreshold !== 0) throw new Error('Packet counts include inactive slots; use fixed tails');
 		if (direct && this.tailThreshold !== 0) throw new Error('Direct dispatch supports fixed tails only; adaptive tails require queue counts');
 		if (this.compaction === 'subgroup' && !this.compactSubgroupModule) throw new Error('Subgroup compaction requires the subgroups device feature');
@@ -120,13 +123,13 @@ export class Wavefront {
 		const pixels = width * height, capacity = this.capacity(pixels);
 		const workItems = Math.ceil(width / 8) * Math.ceil(height / 8) * 64;
 		const tiles = Math.ceil(workItems / capacity), bounces = Math.max(0, Math.floor(maxBounces));
-		const key = `${width}/${height}/${bounces}/${capacity}/${this.tailThreshold}`;
+		const key = `${width}/${height}/${bounces}/${capacity}/${this.tailThreshold}/${this.packetStages}`;
 		if (key !== this.parameterKey) {
 			this.parameters?.destroy();
 			const data = new Uint32Array(tiles * (bounces + 1) * this.alignment / 4);
 			for (let tile = 0; tile < tiles; tile++) {
 				for (let bounce = 0; bounce <= bounces; bounce++) {
-					data.set([tile * capacity, Math.min(capacity, workItems - tile * capacity), bounce, capacity, this.tailThreshold],
+					data.set([tile * capacity, Math.min(capacity, workItems - tile * capacity), bounce, capacity, this.tailThreshold, this.packetStages],
 						(tile * (bounces + 1) + bounce) * this.alignment / 4);
 				}
 			}

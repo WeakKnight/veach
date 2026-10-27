@@ -21,6 +21,7 @@ struct WavefrontUniforms
 	uint bounce;
 	uint capacity;
 	uint tailThreshold;
+	uint packetStages;
 };
 [[vk::binding(2, 1)]] ConstantBuffer<WavefrontUniforms> gWavefront;
 

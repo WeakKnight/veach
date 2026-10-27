@@ -77,6 +77,14 @@ that threshold. `--disable-subgroups` tests adapters without that optional devic
 omitting the subgroup variant from a compaction sweep.
 `packet` retains all valid slots in nonempty physical groups, supports fixed tails only,
 and is omitted from sweeps with positive adaptive-tail thresholds.
+`--packet-stages MASK` controls which queues retain packets: intersection bit 1, shading
+bit 2, shadow bit 4. Other queues compact individual live paths using the same physical
+scan and prefix sums. The default is 7; mask 0 behaves like dense per-path compaction,
+and mask 5 retains traversal packets while packing shading lanes. The mask occupies a
+previously unused uint in the existing 32-byte dynamic uniform, with no new resource.
+`--packet-sweep` tests all eight masks in the same scene/residency and is mutually exclusive
+with other sweeps. The GPU correctness harness supports the same sweep. Diagnostics report
+main and shadow count units separately because their retention policies can differ.
 `none` uses separate direct-slot entry points for intersection, shading and shadow, with no
 compaction passes or indirect-argument copies. It preserves pixel groups and returns early
 for inactive slots. This mode supports fully staged execution and fixed tails; sweeps omit
@@ -523,6 +531,33 @@ from 1.109 to 1.538 ms. BMW intersection/shadow improve from 2.511/2.151 to 1.99
 while shading grows from 0.612 to 0.736 ms. These are timing observations, not measured
 occupancy or register counts. The next experiment should retain packets independently by
 stage, especially keeping shading tightly compacted while preserving traversal packets.
+
+The follow-up `packet-stage-sweep-v1` tested all eight packet masks with the same five
+scenes, three rounds and 32 samples at 640x360. All 120 per-round HDR comparisons and saved
+HDR captures were exact, with matching source/browser identity. All 135 GPU correctness
+comparisons (15 configurations per mask plus the reference auto-capacity variant) passed
+with subgroups disabled. Mask 5 smoke passed helmet HDR, alpha and transmission; the
+transmission screenshot was inspected. Typecheck, 176 unit tests and library build passed.
+An additional 45 comparisons covered all packet masks with fixed-tail fusion at bounce 2
+on alpha/analytic/empty-return, and 36 covered every direct-stage mask with packet mask 5
+on alpha/analytic. Both suites completed with zero error, including partial tiles.
+The useful masks show the expected stage-dependent tradeoff (median GPU span, ms):
+
+| Packet mask | classroom | breakfast | BMW | glass | MIS |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| 0: no packets | 8.771 | 6.377 | 5.521 | 3.919 | 1.888 |
+| 1: intersection | 10.025 | 5.411 | 4.955 | 4.315 | 1.996 |
+| 4: shadow | 9.358 | 6.840 | 4.993 | 3.886 | 1.843 |
+| 5: intersection + shadow | 10.554 | 5.945 | 4.366 | 4.158 | 1.898 |
+| 7: all stages | 11.075 | 6.309 | 4.571 | 4.482 | 2.149 |
+
+Compared with retaining packets everywhere, selecting stages improves breakfast by about
+14% and BMW by 4.5%. It does not establish a new best result over the earlier direct-stage
+sweep, nor justify a universal default. Queue diagnostics from `compaction-packet-diagnostics-v1`
+passed dispatch bounds on breakfast/BMW; breakfast retains 75,904 slots after bounce 7,
+versus 1,701 live paths in the matching adaptive diagnostic. These diagnostic runs include
+GPU copies and are not performance evidence. Further work should now examine constant-only
+material specialization and material grouping, while retaining these schedules as controls.
 
 Group 1 binding 0 contains the original image prefix (three float4 per pixel), then
 three float4 headers, 21 float4 field arrays at the current tile capacity, then three

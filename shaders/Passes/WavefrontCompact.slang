@@ -25,6 +25,7 @@ struct WavefrontUniforms
 	uint bounce;
 	uint capacity;
 	uint tailThreshold;
+	uint packetStages;
 };
 [[vk::binding(0, 1)]] RWStructuredBuffer<Atomic<uint>> gWork;
 [[vk::binding(2, 1)]] ConstantBuffer<WavefrontUniforms> gWavefront;
@@ -62,6 +63,10 @@ uint2 ReserveQueues<let AFTER_SHADE : bool>(uint header, uint2 count)
 void CompactImpl<let AFTER_SHADE : bool>(uint3 tid, uint3 local)
 {
 	uint lane = local.x;
+#if VEACH_PACKET_COMPACTION
+	bool packetMain = (gWavefront.packetStages & (AFTER_SHADE ? 1u : 2u)) != 0u;
+	bool packetShadow = (gWavefront.packetStages & 4u) != 0u;
+#endif
 	uint header = gFrame.frame.x * gFrame.frame.y * 12u;
 #if VEACH_DENSE_COMPACTION || VEACH_PACKET_COMPACTION
 	bool dense = true;
@@ -132,8 +137,8 @@ void CompactImpl<let AFTER_SHADE : bool>(uint3 tid, uint3 local)
 		// Keep every valid slot in a nonempty physical packet. Queue entries remain
 		// ordinary path indices, so existing stage/tail guards handle inactive lanes.
 		uint packetSize = min(64u, gWavefront.pathCount - (tid.x - lane));
-		uint2 slots = uint2(gPrefix[63u].x > 0u ? packetSize : 0u,
-			gPrefix[63u].y > 0u ? packetSize : 0u);
+		uint2 slots = uint2(packetMain ? (gPrefix[63u].x > 0u ? packetSize : 0u) : gPrefix[63u].x,
+			packetShadow ? (gPrefix[63u].y > 0u ? packetSize : 0u) : gPrefix[63u].y);
 		gOffsets = ReserveQueues<AFTER_SHADE>(header, slots);
 #else
 		gOffsets = ReserveQueues<AFTER_SHADE>(header, gPrefix[63u]);
@@ -146,8 +151,10 @@ void CompactImpl<let AFTER_SHADE : bool>(uint3 tid, uint3 local)
 #if VEACH_PACKET_COMPACTION
 	if (tid.x < count)
 	{
-		if (gPrefix[63u].x > 0u) gWork[outputQueue + offsets.x + lane].store(index);
-		if (gPrefix[63u].y > 0u) gWork[queue + 2u * queueStride + offsets.y + lane].store(index);
+		if (packetMain ? gPrefix[63u].x > 0u : flags.x != 0u)
+			gWork[outputQueue + offsets.x + (packetMain ? lane : prefix.x)].store(index);
+		if (packetShadow ? gPrefix[63u].y > 0u : flags.y != 0u)
+			gWork[queue + 2u * queueStride + offsets.y + (packetShadow ? lane : prefix.y)].store(index);
 	}
 #else
 	prefix += offsets;

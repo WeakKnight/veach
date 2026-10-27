@@ -6,6 +6,7 @@ struct WavefrontUniforms_std140_0
     @align(8) bounce_0 : u32,
     @align(4) capacity_0 : u32,
     @align(16) tailThreshold_0 : u32,
+    @align(4) packetStages_0 : u32,
 };
 
 @binding(2) @group(1) var<uniform> gWavefront_0 : WavefrontUniforms_std140_0;

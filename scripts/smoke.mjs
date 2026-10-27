@@ -61,6 +61,13 @@ if (directFlag >= 0) {
 	wavefrontTuning.directStages = mask;
 	only.splice(directFlag, 2);
 }
+const packetFlag = only.indexOf('--packet-stages');
+if (packetFlag >= 0) {
+	const mask = Number(only[packetFlag + 1]);
+	if (integrator !== 'wavefront' || !Number.isInteger(mask) || mask < 0 || mask > 7) throw new Error('--packet-stages requires wavefront and a mask from 0 to 7');
+	wavefrontTuning.packetStages = mask;
+	only.splice(packetFlag, 2);
+}
 const compactionFlag = only.indexOf('--compaction');
 if (compactionFlag >= 0) {
 	const mode = only[compactionFlag + 1];
