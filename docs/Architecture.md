@@ -5,8 +5,10 @@
 Renderer initialization compiles `PathTracingEmpty.wgsl`, an empty-scene specialization of
 `PathTracing.slang` that retains camera rays, analytic-light visibility, background, and
 accumulation. Full material/traversal pipelines are prepared on scene loading, with stack
-capacity selected from compiled materials. Wavefront selection before geometry arrives is
-deferred; scene loading prepares its stages alongside the reference kernel. Geometry-free
+capacity selected from compiled materials. Capacity zero omits the SVM stack/opcode
+implementations when every compiled surface/opacity/emission program is constant-only;
+other capacities remain 1/2/4/8/16. Wavefront selection before geometry arrives is deferred;
+scene loading prepares its stages alongside the reference kernel. Geometry-free
 scenes allocate only the accumulation image prefix, without wavefront scratch.
 Wavefront compaction optionally uses the adapter's `subgroups` feature, with a separately
 compiled workgroup-scan fallback. Both paths keep the same eight-storage-buffer layouts.
@@ -118,7 +120,7 @@ these mixed schedules keep valid active counts for adaptive tails.
 
 Bind group layouts are explicit in `PathTracer.ts`.
 
-Both integrators cache material stack pipeline variants at capacities 1/2/4/8/16.
+Both integrators cache material stack pipeline variants at capacities 0/1/2/4/8/16.
 `GpuScene.materialStackSize` conservatively bounds all compiled material programs.
 `Renderer.setScene` prepares the required pipelines before replacing the old scene;
 failed compilation or disposal releases the newly allocated scene and virtual textures.

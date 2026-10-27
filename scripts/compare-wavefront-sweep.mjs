@@ -32,7 +32,7 @@ for (const entry of readdirSync(directory, { withFileTypes: true })) {
 			throw new Error(`Invalid per-round evidence: ${entry.name}/${scene.name}`);
 		}
 	}
-	variants.push({ name: entry.name, tailStart: report.config.tailStart, tailThreshold: report.config.tailThreshold,
+	variants.push({ name: entry.name, mode: report.config.mode, materialStack: report.config.materialStack, tailStart: report.config.tailStart, tailThreshold: report.config.tailThreshold,
 		compaction: report.config.compaction, directStages: report.config.directStages ?? 0, packetStages: report.config.packetStages ?? 7, results: comparison.results });
 }
 if (variants.length !== expectedVariants.size) throw new Error('Missing sweep variants');

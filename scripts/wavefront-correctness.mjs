@@ -82,7 +82,7 @@ try {
 			r.tracer.materialStackOverride = capacity;
 			await r.tracer.prepareScene(r.scene);
 			r.bindScene();
-			const expectedCapacity = capacity ?? [1, 2, 4, 8, 16].find(n => n >= r.scene.materialStackSize);
+			const expectedCapacity = capacity ?? [0, 1, 2, 4, 8, 16].find(n => n >= r.scene.materialStackSize);
 			check(r.tracer.materialCapacity === expectedCapacity, 'Incorrect material capacity selection');
 			await r.setIntegrator(mode);
 			if (mode === 'wavefront' && r.tracer.wavefront) Object.assign(r.tracer.wavefront, { tailStart, tailThreshold, compaction, directStages: stageMask, packetStages: packetMask });
@@ -117,6 +117,10 @@ try {
 			] },
 			{ name: 'alpha', file: 'AlphaBlendModeTest.glb', configurations: [
 				{ width: 129, height: 97, bounces: 0, samples: 4 },
+				{ width: 129, height: 97, bounces: 8, samples: 16, clamp: 2 },
+			] },
+			{ name: 'constant-alpha', file: 'AlphaBlendModeTest.glb', constant: true, configurations: [
+				{ width: 7, height: 5, bounces: 8, samples: 8 },
 				{ width: 129, height: 97, bounces: 8, samples: 16, clamp: 2 },
 			] },
 			{ name: 'transmission', file: 'TransmissionTest.glb', configurations: [
@@ -164,7 +168,25 @@ try {
 					desc.lights = [false, true].map((area, i) => ({ type: area ? 'area' : 'point', position: [i === 0 ? -0.7 : 0.7, 0, 0], direction: [0, 0, 1],
 						power: [50, 30, 10], radius: 0.4, spotAngle: 1, spotBlend: 0.2, sizeU: [0.6, 0, 0], sizeV: [0, 0.6, 0], ellipse: false, visibleToCamera: true, castShadow: true }));
 				}
+				if (scene.constant) {
+					const { AlphaMode } = await import('/src/scene/Scene.ts');
+					desc.materials.forEach((material, i) => {
+						material.graph = { name: `constant-${i}`, surface: 0, alphaMode: i % 2 ? AlphaMode.Blend : AlphaMode.Mask,
+							alphaCutoff: 0.5, doubleSided: true, nodes: [{ category: 'open_pbr_surface', type: 'surfaceshader', inputs: {
+								base_color: { value: [0.7, 0.2, 0.1] }, specular_roughness: { value: [0.15 + 0.1 * (i % 5)] },
+								geometry_opacity: { value: [(i % 4) / 3] }, geometry_thin_walled: { value: [1] },
+								transmission_weight: { value: [0.5] }, coat_weight: { value: [0.3] },
+								emission_luminance: { value: [0.1] }, emission_color: { value: [1, 0.2, 0.1] },
+							} }] };
+					});
+					const { compileSceneMaterials } = await import('/src/render/SceneMaterials.ts');
+					const constantMaterials = compileSceneMaterials(desc).slice(0, -1);
+					// Opacity 1 is the default and is removed by constant folding.
+					check(constantMaterials.every((m, i) => m.stackSize === 0 && m.alphaTested === (i % 4 !== 3) && m.emissive),
+						`Constant graph metadata: ${JSON.stringify(constantMaterials.map(m => ({ name: m.name, stack: m.stackSize, alpha: m.alphaTested, emissive: m.emissive })))}`);
+				}
 				await r.setScene(desc);
+				if (scene.constant) check(r.scene.materialStackSize === 0 && r.tracer.materialCapacity === 0, 'Constant material specialization was not exercised');
 				Object.assign(r.settings, { maxSamples: 0, maxBounces: 8, fireflyClamp: 0, environmentIntensity: scene.emptyAnalytic ? 0 : 1 });
 				r.sun.enabled = !scene.emptyAnalytic;
 				let quiet = 0;

@@ -38,14 +38,18 @@ const config = {
 	dispatchSweep: args.includes('--dispatch-sweep'),
 	packetStages: Number(option('packet-stages', 7)),
 	packetSweep: args.includes('--packet-sweep'),
+	materialSweep: args.includes('--material-sweep'),
+	variantWarmup: Number(option('variant-warmup', args.includes('--material-sweep') ? 64 : 8)),
 };
+if (config.materialSweep && (!config.paired || config.tailSweep || config.compactionSweep || config.dispatchSweep || config.packetSweep || config.materialStack !== null))
+	throw new Error('--material-sweep requires paired auto capacity and cannot combine with other sweeps');
 if (!Number.isInteger(config.packetStages) || config.packetStages < 0 || config.packetStages > 7) throw new Error('Invalid packet stage mask');
 if (config.packetSweep && (!config.paired || config.compaction !== 'packet' || config.tailSweep || config.compactionSweep || config.dispatchSweep))
 	throw new Error('--packet-sweep requires paired packet compaction and cannot combine with other sweeps');
 if (!Number.isInteger(config.directStages) || config.directStages < 0 || config.directStages > 7) throw new Error('Invalid direct stage mask');
 if (!['dense', 'queued', 'subgroup', 'adaptive', 'packet', 'none'].includes(config.compaction)) throw new Error('Invalid compaction mode');
 if ((config.compaction === 'none' || config.compaction === 'packet' || config.directStages === 7) && config.tailThreshold !== 0) throw new Error('Direct/packet dispatch supports fixed tails only');
-if (config.materialStack !== null && ![1, 2, 4, 8, 16].includes(config.materialStack)) throw new Error('Invalid material stack capacity');
+if (config.materialStack !== null && ![0, 1, 2, 4, 8, 16].includes(config.materialStack)) throw new Error('Invalid material stack capacity');
 if (config.paired && config.mode !== 'wavefront') throw new Error('--paired requires --mode wavefront');
 if (config.tailSweep && !config.paired) throw new Error('--tail-sweep requires --paired --mode wavefront');
 if (config.compactionSweep && (!config.paired || config.tailSweep)) throw new Error('--compaction-sweep requires --paired and cannot combine with --tail-sweep');
@@ -73,12 +77,18 @@ if (config.packetSweep) {
 		if (packetStages !== config.packetStages) config.variants.push({ name: `packet-${packetStages}`, tailStart: config.tailStart, tailThreshold: config.tailThreshold, packetStages });
 	}
 }
+if (config.materialSweep) {
+	for (const materialStack of [1, 16]) for (const mode of ['megakernel', 'wavefront'])
+		config.variants.push({ name: `${mode}-stack-${materialStack}`, mode, materialStack, tailStart: config.tailStart, tailThreshold: config.tailThreshold });
+}
 for (const variant of config.variants) {
+	variant.mode ??= 'wavefront';
+	variant.materialStack ??= config.materialStack;
 	variant.compaction ??= config.compaction;
 	variant.directStages ??= config.directStages;
 	variant.packetStages ??= config.packetStages;
 }
-for (const key of ['width', 'height', 'warmup', 'samples', 'repeats', 'bounces']) {
+for (const key of ['width', 'height', 'warmup', 'variantWarmup', 'samples', 'repeats', 'bounces']) {
 	if (!Number.isInteger(config[key]) || config[key] < (key === 'bounces' ? 0 : 1)) throw new Error(`Invalid ${key}`);
 }
 const cases = [
@@ -139,7 +149,7 @@ const assertUnchangedSources = () => {
 const referenceReport = { ...report, config: { ...config, mode: 'megakernel' }, results: [] };
 const variantReports = Object.fromEntries(config.variants.slice(1).map(variant => {
 	mkdirSync(join(output, variant.name), { recursive: true });
-	return [variant.name, { ...report, config: { ...config, tailStart: variant.tailStart, tailThreshold: variant.tailThreshold, compaction: variant.compaction, directStages: variant.directStages, packetStages: variant.packetStages }, results: [] }];
+	return [variant.name, { ...report, config: { ...config, mode: variant.mode, materialStack: variant.materialStack, tailStart: variant.tailStart, tailThreshold: variant.tailThreshold, compaction: variant.compaction, directStages: variant.directStages, packetStages: variant.packetStages }, results: [] }];
 }));
 writeFileSync(join(candidateOutput, 'report.json'), JSON.stringify(report, null, 2));
 try {
@@ -171,8 +181,9 @@ try {
 			GPUDevice.prototype.createShaderModule = function(descriptor) {
 				if (descriptor.label === 'PathTracing' || descriptor.label === 'Wavefront') {
 					const capacities = [...descriptor.code.matchAll(/var stack_\d+\s*:\s*array<vec4<f32>,\s*i32\((\d+)\)>/g)].map(match => Number(match[1]));
-					if (!capacities.length || capacities.some(capacity => capacity !== capacities[0])) throw new Error('Unexpected effective SVM shader capacity');
-					observedStackCapacities[descriptor.label] = capacities;
+					if (!capacities.length) capacities.push(0); // Constant-only modules have no SVM stack.
+					if (capacities.some(capacity => capacity !== capacities[0])) throw new Error('Unexpected effective SVM shader capacity');
+					observedStackCapacities[descriptor.label] = [...new Set([...(observedStackCapacities[descriptor.label] ?? []), ...capacities])];
 					shaderCompilations.push({ label: descriptor.label, capacities, bytes: descriptor.code.length });
 				}
 				return createShaderModule.call(this, descriptor);
@@ -228,13 +239,11 @@ try {
 				renderer.tracer.wavefront.packetStages = config.packetStages;
 			}
 			const materialCapacity = renderer.tracer.materialCapacity;
-			const expectedCapacity = config.materialStack ?? [1, 2, 4, 8, 16].find(capacity => capacity >= materialStackRequired);
+			const expectedCapacity = config.materialStack ?? [0, 1, 2, 4, 8, 16].find(capacity => capacity >= materialStackRequired);
 			if (materialCapacity !== expectedCapacity) throw new Error('Incorrect production material capacity selection');
 			for (const label of config.mode === 'wavefront' ? ['PathTracing', 'Wavefront'] : ['PathTracing']) {
 				if (!observedStackCapacities[label]?.length || observedStackCapacities[label].some(capacity => capacity !== materialCapacity)) throw new Error(`Incorrect ${label} shader specialization`);
 			}
-			GPUDevice.prototype.createShaderModule = createShaderModule;
-			GPUDevice.prototype.createComputePipelineAsync = createComputePipeline;
 			const device = renderer.device;
 			let quiet = 0, warmFrames = 0;
 			for (; warmFrames < Math.max(config.warmup, 512); warmFrames++) {
@@ -256,6 +265,16 @@ try {
 			const resolved = device.createBuffer({ size: queryCapacity * 8, usage: GPUBufferUsage.QUERY_RESOLVE | GPUBufferUsage.COPY_SRC });
 			const readback = device.createBuffer({ size: queryCapacity * 8, usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ });
 			const begin = GPUCommandEncoder.prototype.beginComputePass;
+			const setPipeline = GPUComputePassEncoder.prototype.setPipeline;
+			const tracedPasses = new WeakSet();
+			let observedPipelines = new Set();
+			GPUComputePassEncoder.prototype.setPipeline = function(pipeline) {
+				if (tracedPasses.has(this)) {
+					if (!pipeline.label.endsWith(`.stack${renderer.tracer.materialCapacity}`)) throw new Error(`Wrong tracing pipeline: ${pipeline.label}`);
+					observedPipelines.add(pipeline.label);
+				}
+				return setPipeline.call(this, pipeline);
+			};
 			const copyBuffer = GPUCommandEncoder.prototype.copyBufferToBuffer;
 			const queueRecordBytes = 48; // Counts plus both indirect argument records.
 			const queueReadback = config.diagnose ? device.createBuffer({ size: 4096 * queueRecordBytes, usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ }) : null;
@@ -271,13 +290,16 @@ try {
 			};
 			let labels = [], measuring = false;
 			GPUCommandEncoder.prototype.beginComputePass = function(descriptor = {}) {
-				if (measuring && (descriptor.label === 'pathTracing' || descriptor.label?.startsWith('wavefront.'))) {
+				const trace = measuring && (descriptor.label === 'pathTracing' || descriptor.label?.startsWith('wavefront.'));
+				if (trace) {
 					const index = labels.length * 2;
 					if (index + 1 >= queryCapacity) throw new Error('Timestamp query capacity exceeded; reduce resolution or bounce count');
 					labels.push(descriptor.label);
 					descriptor = { ...descriptor, timestampWrites: { querySet: queries, beginningOfPassWriteIndex: index, endOfPassWriteIndex: index + 1 } };
 				}
-				return begin.call(this, descriptor);
+				const pass = begin.call(this, descriptor);
+				if (trace) tracedPasses.add(pass);
+				return pass;
 			};
 			const repeats = [];
 			let candidateHDR, referenceHDR;
@@ -288,18 +310,28 @@ try {
 				const schedule = config.paired ? [{ name: 'megakernel' }, ...config.variants] : [{ name: config.mode, tailStart: config.tailStart, tailThreshold: config.tailThreshold, compaction: config.compaction, directStages: config.directStages, packetStages: config.packetStages }];
 				// Rotate the sweep and reverse alternating rounds to avoid always measuring a
 				// configuration at the same position relative to GPU warmup and clock changes.
-				if (config.tailSweep || config.compactionSweep || config.dispatchSweep || config.packetSweep) schedule.push(...schedule.splice(0, repeat % schedule.length));
+				if (config.tailSweep || config.compactionSweep || config.dispatchSweep || config.packetSweep || config.materialSweep) schedule.push(...schedule.splice(0, repeat % schedule.length));
 				if (config.paired && repeat % 2 !== 0) schedule.reverse();
 				for (const variant of schedule) {
-					const mode = variant.name === 'megakernel' ? 'megakernel' : 'wavefront';
+					const mode = variant.mode ?? (variant.name === 'megakernel' ? 'megakernel' : 'wavefront');
 					presentationVariant = variant.name;
 					if (config.paired) {
+						const requestedStack = variant.materialStack ?? config.materialStack;
+						if (requestedStack !== null && requestedStack < materialStackRequired) throw new Error(`Material sweep needs at least ${materialStackRequired} stack slots`);
+						if (renderer.tracer.materialStackOverride !== requestedStack) {
+							renderer.tracer.materialStackOverride = requestedStack;
+							await renderer.tracer.prepareScene(renderer.scene);
+							renderer.bindScene();
+						}
+						const expectedStack = requestedStack ?? [0, 1, 2, 4, 8, 16].find(n => n >= materialStackRequired);
+						if (renderer.tracer.materialCapacity !== expectedStack) throw new Error('Material sweep selected the wrong capacity');
 						await renderer.setIntegrator(mode);
 						if (mode === 'wavefront') Object.assign(renderer.tracer.wavefront, { tailStart: variant.tailStart, tailThreshold: variant.tailThreshold, compaction: variant.compaction, directStages: variant.directStages, packetStages: variant.packetStages });
 						// Warm each selected pipeline before timing while retaining identical scene/VT data.
-						for (let warm = 0; warm < 8; warm++) { renderer.renderFrame(); await device.queue.onSubmittedWorkDone(); }
+						for (let warm = 0; warm < config.variantWarmup; warm++) { renderer.renderFrame(); await device.queue.onSubmittedWorkDone(); }
 					}
 					renderer.resetAccumulation();
+					observedPipelines = new Set();
 					const timings = [], spanTimings = [], stages = {}, wall = performance.now();
 					for (let sample = 0; sample < config.samples; sample++) {
 						captureQueues = config.diagnose && sample === 0 && repeat === 0 && variant.name === 'wavefront';
@@ -333,11 +365,11 @@ try {
 					const medianMs = (sorted[Math.floor((sorted.length - 1) / 2)] + sorted[Math.floor(sorted.length / 2)]) * 0.5;
 					const sortedSpans = [...spanTimings].sort((a, b) => a - b);
 					const medianSpanMs = (sortedSpans[Math.floor((sortedSpans.length - 1) / 2)] + sortedSpans[Math.floor(sortedSpans.length / 2)]) * 0.5;
-					repeats.push({ mode, variant: variant.name, repeat, medianMs, medianSpanMs, meanMs: timings.reduce((a, b) => a + b) / timings.length, wallMs, timings, spanTimings, stages });
+					repeats.push({ mode, materialCapacity: renderer.tracer.materialCapacity, pipelineLabels: [...observedPipelines], variant: variant.name, repeat, medianMs, medianSpanMs, meanMs: timings.reduce((a, b) => a + b) / timings.length, wallMs, timings, spanTimings, stages });
 					console.log(`[benchmark] ${c.name}: ${variant.name} repeat ${repeat + 1}, GPU passes ${medianMs.toFixed(3)}, span ${medianSpanMs.toFixed(3)} ms/sample`);
 					if (config.paired) {
 						const hdr = await renderer.readRadiance();
-						if (mode === 'wavefront') {
+						if (variant.name !== 'megakernel') {
 							variantHDRs.set(variant.name, hdr);
 							if (variant.name === 'wavefront') candidateHDR = hdr;
 						}
@@ -358,7 +390,10 @@ try {
 				}
 			}
 			GPUCommandEncoder.prototype.beginComputePass = begin;
+			GPUComputePassEncoder.prototype.setPipeline = setPipeline;
 			GPUCommandEncoder.prototype.copyBufferToBuffer = copyBuffer;
+			GPUDevice.prototype.createShaderModule = createShaderModule;
+			GPUDevice.prototype.createComputePipelineAsync = createComputePipeline;
 			if (queueReadback) {
 				await queueReadback.mapAsync(GPUMapMode.READ);
 				const counters = new Uint32Array(queueReadback.getMappedRange());
@@ -400,7 +435,7 @@ try {
 				const capture = variantHDRs.get(variant.name);
 				let sum = 0, peak = 0;
 				for (const value of capture.data) { sum += value; peak = Math.max(peak, value); }
-				return { name: variant.name, repeats: repeats.filter(r => r.variant === variant.name),
+				return { name: variant.name, materialCapacity: repeats.find(r => r.variant === variant.name).materialCapacity, repeats: repeats.filter(r => r.variant === variant.name),
 					pairedErrors: pairedErrors.filter(r => r.variant === variant.name), base64: encodeHDR(capture),
 					hdr: { width: capture.width, height: capture.height, samples: capture.samples, elements: capture.data.length, mean: sum / capture.data.length, peak } };
 			});
@@ -416,7 +451,7 @@ try {
 				shaderCompilations, pipelineCompilations, warmFrames: warmFrames + 1,
 				presentationIntegrator: renderer.integrator, presentationVariant, presentationExposure: c.presentationExposure, scene: renderer.sceneStats, vt: renderer.virtualTextureStats,
 				camera: { position: renderer.camera.position, target: renderer.camera.target, up: renderer.camera.up, fovY: renderer.camera.fovY },
-				repeats: repeats.filter(r => r.variant === config.mode), referenceRepeats: repeats.filter(r => r.mode === 'megakernel'), pairedErrors: pairedErrors.filter(r => r.variant === 'wavefront'), variants,
+				repeats: repeats.filter(r => r.variant === config.mode), referenceRepeats: repeats.filter(r => r.variant === 'megakernel'), pairedErrors: pairedErrors.filter(r => r.variant === 'wavefront'), variants,
 				queueSnapshots, hdr: { width: hdr.width, height: hdr.height, samples: hdr.samples, elements: hdr.data.length, mean: sum / hdr.data.length, peak },
 				base64: encodeHDR(hdr), referenceBase64: referenceHDR ? encodeHDR(referenceHDR) : null, referenceSummary };
 		}, { c, config });

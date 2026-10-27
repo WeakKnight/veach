@@ -29,11 +29,21 @@ Standard smoke cases additionally cover alpha masking/blending and other BSDF fe
 Optional arguments: `--mode`, `--only` (comma-separated names), `--width`, `--height`,
 `--samples`, `--repeats`, `--warmup`, `--bounces`, and `--scenes`.
 `--material-stack auto` (default) uses production scene capacity selection; explicit
-1/2/4/8/16 forces a capacity for controlled comparisons and rejects undersized choices.
+0/1/2/4/8/16 forces a capacity for controlled comparisons and rejects undersized choices.
 Both integrators use the same capacity. The harness checks submitted WGSL array sizes
 and records the selected capacity, generated variant table, and relevant source hashes.
 It also records material stack histograms, constant/textured material counts and distinct
 bytecode blocks, including fallback and unused materials as in the scene-wide capacity bound.
+Capacity zero selects the constant-only interpreter specialization; submitted modules then
+contain no SVM stack. `--material-sweep --paired --mode wavefront` interleaves automatic
+capacity, forced 1 and forced 16 for both integrators in the same renderer, outside pipeline
+compilation time. The one-slot controls reject scenes requiring more than one slot. Reports
+record the actual integrator/capacity for every timed block and all compiled capacities.
+The auto-capacity megakernel remains the unique reference; forced megakernel variants get
+their own HDR comparisons and reports. This sweep cannot combine with other sweep types.
+`--variant-warmup` controls untimed frames before each paired block: normally 8, but 64
+for material sweeps, where newly compiled capacities showed a longer initial warmup.
+Measured trace passes also validate and record the bound compute pipeline's stack label.
 
 The harness enables timestamp queries only in its own browser context. It measures
 compute passes labelled `pathTracing` or `wavefront.*`, records each stage, and stores
@@ -52,7 +62,7 @@ over the recorded samples, checks that attribution equals total GPU pass time, a
 Screenshot exposure is lifted only after measurement/HDR capture (4/6/2/0/0 stops in
 scene-table order); the HDR and all tracing use the same manual exposure setting.
 `--paired --mode wavefront` alternates integrators within one renderer and scene, reversing
-order each round and warming the selected pipeline for eight untimed samples before each block.
+order each round and warming the selected pipeline for the configured untimed samples before each block.
 It saves separate `megakernel/` and `wavefront/` reports/captures and image errors per round.
 The screenshot is placed with whichever integrator ran last. Streaming remains frozen through
 presentation, so a late texture upload cannot reset the just-measured accumulation.
@@ -558,6 +568,53 @@ passed dispatch bounds on breakfast/BMW; breakfast retains 75,904 slots after bo
 versus 1,701 live paths in the matching adaptive diagnostic. These diagnostic runs include
 GPU copies and are not performance evidence. Further work should now examine constant-only
 material specialization and material grouping, while retaining these schedules as controls.
+
+## Constant-only material specialization
+
+Capacity zero removes the SVM stack and non-output opcode implementations when the entire
+scene's compiled programs need no temporary slots. It shares output decoding with the general
+interpreter, preserving geometry-dependent defaults, opacity, emission and BSDF inputs.
+Mixed scenes still use the ordinary scene-wide capacity; a constant surface does not imply
+that the emitters it samples have constant emission programs.
+
+The `material-zero-sweep-v2` paired run tested all five scenes at 640x360, eight bounces,
+three rounds and 32 samples, with 64 untimed frames before each variant. All 75 per-round
+HDR comparisons were exactly equal, the saved-HDR/source-identity comparator passed, and
+all five screenshots were inspected. Each measured block verified its actual bound pipeline
+capacity. Median GPU spans in milliseconds:
+
+| Integrator / capacity | classroom | breakfast | BMW | glass | MIS |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Megakernel auto | 10.559 | 4.350 | 2.620 | 2.835 | 1.551 |
+| Megakernel 1 | 10.182 | 4.321 | 2.850 | 3.153 | 1.829 |
+| Megakernel 16 | 15.212 | 6.861 | 4.184 | 6.526 | 2.402 |
+| Wavefront auto | 8.631 | 6.029 | 5.347 | 3.756 | 1.748 |
+| Wavefront 1 | 8.666 | 6.034 | 5.453 | 3.923 | 1.831 |
+| Wavefront 16 | 8.880 | 6.216 | 5.551 | 4.164 | 2.055 |
+
+Auto selects capacity 1 for classroom/breakfast and 0 for BMW/glass/MIS. Against capacity 1,
+the constant-only specialization reduces megakernel time by 8.1%/10.1%/15.2% and wavefront
+time by 2.0%/4.3%/4.5% on those three scenes. The identical-capacity classroom control varies
+by 3.7%, so small differences remain provisional. This is timing evidence, not register or
+occupancy measurement. The preceding v1 sweep also passed all 75 HDR comparisons, but its
+eight-frame warmup left a large transient slowdown in newly used capacities; it must not be
+used to claim that transient as an optimization gain. The v2 first/last eight-sample windows
+no longer show that multi-fold cold-start penalty.
+
+Generated variants use lossless line-anchor edits with numeric removal lengths. Reconstructed
+modules match independent Slang outputs by SHA256. The additional zero-capacity variants add
+about 286 KB raw / 51 KB gzip to the shared library chunk, versus about 1.18 MB raw with the
+initial coarse diff encoding. The ordinary capacity-1 shader body remains unchanged.
+All 181 unit tests, typecheck and library build passed. The full GPU regression suite passed
+34 comparisons, including new constant-only alpha/blend, emissive and transmission materials.
+An additional 18 direct-stage-mask and 18 packet-mask comparisons passed with subgroups
+disabled; RGB and both AOVs were exactly equal to the full-capacity megakernel reference.
+Eight additional comparisons covered fixed-tail bounce 2 with packet mask 5 and an adaptive
+tail threshold of 65,536, again with zero error on the constant-alpha scenes.
+Adaptive wavefront smoke passed alpha, emissive and transmission; the transmission screenshot
+was inspected after the final run.
+
+## Work storage
 
 Group 1 binding 0 contains the original image prefix (three float4 per pixel), then
 three float4 headers, 21 float4 field arrays at the current tile capacity, then three

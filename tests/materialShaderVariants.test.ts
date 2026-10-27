@@ -7,7 +7,7 @@ import { materialStackCapacity, specializeMaterialShader, type MaterialStackCapa
 describe('compiled material stack variants', () => {
 	for (const program of ['PathTracing', 'Wavefront'] as const) {
 		const source = readFileSync(new URL(`../src/generated/shaders/${program}.wgsl`, import.meta.url), 'utf8');
-		for (const capacity of [1, 2, 4, 8] as MaterialStackCapacity[]) {
+		for (const capacity of [0, 1, 2, 4, 8] as MaterialStackCapacity[]) {
 			it(`reconstructs the independent Slang ${program}/${capacity} output exactly`, () => {
 				const generated = specializeMaterialShader(source, program, capacity);
 				expect(createHash('sha256').update(generated).digest('hex')).toBe(materialStackVariants[program].variants[capacity].sha256);
@@ -24,7 +24,7 @@ describe('compiled material stack variants', () => {
 	}
 
 	it('rounds compiler bounds up without exceeding the bytecode limit', () => {
-		const cases = [[0, 1], [1, 1], [2, 2], [3, 4], [4, 4], [5, 8], [8, 8], [9, 16], [16, 16]];
+		const cases = [[0, 0], [1, 1], [2, 2], [3, 4], [4, 4], [5, 8], [8, 8], [9, 16], [16, 16]];
 		for (const [required, capacity] of cases) expect(materialStackCapacity(required)).toBe(capacity);
 		for (const required of [-1, 0.5, 17, Number.NaN]) expect(() => materialStackCapacity(required)).toThrow('Invalid');
 	});

@@ -14,16 +14,25 @@ selection (same expectation, visible only at 1 spp), and `clearcoatNormalTexture
   extensions and `KHR_materials_pbrSpecularGlossiness` in `GLTFMaterial.ts`), lowered to
   `open_pbr_surface` (= `BSDFInputs`), optimized and compiled to bytecode (`src/material`, format
   in `Bytecode.ts`): uint4 instructions over a 16-entry float4 stack.
-- GPU pipelines use the smallest capacity in 1/2/4/8/16 that fits the scene's maximum
+- GPU pipelines use the smallest capacity in 0/1/2/4/8/16 that fits the scene's maximum
   compiler-reported `stackSize` (conservatively including unused materials). Initialization
   uses a lightweight empty-scene pipeline; geometry pipelines compile when a scene arrives.
   This applies to both megakernel and wavefront;
   the bytecode format, 16-slot compiler limit, and CPU reference are unchanged.
+  Capacity zero is a constant-only scene specialization: every compiled surface, opacity
+  and emission program must need zero temporary slots. The compiler then emits only
+  Output/End instructions with constant operands. This module retains the shared output
+  decoding but excludes the SVM stack and arithmetic/procedural opcode cases. Any nonzero
+  requirement selects the ordinary interpreter, including unused and fallback materials.
   `build:shaders` compiles all capacities with `VEACH_MATERIAL_STACK_SIZE` and stores lossless
   edits against the common WGSL in `MaterialStackVariants.ts`. Runtime reconstruction checks
   the base fingerprint; tests verify reconstructed output against each compiler output's SHA256.
   Function-local WGSL array sizes cannot be pipeline overrides. Pipelines are compiled lazily,
   cached by capacity per renderer, and prepared before replacing the active scene.
+  The generated edit format uses JavaScript string positions, removal lengths and replacement text;
+  runtime validates the base fingerprint and edit bounds. The build uses unchanged-line
+  anchors when functions are removed, checks exact reconstruction, and records SHA256.
+  Tests cover EOF/newline changes and repeated-line edits as well as actual Slang modules.
   `npm run build:shaders -- --material-stack 1` still emits standalone investigation modules
   under `.tools/wavefront/stack-1`. See [Wavefront.md](Wavefront.md) for paired measurements.
 - Three programs per material: surface (every input but opacity, run by `EvalMaterial`), opacity

@@ -1,6 +1,6 @@
 import { materialStackVariants } from '../generated/shaders/MaterialStackVariants';
 
-export const MATERIAL_STACK_CAPACITIES = [1, 2, 4, 8, 16] as const;
+export const MATERIAL_STACK_CAPACITIES = [0, 1, 2, 4, 8, 16] as const;
 export type MaterialStackCapacity = typeof MATERIAL_STACK_CAPACITIES[number];
 
 export function materialStackCapacity(required: number): MaterialStackCapacity {
@@ -21,10 +21,10 @@ export function specializeMaterialShader(code: string, program: 'PathTracing' | 
 	if (!variant) throw new Error(`Unsupported material stack capacity: ${capacity}`);
 	const parts: string[] = [];
 	let cursor = 0;
-	for (const [offset, oldText, newText] of variant.edits) {
-		if (offset < cursor || source.slice(offset, offset + oldText.length) !== oldText) throw new Error('Invalid generated material shader variant');
+	for (const [offset, oldLength, newText] of variant.edits) {
+		if (offset < cursor || oldLength < 0 || offset + oldLength > source.length) throw new Error('Invalid generated material shader variant');
 		parts.push(source.slice(cursor, offset), newText);
-		cursor = offset + oldText.length;
+		cursor = offset + oldLength;
 	}
 	parts.push(source.slice(cursor));
 	return parts.join('');

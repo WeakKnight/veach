@@ -215,13 +215,21 @@ bool4 LanesBelow(uint size)
 	return uint4(0u, 1u, 2u, 3u) < uint4(size);
 }
 
+// A zero-capacity module is valid only for a scene whose compiled programs use
+// constants and Output/End instructions exclusively. Keep output decoding shared.
+#if VEACH_MATERIAL_STACK_SIZE == 0
+#define MATERIAL_SLOT(o) float4(0.0)
+#else
+#define MATERIAL_SLOT(o) stack[o & (MATERIAL_STACK_SIZE - 1u)]
+#endif
+
 // Writes field `i` of the current Output instruction: `v` is its value.
 #define MATERIAL_OUTPUT(i, assignment) \
 	{ \
 		uint o = MaterialWord(operands + (i)); \
 		if (o != OPERAND_NONE) \
 		{ \
-			float4 v = MaterialOperand(o, stack[o & (MATERIAL_STACK_SIZE - 1u)], header.constantBase); \
+			float4 v = MaterialOperand(o, MATERIAL_SLOT(o), header.constantBase); \
 			assignment; \
 		} \
 	}
@@ -230,28 +238,37 @@ bool4 LanesBelow(uint size)
 // coordinates, textures and math only), which runs inside traversal and light sampling.
 void RunMaterialProgram<let SURFACE : int>(MaterialHeader header, uint program, MaterialContext ctx, inout MaterialOutputs outputs)
 {
+#if VEACH_MATERIAL_STACK_SIZE > 0
 	float4 stack[MATERIAL_STACK_SIZE];
+#endif
 	uint pc = program;
 	for (uint n = 0u; n < MATERIAL_MAX_INSTRUCTIONS; n++)
 	{
 		uint4 ins = gMaterialData[pc];
 		uint op = ins.x & 0xffu;
+#if VEACH_MATERIAL_STACK_SIZE > 0
 		uint dst = (ins.x >> 8u) & (MATERIAL_STACK_SIZE - 1u);
+#endif
 		uint imm = ins.x >> 16u;
 		if (op == OP_END)
 		{
 			return;
 		}
+#if VEACH_MATERIAL_STACK_SIZE > 0
 		float4 a = MaterialOperand(ins.y, stack[ins.y & (MATERIAL_STACK_SIZE - 1u)], header.constantBase);
 		float4 b = MaterialOperand(ins.z, stack[ins.z & (MATERIAL_STACK_SIZE - 1u)], header.constantBase);
 		float4 c = MaterialOperand(ins.w, stack[ins.w & (MATERIAL_STACK_SIZE - 1u)], header.constantBase);
+#endif
 		uint operands = pc * 4u + 1u;
 		pc += op == OP_OUTPUT ? (OUTPUT_INSTRUCTION_WORDS >> (2u * min(imm, 9u))) & 3u : op == OP_COMBINE ? 1u + imm / 4u : 1u;
 
+#if VEACH_MATERIAL_STACK_SIZE > 0
 		float4 r = float4(0.0);
 		bool write = true;
+#endif
 		switch (op)
 		{
+#if VEACH_MATERIAL_STACK_SIZE > 0
 		case OP_ADD: r = a + b; break;
 		case OP_SUB: r = a - b; break;
 		case OP_MUL: r = a * b; break;
@@ -361,6 +378,7 @@ void RunMaterialProgram<let SURFACE : int>(MaterialHeader header, uint program, 
 			break;
 		}
 		case OP_CHECKER: r = float4(BlenderChecker(a.xyz)); break;
+#endif
 		case OP_OUTPUT:
 			switch (imm)
 			{
@@ -454,15 +472,19 @@ void RunMaterialProgram<let SURFACE : int>(MaterialHeader header, uint program, 
 				}
 				break;
 			}
+#if VEACH_MATERIAL_STACK_SIZE > 0
 			write = false;
+#endif
 			break;
 		default:
 			break;
 		}
+#if VEACH_MATERIAL_STACK_SIZE > 0
 		if (write)
 		{
 			stack[dst] = r;
 		}
+#endif
 	}
 }
 
