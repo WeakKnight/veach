@@ -33,7 +33,7 @@ for (const entry of readdirSync(directory, { withFileTypes: true })) {
 		}
 	}
 	variants.push({ name: entry.name, tailStart: report.config.tailStart, tailThreshold: report.config.tailThreshold,
-		compaction: report.config.compaction, results: comparison.results });
+		compaction: report.config.compaction, directStages: report.config.directStages ?? 0, results: comparison.results });
 }
 if (variants.length !== expectedVariants.size) throw new Error('Missing sweep variants');
 const summary = { directory: resolve(directory), reference: reference.results.map(r => r.name), variants };

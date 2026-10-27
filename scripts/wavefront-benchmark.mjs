@@ -34,25 +34,39 @@ const config = {
 	subgroups: !args.includes('--disable-subgroups'),
 	compaction: option('compaction', 'dense'),
 	compactionSweep: args.includes('--compaction-sweep'),
+	directStages: Number(option('direct-stages', 0)),
+	dispatchSweep: args.includes('--dispatch-sweep'),
 };
+if (!Number.isInteger(config.directStages) || config.directStages < 0 || config.directStages > 7) throw new Error('Invalid direct stage mask');
 if (!['dense', 'queued', 'subgroup', 'adaptive', 'none'].includes(config.compaction)) throw new Error('Invalid compaction mode');
-if (config.compaction === 'none' && config.tailThreshold !== 0) throw new Error('Direct dispatch supports fixed tails only');
+if ((config.compaction === 'none' || config.directStages === 7) && config.tailThreshold !== 0) throw new Error('Direct dispatch supports fixed tails only');
 if (config.materialStack !== null && ![1, 2, 4, 8, 16].includes(config.materialStack)) throw new Error('Invalid material stack capacity');
 if (config.paired && config.mode !== 'wavefront') throw new Error('--paired requires --mode wavefront');
 if (config.tailSweep && !config.paired) throw new Error('--tail-sweep requires --paired --mode wavefront');
 if (config.compactionSweep && (!config.paired || config.tailSweep)) throw new Error('--compaction-sweep requires --paired and cannot combine with --tail-sweep');
+if (config.dispatchSweep && (!config.paired || config.tailSweep || config.compactionSweep || config.compaction === 'none'))
+	throw new Error('--dispatch-sweep requires paired queued execution and cannot combine with other sweeps');
 config.variants = [{ name: 'wavefront', tailStart: config.tailStart, tailThreshold: config.tailThreshold }];
 if (config.tailSweep) {
 	config.variants.push({ name: 'staged', tailStart: 999, tailThreshold: 0 },
 		...[0, 1, 2, 3].map(tailStart => ({ name: `fixed-${tailStart}`, tailStart, tailThreshold: 0 })),
-		...(config.compaction === 'none' ? [] : [8192, 32768, 131072]).map(tailThreshold => ({ name: `adaptive-${tailThreshold}`, tailStart: 0, tailThreshold })));
+		...(config.compaction === 'none' || config.directStages === 7 ? [] : [8192, 32768, 131072]).map(tailThreshold => ({ name: `adaptive-${tailThreshold}`, tailStart: 0, tailThreshold })));
 }
 if (config.compactionSweep) {
 	for (const compaction of ['dense', 'queued', 'subgroup', 'adaptive', 'none'].filter(mode => mode !== config.compaction
 		&& (mode !== 'subgroup' || config.subgroups) && (mode !== 'none' || config.tailThreshold === 0)))
 		config.variants.push({ name: `compact-${compaction}`, tailStart: config.tailStart, tailThreshold: config.tailThreshold, compaction });
 }
-for (const variant of config.variants) variant.compaction ??= config.compaction;
+if (config.dispatchSweep) {
+	for (let directStages = 0; directStages < 8; directStages++) {
+		if (directStages !== config.directStages && (directStages !== 7 || config.tailThreshold === 0))
+			config.variants.push({ name: `dispatch-${directStages}`, tailStart: config.tailStart, tailThreshold: config.tailThreshold, directStages });
+	}
+}
+for (const variant of config.variants) {
+	variant.compaction ??= config.compaction;
+	variant.directStages ??= config.directStages;
+}
 for (const key of ['width', 'height', 'warmup', 'samples', 'repeats', 'bounces']) {
 	if (!Number.isInteger(config[key]) || config[key] < (key === 'bounces' ? 0 : 1)) throw new Error(`Invalid ${key}`);
 }
@@ -114,7 +128,7 @@ const assertUnchangedSources = () => {
 const referenceReport = { ...report, config: { ...config, mode: 'megakernel' }, results: [] };
 const variantReports = Object.fromEntries(config.variants.slice(1).map(variant => {
 	mkdirSync(join(output, variant.name), { recursive: true });
-	return [variant.name, { ...report, config: { ...config, tailStart: variant.tailStart, tailThreshold: variant.tailThreshold, compaction: variant.compaction }, results: [] }];
+	return [variant.name, { ...report, config: { ...config, tailStart: variant.tailStart, tailThreshold: variant.tailThreshold, compaction: variant.compaction, directStages: variant.directStages }, results: [] }];
 }));
 writeFileSync(join(candidateOutput, 'report.json'), JSON.stringify(report, null, 2));
 try {
@@ -199,6 +213,7 @@ try {
 				renderer.tracer.wavefront.tailStart = config.tailStart;
 				renderer.tracer.wavefront.tailThreshold = config.tailThreshold;
 				renderer.tracer.wavefront.compaction = config.compaction;
+				renderer.tracer.wavefront.directStages = config.directStages;
 			}
 			const materialCapacity = renderer.tracer.materialCapacity;
 			const expectedCapacity = config.materialStack ?? [1, 2, 4, 8, 16].find(capacity => capacity >= materialStackRequired);
@@ -258,17 +273,17 @@ try {
 			let presentationVariant = config.mode;
 			const pairedErrors = [];
 			for (let repeat = 0; repeat < config.repeats; repeat++) {
-				const schedule = config.paired ? [{ name: 'megakernel' }, ...config.variants] : [{ name: config.mode, tailStart: config.tailStart, tailThreshold: config.tailThreshold, compaction: config.compaction }];
+				const schedule = config.paired ? [{ name: 'megakernel' }, ...config.variants] : [{ name: config.mode, tailStart: config.tailStart, tailThreshold: config.tailThreshold, compaction: config.compaction, directStages: config.directStages }];
 				// Rotate the sweep and reverse alternating rounds to avoid always measuring a
 				// configuration at the same position relative to GPU warmup and clock changes.
-				if (config.tailSweep || config.compactionSweep) schedule.push(...schedule.splice(0, repeat % schedule.length));
+				if (config.tailSweep || config.compactionSweep || config.dispatchSweep) schedule.push(...schedule.splice(0, repeat % schedule.length));
 				if (config.paired && repeat % 2 !== 0) schedule.reverse();
 				for (const variant of schedule) {
 					const mode = variant.name === 'megakernel' ? 'megakernel' : 'wavefront';
 					presentationVariant = variant.name;
 					if (config.paired) {
 						await renderer.setIntegrator(mode);
-						if (mode === 'wavefront') Object.assign(renderer.tracer.wavefront, { tailStart: variant.tailStart, tailThreshold: variant.tailThreshold, compaction: variant.compaction });
+						if (mode === 'wavefront') Object.assign(renderer.tracer.wavefront, { tailStart: variant.tailStart, tailThreshold: variant.tailThreshold, compaction: variant.compaction, directStages: variant.directStages });
 						// Warm each selected pipeline before timing while retaining identical scene/VT data.
 						for (let warm = 0; warm < 8; warm++) { renderer.renderFrame(); await device.queue.onSubmittedWorkDone(); }
 					}
@@ -281,7 +296,7 @@ try {
 						captureQueues = false;
 						measuring = false;
 						if (!labels.length) throw new Error('No trace passes were measured');
-						if (mode === 'wavefront' && variant.compaction === 'none' && labels.some(label => label.includes('.Compact')))
+						if (mode === 'wavefront' && (variant.compaction === 'none' || variant.directStages === 7) && labels.some(label => label.includes('.Compact')))
 							throw new Error('Direct dispatch unexpectedly ran compaction');
 						const encoder = device.createCommandEncoder();
 						encoder.resolveQuerySet(queries, 0, labels.length * 2, resolved, 0);

@@ -20,6 +20,8 @@ export class Wavefront {
 	tailStart = Number.POSITIVE_INFINITY;
 	tailThreshold = 0;
 	compaction: 'dense' | 'queued' | 'subgroup' | 'adaptive' | 'none' = 'dense';
+	// Internal experiment: bits 1/2/4 select direct intersection/shading/shadow dispatch.
+	directStages = 0;
 	readonly layout: GPUBindGroupLayout;
 	readonly compiled: Promise<void>;
 	private readonly pipelines = new Map<MaterialStackCapacity, Map<Entry, GPUComputePipeline>>();
@@ -102,7 +104,9 @@ export class Wavefront {
 
 	encode(encoder: GPUCommandEncoder, scene: GPUBindGroup, width: number, height: number, maxBounces: number, hasAlphaTested: boolean, materialCapacity: MaterialStackCapacity): void {
 		if (!this.accumulation || !this.feedback) return;
-		const direct = this.compaction === 'none';
+		const directStages = this.compaction === 'none' ? 7 : this.directStages;
+		if (!Number.isInteger(directStages) || directStages < 0 || directStages > 7) throw new Error('Invalid direct stage mask');
+		const direct = directStages === 7;
 		if (direct && this.tailThreshold !== 0) throw new Error('Direct dispatch supports fixed tails only; adaptive tails require queue counts');
 		if (this.compaction === 'subgroup' && !this.compactSubgroupModule) throw new Error('Subgroup compaction requires the subgroups device feature');
 		const pipelines = this.pipelines.get(materialCapacity);
@@ -135,13 +139,14 @@ export class Wavefront {
 			const dispatch = (entry: Entry, bounce: number) => {
 				const pass = encoder.beginComputePass({ label: `wavefront.${entry}.b${bounce}` });
 				const compact = entry === 'CompactIntersect' || entry === 'CompactShade';
+				const directStage = (directStages & (entry === 'Intersect' ? 1 : entry === 'Shade' ? 2 : entry === 'Shadow' ? 4 : 0)) !== 0;
 				let pipeline = compact ? `${entry}${compactSuffix}` as Entry
 					: !hasAlphaTested && (entry === 'Intersect' || entry === 'Shadow' || entry === 'Tail') ? `${entry}Opaque` as Entry : entry;
-				if (direct && (entry === 'Intersect' || entry === 'Shade' || entry === 'Shadow')) pipeline = `${pipeline}Direct` as Entry;
+				if (directStage) pipeline = `${pipeline}Direct` as Entry;
 				pass.setPipeline(pipelines.get(pipeline)!);
 				pass.setBindGroup(0, scene);
 				pass.setBindGroup(1, this.group!, [(tile * (bounces + 1) + bounce) * this.alignment]);
-				if (!direct && entry !== 'Initialize' && entry !== 'Finalize' && !(compact && this.compaction === 'dense')) {
+				if (!direct && !directStage && entry !== 'Initialize' && entry !== 'Finalize' && !(compact && this.compaction === 'dense')) {
 					pass.dispatchWorkgroupsIndirect(this.indirect, entry === 'Shadow' ? 16 : 0);
 				} else {
 					pass.dispatchWorkgroups(Math.ceil(count / WORKGROUP_SIZE));

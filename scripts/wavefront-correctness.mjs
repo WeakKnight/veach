@@ -16,10 +16,15 @@ const only = onlyOption < 0 ? [] : process.argv[onlyOption + 1].split(',');
 const disableSubgroups = process.argv.includes('--disable-subgroups');
 const compactionOption = process.argv.indexOf('--compaction');
 const compaction = compactionOption < 0 ? 'dense' : process.argv[compactionOption + 1];
+const directOption = process.argv.indexOf('--direct-stages');
+const directStages = directOption < 0 ? 0 : Number(process.argv[directOption + 1]);
+const dispatchSweep = process.argv.includes('--dispatch-sweep');
+if (!Number.isInteger(directStages) || directStages < 0 || directStages > 7) throw new Error('Invalid direct stage mask');
+if (dispatchSweep && compaction === 'none') throw new Error('Dispatch sweep requires a compaction mode');
 if (!['dense', 'queued', 'subgroup', 'adaptive', 'none'].includes(compaction)) throw new Error('Invalid compaction mode');
-if (compaction === 'none' && tailThreshold !== 0) throw new Error('Direct dispatch supports fixed tails only');
+if ((compaction === 'none' || directStages === 7) && tailThreshold !== 0) throw new Error('Direct dispatch supports fixed tails only');
 if (!Number.isInteger(tailStart) || tailStart < 0) throw new Error('Invalid tail start');
-const output = join(root, `.tools/wavefront/correctness-tail-${tailStart}-${tailThreshold}${only.length ? '-selected' : ''}${disableSubgroups ? '-no-subgroups' : ''}-${compaction}`);
+const output = join(root, `.tools/wavefront/correctness-tail-${tailStart}-${tailThreshold}${only.length ? '-selected' : ''}${disableSubgroups ? '-no-subgroups' : ''}-${compaction}${dispatchSweep ? '-dispatch-sweep' : directStages ? `-direct-${directStages}` : ''}`);
 mkdirSync(output, { recursive: true });
 const chrome = [process.env.CHROME_PATH, 'C:/Program Files/Google/Chrome/Application/chrome.exe',
 	'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe', '/usr/bin/google-chrome', '/usr/bin/chromium'].find(p => p && existsSync(p));
@@ -29,7 +34,7 @@ await server.listen();
 const browser = await puppeteer.launch({ executablePath: chrome, headless: true, protocolTimeout: 1800000,
 	args: ['--enable-unsafe-webgpu', '--ignore-gpu-blocklist', '--no-sandbox'] });
 const errors = [];
-const report = { started: new Date().toISOString(), completed: false, browser: await browser.version(), tailStart, tailThreshold, only, results: [], errors };
+const report = { started: new Date().toISOString(), completed: false, browser: await browser.version(), tailStart, tailThreshold, only, directStages, dispatchSweep, results: [], errors };
 writeFileSync(join(output, 'report.json'), JSON.stringify(report, null, 2));
 try {
 	const page = await browser.newPage();
@@ -37,7 +42,7 @@ try {
 	page.on('pageerror', e => errors.push(String(e)));
 	page.on('console', msg => { if (msg.type() === 'error') errors.push(msg.text()); if (msg.text().startsWith('[correctness]')) console.log(msg.text()); });
 	await page.goto(server.resolvedUrls.local[0] + 'scripts/benchmark.html');
-	const results = await page.evaluate(async ({ tailStart, tailThreshold, only, disableSubgroups, compaction }) => {
+	const results = await page.evaluate(async ({ tailStart, tailThreshold, only, disableSubgroups, compaction, directStages, dispatchSweep }) => {
 		const api = await import('/src/index.ts');
 		const check = (value, message) => { if (!value) throw new Error(message); };
 		const requestDevice = GPUAdapter.prototype.requestDevice;
@@ -68,14 +73,14 @@ try {
 			buffer.unmap(); buffer.destroy();
 			return values;
 		}
-		async function render(mode, config, capacity = null) {
+		async function render(mode, config, capacity = null, stageMask = directStages) {
 			r.tracer.materialStackOverride = capacity;
 			await r.tracer.prepareScene(r.scene);
 			r.bindScene();
 			const expectedCapacity = capacity ?? [1, 2, 4, 8, 16].find(n => n >= r.scene.materialStackSize);
 			check(r.tracer.materialCapacity === expectedCapacity, 'Incorrect material capacity selection');
 			await r.setIntegrator(mode);
-			if (mode === 'wavefront' && r.tracer.wavefront) Object.assign(r.tracer.wavefront, { tailStart, tailThreshold, compaction });
+			if (mode === 'wavefront' && r.tracer.wavefront) Object.assign(r.tracer.wavefront, { tailStart, tailThreshold, compaction, directStages: stageMask });
 			Object.assign(r.settings, { maxBounces: config.bounces, fireflyClamp: config.clamp ?? 0, maxSamples: config.samples });
 			r.resetAccumulation();
 			while (r.samples < config.samples) {
@@ -171,8 +176,9 @@ try {
 					canvas.style.width = `${config.width}px`; canvas.style.height = `${config.height}px`; r.resize();
 					const reference = await render('megakernel', config, 16);
 					if (scene.emptyAnalytic) check(reference.some((value, i) => i % 12 < 3 && value > 0), 'Empty analytic-light test did not see a light');
-					for (const mode of ['megakernel', 'wavefront']) {
-						const candidate = await render(mode, config);
+					const masks = dispatchSweep ? Array.from({ length: tailThreshold === 0 ? 8 : 7 }, (_, i) => i) : [directStages];
+					for (const { mode, stageMask } of [{ mode: 'megakernel', stageMask: 0 }, ...masks.map(stageMask => ({ mode: 'wavefront', stageMask }))]) {
+						const candidate = await render(mode, config, null, stageMask);
 						let maxError = 0, squared = 0, refSquared = 0;
 						for (let i = 0; i < reference.length; i++) {
 							check(Number.isFinite(candidate[i]) && Number.isFinite(reference[i]), `${scene.name}: nonfinite output`);
@@ -180,7 +186,7 @@ try {
 							maxError = Math.max(maxError, error); squared += error * error; refSquared += reference[i] * reference[i];
 						}
 						const relativeL2 = Math.sqrt(squared / Math.max(refSquared, 1e-30));
-						const result = { scene: scene.name, mode, compaction, subgroups: r.device.features.has('subgroups'), materialCapacity: r.tracer.materialCapacity, ...config, maxError, relativeL2 };
+						const result = { scene: scene.name, mode, compaction, directStages: stageMask, subgroups: r.device.features.has('subgroups'), materialCapacity: r.tracer.materialCapacity, ...config, maxError, relativeL2 };
 						results.push(result);
 						console.log(`[correctness] ${JSON.stringify(result)}`);
 						check(maxError <= 1e-5, `${scene.name}: GPU integrators differ by ${maxError}`);
@@ -192,7 +198,7 @@ try {
 			}
 		} finally { r.destroy(); }
 		return results;
-	}, { tailStart, tailThreshold, only, disableSubgroups, compaction });
+	}, { tailStart, tailThreshold, only, disableSubgroups, compaction, directStages, dispatchSweep });
 	if (errors.length) throw new Error(errors.join('\n'));
 	Object.assign(report, { completed: true, results, finished: new Date().toISOString() });
 	writeFileSync(join(output, 'report.json'), JSON.stringify(report, null, 2));

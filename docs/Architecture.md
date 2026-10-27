@@ -113,6 +113,8 @@ interpreter when `GpuScene.hasAlphaTested` is false (derived from instanced mate
 An experimental direct-slot dispatch uses the same work allocation and shading helpers,
 but omits compaction/indirect copies and keeps the original pixel groups between stages.
 It supports fully staged execution and fixed-bounce tails; adaptive tails need queue counts.
+Stages can also opt into direct dispatch individually while retaining queue updates;
+these mixed schedules keep valid active counts for adaptive tails.
 
 Bind group layouts are explicit in `PathTracer.ts`.
 

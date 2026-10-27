@@ -80,6 +80,12 @@ compaction passes or indirect-argument copies. It preserves pixel groups and ret
 for inactive slots. This mode supports fully staged execution and fixed tails; sweeps omit
 it when an adaptive tail is requested, and its tail sweep includes only fixed schedules.
 The initial identity queue remains available to fixed tails; work allocation is unchanged.
+`--direct-stages MASK` independently selects direct intersection (bit 1), shading (bit 2),
+and shadow (bit 4); other stages use the selected compaction mode. Mask 7 skips compaction
+entirely, like `none`, and supports only fixed tails. Partial masks keep queue counts valid
+for adaptive tails. `--dispatch-sweep` interleaves all eight masks (seven for adaptive tails)
+with the megakernel, separately from tail/compaction sweeps. The correctness harness also
+supports this sweep to check every stage combination against the same full-stack reference.
 
 ## Design constraints
 
@@ -442,6 +448,30 @@ from this browser session, not a controlled cold-cache startup comparison.
   7/7/9/5/4 distinct code blocks. Only classroom/breakfast have textures (three materials
   each, requiring one slot); BMW/glass/MIS require zero VM slots. This motivates a future
   constant-output interpreter specialization, applied fairly to both integrators.
+  An isolated compile probe under `.tools/wavefront/constant-prototype-v1` removes stack
+  accesses and non-output opcodes for a scene-wide zero-slot contract. With the probe disabled,
+  both generated shaders match the current stack-1 WGSL exactly. Enabled, PathTracing shrinks
+  from 279,647 to 251,746 bytes and Wavefront from 342,610 to 306,644 bytes. This is compile
+  evidence only: the prototype is not in production and has not been GPU-validated. Shader
+  source size does not establish register usage or runtime speed. Surface-only specialization
+  would also need to preserve general emission evaluation for lights with nonconstant programs.
+  Stage-selective direct dispatch now passes 135 GPU comparisons: 15 configurations for
+  each of the eight masks, plus 15 automatically sized megakernel comparisons. All are exact.
+  Unit tests (176), typecheck, library build and three mixed-dispatch smoke cases pass.
+  An additional 40 exact comparisons cover seven mixed masks with adaptive tail threshold
+  65,536 on alpha, analytic lights (including multiple tiles), and an empty-scene transition.
+  `stage-dispatch-sweep-v1` completes all 120 paired HDR comparisons across five scenes.
+  Breakfast improves from 6.073 to 5.247 ms with only direct intersection; BMW from 5.453
+  to 4.272 ms with direct intersection/shadow, or 4.168 ms with all direct stages. Classroom
+  remains fastest with all stages compacted (8.542 ms). Glass and MIS show smaller differences.
+  Per-bounce data is informative: at late breakfast/BMW bounces, compacted intersection
+  stays near 0.3 ms despite sparse queues, while direct intersection drops toward 0.15 ms.
+  In classroom, direct intersection instead gets progressively worse. One hypothesis is
+  that packing a sparse path set into very few workgroups leaves too little GPU parallelism;
+  retaining spatial packets distributes work more broadly. Occupancy has not been measured.
+  Next experiment: compact whole nonempty 8x8 path packets, preserving lanes within each
+  packet while removing empty packets. Keep queue addresses/count units explicit, handle
+  partial packets, and compare against both per-path compaction and full direct dispatch.
 - Extend beyond pinned-mip exact tests to ordinary stochastic-alpha convergence checks, and
   continue monitoring startup compilation cost and memory at large image sizes.
 
