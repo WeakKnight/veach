@@ -1312,6 +1312,58 @@ and glass from 6.513 to 7.801 ms, reinforcing the need to compare the two wavefr
 within each round rather than crediting changes in the megakernel baseline to this dispatch
 optimization. Both sorting investigations include full span timing and preserved HDR output.
 
+### Opaque megakernel reference, original materials
+
+`opaque-original-v1` (revision `f4748dd`) interleaves the general megakernel, adaptive
+wavefront, and the opaque megakernel for six balanced rounds, 32 samples/block and 64
+warmup frames/block. All five scenes select the opaque pipeline at capacity 1/1/0/0/0.
+All 60 non-reference paired HDR comparisons are exact, the saved-output/order verifier
+passes, and all five screenshots were inspected. Median GPU spans:
+
+| Variant | classroom | breakfast-room | bmw-m6 | glass-of-water | veach-mis |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| General megakernel | 10.323 | 4.408 | 2.709 | 2.820 | 1.546 |
+| Opaque megakernel | 9.757 | 3.745 | 2.585 | 2.761 | 1.501 |
+| Adaptive wavefront | 8.579 | 6.096 | 5.357 | 3.698 | 1.739 |
+
+Opaque/general paired-round median changes are -6.62/-14.84/-4.53/-2.88/-2.82 percent.
+Breakfast-room and glass improve in every round. Classroom and BMW each have one slightly
+slower round; MIS has a first-round 1.966 ms outlier (+27.2%) followed by five rounds at
+1.495-1.506 ms. These observations support testing the specialization further, especially
+under large material stacks, rather than assuming a uniform improvement from the median.
+Classroom's wavefront advantage remains after giving the megakernel opaque traversal;
+the other original scenes still favor the megakernel. Hardware register/occupancy changes
+remain unmeasured. The internal opaque option is still disabled pending broader results.
+
+### Opaque megakernel reference, eight-layer SVM stress
+
+`opaque-stress8-v1` repeats the same six-round paired test on all five scenes after applying
+the eight-layer material stress graph. Every scene selects capacity16 in all three variants,
+and the recorded opaque pipeline is `pathTracing.opaque.stack16`. All 60 paired HDR comparisons
+are exact, the sweep verifier passes, and all five screenshots were inspected. Median spans:
+
+| Variant | classroom | breakfast-room | bmw-m6 | glass-of-water | veach-mis |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| General megakernel | 27.774 | 13.589 | 9.210 | 11.705 | 6.961 |
+| Opaque megakernel | 18.776 | 9.581 | 6.825 | 6.864 | 5.224 |
+| Adaptive wavefront | 12.051 | 9.171 | 7.639 | 6.632 | 4.249 |
+
+Opaque specialization improves every paired round on every scene. Paired median reductions
+are 32.01/29.95/26.28/41.03/25.62 percent. Timing variation remains: opaque glass ranges from
+6.655 to 8.429 ms and MIS from 5.069 to 5.807 ms, but even their slowest paired comparisons
+improve on the general reference. Wavefront still leads on classroom and MIS; its smaller
+median advantages on breakfast/glass need care given this variation. BMW now favors opaque
+megakernel. These data show that the earlier general-reference speedups partly included
+traversal specialization; they must not all be attributed to wavefront/register isolation.
+The original-material and stress runs together provide 120 exact HDR comparisons, with
+source hashes, actual pipeline/capacity checks and two balanced ordering cycles per run.
+
+Next experiments target shading-state liveness: retain primary albedo/normal without
+reloading/rewriting them on every continuation, and delay unrelated path-state loads until
+after SVM evaluation. Current generated WGSL loads WavefrontPath before EvalMaterial, but
+the native backend's register allocation remains unknown. Any benefit must be established
+by separate variants and complete GPU span measurements, with unchanged AOVs and HDR output.
+
 ## Work storage layout
 
 Group 1 binding 0 contains the original image prefix (three float4 per pixel), then
