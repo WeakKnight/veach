@@ -616,7 +616,8 @@ try {
 					}
 					if (mode === 'wavefront' && (variant.tailStart > 0 || variant.tailThreshold > 0)) {
 						const caps = renderer.scene.materialShadeCapacities;
-						const expected = variant.shadeBuckets && !(caps.length === 1 && caps[0] === renderer.tracer.materialCapacity) ? caps : [];
+						const expected = variant.shadeBuckets ? (variant.shadeBucketMode === 'material'
+							? [renderer.tracer.materialCapacity] : !(caps.length === 1 && caps[0] === renderer.tracer.materialCapacity) ? caps : []) : [];
 						const actual = [...observedPipelines].filter(x => x.startsWith('wavefront.ShadeBucket')).map(x => Number(x.split('.stack')[1])).sort((a,b) => a-b);
 						if (JSON.stringify(actual) !== JSON.stringify(expected)) throw new Error('Missing or duplicate shading bucket');
 					}

@@ -1707,7 +1707,14 @@ All 214 unit tests, shader compilation, TypeScript checking and library build pa
 The extra shader module is 9.0 KiB; existing SVM/shading generated modules are unchanged.
 The wavefront library chunk is 767.41 kB (90.24 kB gzip). Helmet HDR, alpha and
 transmission smoke renders pass at 64 spp; all three captures were inspected and
-saved in `.tools/wavefront/material-bucket-smoke`. Performance is pending.
+saved in `.tools/wavefront/material-bucket-smoke`. The final default smoke also passes
+all 21 cases; every capture was inspected and archived in `material-default-smoke`.
+The first performance attempt stopped on the benchmark's outdated capacity-bucket
+expectation. Material grouping must expect one global-capacity shading pipeline even
+for single-capacity scenes. This assertion now matches the independent correctness
+harness. A two-scene check covers both nonzero and zero capacity with all five variants
+and exact HDR comparisons; its short warmup is only for harness validation, not timing.
+Complete performance sweeps remain pending.
 
 ## Work storage layout
 
