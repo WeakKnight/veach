@@ -115,10 +115,15 @@ EmissiveTriangle 128, FrameUniforms 224. Materials are bytecode in `gMaterialDat
 The experimental wavefront integrator is described in [Wavefront.md](Wavefront.md).
 It appends bounded tile work storage to the accumulation buffer (group 1 binding 0),
 retaining the eight-storage-buffer limit. Its group 1 adds a dynamic uniform at binding 2
-for tile origin, path count, bounce, capacity, and experimental tail threshold (32-byte binding).
+for tile origin, path count, bounce, capacity, experimental tail threshold, packet stage mask,
+and optional sort group size (seven uints in a 32-byte binding).
 Presentation reads only the image prefix.
 GPU compaction views that allocation as atomic uints in its own pass; dispatch arguments
-are copied into a small INDIRECT-only buffer. Opaque traversal variants omit the opacity
+are copied into a 48-byte COPY_DST | INDIRECT buffer. Its third record optionally supplies
+exact 256-slot sort bounds from the existing work header; no storage binding is added.
+Chunk sorting can group shading queue B by material/program and continuation queue A by
+direction octant. Both are opt-in and preserve physical path records and RNG state.
+Opaque traversal variants omit the opacity
 interpreter when `GpuScene.hasAlphaTested` is false (derived from instanced materials).
 An experimental opaque-shadow module can evaluate light sources concurrently within a
 workgroup and reduce their contributions in source order; it reuses the same bindings

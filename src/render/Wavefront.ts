@@ -20,6 +20,7 @@ const ENTRIES = ['Initialize', 'Intersect', 'IntersectOpaque', 'Shade', 'Shadow'
 	'CompactIntersect', 'CompactShade', 'CompactIntersectDense', 'CompactShadeDense', 'CompactIntersectSubgroup', 'CompactShadeSubgroup',
 	'CompactIntersectAdaptive', 'CompactShadeAdaptive', 'CompactShadeSpatial', 'CompactIntersectPacket', 'CompactShadePacket',
 	'SortMaterial64', 'SortProgram64', 'SortMaterial256', 'SortProgram256',
+	'SortDirection64', 'SortDirection256',
 	'ShadowOpaqueParallel', 'ShadowOpaqueParallelDirect', 'ShadowOpaqueParallelSky', 'ShadowOpaqueParallelSkyDirect'] as const;
 type Entry = typeof ENTRIES[number];
 
@@ -35,6 +36,10 @@ export class Wavefront {
 	// Chunk sorting experiments preserve path/RNG storage and change only shading order.
 	sort: 'none' | 'material' | 'program' = 'none';
 	sortSize: 64 | 256 = 64;
+	// Sort continuation rays by octant, leaving camera rays in their spatial order.
+	raySortSize: 0 | 64 | 256 = 0;
+	// Generate exact 256-slot sort bounds in the existing work header.
+	sortIndirect = false;
 	// Restore physical 8x8 path neighborhoods after shading; adaptive compaction only.
 	spatialQueues = false;
 	// Alpha traversal retains serial feedback/RNG ordering; only opaque scenes opt in.
@@ -64,7 +69,9 @@ export class Wavefront {
 
 	constructor(private readonly device: GPUDevice, sceneLayout: GPUBindGroupLayout, capacity: MaterialStackCapacity = 16, opcodes: MaterialOpcodeMask = ALL_MATERIAL_OPCODES, operandMode = 0) {
 		this.alignment = device.limits.minUniformBufferOffsetAlignment;
-		this.indirect = device.createBuffer({ label: 'wavefrontDispatch', size: 32, usage: GPUBufferUsage.INDIRECT | GPUBufferUsage.COPY_DST });
+		this.indirect = device.createBuffer({ label: 'wavefrontDispatch', size: 48, usage: GPUBufferUsage.INDIRECT | GPUBufferUsage.COPY_DST, mappedAtCreation: true });
+		new Uint32Array(this.indirect.getMappedRange()).set([0, 1, 1, 0], 8);
+		this.indirect.unmap();
 		this.layout = device.createBindGroupLayout({ label: 'wavefront', entries: [
 			{ binding: 0, visibility: GPUShaderStage.COMPUTE, buffer: { type: 'storage' } },
 			{ binding: 1, visibility: GPUShaderStage.COMPUTE, storageTexture: { access: 'write-only', format: 'r32uint' } },
@@ -146,6 +153,10 @@ export class Wavefront {
 		if (!['serial', 'parallel', 'parallel-auto'].includes(this.shadowMode)) throw new Error('Invalid shadow mode');
 		if (!['none', 'material', 'program'].includes(this.sort) || ![64, 256].includes(this.sortSize)) throw new Error('Invalid shading sort');
 		if (this.sort !== 'none' && (directStages & 2) !== 0) throw new Error('Shading sort requires queued shading');
+		if (![0, 64, 256].includes(this.raySortSize)) throw new Error('Invalid ray sort size');
+		if (this.raySortSize !== 0 && (directStages & 1) !== 0) throw new Error('Ray sorting requires queued intersection');
+		const sortGroupSize = this.sortIndirect && ((this.sort !== 'none' && this.sortSize === 256) || this.raySortSize === 256) ? 256 : 0;
+		if (this.sortIndirect && sortGroupSize === 0) throw new Error('Indirect sorting requires a 256-slot sort');
 		if (!Number.isInteger(this.packetStages) || this.packetStages < 0 || this.packetStages > 7) throw new Error('Invalid packet stage mask');
 		if (this.compaction === 'packet' && this.tailThreshold !== 0) throw new Error('Packet counts include inactive slots; use fixed tails');
 		if (direct && this.tailThreshold !== 0) throw new Error('Direct dispatch supports fixed tails only; adaptive tails require queue counts');
@@ -156,13 +167,13 @@ export class Wavefront {
 		const pixels = width * height, capacity = this.capacity(pixels);
 		const workItems = Math.ceil(width / 8) * Math.ceil(height / 8) * 64;
 		const tiles = Math.ceil(workItems / capacity), bounces = Math.max(0, Math.floor(maxBounces));
-		const key = `${width}/${height}/${bounces}/${capacity}/${this.tailThreshold}/${this.packetStages}`;
+		const key = `${width}/${height}/${bounces}/${capacity}/${this.tailThreshold}/${this.packetStages}/${sortGroupSize}`;
 		if (key !== this.parameterKey) {
 			this.parameters?.destroy();
 			const data = new Uint32Array(tiles * (bounces + 1) * this.alignment / 4);
 			for (let tile = 0; tile < tiles; tile++) {
 				for (let bounce = 0; bounce <= bounces; bounce++) {
-					data.set([tile * capacity, Math.min(capacity, workItems - tile * capacity), bounce, capacity, this.tailThreshold, this.packetStages],
+					data.set([tile * capacity, Math.min(capacity, workItems - tile * capacity), bounce, capacity, this.tailThreshold, this.packetStages, sortGroupSize],
 						(tile * (bounces + 1) + bounce) * this.alignment / 4);
 				}
 			}
@@ -197,14 +208,28 @@ export class Wavefront {
 				}
 				pass.end();
 			};
-			const copyArguments = () => encoder.copyBufferToBuffer(this.accumulation!, pixels * 48 + 16, this.indirect, 0, 32);
+			const copyArguments = () => {
+				encoder.copyBufferToBuffer(this.accumulation!, pixels * 48 + 16, this.indirect, 0, 32);
+				if (sortGroupSize !== 0) encoder.copyBufferToBuffer(this.accumulation!, pixels * 48 + 12, this.indirect, 32, 4);
+			};
 			const compact = (bounce: number, afterShade: boolean) => {
 				// Keep the input queue count while clearing the other queue's output count.
 				encoder.clearBuffer(this.accumulation!, pixels * 48 + (afterShade ? 0 : 4), 8);
 				encoder.clearBuffer(this.accumulation!, pixels * 48 + 16, 4);
 				encoder.clearBuffer(this.accumulation!, pixels * 48 + 32, 4);
+				if (sortGroupSize !== 0) encoder.clearBuffer(this.accumulation!, pixels * 48 + 12, 4);
 				dispatch(afterShade ? 'CompactShade' : 'CompactIntersect', bounce);
 				copyArguments();
+			};
+			const sortQueue = (entry: Entry, size: 64 | 256, bounce: number) => {
+				const pass = encoder.beginComputePass({ label: `wavefront.${entry}.b${bounce}` });
+				pass.setPipeline(pipelines.get(entry)!);
+				pass.setBindGroup(0, scene);
+				pass.setBindGroup(1, this.group!, [(tile * (bounces + 1) + bounce) * this.alignment]);
+				if (size === 64) pass.dispatchWorkgroupsIndirect(this.indirect, 0);
+				else if (sortGroupSize !== 0) pass.dispatchWorkgroupsIndirect(this.indirect, 32);
+				else pass.dispatchWorkgroups(Math.ceil(count / size));
+				pass.end();
 			};
 			dispatch('Initialize', 0);
 			if (!direct) copyArguments();
@@ -215,19 +240,12 @@ export class Wavefront {
 					// Adaptive tails either return immediately or terminate all queued paths.
 					// Following stages observe liveness; compaction drives their indirect counts to zero.
 				}
+				if (bounce > 0 && this.raySortSize !== 0) sortQueue(`SortDirection${this.raySortSize}`, this.raySortSize, bounce);
 				dispatch('Intersect', bounce);
 				if (!direct) compact(bounce, false);
 				if (this.sort !== 'none') {
 					const entry = `Sort${this.sort === 'material' ? 'Material' : 'Program'}${this.sortSize}` as Entry;
-					const pass = encoder.beginComputePass({ label: `wavefront.${entry}.b${bounce}` });
-					pass.setPipeline(pipelines.get(entry)!);
-					pass.setBindGroup(0, scene);
-					pass.setBindGroup(1, this.group!, [(tile * (bounces + 1) + bounce) * this.alignment]);
-					// Existing indirect arguments are in 64-path groups. Larger chunks use
-					// a bounded physical dispatch; every lane guards the real queue count.
-					if (this.sortSize === 64) pass.dispatchWorkgroupsIndirect(this.indirect, 0);
-					else pass.dispatchWorkgroups(Math.ceil(count / this.sortSize));
-					pass.end();
+					sortQueue(entry, this.sortSize, bounce);
 				}
 				dispatch('Shade', bounce);
 				if (bounce < bounces) {

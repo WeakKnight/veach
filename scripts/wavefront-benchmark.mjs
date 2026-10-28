@@ -44,6 +44,10 @@ const config = {
 	sort: option('sort', 'none'),
 	sortSize: Number(option('sort-size', 64)),
 	sortSweep: args.includes('--sort-sweep'),
+	raySortSize: Number(option('ray-sort-size', 0)),
+	raySortSweep: args.includes('--ray-sort-sweep'),
+	sortIndirect: args.includes('--sort-indirect'),
+	sortIndirectSweep: args.includes('--sort-indirect-sweep'),
 	spatialQueues: args.includes('--spatial-queues'),
 	spatialSweep: args.includes('--spatial-sweep'),
 	shadowMode: option('shadow', 'serial'),
@@ -58,8 +62,14 @@ const config = {
 	materialMixed: args.includes('--material-mixed'),
 	materialSchedule: option('material-schedule', 'original'),
 	scheduleSweep: args.includes('--schedule-sweep'),
-	variantWarmup: Number(option('variant-warmup', args.includes('--material-sweep') || args.includes('--opcode-sweep') || args.includes('--schedule-sweep') || args.includes('--spatial-sweep') || args.includes('--operand-sweep') ? 64 : 8)),
+	variantWarmup: Number(option('variant-warmup', args.includes('--material-sweep') || args.includes('--opcode-sweep') || args.includes('--schedule-sweep') || args.includes('--spatial-sweep') || args.includes('--operand-sweep') || args.includes('--ray-sort-sweep') || args.includes('--sort-indirect-sweep') ? 64 : 8)),
 };
+if (Object.entries(config).filter(([key, value]) => key.endsWith('Sweep') && value).length > 1) throw new Error('Choose one sweep at a time');
+if (![0, 64, 256].includes(config.raySortSize)) throw new Error('Invalid ray sort size');
+if ((config.raySortSize !== 0 || config.raySortSweep) && (config.compaction === 'none' || (config.directStages & 1) !== 0 || config.dispatchSweep || config.compactionSweep)) throw new Error('Ray sorting requires fixed queued intersection');
+if (config.sortIndirect && !((config.sort !== 'none' && config.sortSize === 256) || config.raySortSize === 256)) throw new Error('Indirect sorting requires a 256-slot sort');
+if (config.raySortSweep && (!config.paired || config.raySortSize !== 0 || config.sortIndirect)) throw new Error('Ray sort sweep requires paired unsorted rays and direct sort dispatch');
+if (config.sortIndirectSweep && (!config.paired || config.sortIndirect || !((config.sort !== 'none' && config.sortSize === 256) || config.raySortSize === 256))) throw new Error('Indirect sort sweep requires a paired 256-slot sort with direct dispatch');
 if (![0, 1, 2, 3, 4, 5, 6, 7].includes(config.operandMode)) throw new Error('Invalid operand mode');
 if (!config.operandModes.length || config.operandModes.some(mode => !Number.isInteger(mode) || mode < 1 || mode > 7) || new Set(config.operandModes).size !== config.operandModes.length) throw new Error('Invalid operand sweep modes');
 if (config.operandSweep && (!config.paired || config.operandMode !== 0 || config.tailSweep || config.packetSweep || config.materialSweep || config.sortSweep || config.shadowSweep || config.opcodeSweep || config.scheduleSweep || config.spatialSweep || config.dispatchSweep || config.compactionSweep)) throw new Error('--operand-sweep requires a paired mode-zero base without other sweeps');
@@ -146,6 +156,11 @@ if (config.operandSweep) {
 	for (const operandMode of config.operandModes) for (const mode of ['megakernel', 'wavefront'])
 		config.variants.push({ name: `${mode}-operands-${operandMode}`, mode, operandMode, tailStart: config.tailStart, tailThreshold: config.tailThreshold });
 }
+if (config.raySortSweep) {
+	for (const [raySortSize, sortIndirect] of [[64, false], [256, false], [256, true]])
+		config.variants.push({ name: `rays-${raySortSize}${sortIndirect ? '-indirect' : ''}`, raySortSize, sortIndirect, tailStart: config.tailStart, tailThreshold: config.tailThreshold });
+}
+if (config.sortIndirectSweep) config.variants.push({ name: 'sort-indirect', sortIndirect: true, tailStart: config.tailStart, tailThreshold: config.tailThreshold });
 for (const variant of config.variants) {
 	variant.mode ??= 'wavefront';
 	variant.materialStack ??= config.materialStack;
@@ -154,6 +169,8 @@ for (const variant of config.variants) {
 	variant.packetStages ??= config.packetStages;
 	variant.sort ??= config.sort;
 	variant.sortSize ??= config.sortSize;
+	variant.raySortSize ??= config.raySortSize;
+	variant.sortIndirect ??= config.sortIndirect;
 	variant.spatialQueues ??= config.spatialQueues;
 	variant.shadowMode ??= config.shadowMode;
 	variant.opcodeMode ??= config.opcodeMode;
@@ -224,7 +241,7 @@ const assertUnchangedSources = () => {
 const referenceReport = { ...report, config: { ...config, mode: 'megakernel' }, results: [] };
 const variantReports = Object.fromEntries(config.variants.slice(1).map(variant => {
 	mkdirSync(join(output, variant.name), { recursive: true });
-	return [variant.name, { ...report, config: { ...config, mode: variant.mode, materialStack: variant.materialStack, tailStart: variant.tailStart, tailThreshold: variant.tailThreshold, compaction: variant.compaction, directStages: variant.directStages, packetStages: variant.packetStages, sort: variant.sort, sortSize: variant.sortSize, spatialQueues: variant.spatialQueues, shadowMode: variant.shadowMode, operandMode: variant.operandMode, opcodeMode: variant.opcodeMode, materialSchedule: variant.materialSchedule }, results: [] }];
+	return [variant.name, { ...report, config: { ...config, mode: variant.mode, materialStack: variant.materialStack, tailStart: variant.tailStart, tailThreshold: variant.tailThreshold, compaction: variant.compaction, directStages: variant.directStages, packetStages: variant.packetStages, sort: variant.sort, sortSize: variant.sortSize, raySortSize: variant.raySortSize, sortIndirect: variant.sortIndirect, spatialQueues: variant.spatialQueues, shadowMode: variant.shadowMode, operandMode: variant.operandMode, opcodeMode: variant.opcodeMode, materialSchedule: variant.materialSchedule }, results: [] }];
 }));
 writeFileSync(join(candidateOutput, 'report.json'), JSON.stringify(report, null, 2));
 try {
@@ -338,6 +355,8 @@ try {
 				renderer.tracer.wavefront.packetStages = config.packetStages;
 				renderer.tracer.wavefront.sort = config.sort;
 				renderer.tracer.wavefront.sortSize = config.sortSize;
+				renderer.tracer.wavefront.raySortSize = config.raySortSize;
+				renderer.tracer.wavefront.sortIndirect = config.sortIndirect;
 				renderer.tracer.wavefront.spatialQueues = config.spatialQueues;
 				renderer.tracer.wavefront.shadowMode = config.shadowMode;
 			}
@@ -370,7 +389,28 @@ try {
 			const begin = GPUCommandEncoder.prototype.beginComputePass;
 			const setPipeline = GPUComputePassEncoder.prototype.setPipeline;
 			const tracedPasses = new WeakSet();
+			const sortPasses = new WeakMap();
 			let observedPipelines = new Set(), observedConstants = new Map();
+			let observedSortDispatches = new Set();
+			const dispatchDirect = GPUComputePassEncoder.prototype.dispatchWorkgroups;
+			const dispatchIndirect = GPUComputePassEncoder.prototype.dispatchWorkgroupsIndirect;
+			GPUComputePassEncoder.prototype.dispatchWorkgroups = function(x, y, z) {
+				const size = sortPasses.get(this);
+				if (size) {
+					if (size !== 256 || renderer.tracer.wavefront.sortIndirect) throw new Error('Wrong direct sort dispatch');
+					observedSortDispatches.add('256:direct');
+				}
+				return dispatchDirect.call(this, x, y, z);
+			};
+			GPUComputePassEncoder.prototype.dispatchWorkgroupsIndirect = function(buffer, offset) {
+				const size = sortPasses.get(this);
+				if (size) {
+					if (buffer !== renderer.tracer.wavefront.indirect || offset !== (size === 64 ? 0 : 32)
+						|| (size === 256 && !renderer.tracer.wavefront.sortIndirect)) throw new Error('Wrong indirect sort dispatch');
+					observedSortDispatches.add(`${size}:indirect`);
+				}
+				return dispatchIndirect.call(this, buffer, offset);
+			};
 			let observedMaterialSchedules = new Set();
 			const setBindGroup = GPUComputePassEncoder.prototype.setBindGroup;
 			GPUComputePassEncoder.prototype.setBindGroup = function(index, group, ...offsets) {
@@ -400,7 +440,7 @@ try {
 			const queuePhases = [];
 			GPUCommandEncoder.prototype.copyBufferToBuffer = function(source, sourceOffset, destination, destinationOffset, size) {
 				copyBuffer.call(this, source, sourceOffset, destination, destinationOffset, size);
-				if (captureQueues && destination.label === 'wavefrontDispatch') {
+				if (captureQueues && destination.label === 'wavefrontDispatch' && destinationOffset === 0 && size === 32) {
 					if (queueCopies >= 4096) throw new Error('Queue diagnostic capacity exceeded');
 					queuePhases.push(labels.at(-1));
 					copyBuffer.call(this, source, sourceOffset - 16, queueReadback, queueCopies++ * queueRecordBytes, queueRecordBytes);
@@ -417,6 +457,8 @@ try {
 				}
 				const pass = begin.call(this, descriptor);
 				if (trace) tracedPasses.add(pass);
+				const sortMatch = trace && /^wavefront\.Sort(?:Material|Program|Direction)(64|256)\./.exec(descriptor.label);
+				if (sortMatch) sortPasses.set(pass, Number(sortMatch[1]));
 				return pass;
 			};
 			const repeats = [];
@@ -425,14 +467,14 @@ try {
 			let presentationVariant = config.mode;
 			const pairedErrors = [];
 			for (let repeat = 0; repeat < config.repeats; repeat++) {
-				const schedule = config.paired ? [{ name: 'megakernel' }, ...config.variants] : [{ name: config.mode, tailStart: config.tailStart, tailThreshold: config.tailThreshold, compaction: config.compaction, directStages: config.directStages, packetStages: config.packetStages, sort: config.sort, sortSize: config.sortSize, spatialQueues: config.spatialQueues, shadowMode: config.shadowMode, opcodeMode: config.opcodeMode }];
+				const schedule = config.paired ? [{ name: 'megakernel' }, ...config.variants] : [{ name: config.mode, tailStart: config.tailStart, tailThreshold: config.tailThreshold, compaction: config.compaction, directStages: config.directStages, packetStages: config.packetStages, sort: config.sort, sortSize: config.sortSize, raySortSize: config.raySortSize, sortIndirect: config.sortIndirect, spatialQueues: config.spatialQueues, shadowMode: config.shadowMode, opcodeMode: config.opcodeMode }];
 				// Legacy sweeps rotate/reverse each round. Balanced sweeps cover every position
 				// once per full cycle and reverse alternate cycles.
 				if (config.balancedOrder) {
 					const order = config.measurementOrders[repeat];
 					schedule.sort((a, b) => order.indexOf(a.name) - order.indexOf(b.name));
 				} else {
-					if (config.tailSweep || config.compactionSweep || config.dispatchSweep || config.packetSweep || config.materialSweep || config.sortSweep || config.shadowSweep || config.opcodeSweep || config.scheduleSweep || config.spatialSweep || config.operandSweep) schedule.push(...schedule.splice(0, repeat % schedule.length));
+					if (config.tailSweep || config.compactionSweep || config.dispatchSweep || config.packetSweep || config.materialSweep || config.sortSweep || config.shadowSweep || config.opcodeSweep || config.scheduleSweep || config.spatialSweep || config.operandSweep || config.raySortSweep || config.sortIndirectSweep) schedule.push(...schedule.splice(0, repeat % schedule.length));
 					if (config.paired && repeat % 2 !== 0) schedule.reverse();
 				}
 				for (const [measurementPosition, variant] of schedule.entries()) {
@@ -459,12 +501,13 @@ try {
 						if (renderer.tracer.boundMaterialOperandMode !== requestedOperands) throw new Error('Operand sweep selected the wrong mode');
 						if (renderer.tracer.materialCapacity !== expectedStack) throw new Error('Material sweep selected the wrong capacity');
 						await renderer.setIntegrator(mode);
-						if (mode === 'wavefront') Object.assign(renderer.tracer.wavefront, { tailStart: variant.tailStart, tailThreshold: variant.tailThreshold, compaction: variant.compaction, directStages: variant.directStages, packetStages: variant.packetStages, sort: variant.sort, sortSize: variant.sortSize, spatialQueues: variant.spatialQueues, shadowMode: variant.shadowMode });
+						if (mode === 'wavefront') Object.assign(renderer.tracer.wavefront, { tailStart: variant.tailStart, tailThreshold: variant.tailThreshold, compaction: variant.compaction, directStages: variant.directStages, packetStages: variant.packetStages, sort: variant.sort, sortSize: variant.sortSize, raySortSize: variant.raySortSize, sortIndirect: variant.sortIndirect, spatialQueues: variant.spatialQueues, shadowMode: variant.shadowMode });
 						// Warm each selected pipeline before timing while retaining identical scene/VT data.
 						for (let warm = 0; warm < config.variantWarmup; warm++) { renderer.renderFrame(); await device.queue.onSubmittedWorkDone(); }
 					}
 					renderer.resetAccumulation();
 					observedPipelines = new Set(); observedConstants = new Map(); observedMaterialSchedules = new Set();
+					observedSortDispatches = new Set();
 					const measurementStartedAt = Date.now();
 					const timings = [], spanTimings = [], stages = {}, wall = performance.now();
 					for (let sample = 0; sample < config.samples; sample++) {
@@ -501,11 +544,15 @@ try {
 					const sortedSpans = [...spanTimings].sort((a, b) => a - b);
 					const medianSpanMs = (sortedSpans[Math.floor((sortedSpans.length - 1) / 2)] + sortedSpans[Math.floor(sortedSpans.length / 2)]) * 0.5;
 					if (observedMaterialSchedules.size !== 1) throw new Error('Material schedule binding was not exercised');
+					if (mode === 'wavefront' && config.bounces > 0 && (variant.tailStart > 1 || variant.tailThreshold > 0)) {
+						const directions = [...observedPipelines].filter(label => label.startsWith('wavefront.SortDirection'));
+						if (directions.length !== (variant.raySortSize ? 1 : 0) || directions.some(label => !label.startsWith(`wavefront.SortDirection${variant.raySortSize}.`))) throw new Error('Wrong direction sort pipeline');
+					}
 					if (mode === 'wavefront' && config.bounces > 0 && variant.tailStart > 0) {
 						const spatial = [...observedPipelines].some(label => label.includes('.CompactShadeSpatial.'));
 						if (spatial !== variant.spatialQueues) throw new Error('Wrong spatial queue pipeline');
 					}
-					repeats.push({ measurementPosition, measurementStartedAt, measurementFinishedAt, mode, operandMode: renderer.tracer.boundMaterialOperandMode, materialSchedule: currentMaterialSchedule, boundMaterialSchedules: [...observedMaterialSchedules], materialStackRequired: renderer.scene.materialStackSize, materialCapacity: renderer.tracer.materialCapacity, pipelineLabels: [...observedPipelines], opcodeConstants: Object.fromEntries(observedConstants), materialOpcodes: renderer.tracer.materialOpcodes, variant: variant.name, repeat, medianMs, medianSpanMs, meanMs: timings.reduce((a, b) => a + b) / timings.length, wallMs, timings, spanTimings, stages });
+					repeats.push({ measurementPosition, measurementStartedAt, measurementFinishedAt, mode, operandMode: renderer.tracer.boundMaterialOperandMode, materialSchedule: currentMaterialSchedule, boundMaterialSchedules: [...observedMaterialSchedules], materialStackRequired: renderer.scene.materialStackSize, materialCapacity: renderer.tracer.materialCapacity, pipelineLabels: [...observedPipelines], sortDispatches: [...observedSortDispatches], opcodeConstants: Object.fromEntries(observedConstants), materialOpcodes: renderer.tracer.materialOpcodes, variant: variant.name, repeat, medianMs, medianSpanMs, meanMs: timings.reduce((a, b) => a + b) / timings.length, wallMs, timings, spanTimings, stages });
 					console.log(`[benchmark] ${c.name}: ${variant.name} repeat ${repeat + 1}, GPU passes ${medianMs.toFixed(3)}, span ${medianSpanMs.toFixed(3)} ms/sample`);
 					if (config.paired) {
 						const hdr = await renderer.readRadiance();
@@ -531,6 +578,8 @@ try {
 			}
 			GPUCommandEncoder.prototype.beginComputePass = begin;
 			GPUComputePassEncoder.prototype.setPipeline = setPipeline;
+			GPUComputePassEncoder.prototype.dispatchWorkgroups = dispatchDirect;
+			GPUComputePassEncoder.prototype.dispatchWorkgroupsIndirect = dispatchIndirect;
 			GPUCommandEncoder.prototype.copyBufferToBuffer = copyBuffer;
 			GPUDevice.prototype.createShaderModule = createShaderModule;
 			GPUDevice.prototype.createComputePipelineAsync = createComputePipeline;
@@ -544,13 +593,15 @@ try {
 					if (phase.includes('.Initialize.')) tilePathCount = active;
 					const denseBound = config.compaction === 'adaptive' && active > Math.floor(tilePathCount / 2);
 					const mainGroups = counters[offset + 4], shadowGroups = counters[offset + 8];
+					const sortGroups = counters[offset + 3];
+					if (sortGroups !== (config.sortIndirect ? Math.ceil(active / 256) : 0)) throw new Error(`Invalid sort bound after ${phase}`);
 					if (active > tilePathCount || shadow > tilePathCount || mainGroups !== Math.ceil((denseBound ? tilePathCount : active) / 64)
 						|| shadowGroups !== Math.ceil(shadow / 64)) throw new Error(`Invalid queue/dispatch bounds after ${phase}`);
 					const mainPacket = config.compaction === 'packet' && (config.packetStages & (phase.includes('CompactIntersect') ? 2 : 1));
 					const shadowPacket = config.compaction === 'packet' && (config.packetStages & 4);
 					queueSnapshots.push({ countUnit: mainPacket ? 'retained-slots' : 'active-paths',
 						shadowCountUnit: shadowPacket ? 'retained-slots' : 'active-paths', phase, tilePathCount, active, shadow,
-						mainA: counters[offset], mainB: counters[offset + 2], mainGroups, shadowGroups });
+						mainA: counters[offset], mainB: counters[offset + 2], mainGroups, shadowGroups, sortGroups });
 				}
 				queueReadback.unmap(); queueReadback.destroy();
 			}

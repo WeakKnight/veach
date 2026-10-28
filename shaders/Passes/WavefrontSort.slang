@@ -1,4 +1,4 @@
-// Sort independent chunks of the shading queue without moving path records or
+// Sort independent chunks of a path queue without moving path records or
 // allocating another storage binding. The atomic view permits independent uint stores.
 import Scene.SceneTypes;
 import Scene.SceneBindings;
@@ -15,6 +15,7 @@ struct WavefrontUniforms
 	uint capacity;
 	uint tailThreshold;
 	uint packetStages;
+	uint sortGroupSize;
 };
 [[vk::binding(0, 1)]] RWStructuredBuffer<Atomic<uint>> gWork;
 [[vk::binding(2, 1)]] ConstantBuffer<WavefrontUniforms> gWavefront;
@@ -26,13 +27,14 @@ bool Less(uint2 a, uint2 b)
 	return a.x < b.x || (a.x == b.x && a.y < b.y);
 }
 
-void SortImpl<let PROGRAM : bool>(uint3 tid, uint3 local)
+// KEY: material 0, surface program 1, continuation direction octant 2.
+void SortImpl<let KEY : uint>(uint3 tid, uint3 local)
 {
 	uint lane = local.x;
 	uint header = gFrame.frame.x * gFrame.frame.y * 12u;
-	if (lane == 0u) gCount = gWork[header + 2u].load();
+	if (lane == 0u) gCount = gWork[header + (KEY == 2u ? 0u : 2u)].load();
 	GroupMemoryBarrierWithGroupSync();
-	uint queue = header + 12u + gWavefront.capacity * 84u + ((gWavefront.capacity + 3u) / 4u) * 4u;
+	uint queue = header + 12u + gWavefront.capacity * 84u + (KEY == 2u ? 0u : ((gWavefront.capacity + 3u) / 4u) * 4u);
 	uint2 item = uint2(0xffffffffu);
 	if (tid.x < gCount)
 	{
@@ -41,9 +43,19 @@ void SortImpl<let PROGRAM : bool>(uint3 tid, uint3 local)
 		// Packet queues retain dead paths. Their hit records may be uninitialized.
 		if (gWork[base + 3u].load() != 0u)
 		{
-			uint instance = gWork[base + 32u * gWavefront.capacity + 3u].load();
-			uint material = gInstances[instance].materialIndex;
-			item.x = PROGRAM ? gMaterialData[material * 2u].x : material;
+			if (KEY == 2u)
+			{
+				uint direction = base + 12u * gWavefront.capacity;
+				item.x = (gWork[direction].load() >> 31u)
+					| ((gWork[direction + 1u].load() >> 31u) << 1u)
+					| ((gWork[direction + 2u].load() >> 31u) << 2u);
+			}
+			else
+			{
+				uint instance = gWork[base + 32u * gWavefront.capacity + 3u].load();
+				uint material = gInstances[instance].materialIndex;
+				item.x = KEY == 1u ? gMaterialData[material * 2u].x : material;
+			}
 		}
 	}
 	gSort[lane] = item;
@@ -73,9 +85,14 @@ void SortImpl<let PROGRAM : bool>(uint3 tid, uint3 local)
 [shader("compute")]
 [numthreads(VEACH_SORT_SIZE, 1, 1)]
 void SortMaterial(uint3 tid : SV_DispatchThreadID, uint3 local : SV_GroupThreadID)
-{ SortImpl<false>(tid, local); }
+{ SortImpl<0u>(tid, local); }
 
 [shader("compute")]
 [numthreads(VEACH_SORT_SIZE, 1, 1)]
 void SortProgram(uint3 tid : SV_DispatchThreadID, uint3 local : SV_GroupThreadID)
-{ SortImpl<true>(tid, local); }
+{ SortImpl<1u>(tid, local); }
+
+[shader("compute")]
+[numthreads(VEACH_SORT_SIZE, 1, 1)]
+void SortDirection(uint3 tid : SV_DispatchThreadID, uint3 local : SV_GroupThreadID)
+{ SortImpl<2u>(tid, local); }

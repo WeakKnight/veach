@@ -54,6 +54,19 @@ if (integratorFlag >= 0) {
 	only.splice(integratorFlag, 2);
 }
 const wavefrontTuning = {};
+const raySortFlag = only.indexOf('--ray-sort-size');
+if (raySortFlag >= 0) {
+	const size = Number(only[raySortFlag + 1]);
+	if (integrator !== 'wavefront' || ![0, 64, 256].includes(size)) throw new Error('Invalid --ray-sort-size');
+	wavefrontTuning.raySortSize = size;
+	only.splice(raySortFlag, 2);
+}
+const sortIndirectFlag = only.indexOf('--sort-indirect');
+if (sortIndirectFlag >= 0) {
+	if (integrator !== 'wavefront') throw new Error('--sort-indirect requires wavefront');
+	wavefrontTuning.sortIndirect = true;
+	only.splice(sortIndirectFlag, 1);
+}
 const operandFlag = only.indexOf('--operand-mode');
 let operandMode = null;
 if (operandFlag >= 0) {

@@ -22,6 +22,7 @@ struct WavefrontUniforms
 	uint capacity;
 	uint tailThreshold;
 	uint packetStages;
+	uint sortGroupSize;
 };
 [[vk::binding(2, 1)]] ConstantBuffer<WavefrontUniforms> gWavefront;
 
@@ -130,7 +131,8 @@ void Initialize(uint3 tid : SV_DispatchThreadID)
 	if ((index & 3u) == 0u) gAccum[MainQueueBase() + index / 4u] = asfloat(uint4(index, index + 1u, index + 2u, index + 3u));
 	if (index == 0u)
 	{
-		gAccum[HeaderBase()] = asfloat(uint4(gWavefront.pathCount, 0u, 0u, 0u));
+		uint sortGroups = gWavefront.sortGroupSize == 256u ? (gWavefront.pathCount + 255u) / 256u : 0u;
+		gAccum[HeaderBase()] = asfloat(uint4(gWavefront.pathCount, 0u, 0u, sortGroups));
 		gAccum[HeaderBase() + 1u] = asfloat(uint4((gWavefront.pathCount + 63u) / 64u, 1u, 1u, 0u));
 		gAccum[HeaderBase() + 2u] = asfloat(uint4(0u, 1u, 1u, 0u));
 	}

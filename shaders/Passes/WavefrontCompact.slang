@@ -26,6 +26,7 @@ struct WavefrontUniforms
 	uint capacity;
 	uint tailThreshold;
 	uint packetStages;
+	uint sortGroupSize;
 };
 [[vk::binding(0, 1)]] RWStructuredBuffer<Atomic<uint>> gWork;
 [[vk::binding(2, 1)]] ConstantBuffer<WavefrontUniforms> gWavefront;
@@ -44,6 +45,8 @@ uint2 ReserveQueues<let AFTER_SHADE : bool>(uint header, uint2 count)
 	{
 		offset.x = gWork[header + (AFTER_SHADE ? 0u : 2u)].add(count.x);
 		uint nextCount = offset.x + count.x;
+		// Sorting needs the actual queue count, before adaptive scans expand their bound.
+		if (gWavefront.sortGroupSize == 256u) gWork[header + 3u].max((nextCount + 255u) / 256u);
 #if VEACH_ADAPTIVE_COMPACTION
 		// The next compaction scans physical slots while the queue is dense. Its
 		// dispatch shares the main-stage arguments; those stages guard by real count.

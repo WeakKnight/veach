@@ -7,6 +7,7 @@ struct WavefrontUniforms_std140_0
     @align(4) capacity_0 : u32,
     @align(16) tailThreshold_0 : u32,
     @align(4) packetStages_0 : u32,
+    @align(8) sortGroupSize_0 : u32,
 };
 
 @binding(2) @group(1) var<uniform> gWavefront_0 : WavefrontUniforms_std140_0;
@@ -15770,8 +15771,17 @@ fn Initialize(@builtin(global_invocation_id) tid_12 : vec3<u32>)
     }
     if(index_16 == u32(0))
     {
+        var sortGroups_0 : u32;
+        if((gWavefront_0.sortGroupSize_0) == u32(256))
+        {
+            sortGroups_0 = (gWavefront_0.pathCount_0 + u32(255)) / u32(256);
+        }
+        else
+        {
+            sortGroups_0 = u32(0);
+        }
         var _S623 : u32 = HeaderBase_0();
-        gAccum_0[_S623] = (bitcast<vec4<f32>>((vec4<u32>(gWavefront_0.pathCount_0, u32(0), u32(0), u32(0)))));
+        gAccum_0[_S623] = (bitcast<vec4<f32>>((vec4<u32>(gWavefront_0.pathCount_0, u32(0), u32(0), sortGroups_0))));
         gAccum_0[_S623 + u32(1)] = (bitcast<vec4<f32>>((vec4<u32>((gWavefront_0.pathCount_0 + u32(63)) / u32(64), u32(1), u32(1), u32(0)))));
         gAccum_0[_S623 + u32(2)] = (bitcast<vec4<f32>>((vec4<u32>(u32(0), u32(1), u32(1), u32(0)))));
     }

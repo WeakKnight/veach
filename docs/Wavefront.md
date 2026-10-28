@@ -114,7 +114,7 @@ bytecode offset, allowing materials with different constants to execute together
 sort breaks ties by physical path index and preserves inactive packet slots. It changes
 only queue order, not path records, RNG or material data, and adds no storage binding.
 Direct shading cannot use this experiment; intersection/shadow may still dispatch directly.
-Sorting uses the existing indirect arguments for 64-slot chunks; 256-slot chunks currently
+Sorting uses the existing indirect arguments for 64-slot chunks; 256-slot chunks by default
 dispatch the bounded tile and guard by actual queue count. Sorting cost is included in
 stage timing and total GPU span. `--sort-sweep` compares unsorted plus all four key/size
 combinations and is mutually exclusive with other sweeps.
@@ -122,6 +122,28 @@ The GPU correctness script accepts these sort options and reads back the queue b
 every sort in the first sample. It verifies exact per-chunk order against CPU material/program
 keys, permutation/bounds, and records how many entries actually moved. These diagnostic
 copies are absent from the performance benchmark.
+
+`--ray-sort-size 0|64|256` optionally sorts continuation queue A by direction octant before
+intersection, starting at bounce one. Camera rays retain their initial spatial order.
+The key uses the three IEEE float sign bits, including negative zero; physical path index
+breaks ties and inactive packet slots sort last. This requires queued intersection and
+can combine with material/program sorting of queue B. The default is zero (disabled).
+`--ray-sort-sweep --paired --mode wavefront` compares unsorted, 64-slot sorting, 256-slot
+direct sorting and 256-slot indirect sorting with the megakernel reference. Its five
+variants require a multiple of five repeats when `--balanced-order` is used.
+
+`--sort-indirect` enables exact indirect dispatch for active 256-slot sorts. Header word 3
+holds ceil(actual main queue count / 256), computed before adaptive compaction expands
+its separate 64-slot bound. Only enabled runs add the atomic update, header clear and
+four-byte argument copy. The third dispatch record lives at byte offset 32 in a 48-byte
+COPY_DST | INDIRECT buffer; its y/z counts are initialized to one. Uniform word 6 selects
+this behavior without changing path fields or storage bindings. The default is false.
+`--sort-indirect-sweep` compares the fixed 256-slot sort with/without exact dispatch and
+the megakernel reference; balanced ordering requires a multiple of three repeats.
+The GPU checker verifies actual dispatch methods, argument offsets and xyz values as
+well as exact queue permutations for both sorting keys. COPY_SRC on the indirect buffer
+is added only by that checker. Performance reports record the actual sort dispatch modes
+and bound pipelines without the diagnostic readbacks.
 
 `--shadow serial|parallel|parallel-auto` selects an opaque-shadow experiment. Parallel
 uses a 64x3 workgroup: each source traces independently, then a workgroup barrier and
@@ -1201,13 +1223,22 @@ effects. The three complete sweeps establish no broadly beneficial constant-inde
 so it remains an opt-in experiment. Together they contain 180 exact non-reference HDR
 comparisons and fifteen inspected screenshots on the same fixed five scenes.
 
-Two follow-up prototypes remain isolated from these measurements. The octant sorter
-targets continuation queue A, skips camera rays, and preserves physical path/RNG records.
-The second specializes the megakernel's closest-hit and NEE traversal to `ALPHA=false`:
+The follow-up octant sorter now targets continuation queue A, skips camera rays, and
+preserves physical path/RNG records. Exact 256-slot indirect dispatch is a separate opt-in.
+The initial combined direction/program256 regression passed all 46 GPU cases with exact
+HDR agreement, checking 218 direction-sort passes, 472 indirect256 passes, and 191,097
+reordered entries. A packet-mask sweep on alpha/procedural scenes passed another 36 cases
+across all eight retention masks. Another 24 exact cases cover subgroup64, legacy direct256,
+and a fixed bounce-two tail with subgroups disabled, including 513x513 multiple-tile input.
+This totals 106 GPU cases. The shader build, 198 unit tests, typecheck and library build pass.
+Helmet HDR, alpha and transmission smoke renders pass with both program256 and direction256
+exact dispatch enabled; all three screenshots were inspected. Performance measurements follow.
+
+An isolated prototype specializes the megakernel's closest-hit and NEE traversal to `ALPHA=false`:
 all five reference workloads currently bind opaque wavefront traversal, while the reference
 megakernel retains the general alpha-capable traversal (runtime instance flags skip opacity
-evaluation). Its isolated 0/1/2/4/8/16-slot modules all compile. Neither prototype has GPU
-correctness or performance evidence yet; opaque specialization must retain the general
+evaluation). Its isolated 0/1/2/4/8/16-slot modules all compile. This opaque prototype has
+no GPU correctness or performance evidence yet; opaque specialization must retain the general
 kernel for any scene with alpha-tested instances. This comparison can separate a useful
 scene specialization from gains attributable to stage decomposition.
 
@@ -1215,7 +1246,8 @@ scene specialization from gains attributable to stage decomposition.
 
 Group 1 binding 0 contains the original image prefix (three float4 per pixel), then
 three float4 headers, 21 float4 field arrays at the current tile capacity, then three
-packed uint index queues (main A, main B, shadow). Header words 0/1/2 store A/shadow/B counts.
+packed uint index queues (main A, main B, shadow). Header words 0/1/2 store A/shadow/B counts;
+word 3 optionally stores the current main queue's exact 256-slot sort bound.
 Intersect reads A, CompactIntersect scans A and writes B, Shade reads B, and CompactShade
 scans B and writes A plus shadow indices. Compact dispatch sizes come from the input queue's
 indirect arguments; clearing the output count preserves the input count. An empty queue thus
@@ -1235,5 +1267,5 @@ Each field array is SoA across paths. The tile capacity is
 at most 262,144, bounded by the storage binding and allocation limits. Initial indices
 map to 8x8 pixel blocks, with explicit padding checks for non-multiple-of-eight images.
 The compaction shader aliases the allocation as atomic uints in separate compute passes;
-no pass binds overlapping read/write aliases simultaneously. The 32-byte dispatch argument
+no pass binds overlapping read/write aliases simultaneously. The 48-byte dispatch argument
 buffer is COPY_DST | INDIRECT, not a storage buffer. Compaction and copies stay on GPU.

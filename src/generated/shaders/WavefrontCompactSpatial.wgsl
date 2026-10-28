@@ -9,6 +9,7 @@ struct WavefrontUniforms_std140_0
     @align(4) capacity_0 : u32,
     @align(16) tailThreshold_0 : u32,
     @align(4) packetStages_0 : u32,
+    @align(8) sortGroupSize_0 : u32,
 };
 
 @binding(2) @group(1) var<uniform> gWavefront_0 : WavefrontUniforms_std140_0;
@@ -40,6 +41,10 @@ fn ReserveQueues_0( header_0 : u32,  count_0 : vec2<u32>) -> vec2<u32>
         var _S2 : u32 = atomicAdd(&(gWork_0[header_0]), _S1);
         offset_0[i32(0)] = _S2;
         var nextCount_0 : u32 = offset_0.x + _S1;
+        if((gWavefront_0.sortGroupSize_0) == u32(256))
+        {
+            var _S3 : u32 = atomicMax(&(gWork_0[header_0 + u32(3)]), (nextCount_0 + u32(255)) / u32(256));
+        }
         var nextCount_1 : u32;
         if((nextCount_0 > (gWavefront_0.pathCount_0 / u32(2))))
         {
@@ -49,14 +54,14 @@ fn ReserveQueues_0( header_0 : u32,  count_0 : vec2<u32>) -> vec2<u32>
         {
             nextCount_1 = nextCount_0;
         }
-        var _S3 : u32 = atomicMax(&(gWork_0[header_0 + u32(4)]), (nextCount_1 + u32(63)) / u32(64));
+        var _S4 : u32 = atomicMax(&(gWork_0[header_0 + u32(4)]), (nextCount_1 + u32(63)) / u32(64));
     }
-    var _S4 : u32 = count_0.y;
-    if((_S4 > u32(0)))
+    var _S5 : u32 = count_0.y;
+    if((_S5 > u32(0)))
     {
-        var _S5 : u32 = atomicAdd(&(gWork_0[header_0 + u32(1)]), _S4);
-        offset_0[i32(1)] = _S5;
-        var _S6 : u32 = atomicMax(&(gWork_0[header_0 + u32(8)]), (offset_0.y + _S4 + u32(63)) / u32(64));
+        var _S6 : u32 = atomicAdd(&(gWork_0[header_0 + u32(1)]), _S5);
+        offset_0[i32(1)] = _S6;
+        var _S7 : u32 = atomicMax(&(gWork_0[header_0 + u32(8)]), (offset_0.y + _S5 + u32(63)) / u32(64));
     }
     return offset_0;
 }
@@ -69,21 +74,21 @@ fn CompactImpl_0( tid_0 : vec3<u32>,  local_0 : vec3<u32>)
 {
     var lane_0 : u32 = local_0.x;
     var header_1 : u32 = gFrame_0.frame_0.x * gFrame_0.frame_0.y * u32(12);
-    var _S7 : u32 = header_1 + u32(12);
-    var queue_0 : u32 = _S7 + gWavefront_0.capacity_0 * u32(84);
+    var _S8 : u32 = header_1 + u32(12);
+    var queue_0 : u32 = _S8 + gWavefront_0.capacity_0 * u32(84);
     var queueStride_0 : u32 = (gWavefront_0.capacity_0 + u32(3)) / u32(4) * u32(4);
-    var _S8 : vec2<u32> = vec2<u32>(u32(0));
-    var flags_0 : vec2<u32> = _S8;
-    var _S9 : u32 = tid_0.x;
+    var _S9 : vec2<u32> = vec2<u32>(u32(0));
+    var flags_0 : vec2<u32> = _S9;
+    var _S10 : u32 = tid_0.x;
     var index_0 : u32;
-    if((_S9 < (gWavefront_0.pathCount_0)))
+    if((_S10 < (gWavefront_0.pathCount_0)))
     {
-        var base_0 : u32 = _S7 + _S9 * u32(4);
-        var _S10 : u32 = atomicLoad(&(gWork_0[base_0 + u32(3)]));
-        flags_0[i32(0)] = select(u32(0), u32(1), _S10 != u32(0));
-        var _S11 : u32 = atomicLoad(&(gWork_0[base_0 + u32(44) * gWavefront_0.capacity_0 + u32(2)]));
-        flags_0[i32(1)] = select(u32(0), u32(1), _S11 != u32(0));
-        index_0 = _S9;
+        var base_0 : u32 = _S8 + _S10 * u32(4);
+        var _S11 : u32 = atomicLoad(&(gWork_0[base_0 + u32(3)]));
+        flags_0[i32(0)] = select(u32(0), u32(1), _S11 != u32(0));
+        var _S12 : u32 = atomicLoad(&(gWork_0[base_0 + u32(44) * gWavefront_0.capacity_0 + u32(2)]));
+        flags_0[i32(1)] = select(u32(0), u32(1), _S12 != u32(0));
+        index_0 = _S10;
     }
     else
     {
@@ -108,7 +113,7 @@ fn CompactImpl_0( tid_0 : vec3<u32>,  local_0 : vec3<u32>)
         }
         else
         {
-            value_0 = _S8;
+            value_0 = _S9;
         }
         workgroupBarrier();
         gPrefix_0[lane_0] = gPrefix_0[lane_0] + value_0;
@@ -117,8 +122,8 @@ fn CompactImpl_0( tid_0 : vec3<u32>,  local_0 : vec3<u32>)
     }
     if(lane_0 == u32(0))
     {
-        var _S12 : vec2<u32> = ReserveQueues_0(header_1, gPrefix_0[u32(63)]);
-        gOffsets_0 = _S12;
+        var _S13 : vec2<u32> = ReserveQueues_0(header_1, gPrefix_0[u32(63)]);
+        gOffsets_0 = _S13;
     }
     workgroupBarrier();
     var prefix_0 : vec2<u32> = gPrefix_0[lane_0] - flags_0 + gOffsets_0;
