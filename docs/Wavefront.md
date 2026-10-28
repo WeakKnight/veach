@@ -1621,7 +1621,57 @@ test-only COPY_SRC usage enables those readbacks without changing production buf
 All 213 unit tests, shader compilation, TypeScript checking and library build pass.
 Helmet HDR, alpha and transmission smoke renders pass at 64 spp and all three captures
 were inspected (`.tools/wavefront/compact-bucket-smoke`). The wavefront library chunk
-is 757.17 kB (89.05 kB gzip). Performance results are pending.
+is 757.17 kB (89.05 kB gzip). The complete default `npm run smoke` also passes all
+21 cases; every screenshot was inspected, including the debugging and exposure views.
+
+### Compact ranges: paired measurements
+
+Revision `b3860ee` was held fixed for three five-scene sweeps, each with four balanced
+rounds, 64 warmup frames per variant and 32 measured spp. All sweep verifiers pass,
+all 180 candidate HDR comparisons are exact, and all 15 presentation captures were
+inspected. Complete GPU span medians in ms/sample:
+
+| Workload / variant | classroom | breakfast-room | bmw-m6 | glass-of-water | veach-mis |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Original / general megakernel | 10.378 | 4.386 | 2.689 | 2.816 | 1.549 |
+| Original / wavefront | 8.564 | 6.044 | 5.363 | 3.707 | 1.747 |
+| Original / scans | 9.140 | 6.334 | 5.359 | 3.698 | 1.742 |
+| Original / compact ranges | 9.109 | 6.486 | 5.422 | 3.826 | 1.743 |
+| Mixed 1..8 layers / general megakernel | 26.767 | 11.705 | 8.068 | 6.749 | 3.896 |
+| Mixed 1..8 layers / wavefront | 10.961 | 8.588 | 7.370 | 5.735 | 3.100 |
+| Mixed 1..8 layers / scans | 15.974 | 11.615 | 10.181 | 7.066 | 4.408 |
+| Mixed 1..8 layers / compact ranges | 12.192 | 11.416 | 10.554 | 6.606 | 4.642 |
+| Mixed + program256 / general megakernel | 27.345 | 11.384 | 7.508 | 7.601 | 3.888 |
+| Mixed + program256 / wavefront | 9.840 | 9.152 | 7.646 | 5.658 | 3.240 |
+| Mixed + program256 / scans | 13.753 | 12.141 | 10.645 | 6.932 | 4.552 |
+| Mixed + program256 / compact ranges | 12.033 | 12.198 | 10.778 | 6.868 | 4.672 |
+
+The reports are `partitions-original-v1`, `partitions-mixed8-v1`, and
+`partitions-mixed8-sorted-v1` under `.tools/wavefront`. The sorted workload applies
+program256 to all wavefront candidates; the general megakernel remains unsorted.
+Its variation across separate runs must not be credited to a wavefront optimization.
+
+On original classroom/breakfast, compact ranges regress against ordinary wavefront
+in every round (+6.05%/+6.86% median paired changes). BMW/glass/MIS all use ordinary
+Shade.stack0 even with the bucket flag, so their changes (+0.77%/+2.59%/-0.29%) are
+unchanged-path timing controls. In particular, glass ranges from +0.91% to +4.84%
+despite identical shading, illustrating the limit of interpreting small differences.
+
+On mixed materials, compact ranges regress in every round of every scene against
+wavefront: +11.26/+32.89/+42.96/+15.13/+49.70 percent. They improve on scans for
+classroom/breakfast/glass (-23.69/-1.70/-6.68%), but worsen BMW/MIS (+3.66/+5.31%).
+Program sorting does not rescue capacity partitioning: sorted compact ranges regress
+in every round against sorted wavefront (+22.11/+33.39/+41.17/+21.38/+44.15%).
+
+Original classroom's mean Shade is 1.455 ms; scans total 2.047 ms; compact shading
+totals 1.664 ms with 0.316 ms of Count/Prefix/Scatter work. Mixed classroom's mean
+Shade is 5.823 ms; scans total 10.833 ms; compact shading totals 6.671 ms plus
+0.261 ms of partition work. Merely merging the three partition passes cannot close
+the remaining shading gap. Resource allocation and locality remain hypotheses rather
+than measured hardware causes. Capacity partitioning stays opt-in. A distinct next
+experiment is full-queue material grouping at unchanged global SVM capacity, to test
+shader coherence independently of capacity specialization; the existing 64/256 sorts
+only group paths inside small chunks.
 
 ## Work storage layout
 
