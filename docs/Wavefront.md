@@ -1524,7 +1524,79 @@ meshes (the source asset shares just one material). Its optimized shading capaci
 are 0/2/4; the cross-material emission fixture uses 2/8, exercising the emission floor
 for constant surfaces. Both fixtures cover partial workgroups and more than one tile.
 Shader compilation, TypeScript checking and the library build also pass. Performance
-and additional dispatch-combination validation remain pending; the option stays off.
+measurement remains pending; the option stays off. An additional 36 direct-stage
+mask comparisons and 36 packet-mask comparisons cover both new fixtures; 12 further
+comparisons combine program sorting, tail fusion from bounce two and disabled
+subgroups with alpha and both bucket fixtures. All have zero HDR/AOV error.
+Helmet HDR, alpha and transmission smoke runs pass at 64 spp and their screenshots
+were inspected (`.tools/wavefront/bucket-smoke`). Thus the complete and extended
+regressions total 138 comparisons, excluding the eight preliminary boundary checks.
+
+Three original research scenes (BMW, glass and MIS) have only constant materials
+and already select the capacity-zero interpreter. Their bucket option reuses the
+ordinary Shade pipeline, providing an unchanged-path control. Classroom and
+breakfast-room have a mixture of capacity-zero and capacity-one materials. The
+heterogeneous 1..8-layer procedural workload is recorded separately from original
+asset measurements; its higher capacity range must not be represented as the
+original scenes' material complexity.
+
+### Capacity scans: original scenes
+
+`buckets-original-v1` compares five variants over five balanced rounds, with 64 warmup
+frames per variant and 32 measured spp. The full sweep verifier passes; all 100
+per-round candidate HDR comparisons have zero error. All five presentation captures
+were inspected. Values below are medians of complete GPU spans in ms/sample.
+
+| Variant | classroom | breakfast-room | bmw-m6 | glass-of-water | veach-mis |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| General megakernel | 10.227 | 4.330 | 2.747 | 2.814 | 1.550 |
+| Wavefront | 8.586 | 6.078 | 5.377 | 3.699 | 1.740 |
+| Capacity scans | 9.207 | 6.367 | 5.366 | 3.698 | 1.739 |
+| Program sort 256 | 8.660 | 6.953 | 5.703 | 3.982 | 1.864 |
+| Program sort + scans | 8.857 | 7.070 | 5.729 | 3.947 | 1.860 |
+
+Median paired scan changes against wavefront are +7.28%/+4.75% for classroom and
+breakfast-room; both regress in every round. Their sorted scan variants are also
+slower than sorted wavefront in every round (+2.12%/+1.80% median paired change).
+The other three scenes execute the same shading path with the scan flag enabled;
+their small timing changes are controls, not capacity-specialization gains.
+
+Classroom's mean Shade time is 1.467 ms without scans, versus 1.237 + 0.825 ms for
+the capacity-zero/one scans. Program sorting reduces those scan stages to
+1.189 + 0.525 ms but adds 0.142 ms of sorting. These stage means identify duplicated
+queue scans and partially occupied shading dispatches as costs to address; they
+are distinct from complete-span medians.
+The next experiment must test compact capacity ranges, rather than interpreting
+this scanning result as a rejection of all capacity specialization.
+
+### Capacity scans: heterogeneous procedural materials
+
+`buckets-mixed8-v1` repeats that protocol with 1..8 noise layers distributed across
+materials (`--material-layers 8 --material-mixed`). All five scenes, five balanced
+rounds and 100 candidate HDR comparisons pass verification with zero error. The five
+captures were inspected. Complete GPU span medians, ms/sample:
+
+| Variant | classroom | breakfast-room | bmw-m6 | glass-of-water | veach-mis |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| General megakernel | 26.600 | 11.427 | 8.143 | 6.610 | 3.961 |
+| Wavefront | 11.014 | 8.561 | 7.368 | 5.723 | 3.096 |
+| Capacity scans | 15.963 | 11.610 | 10.244 | 7.099 | 4.393 |
+| Program sort 256 | 9.772 | 9.144 | 7.619 | 5.631 | 3.185 |
+| Program sort + scans | 13.651 | 11.946 | 10.744 | 6.897 | 4.547 |
+
+Scans regress in every paired round of every scene: median changes against ordinary
+wavefront are +45.04%/+35.63%/+39.04%/+24.05%/+42.32%. Sorting does not rescue the
+scans: sorted scans are +40.15%/+30.59%/+40.09%/+23.17%/+42.77% slower than sorted
+wavefront, again in every round. Sorting alone improves classroom in all rounds
+(-10.99% median paired change), while it regresses breakfast and BMW in all rounds;
+glass and MIS have mixed round directions. No global sorting default is justified.
+
+Classroom mean Shade increases from 5.832 ms to a sum of 10.762 ms across capacity
+2/4/8/16 scans. Program sorting reduces the ordinary Shade to 4.712 ms, while sorted
+scans still total 8.509 ms. The scan approach remains a measured negative control;
+the compact-range implementation is the next candidate, with explicit queue and
+indirect-dispatch validation required before measuring it. The shader/backend
+register-allocation mechanism remains unmeasured.
 
 ## Work storage layout
 
