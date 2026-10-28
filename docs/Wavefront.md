@@ -1410,6 +1410,69 @@ unified pending complete paired GPU span measurements.
 `npm run smoke -- --integrator wavefront --shade-mode split-late helmet-hdr alpha transmission`
 passes all three 64-spp renders without GPU/console errors; all three screenshots were inspected.
 
+### Original-material shading measurements
+
+`shade-original-v1`, revision `3daaa60`, uses adaptive compaction, 32 spp, 64-frame variant
+warmup and five balanced rounds (each of the five variants occupies each position once).
+All 100 per-round candidate HDR comparisons are exactly equal to the general megakernel;
+the sweep verifier passes and all five saved `shade-late` presentation images were inspected.
+Median complete GPU spans, milliseconds/sample:
+
+| Variant | Classroom | Breakfast | BMW | Glass | MIS |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| General megakernel | 10.126 | 4.294 | 2.686 | 2.805 | 1.551 |
+| Unified wavefront | 8.617 | 6.045 | 5.368 | 3.698 | 1.740 |
+| Split | 8.464 | 6.026 | 5.399 | 3.811 | 1.770 |
+| Late loads | 8.639 | 6.055 | 5.337 | 3.806 | 1.733 |
+| Split + late loads | 8.521 | 6.047 | 5.422 | 3.786 | 1.776 |
+
+Paired median percent changes against unified, in the same scene order:
+split -1.80/-0.19/-0.02/+1.77/+1.53; late +0.63/+0.12/-0.37/+3.00/-0.35;
+combined -1.11/-0.57/+1.37/+2.51/+2.15. Paired ratios need not equal ratios of the
+independent medians in the table. Split wins all five classroom rounds (0.29–2.28 percent),
+but loses every glass (0.32–3.19 percent) and MIS (1.29–2.27 percent) round. Combined also
+wins each classroom round but loses every MIS round. Late-only has mixed faster/slower
+rounds in every scene. These data do not justify a general default change.
+
+Average summed Shade time on classroom decreases from 1.464 ms to 1.379 ms for split,
+while MIS increases from 0.449 ms to 0.478 ms. Static phase specialization is not uniformly
+beneficial even though continuation AOV traffic is removed. First-scene experimental pipeline
+groups take approximately 9.4–10.8 seconds of asynchronous preparation each in this run;
+requests within a group overlap, so their individual durations must not be summed. They
+are outside render timing and default unified preparation does not request these groups.
+
+### Eight-layer shading measurements
+
+`shade-stress8-v1` uses the same revision, five balanced rounds and settings, with eight
+procedural layers on every material and actual scene capacity 16. All 100 per-round HDR
+comparisons are exact; the verifier passes and all five saved presentation images were
+inspected. Median complete GPU spans, milliseconds/sample:
+
+| Variant | Classroom | Breakfast | BMW | Glass | MIS |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| General megakernel | 27.571 | 14.135 | 9.270 | 11.630 | 6.987 |
+| Unified wavefront | 12.063 | 9.167 | 7.694 | 6.567 | 4.176 |
+| Split | 11.932 | 9.132 | 7.614 | 6.556 | 4.202 |
+| Late loads | 12.498 | 9.449 | 7.850 | 6.785 | 4.414 |
+| Split + late loads | 12.552 | 9.429 | 7.858 | 6.837 | 4.417 |
+
+Paired median percent changes against unified, in scene order:
+split -0.72/-0.72/-0.58/-1.01/+0.74; late +3.92/+2.94/+2.69/+2.63/+5.69;
+combined +4.45/+2.13/+2.78/+2.48/+5.76. Split wins every BMW round (0.38–2.05 percent)
+but has mixed faster/slower rounds in each other scene. Late-only loses every classroom,
+breakfast and MIS round; combined additionally loses every glass round. The source-level
+delay of path loads therefore does not produce a useful general optimization here.
+Average summed Shade time rises from 6.862 to 7.326 ms on classroom and from 2.881 to
+3.059 ms on MIS for late-only. Split's smaller changes do not justify a default change.
+Both shading sweeps together provide 200 exact HDR comparisons and ten inspected images.
+
+The next candidate is static SVM-capacity grouping within the shading queue. Current sorting
+only groups programs; all lanes still use the scene's maximum compiled capacity. A capacity
+group must also cover the scene-wide emission-program requirement because NEE evaluates
+other emissive materials. A nonmatching group must return before any path/shadow write,
+especially the current shadow-mask clear. Mixed-complexity workloads are the relevant target;
+uniform capacity-16 stress remains a useful overhead control. This grouping is not yet implemented.
+
 ## Work storage layout
 
 Group 1 binding 0 contains the original image prefix (three float4 per pixel), then
