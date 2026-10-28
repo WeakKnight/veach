@@ -60,6 +60,9 @@ const config = {
 	opaqueMegakernel: args.includes('--opaque-megakernel'),
 	opaqueSweep: args.includes('--opaque-sweep'),
 	shadeMode: option('shade-mode', 'unified'),
+	separateLight: args.includes('--separate-light'),
+	batchedShadows: args.includes('--batched-shadows'),
+	cyclesSweep: args.includes('--cycles-sweep'),
 	shadeSweep: args.includes('--shade-sweep'),
 	shadeBuckets: args.includes('--shade-buckets'),
 	shadeBucketMode: option('bucket-mode', 'scan'),
@@ -187,7 +190,14 @@ if (config.bucketSweep && config.sort === 'none' && config.compaction !== 'none'
 		sort: 'program', sortSize: 256, tailStart: config.tailStart, tailThreshold: config.tailThreshold });
 }
 if (config.partitionSweep) for (const shadeBucketMode of ['scan', 'compact']) config.variants.push({ name: `buckets-${shadeBucketMode}`, shadeBuckets: true, shadeBucketMode, tailStart: config.tailStart, tailThreshold: config.tailThreshold });
+if (config.cyclesSweep) {
+	if (!config.paired || config.separateLight || config.batchedShadows) throw new Error('Cycles sweep requires paired unmodified base');
+	for (const [name, separateLight, batchedShadows] of [['separate-light', true, false], ['batched-shadows', false, true], ['cycles-stages', true, true]])
+		config.variants.push({ name, separateLight, batchedShadows, tailStart: config.tailStart, tailThreshold: config.tailThreshold });
+}
 for (const variant of config.variants) {
+	variant.separateLight ??= config.separateLight;
+	variant.batchedShadows ??= config.batchedShadows;
 	variant.shadeBucketMode ??= config.shadeBucketMode;
 	variant.shadeBuckets ??= config.shadeBuckets;
 	variant.shadeMode ??= config.shadeMode;
@@ -214,6 +224,7 @@ const measurementVariants = ['megakernel', ...config.variants.map(v => v.name)];
 if (config.balancedOrder && (!config.paired || config.repeats % measurementVariants.length !== 0)) throw new Error(`--balanced-order requires paired repeats in multiples of ${measurementVariants.length}`);
 config.measurementOrders = config.balancedOrder ? Array.from({ length: config.repeats }, (_, repeat) => balancedMeasurementOrder(measurementVariants, repeat)) : null;
 const cases = [
+	...(args.includes('--cycles-fixtures') ? ['deep-alpha', 'masked-emitter'].map(name => ({ name, fixture: name, file: 'scripts/wavefront-cycles-fixtures.ts', environment: 0, presentationExposure: 0 })) : []),
 	{ name: 'classroom', file: 'classroom/gltf/classroom_extended.glb', environment: 1, presentationExposure: 4 },
 	{ name: 'breakfast-room', file: 'breakfast-room/gltf/breakfast_room_extended.glb', environment: 1, presentationExposure: 6 },
 	{ name: 'bmw-m6', file: 'bmw-m6/gltf/bmw_m6_extended.glb', environment: 1, presentationExposure: 2 },
@@ -222,7 +233,7 @@ const cases = [
 ].filter(c => option('only', '').split(',').filter(Boolean).length === 0 || option('only', '').split(',').includes(c.name));
 if (!cases.length) throw new Error('No selected scenes');
 for (const c of cases) {
-	c.path = join(scenesRoot, c.file);
+	c.path = join(c.fixture ? root : scenesRoot, c.file);
 	c.sha256 = createHash('sha256').update(readFileSync(c.path)).digest('hex');
 }
 mkdirSync(output, { recursive: true });
@@ -240,7 +251,7 @@ const server = await createServer({
 	plugins: [{ name: 'research-scenes', configureServer(server) {
 		server.middlewares.use((req, res, next) => {
 			const c = cases.find(c => req.url === `/__research/${c.name}.glb`);
-			if (!c) return next();
+			if (!c || c.fixture) return next();
 			res.setHeader('Content-Type', 'model/gltf-binary');
 			createReadStream(c.path).pipe(res);
 		});
@@ -251,7 +262,7 @@ const browser = await puppeteer.launch({ executablePath: chrome, headless: true,
 	args: ['--enable-unsafe-webgpu', '--ignore-gpu-blocklist', '--no-sandbox', '--disable-background-timer-throttling'],
 });
 const sourceHashes = () => {
-	const paths = ['scripts/wavefront-benchmark.mjs', 'scripts/benchmark-order.mjs', 'scripts/wavefront-material-stress.ts', 'scripts/wavefront-material-variants.ts', 'package.json', 'package-lock.json', 'vite.config.ts'];
+	const paths = ['scripts/wavefront-benchmark.mjs', 'scripts/benchmark-order.mjs', 'scripts/wavefront-material-stress.ts', 'scripts/wavefront-material-variants.ts', 'scripts/wavefront-cycles-fixtures.ts', 'package.json', 'package-lock.json', 'vite.config.ts'];
 	const visit = directory => {
 		for (const entry of readdirSync(join(root, directory), { withFileTypes: true })) {
 			const path = `${directory}/${entry.name}`;
@@ -271,7 +282,7 @@ const assertUnchangedSources = () => {
 const referenceReport = { ...report, config: { ...config, mode: 'megakernel' }, results: [] };
 const variantReports = Object.fromEntries(config.variants.slice(1).map(variant => {
 	mkdirSync(join(output, variant.name), { recursive: true });
-	return [variant.name, { ...report, config: { ...config, mode: variant.mode, opaqueMegakernel: variant.opaqueMegakernel, materialStack: variant.materialStack, tailStart: variant.tailStart, tailThreshold: variant.tailThreshold, compaction: variant.compaction, directStages: variant.directStages, packetStages: variant.packetStages, sort: variant.sort, sortSize: variant.sortSize, raySortSize: variant.raySortSize, sortIndirect: variant.sortIndirect, shadeMode: variant.shadeMode, shadeBuckets: variant.shadeBuckets, shadeBucketMode: variant.shadeBucketMode, spatialQueues: variant.spatialQueues, shadowMode: variant.shadowMode, operandMode: variant.operandMode, opcodeMode: variant.opcodeMode, materialSchedule: variant.materialSchedule }, results: [] }];
+	return [variant.name, { ...report, config: { ...config, mode: variant.mode, opaqueMegakernel: variant.opaqueMegakernel, materialStack: variant.materialStack, tailStart: variant.tailStart, tailThreshold: variant.tailThreshold, compaction: variant.compaction, directStages: variant.directStages, packetStages: variant.packetStages, sort: variant.sort, sortSize: variant.sortSize, raySortSize: variant.raySortSize, sortIndirect: variant.sortIndirect, separateLight: variant.separateLight, batchedShadows: variant.batchedShadows, shadeMode: variant.shadeMode, shadeBuckets: variant.shadeBuckets, shadeBucketMode: variant.shadeBucketMode, spatialQueues: variant.spatialQueues, shadowMode: variant.shadowMode, operandMode: variant.operandMode, opcodeMode: variant.opcodeMode, materialSchedule: variant.materialSchedule }, results: [] }];
 }));
 writeFileSync(join(candidateOutput, 'report.json'), JSON.stringify(report, null, 2));
 try {
@@ -352,7 +363,7 @@ try {
 			if (config.mode !== 'megakernel') await renderer.setIntegrator(config.mode);
 			const integratorInitMs = performance.now() - integratorStart;
 			const loadStart = performance.now();
-			const sceneDescription = await loadGLTF(`/__research/${c.name}.glb`);
+			const sceneDescription = c.fixture ? (await import('/scripts/wavefront-cycles-fixtures.ts')).cyclesFixture(c.fixture) : await loadGLTF(`/__research/${c.name}.glb`);
 			const { applyMaterialStress } = await import('/scripts/wavefront-material-stress.ts');
 			const materialStress = applyMaterialStress(sceneDescription, config.materialLayers, config.materialMixed);
 			const { compileSceneMaterials } = await import('/src/render/SceneMaterials.ts');
@@ -372,7 +383,7 @@ try {
 				const { materialScheduleVariants } = await import('/scripts/wavefront-material-variants.ts');
 				materialVariants = materialScheduleVariants(renderer.device, sceneDescription, renderer.vt.descriptorOf, renderer.scene.materials);
 				const material = materialVariants[currentMaterialSchedule];
-				Object.assign(renderer.scene, { materials: material.buffer, materialStackSize: material.stack, materialShadeCapacities: material.shadeCapacities, materialOpcodes: material.opcodes });
+				Object.assign(renderer.scene, { materials: material.buffer, materialStackSize: material.stack, materialShadeCapacities: material.shadeCapacities, materialSurfaceCapacity: material.surfaceCapacity, materialLightCapacity: material.lightCapacity, materialSurfaceCapacities: material.surfaceCapacities, materialOpacityCapacity: material.opacityCapacity, materialOpcodes: material.opcodes });
 				renderer.tracer.materialStackOverride = config.materialStack;
 				await renderer.tracer.prepareScene(renderer.scene);
 				renderer.bindScene();
@@ -461,10 +472,16 @@ try {
 			};
 			GPUComputePassEncoder.prototype.setPipeline = function(pipeline) {
 				if (tracedPasses.has(this)) {
-					const bucket = /^wavefront\.ShadeBucket(?:Direct|Compact)?\.stack(\d+)$/.exec(pipeline.label);
-					const actualCapacity = bucket ? Number(bucket[1]) : renderer.tracer.materialCapacity;
+					const bucket = /^wavefront\.Shade(?:Bucket(?:Direct|Compact)?|SurfaceBucket|SurfaceCompact)\.stack(\d+)$/.exec(pipeline.label);
+					const wf = renderer.tracer.wavefront, stage = pipeline.label.split('.')[1];
+					const surfaceCapacity = wf?.separateLight ? renderer.scene.materialSurfaceCapacity : renderer.tracer.materialCapacity;
+					const caps = wf?.separateLight ? renderer.scene.materialSurfaceCapacities : renderer.scene.materialShadeCapacities;
+					const actualCapacity = bucket ? Number(bucket[1]) : stage.startsWith('ShadeSurface') ? surfaceCapacity
+						: stage.startsWith('ShadeLight') ? renderer.scene.materialLightCapacity
+						: /^(Evaluate|Finish)ShadowBatch/.test(stage) ? renderer.scene.materialOpacityCapacity
+						: stage.includes('ShadowBatch') ? 0 : renderer.tracer.materialCapacity;
 					if (bucket && (!renderer.tracer.wavefront.shadeBuckets || !(renderer.tracer.wavefront.shadeBucketMode === 'material'
-						? actualCapacity === renderer.tracer.materialCapacity : renderer.scene.materialShadeCapacities.includes(actualCapacity)))) throw new Error('Unexpected shading bucket');
+						? actualCapacity === surfaceCapacity : caps.includes(actualCapacity)))) throw new Error('Unexpected shading bucket');
 					if (!pipeline.label.endsWith(`.stack${actualCapacity}`)) throw new Error(`Wrong tracing pipeline: ${pipeline.label}`);
 					const constants = pipelineConstants.get(pipeline) ?? {};
 					if ('0' in constants && (constants['0'] !== renderer.tracer.materialOpcodes[0] || constants['1'] !== renderer.tracer.materialOpcodes[1])) throw new Error('Wrong bound opcode specialization');
@@ -473,7 +490,7 @@ try {
 					const bounce = shadePasses.get(this);
 					if (bounce !== undefined) {
 						const wf = renderer.tracer.wavefront, mode = wf.shadeMode;
-						const expected = `Shade${bucket ? `Bucket${wf.shadeBucketMode !== 'scan' ? 'Compact' : ''}` : ''}${mode.startsWith('split') ? (bounce === 0 ? 'Primary' : 'Secondary') : ''}${mode.endsWith('late') ? 'Late' : ''}${wf.compaction === 'none' || (wf.directStages & 2) !== 0 ? 'Direct' : ''}`;
+						const expected = wf.separateLight ? `ShadeSurface${bucket ? (wf.shadeBucketMode === 'material' ? 'Compact' : 'Bucket') : ''}${wf.compaction === 'none' || (wf.directStages & 2) !== 0 ? 'Direct' : ''}` : `Shade${bucket ? `Bucket${wf.shadeBucketMode !== 'scan' ? 'Compact' : ''}` : ''}${mode.startsWith('split') ? (bounce === 0 ? 'Primary' : 'Secondary') : ''}${mode.endsWith('late') ? 'Late' : ''}${wf.compaction === 'none' || (wf.directStages & 2) !== 0 ? 'Direct' : ''}`;
 						if (pipeline.label !== `wavefront.${expected}.stack${actualCapacity}`) throw new Error('Wrong bound shading phase');
 					}
 					observedConstants.set(pipeline.label, constants);
@@ -517,7 +534,7 @@ try {
 			let presentationVariant = config.mode;
 			const pairedErrors = [];
 			for (let repeat = 0; repeat < config.repeats; repeat++) {
-				const schedule = config.paired ? [{ name: 'megakernel' }, ...config.variants] : [{ name: config.mode, tailStart: config.tailStart, tailThreshold: config.tailThreshold, compaction: config.compaction, directStages: config.directStages, packetStages: config.packetStages, sort: config.sort, sortSize: config.sortSize, raySortSize: config.raySortSize, sortIndirect: config.sortIndirect, shadeMode: config.shadeMode, shadeBuckets: config.shadeBuckets, shadeBucketMode: config.shadeBucketMode, spatialQueues: config.spatialQueues, shadowMode: config.shadowMode, opcodeMode: config.opcodeMode }];
+				const schedule = config.paired ? [{ name: 'megakernel' }, ...config.variants] : [{ name: config.mode, tailStart: config.tailStart, tailThreshold: config.tailThreshold, compaction: config.compaction, directStages: config.directStages, packetStages: config.packetStages, sort: config.sort, sortSize: config.sortSize, raySortSize: config.raySortSize, sortIndirect: config.sortIndirect, separateLight: config.separateLight, batchedShadows: config.batchedShadows, shadeMode: config.shadeMode, shadeBuckets: config.shadeBuckets, shadeBucketMode: config.shadeBucketMode, spatialQueues: config.spatialQueues, shadowMode: config.shadowMode, opcodeMode: config.opcodeMode }];
 				// Legacy sweeps rotate/reverse each round. Balanced sweeps cover every position
 				// once per full cycle and reverse alternate cycles.
 				if (config.balancedOrder) {
@@ -540,7 +557,7 @@ try {
 						const requestedOperands = variant.operandMode ?? config.operandMode;
 						const requestedOpaque = variant.opaqueMegakernel ?? config.opaqueMegakernel;
 						if (renderer.tracer.materialStackOverride !== requestedStack || renderer.tracer.materialOpcodeSpecialization !== requestedOpcodes || currentMaterialSchedule !== requestedSchedule || renderer.tracer.materialOperandMode !== requestedOperands || renderer.tracer.opaqueMegakernel !== requestedOpaque) {
-							if (material) Object.assign(renderer.scene, { materials: material.buffer, materialStackSize: material.stack, materialShadeCapacities: material.shadeCapacities, materialOpcodes: material.opcodes });
+							if (material) Object.assign(renderer.scene, { materials: material.buffer, materialStackSize: material.stack, materialShadeCapacities: material.shadeCapacities, materialSurfaceCapacity: material.surfaceCapacity, materialLightCapacity: material.lightCapacity, materialSurfaceCapacities: material.surfaceCapacities, materialOpacityCapacity: material.opacityCapacity, materialOpcodes: material.opcodes });
 							currentMaterialSchedule = requestedSchedule;
 							renderer.tracer.materialStackOverride = requestedStack;
 							renderer.tracer.materialOpcodeSpecialization = requestedOpcodes;
@@ -554,9 +571,11 @@ try {
 						if (renderer.tracer.materialCapacity !== expectedStack) throw new Error('Material sweep selected the wrong capacity');
 						if (renderer.tracer.boundOpaqueMegakernel !== (requestedOpaque && renderer.scene.instanceCount > 0 && !renderer.scene.hasAlphaTested)) throw new Error('Wrong bound opaque traversal selection');
 						await renderer.setIntegrator(mode);
+						await renderer.setSeparateLight(mode === 'wavefront' && !!variant.separateLight);
+						await renderer.setBatchedShadows(mode === 'wavefront' && !!variant.batchedShadows);
 						if (mode === 'wavefront') await renderer.tracer.wavefront.prepareShadeMode(variant.shadeMode, renderer.tracer.materialCapacity, renderer.tracer.materialOpcodes, renderer.tracer.boundMaterialOperandMode);
 						if (mode === 'wavefront' && variant.shadeBuckets) await renderer.tracer.wavefront.prepareBuckets(renderer.scene.materialShadeCapacities, renderer.tracer.materialCapacity, renderer.tracer.materialOpcodes, renderer.tracer.boundMaterialOperandMode, variant.shadeBucketMode);
-						if (mode === 'wavefront') Object.assign(renderer.tracer.wavefront, { tailStart: variant.tailStart, tailThreshold: variant.tailThreshold, compaction: variant.compaction, directStages: variant.directStages, packetStages: variant.packetStages, sort: variant.sort, sortSize: variant.sortSize, raySortSize: variant.raySortSize, sortIndirect: variant.sortIndirect, shadeMode: variant.shadeMode, shadeBuckets: variant.shadeBuckets, shadeBucketMode: variant.shadeBucketMode, spatialQueues: variant.spatialQueues, shadowMode: variant.shadowMode });
+						if (mode === 'wavefront') Object.assign(renderer.tracer.wavefront, { tailStart: variant.tailStart, tailThreshold: variant.tailThreshold, compaction: variant.compaction, directStages: variant.directStages, packetStages: variant.packetStages, sort: variant.sort, sortSize: variant.sortSize, raySortSize: variant.raySortSize, sortIndirect: variant.sortIndirect, separateLight: variant.separateLight, batchedShadows: variant.batchedShadows, shadeMode: variant.shadeMode, shadeBuckets: variant.shadeBuckets, shadeBucketMode: variant.shadeBucketMode, spatialQueues: variant.spatialQueues, shadowMode: variant.shadowMode });
 						// Warm each selected pipeline before timing while retaining identical scene/VT data.
 						for (let warm = 0; warm < config.variantWarmup; warm++) { renderer.renderFrame(); await device.queue.onSubmittedWorkDone(); }
 					}
@@ -615,13 +634,14 @@ try {
 						if (spatial !== variant.spatialQueues) throw new Error('Wrong spatial queue pipeline');
 					}
 					if (mode === 'wavefront' && (variant.tailStart > 0 || variant.tailThreshold > 0)) {
-						const caps = renderer.scene.materialShadeCapacities;
+						const caps = variant.separateLight ? renderer.scene.materialSurfaceCapacities : renderer.scene.materialShadeCapacities;
+						const shadeCapacity = variant.separateLight ? renderer.scene.materialSurfaceCapacity : renderer.tracer.materialCapacity;
 						const expected = variant.shadeBuckets ? (variant.shadeBucketMode === 'material'
-							? [renderer.tracer.materialCapacity] : !(caps.length === 1 && caps[0] === renderer.tracer.materialCapacity) ? caps : []) : [];
-						const actual = [...observedPipelines].filter(x => x.startsWith('wavefront.ShadeBucket')).map(x => Number(x.split('.stack')[1])).sort((a,b) => a-b);
+							? [shadeCapacity] : !(caps.length === 1 && caps[0] === shadeCapacity) ? caps : []) : [];
+						const actual = [...observedPipelines].filter(x => /^wavefront\.Shade(?:Bucket|SurfaceBucket|SurfaceCompact)/.test(x)).map(x => Number(x.split('.stack')[1])).sort((a,b) => a-b);
 						if (JSON.stringify(actual) !== JSON.stringify(expected)) throw new Error('Missing or duplicate shading bucket');
 					}
-					repeats.push({ shadeBucketMode: mode === 'wavefront' ? renderer.tracer.wavefront.shadeBucketMode : null, shadeBuckets: mode === 'wavefront' && renderer.tracer.wavefront.shadeBuckets, materialShadeCapacities: renderer.scene.materialShadeCapacities, shadeMode: mode === 'wavefront' ? renderer.tracer.wavefront.shadeMode : null, measurementPosition, measurementStartedAt, measurementFinishedAt, mode, opaqueMegakernel: renderer.tracer.boundOpaqueMegakernel, operandMode: renderer.tracer.boundMaterialOperandMode, materialSchedule: currentMaterialSchedule, boundMaterialSchedules: [...observedMaterialSchedules], materialStackRequired: renderer.scene.materialStackSize, materialCapacity: renderer.tracer.materialCapacity, pipelineLabels: [...observedPipelines], sortDispatches: [...observedSortDispatches], opcodeConstants: Object.fromEntries(observedConstants), materialOpcodes: renderer.tracer.materialOpcodes, variant: variant.name, repeat, medianMs, medianSpanMs, meanMs: timings.reduce((a, b) => a + b) / timings.length, wallMs, timings, spanTimings, stages });
+					repeats.push({ separateLight: mode === 'wavefront' && renderer.tracer.separateLight, batchedShadows: mode === 'wavefront' && renderer.tracer.batchedShadows, materialLightCapacity: renderer.scene.materialLightCapacity, materialSurfaceCapacity: renderer.scene.materialSurfaceCapacity, materialOpacityCapacity: renderer.scene.materialOpacityCapacity, shadeBucketMode: mode === 'wavefront' ? renderer.tracer.wavefront.shadeBucketMode : null, shadeBuckets: mode === 'wavefront' && renderer.tracer.wavefront.shadeBuckets, materialShadeCapacities: renderer.scene.materialShadeCapacities, shadeMode: mode === 'wavefront' ? renderer.tracer.wavefront.shadeMode : null, measurementPosition, measurementStartedAt, measurementFinishedAt, mode, opaqueMegakernel: renderer.tracer.boundOpaqueMegakernel, operandMode: renderer.tracer.boundMaterialOperandMode, materialSchedule: currentMaterialSchedule, boundMaterialSchedules: [...observedMaterialSchedules], materialStackRequired: renderer.scene.materialStackSize, materialCapacity: renderer.tracer.materialCapacity, pipelineLabels: [...observedPipelines], sortDispatches: [...observedSortDispatches], opcodeConstants: Object.fromEntries(observedConstants), materialOpcodes: renderer.tracer.materialOpcodes, variant: variant.name, repeat, medianMs, medianSpanMs, meanMs: timings.reduce((a, b) => a + b) / timings.length, wallMs, timings, spanTimings, stages });
 					console.log(`[benchmark] ${c.name}: ${variant.name} repeat ${repeat + 1}, GPU passes ${medianMs.toFixed(3)}, span ${medianSpanMs.toFixed(3)} ms/sample`);
 					if (config.paired) {
 						const hdr = await renderer.readRadiance();

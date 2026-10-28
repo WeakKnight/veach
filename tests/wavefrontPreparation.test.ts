@@ -14,10 +14,32 @@ function fixture() {
 	const wavefront = new Wavefront(device as unknown as GPUDevice, {} as GPUBindGroupLayout, 1);
 	return { device, wavefront };
 }
-const experimental = (label = '') => /^wavefront\.(?:Shade(?:Primary|Secondary|Late|Bucket)|(?:Count|Prefix|Scatter)(?:Buckets|Materials))/.test(label);
+const experimental = (label = '') => /^wavefront\.(?:Shade(?:Primary|Secondary|Late|Bucket|Surface|Light)|(?:Collect|Continue|Evaluate|Finish|Resolve)ShadowBatch|(?:Count|Prefix|Scatter)(?:Buckets|Materials))/.test(label);
 
 describe('wavefront shading preparation', () => {
 	afterEach(() => vi.unstubAllGlobals());
+
+	it('prepares light and alpha work at independent capacities without traversal SVM', async () => {
+		const { device, wavefront } = fixture();
+		await wavefront.compiled;
+		const count = device.createComputePipelineAsync.mock.calls.length;
+		await wavefront.prepareLightStages(4, 2, [0xffffffff, 0xffffffff], 0, [0, 4]);
+		await wavefront.prepareShadowBatches(1, [0xffffffff, 0xffffffff]);
+		const added = device.createComputePipelineAsync.mock.calls.slice(count).map(([d]) => d);
+		expect(added.filter(d => d.label?.includes('ShadeLight')).every(d => d.label?.endsWith('stack2'))).toBe(true);
+		expect(added.filter(d => /(?:Evaluate|Finish)ShadowBatch/.test(d.label!)).map(d => d.label)).toHaveLength(4);
+		expect(added.filter(d => /(?:Evaluate|Finish)ShadowBatch/.test(d.label!)).every(d => d.label?.endsWith('stack1') && d.compute.constants)).toBe(true);
+		expect(added.filter(d => /(?:Collect|Continue|Resolve)ShadowBatch/.test(d.label!)).every(d => d.label?.endsWith('stack0') && !d.compute.constants)).toBe(true);
+		const n = device.createComputePipelineAsync.mock.calls.length;
+		await wavefront.prepareShadowBatches(1, [0xffffffff, 0xffffffff]);
+		expect(device.createComputePipelineAsync).toHaveBeenCalledTimes(n);
+		Object.assign(device.limits, { maxStorageBufferBindingSize: 128 * 1024 * 1024, maxBufferSize: 128 * 1024 * 1024 });
+		const size = wavefront.storageBytes(1000);
+		wavefront.batchedShadows = true;
+		expect(wavefront.storageBytes(1000) - size).toBe(1000 * 176);
+		expect(wavefront.storageBytes(1024 * 1024) + 1024 * 1024 * 48).toBeLessThanOrEqual(128 * 1024 * 1024);
+		wavefront.destroy();
+	});
 
 	it('groups materials with one global-capacity shading pipeline, including a single capacity', async () => {
 		const { device, wavefront } = fixture();

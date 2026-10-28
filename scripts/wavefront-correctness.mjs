@@ -23,6 +23,8 @@ const packetStages = packetOption < 0 ? 7 : Number(process.argv[packetOption + 1
 const operandOption = process.argv.indexOf('--operand-mode');
 const operandMode = operandOption < 0 ? 0 : Number(process.argv[operandOption + 1]);
 if (![0, 1, 2, 3, 4, 5, 6, 7].includes(operandMode)) throw new Error('Invalid operand mode');
+const batchedShadows = process.argv.includes('--batched-shadows');
+const separateLight = process.argv.includes('--separate-light');
 const shadeBuckets = process.argv.includes('--shade-buckets');
 const bucketModeOption = process.argv.indexOf('--bucket-mode');
 const shadeBucketMode = bucketModeOption < 0 ? 'scan' : process.argv[bucketModeOption + 1];
@@ -60,7 +62,7 @@ if (dispatchSweep && compaction === 'none') throw new Error('Dispatch sweep requ
 if (!['dense', 'queued', 'subgroup', 'adaptive', 'packet', 'none'].includes(compaction)) throw new Error('Invalid compaction mode');
 if ((compaction === 'none' || compaction === 'packet' || directStages === 7) && tailThreshold !== 0) throw new Error('Direct/packet dispatch supports fixed tails only');
 if (!Number.isInteger(tailStart) || tailStart < 0) throw new Error('Invalid tail start');
-const output = join(root, `.tools/wavefront/correctness-tail-${tailStart}-${tailThreshold}${only.length ? '-selected' : ''}${disableSubgroups ? '-no-subgroups' : ''}-${compaction}${packetSweep ? '-packet-sweep' : packetStages !== 7 ? `-packet-${packetStages}` : ''}${dispatchSweep ? '-dispatch-sweep' : directStages ? `-direct-${directStages}` : ''}${sort !== 'none' ? `-sort-${sort}-${sortSize}` : ''}${raySortSize ? `-rays-${raySortSize}` : ''}${sortIndirect ? '-sort-indirect' : ''}${spatialQueues ? '-spatial' : ''}${opaqueMegakernel ? '-opaque' : ''}${shadeBuckets ? `-buckets${shadeBucketMode !== 'scan' ? `-${shadeBucketMode}` : ''}` : ''}-shade-${shadeMode}-operands-${operandMode}${shadowMode !== 'serial' ? `-shadow-${shadowMode}` : ''}`);
+const output = join(root, `.tools/wavefront/correctness-tail-${tailStart}-${tailThreshold}${only.length ? '-selected' : ''}${disableSubgroups ? '-no-subgroups' : ''}-${compaction}${packetSweep ? '-packet-sweep' : packetStages !== 7 ? `-packet-${packetStages}` : ''}${dispatchSweep ? '-dispatch-sweep' : directStages ? `-direct-${directStages}` : ''}${sort !== 'none' ? `-sort-${sort}-${sortSize}` : ''}${raySortSize ? `-rays-${raySortSize}` : ''}${sortIndirect ? '-sort-indirect' : ''}${spatialQueues ? '-spatial' : ''}${opaqueMegakernel ? '-opaque' : ''}${shadeBuckets ? `-buckets${shadeBucketMode !== 'scan' ? `-${shadeBucketMode}` : ''}` : ''}${separateLight ? '-separate-light' : ''}${batchedShadows ? '-batched-shadows' : ''}-shade-${shadeMode}-operands-${operandMode}${shadowMode !== 'serial' ? `-shadow-${shadowMode}` : ''}`);
 mkdirSync(output, { recursive: true });
 const chrome = [process.env.CHROME_PATH, 'C:/Program Files/Google/Chrome/Application/chrome.exe',
 	'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe', '/usr/bin/google-chrome', '/usr/bin/chromium'].find(p => p && existsSync(p));
@@ -70,7 +72,7 @@ await server.listen();
 const browser = await puppeteer.launch({ executablePath: chrome, headless: true, protocolTimeout: 1800000,
 	args: ['--enable-unsafe-webgpu', '--ignore-gpu-blocklist', '--no-sandbox'] });
 const errors = [];
-const report = { started: new Date().toISOString(), completed: false, browser: await browser.version(), tailStart, tailThreshold, only, directStages, dispatchSweep, packetStages, packetSweep, sort, sortSize, raySortSize, sortIndirect, shadeMode, shadeBuckets, shadeBucketMode, spatialQueues, operandMode, opaqueMegakernel, shadowMode, results: [], errors };
+const report = { started: new Date().toISOString(), completed: false, browser: await browser.version(), tailStart, tailThreshold, only, directStages, dispatchSweep, packetStages, packetSweep, sort, sortSize, raySortSize, sortIndirect, shadeMode, shadeBuckets, shadeBucketMode, separateLight, batchedShadows, spatialQueues, operandMode, opaqueMegakernel, shadowMode, results: [], errors };
 writeFileSync(join(output, 'report.json'), JSON.stringify(report, null, 2));
 try {
 	const page = await browser.newPage();
@@ -78,7 +80,7 @@ try {
 	page.on('pageerror', e => errors.push(String(e)));
 	page.on('console', msg => { if (msg.type() === 'error') errors.push(msg.text()); if (msg.text().startsWith('[correctness]')) console.log(msg.text()); });
 	await page.goto(server.resolvedUrls.local[0] + 'scripts/benchmark.html');
-	const results = await page.evaluate(async ({ tailStart, tailThreshold, only, disableSubgroups, compaction, directStages, dispatchSweep, packetStages, packetSweep, sort, sortSize, raySortSize, sortIndirect, shadeMode, shadeBuckets, shadeBucketMode, spatialQueues, operandMode, opaqueMegakernel, shadowMode }) => {
+	const results = await page.evaluate(async ({ tailStart, tailThreshold, only, disableSubgroups, compaction, directStages, dispatchSweep, packetStages, packetSweep, sort, sortSize, raySortSize, sortIndirect, shadeMode, shadeBuckets, shadeBucketMode, separateLight, batchedShadows, spatialQueues, operandMode, opaqueMegakernel, shadowMode }) => {
 		const api = await import('/src/index.ts');
 		const check = (value, message) => { if (!value) throw new Error(message); };
 		const createBuffer = GPUDevice.prototype.createBuffer;
@@ -121,6 +123,7 @@ try {
 		let materialHeaderCount = 0;
 		let bucketVerification = { passes: 0, entries: 0, emptyBuckets: 0, dispatches: 0 };
 		let sortVerification = { passes: 0, entries: 0, reordered: 0, directionPasses: 0, indirect256Passes: 0 };
+		let batchVerification = { resumedPaths: 0 }, lightPipelines = [];
 		let shadePipelines = [], shadowPipelines = [], compactPipelines = [], megakernelPipelines = [];
 		let opcodeConstants = [];
 		let materialVariants = null;
@@ -382,7 +385,7 @@ try {
 					check(ops.length === 4 && ops[0].stage === 'CountMaterials' && ops[0].offset === 0
 						&& ops[1].stage === 'PrefixMaterials' && ops[1].x === 1 && ops[1].y === 1 && ops[1].z === 1
 						&& ops[2].stage === 'ScatterMaterials' && ops[2].offset === 0
-						&& ops[3].stage === 'Shade' && ops[3].offset === 0 && ops[3].capacity === r.tracer.materialCapacity, 'Wrong global material dispatch sequence');
+						&& ops[3].stage === 'Shade' && ops[3].offset === 0 && ops[3].capacity === (separateLight ? r.scene.materialSurfaceCapacity : r.tracer.materialCapacity), 'Wrong global material dispatch sequence');
 					bucketVerification.passes++; bucketVerification.entries += total; bucketVerification.dispatches++;
 					buffer.unmap();
 				}
@@ -402,7 +405,7 @@ try {
 		}
 		async function render(mode, config, capacity = null, stageMask = directStages, packetMask = packetStages) {
 			const material = materialVariants[capacity === null ? 'optimized' : 'original'];
-			Object.assign(r.scene, { materials: material.buffer, materialStackSize: material.stack, materialShadeCapacities: material.shadeCapacities, materialOpcodes: material.opcodes });
+			Object.assign(r.scene, { materials: material.buffer, materialStackSize: material.stack, materialShadeCapacities: material.shadeCapacities, materialSurfaceCapacity: material.surfaceCapacity, materialLightCapacity: material.lightCapacity, materialOpacityCapacity: material.opacityCapacity, materialSurfaceCapacities: material.surfaceCapacities, materialOpcodes: material.opcodes });
 			r.tracer.materialStackOverride = capacity;
 			r.tracer.materialOpcodeSpecialization = capacity === null;
 			r.tracer.materialOperandMode = capacity === null ? operandMode : 0;
@@ -413,16 +416,27 @@ try {
 			const expectedCapacity = capacity ?? [0, 1, 2, 4, 8, 16].find(n => n >= r.scene.materialStackSize);
 			check(r.tracer.materialCapacity === expectedCapacity, 'Incorrect material capacity selection');
 			await r.setIntegrator(mode);
+			await r.setSeparateLight(mode === 'wavefront' && separateLight);
+			await r.setBatchedShadows(mode === 'wavefront' && batchedShadows);
 			if (mode === 'wavefront' && r.tracer.wavefront) await r.tracer.wavefront.prepareShadeMode(shadeMode, r.tracer.materialCapacity, r.tracer.materialOpcodes, r.tracer.boundMaterialOperandMode);
 			if (mode === 'wavefront' && r.tracer.wavefront && shadeBuckets) await r.tracer.wavefront.prepareBuckets(r.scene.materialShadeCapacities, r.tracer.materialCapacity, r.tracer.materialOpcodes, r.tracer.boundMaterialOperandMode, shadeBucketMode);
-			if (mode === 'wavefront' && r.tracer.wavefront) Object.assign(r.tracer.wavefront, { tailStart, tailThreshold, compaction, directStages: stageMask, packetStages: packetMask, sort, sortSize, raySortSize, sortIndirect, shadeMode, shadeBuckets, shadeBucketMode, spatialQueues, shadowMode });
+			if (mode === 'wavefront' && r.tracer.wavefront) Object.assign(r.tracer.wavefront, { tailStart, tailThreshold, compaction, directStages: stageMask, packetStages: packetMask, sort, sortSize, raySortSize, sortIndirect, shadeMode, shadeBuckets, shadeBucketMode, separateLight, batchedShadows, spatialQueues, shadowMode });
 			Object.assign(r.settings, { maxBounces: config.bounces, fireflyClamp: config.clamp ?? 0, maxSamples: config.samples });
 			r.resetAccumulation();
 			sortVerification = { passes: 0, entries: 0, reordered: 0, directionPasses: 0, indirect256Passes: 0 };
 			bucketVerification = { passes: 0, entries: 0, emptyBuckets: 0, dispatches: 0 };
-			const observedShading = new Set(), observedMegakernel = new Set(), observedShadows = new Set(), observedCompaction = new Set(), observedOpcodes = new Set(), setPipeline = GPUComputePassEncoder.prototype.setPipeline;
+			const observedShading = new Set(), observedMegakernel = new Set(), observedShadows = new Set(), observedLights = new Set(), observedCompaction = new Set(), observedOpcodes = new Set(), setPipeline = GPUComputePassEncoder.prototype.setPipeline;
+			batchVerification = { resumedPaths: 0 };
+			const batchCaptures = [];
 			const beginShadePass = GPUCommandEncoder.prototype.beginComputePass, shadePasses = new WeakMap();
 			GPUCommandEncoder.prototype.beginComputePass = function(descriptor = {}) {
+				if (r.samples === 0 && (descriptor.label ?? '').startsWith('wavefront.FinishShadowBatch.')) {
+					const pixels = r.tracer.width * r.tracer.height, cap = r.tracer.wavefront.capacity(pixels);
+					const offset = pixels * 48 + 48 + cap * 336 + Math.ceil(cap / 4) * 48 + 4192 + cap * 32;
+					const buffer = r.device.createBuffer({ size: cap * 16, usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ });
+					this.copyBufferToBuffer(r.tracer.accumulation, offset, buffer, 0, cap * 16);
+					batchCaptures.push(buffer);
+				}
 				const pass = beginShadePass.call(this, descriptor);
 				const match = /^wavefront\.Shade(?:Bucket(?:Compact)?\d+)?\.b(\d+)/.exec(descriptor.label ?? '');
 				if (match) shadePasses.set(pass, Number(match[1]));
@@ -431,10 +445,11 @@ try {
 			GPUComputePassEncoder.prototype.setPipeline = function(pipeline) {
 				const bounce = shadePasses.get(this);
 				if (bounce !== undefined) {
-					const bucket = /^wavefront\.ShadeBucket(?:Direct|Compact)?\.stack(\d+)$/.exec(pipeline.label);
-					const actualCapacity = bucket ? Number(bucket[1]) : expectedCapacity;
-					check(!bucket || (shadeBuckets && (shadeBucketMode === 'material' ? actualCapacity === expectedCapacity : r.scene.materialShadeCapacities.includes(actualCapacity))), 'Unexpected shading bucket');
-					const expected = `Shade${bucket ? `Bucket${shadeBucketMode !== 'scan' ? 'Compact' : ''}` : ''}${shadeMode.startsWith('split') ? (bounce === 0 ? 'Primary' : 'Secondary') : ''}${shadeMode.endsWith('late') ? 'Late' : ''}${compaction === 'none' || (stageMask & 2) !== 0 ? 'Direct' : ''}`;
+					const bucket = /^wavefront\.Shade(?:Bucket(?:Direct|Compact)?|SurfaceBucket|SurfaceCompact)\.stack(\d+)$/.exec(pipeline.label);
+					const shadingCapacity = separateLight ? r.scene.materialSurfaceCapacity : expectedCapacity;
+					const actualCapacity = bucket ? Number(bucket[1]) : shadingCapacity;
+					check(!bucket || (shadeBuckets && (shadeBucketMode === 'material' ? actualCapacity === shadingCapacity : (separateLight ? r.scene.materialSurfaceCapacities : r.scene.materialShadeCapacities).includes(actualCapacity))), 'Unexpected shading bucket');
+					const expected = separateLight ? `ShadeSurface${bucket ? (shadeBucketMode === 'material' ? 'Compact' : 'Bucket') : ''}${compaction === 'none' || (stageMask & 2) !== 0 ? 'Direct' : ''}` : `Shade${bucket ? `Bucket${shadeBucketMode !== 'scan' ? 'Compact' : ''}` : ''}${shadeMode.startsWith('split') ? (bounce === 0 ? 'Primary' : 'Secondary') : ''}${shadeMode.endsWith('late') ? 'Late' : ''}${compaction === 'none' || (stageMask & 2) !== 0 ? 'Direct' : ''}`;
 					check(pipeline.label === `wavefront.${expected}.stack${actualCapacity}`, 'Wrong bound shading phase');
 					observedShading.add(pipeline.label);
 				}
@@ -445,7 +460,8 @@ try {
 					observedMegakernel.add(pipeline.label);
 				}
 				if (pipeline.label.startsWith('wavefront.CompactShade')) observedCompaction.add(pipeline.label);
-				if (pipeline.label.startsWith('wavefront.Shadow')) observedShadows.add(pipeline.label);
+				if (pipeline.label.startsWith('wavefront.ShadeLight')) observedLights.add(pipeline.label);
+				if (pipeline.label.startsWith('wavefront.Shadow') || pipeline.label.includes('ShadowBatch')) observedShadows.add(pipeline.label);
 				const constants = pipelineOpcodes.get(pipeline) ?? {};
 				if ('0' in constants) {
 					check(constants['0'] === r.tracer.materialOpcodes[0] && constants['1'] === r.tracer.materialOpcodes[1], 'Wrong bound opcode specialization');
@@ -464,11 +480,19 @@ try {
 					await r.device.queue.onSubmittedWorkDone();
 				}
 			} finally { GPUComputePassEncoder.prototype.setPipeline = setPipeline; GPUCommandEncoder.prototype.beginComputePass = beginShadePass; }
+			for (const buffer of batchCaptures) {
+				await buffer.mapAsync(GPUMapMode.READ);
+				const data = new Uint32Array(buffer.getMappedRange());
+				for (let i = 0; i < data.length; i += 4) if (data[i] < 3 && data[i + 1] >= 16) batchVerification.resumedPaths++;
+				buffer.unmap(); buffer.destroy();
+			}
+			lightPipelines = [...observedLights];
 			shadePipelines = [...observedShading];
 			if (mode === 'wavefront' && r.scene.instanceCount > 0 && (tailStart > 0 || tailThreshold > 0)) {
-				const caps = r.scene.materialShadeCapacities;
-				const expected = shadeBuckets ? (shadeBucketMode === 'material' ? [expectedCapacity] : !(caps.length === 1 && caps[0] === expectedCapacity) ? caps : []) : [];
-				const actual = shadePipelines.filter(x => x.startsWith('wavefront.ShadeBucket')).map(x => Number(x.split('.stack')[1])).sort((a,b) => a-b);
+				const caps = separateLight ? r.scene.materialSurfaceCapacities : r.scene.materialShadeCapacities;
+				const shadingCapacity = separateLight ? r.scene.materialSurfaceCapacity : expectedCapacity;
+				const expected = shadeBuckets ? (shadeBucketMode === 'material' ? [shadingCapacity] : !(caps.length === 1 && caps[0] === shadingCapacity) ? caps : []) : [];
+				const actual = shadePipelines.filter(x => /wavefront\.Shade(?:Bucket|SurfaceBucket|SurfaceCompact)/.test(x)).map(x => Number(x.split('.stack')[1])).sort((a,b) => a-b);
 				check(JSON.stringify(actual) === JSON.stringify(expected), 'Missing or duplicate shading bucket');
 				if (shadeBucketMode !== 'scan') check((bucketVerification.passes > 0) === (expected.length > 0), 'Compact bucket diagnostics were not exercised');
 			}
@@ -486,7 +510,13 @@ try {
 			const expectedShadow = r.scene.hasAlphaTested ? 'Shadow' : shadowMode === 'serial' ? 'ShadowOpaque'
 				: shadowMode === 'parallel-auto' && r.scene.lightCount === 0 ? 'ShadowOpaqueParallelSky' : 'ShadowOpaqueParallel';
 			const suffix = compaction === 'none' || (stageMask & 4) !== 0 ? 'Direct' : '';
-			check(shadowPipelines.every(label => label === `wavefront.${expectedShadow}${suffix}.stack${r.tracer.materialCapacity}`), 'Wrong shadow pipeline');
+			const batch = mode === 'wavefront' && batchedShadows && r.scene.hasAlphaTested;
+			const expectedShadows = batch ? ['Collect', 'Continue', 'Evaluate', 'Finish', 'Resolve'].map(stage => `wavefront.${stage}ShadowBatch${suffix}.stack${['Evaluate', 'Finish'].includes(stage) ? r.scene.materialOpacityCapacity : 0}`) : [`wavefront.${expectedShadow}${suffix}.stack${r.tracer.materialCapacity}`];
+			check(shadowPipelines.every(label => expectedShadows.includes(label)), 'Wrong shadow pipeline');
+			if (batch && config.bounces > 0 && tailStart > 0) check(expectedShadows.every(label => observedShadows.has(label)), 'Missing shadow batch stage');
+			const expectLight = mode === 'wavefront' && separateLight && r.scene.materialLightCapacity > 0 && r.scene.lightCount > 0 && config.bounces > 0 && tailStart > 0;
+			check(observedLights.size === (expectLight ? 1 : 0), 'Missing/unexpected independent light stage');
+			check([...observedLights].every(label => label === `wavefront.ShadeLight${suffix}.stack${r.scene.materialLightCapacity}`), 'Wrong light capacity');
 			if (mode === 'wavefront' && config.bounces > 0 && tailStart > 0 && r.scene.instanceCount > 0) check(shadowPipelines.length > 0, 'Shadow stage was not exercised');
 			const values = await snapshot();
 			check(r.samples === config.samples, 'Wrong sample count');
@@ -503,6 +533,10 @@ try {
 			return values;
 		}
 		const scenes = [
+			...['deep-alpha', 'masked-emitter'].map(name => ({ name, cyclesFixture: name, file: null, configurations: [
+				{ width: 129, height: 97, bounces: 3, samples: 8, clamp: 2 },
+				{ width: 513, height: 513, bounces: 1, samples: 2 },
+			] })),
 			{ name: 'empty', file: null, configurations: [
 				{ width: 1, height: 1, bounces: 0, samples: 2 },
 				{ width: 7, height: 5, bounces: 8, samples: 4 },
@@ -579,7 +613,7 @@ try {
 				await r.setIntegrator('wavefront');
 				r.updateStreaming = originalUpdate;
 				canvas.style.width = '129px'; canvas.style.height = '97px'; r.resize();
-				const desc = scene.file ? await api.loadGLTF(`/samples/${scene.file}`) : { meshes: [], materials: [], textures: [], instances: [], cameras: [] };
+				const desc = scene.cyclesFixture ? (await import('/scripts/wavefront-cycles-fixtures.ts')).cyclesFixture(scene.cyclesFixture) : scene.file ? await api.loadGLTF(`/samples/${scene.file}`) : { meshes: [], materials: [], textures: [], instances: [], cameras: [] };
 				if (scene.analytic) {
 					desc.lights = [true, false].map((castShadow, i) => ({ type: i === 0 ? 'point' : 'area', position: [i === 0 ? -2 : 2, 3, 3], direction: [0, -0.7, -0.7],
 						power: [300, 200, 100], radius: 0.1, spotAngle: 1, spotBlend: 0.2, sizeU: [1, 0, 0], sizeV: [0, 0.7, -0.7], ellipse: false, visibleToCamera: true, castShadow }));
@@ -687,7 +721,7 @@ try {
 					});
 				}
 				if (scene.constant) check(r.scene.materialStackSize === 0 && r.tracer.materialCapacity === 0, 'Constant material specialization was not exercised');
-				Object.assign(r.settings, { maxSamples: 0, maxBounces: 8, fireflyClamp: 0, environmentIntensity: scene.emptyAnalytic ? 0 : 1 });
+				Object.assign(r.settings, { maxSamples: 0, maxBounces: 8, fireflyClamp: 0, environmentIntensity: scene.emptyAnalytic || scene.cyclesFixture ? 0 : 1 });
 				r.sun.enabled = !scene.emptyAnalytic;
 				let quiet = 0;
 				for (let frame = 0; frame < 512; frame++) {
@@ -715,7 +749,8 @@ try {
 							maxError = Math.max(maxError, error); squared += error * error; refSquared += reference[i] * reference[i];
 						}
 						const relativeL2 = Math.sqrt(squared / Math.max(refSquared, 1e-30));
-						const result = { scene: scene.name, mode, compaction, directStages: stageMask, packetStages: packetMask, sort, sortSize, raySortSize, sortIndirect, shadeMode, shadeBuckets, shadeBucketMode, spatialQueues, operandMode, opaqueMegakernel, shadowMode, shadePipelines, shadowPipelines, compactPipelines, megakernelPipelines, sortVerification, bucketVerification, opcodeConstants, materialSchedules: { original: materialVariants.original.stack, optimized: materialVariants.optimized.stack }, subgroups: r.device.features.has('subgroups'), materialCapacity: r.tracer.materialCapacity, materialShadeCapacities: r.scene.materialShadeCapacities, ...config, maxError, relativeL2 };
+						if (scene.name === 'deep-alpha' && mode === 'wavefront' && batchedShadows && tailStart > 0) check(batchVerification.resumedPaths > 0, 'Deep alpha did not exercise continuation beyond four batches');
+						const result = { scene: scene.name, mode, compaction, directStages: stageMask, packetStages: packetMask, sort, sortSize, raySortSize, sortIndirect, shadeMode, shadeBuckets, shadeBucketMode, separateLight, batchedShadows, spatialQueues, operandMode, opaqueMegakernel, shadowMode, batchVerification, lightPipelines, shadePipelines, shadowPipelines, compactPipelines, megakernelPipelines, sortVerification, bucketVerification, opcodeConstants, materialSchedules: { original: materialVariants.original.stack, optimized: materialVariants.optimized.stack }, subgroups: r.device.features.has('subgroups'), materialCapacity: r.tracer.materialCapacity, materialShadeCapacities: r.scene.materialShadeCapacities, materialSurfaceCapacities: r.scene.materialSurfaceCapacities, materialLightCapacity: r.scene.materialLightCapacity, materialOpacityCapacity: r.scene.materialOpacityCapacity, ...config, maxError, relativeL2 };
 						results.push(result);
 						console.log(`[correctness] ${JSON.stringify(result)}`);
 						check(maxError <= 1e-5, `${scene.name}: GPU integrators differ by ${maxError}`);
@@ -727,7 +762,7 @@ try {
 			}
 		} finally { releaseUnusedMaterials(); r.destroy(); GPUDevice.prototype.createComputePipelineAsync = createPipeline; GPUDevice.prototype.createBindGroup = createBindGroup; GPUDevice.prototype.createBuffer = createBuffer; }
 		return results;
-	}, { tailStart, tailThreshold, only, disableSubgroups, compaction, directStages, dispatchSweep, packetStages, packetSweep, sort, sortSize, raySortSize, sortIndirect, shadeMode, shadeBuckets, shadeBucketMode, spatialQueues, operandMode, opaqueMegakernel, shadowMode });
+	}, { tailStart, tailThreshold, only, disableSubgroups, compaction, directStages, dispatchSweep, packetStages, packetSweep, sort, sortSize, raySortSize, sortIndirect, shadeMode, shadeBuckets, shadeBucketMode, separateLight, batchedShadows, spatialQueues, operandMode, opaqueMegakernel, shadowMode });
 	if (errors.length) throw new Error(errors.join('\n'));
 	Object.assign(report, { completed: true, results, finished: new Date().toISOString() });
 	writeFileSync(join(output, 'report.json'), JSON.stringify(report, null, 2));

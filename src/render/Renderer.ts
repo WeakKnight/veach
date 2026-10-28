@@ -310,6 +310,22 @@ export class Renderer {
 
 	get integrator(): 'megakernel' | 'wavefront' { return this.tracer.integrator; }
 
+	/** Experimental independent NEE emitter evaluation; switching resets accumulation. */
+	async setSeparateLight(enabled: boolean): Promise<void> {
+		if (this.destroyed) throw new Error('Renderer has been destroyed');
+		if (enabled === this.tracer.separateLight) return;
+		await this.tracer.setSeparateLight(enabled);
+		this.resetAccumulation();
+	}
+
+	/** Experimental batched alpha shadow evaluation; switching resets accumulation. */
+	async setBatchedShadows(enabled: boolean): Promise<void> {
+		if (this.destroyed) throw new Error('Renderer has been destroyed');
+		if (enabled === this.tracer.batchedShadows) return;
+		await this.tracer.setBatchedShadows(enabled);
+		this.resetAccumulation();
+	}
+
 	get denoising(): DenoisingState { return this.denoiseState; }
 
 	/** Enable HDR OIDN at maxSamples, or disable it with null. A superseded request returns false. */

@@ -10,7 +10,7 @@ import { luminance, mat4, vec3, type Mat4, type Vec3 } from '../math/Math';
 import type { SceneDesc } from '../scene/Scene';
 import { INSTANCE_BYTES, INSTANCE_FLAG_ALPHA_TESTED, INSTANCE_FLAG_EMISSIVE, LIGHT_BYTES, VERTEX_BYTES, packAnalyticLight, packInstance, packMaterialData, packVertices } from './GpuLayout';
 import { emissionLuminance, sceneShadeCapacities } from './SceneMaterials';
-import type { MaterialStackCapacity } from './MaterialCapacity';
+import { materialStackCapacity, materialLightCapacity, type MaterialStackCapacity } from './MaterialCapacity';
 import { materialOpcodeMask, type MaterialOpcodeMask } from './MaterialProgramFeatures';
 import type { CpuTexture } from './vt/TileSource';
 import type { VirtualTextureSystem } from './vt/VirtualTextureSystem';
@@ -52,6 +52,10 @@ export class GpuScene {
 	materialStackSize = 0;
 	materialCount = 0;
 	materialShadeCapacities: MaterialStackCapacity[] = [];
+	materialSurfaceCapacities: MaterialStackCapacity[] = [];
+	materialSurfaceCapacity: MaterialStackCapacity = 0;
+	materialLightCapacity: MaterialStackCapacity = 0;
+	materialOpacityCapacity: MaterialStackCapacity = 0;
 	materialOpcodes: MaterialOpcodeMask = [0, 0];
 	lightCount = 0;
 	analyticLightCount = 0;
@@ -76,6 +80,10 @@ export class GpuScene {
 		out.materialCount = materials.length;
 		out.materialStackSize = Math.max(0, ...materials.map(material => material.stackSize));
 		out.materialShadeCapacities = sceneShadeCapacities(scene, materials);
+		out.materialSurfaceCapacities = sceneShadeCapacities(scene, materials, true);
+		out.materialSurfaceCapacity = materialStackCapacity(Math.max(0, ...materials.map(m => m.programStackSizes.surface)));
+		out.materialOpacityCapacity = materialStackCapacity(Math.max(0, ...materials.map(m => m.programStackSizes.opacity)));
+		out.materialLightCapacity = materialStackCapacity(Math.max(0, ...materials.filter(m => m.emissive).map(materialLightCapacity)));
 		out.materialOpcodes = materialOpcodeMask(materials);
 		const materialData = packMaterialData(materials, vt.descriptorOf);
 		const materialOf = (mesh: number) => {

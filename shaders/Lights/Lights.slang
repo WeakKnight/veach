@@ -427,6 +427,43 @@ LightSample SampleEmissive(float3 viewer, float2 cone, inout RandomSequence rng)
 	return s;
 }
 
+// Geometry-only NEE sampling for the staged integrator. No nonconstant material
+// evaluation is reachable here; the sampled emitter is evaluated by ShadeLight.
+LightSample SampleEmissiveGeometry(float3 viewer, inout RandomSequence rng, out uint index, out float3 bary)
+{
+	index = SelectLight(rng.Next());
+	bary = float3(0.0);
+	EmissiveTriangle light = gLights[index];
+	if ((AnalyticFlags(light) & LIGHT_ANALYTIC) != 0u) return SampleAnalytic(light, viewer, rng);
+	bary = SampleTriangle(rng.Next2D());
+	LightSample s;
+	s.delta = false; s.shadow = true;
+	s.position = light.p0.xyz * bary.x + light.p1.xyz * bary.y + light.p2.xyz * bary.z;
+	s.normal = light.n.xyz;
+	MaterialHeader material = LoadMaterialHeader(asuint(light.n.w));
+	s.radiance = ((material.flags >> 26u) & 31u) == 0u ? ConstantEmissiveRadiance(material) : float3(1.0);
+	s.solidAnglePdf = light.p1.w * EmissiveSolidAnglePdf(light.p0.w, material.DoubleSided(), viewer, s.position, s.normal);
+	if (material.DoubleSided() && dot(s.normal, viewer - s.position) < 0.0) s.normal = -s.normal;
+	return s;
+}
+
+float3 EvalSampledEmission(uint index, float3 bary, float3 viewer, float2 cone)
+{
+	EmissiveTriangle light = gLights[index];
+	float3 position = light.p0.xyz * bary.x + light.p1.xyz * bary.y + light.p2.xyz * bary.z;
+	float3 toLight = position - viewer;
+	float dist = length(toLight);
+	TextureCoords tc = MakeTextureCoords(
+		light.uvA.xy * bary.x + light.uvA.zw * bary.y + light.uvB.xy * bary.z,
+		light.uvB.zw * bary.x + light.uvC.xy * bary.y + light.uvC.zw * bary.z,
+		light.p1.xyz - light.p0.xyz, light.p2.xyz - light.p0.xyz,
+		light.uvA.zw - light.uvA.xy, light.uvB.xy - light.uvA.xy,
+		light.uvC.xy - light.uvB.zw, light.uvC.zw - light.uvB.zw,
+		cone.x + cone.y * dist, dist > 0.0 ? dot(light.n.xyz, toLight) / dist : 1.0);
+	tc.objectPosition = InverseTransformPoint(gInstances[asuint(light.pad.x)], position);
+	return EmissiveRadiance(LoadMaterialHeader(asuint(light.n.w)), tc);
+}
+
 // Pdf with which SampleEmissive would have produced a BSDF-sampled hit on an emitter.
 float EmissiveHitPdf(Instance inst, uint primitiveIndex, float3 viewer, float3 hitPos)
 {

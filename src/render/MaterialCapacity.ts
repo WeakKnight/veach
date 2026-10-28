@@ -1,3 +1,4 @@
+import { AlphaMode } from '../scene/Scene';
 import type { CompiledMaterial } from '../material/Compile';
 
 export const MATERIAL_STACK_CAPACITIES = [0, 1, 2, 4, 8, 16] as const;
@@ -8,8 +9,13 @@ export function materialStackCapacity(required: number): MaterialStackCapacity {
 	return MATERIAL_STACK_CAPACITIES.find(capacity => capacity >= required)!;
 }
 
-// NEE evaluates other materials' emission programs inside the same shading kernel.
-export function materialShadeCapacities(materials: readonly CompiledMaterial[]): MaterialStackCapacity[] {
-	const emission = Math.max(0, ...materials.map(m => m.programStackSizes.emission));
+// Masked emitters evaluate opacity as well as emission during NEE.
+export function materialLightCapacity(material: CompiledMaterial): MaterialStackCapacity {
+	return materialStackCapacity(Math.max(material.programStackSizes.emission,
+		material.alphaMode === AlphaMode.Mask ? material.programStackSizes.opacity : 0));
+}
+
+export function materialShadeCapacities(materials: readonly CompiledMaterial[], separateLight = false): MaterialStackCapacity[] {
+	const emission = separateLight ? 0 : Math.max(0, ...materials.filter(m => m.emissive).map(materialLightCapacity));
 	return materials.map(m => materialStackCapacity(Math.max(m.programStackSizes.surface, emission)));
 }

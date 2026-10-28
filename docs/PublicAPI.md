@@ -54,6 +54,14 @@ Selecting wavefront before loading geometry defers compilation until `setScene`,
 required pipelines to compile together at the scene's material stack capacity. Geometry-free
 scenes use the lightweight camera/environment/analytic-light kernel in either mode.
 
+Two additional experimental switches apply to wavefront and reset accumulation:
+`await renderer.setSeparateLight(true)` separates nonconstant NEE emission evaluation;
+`await renderer.setBatchedShadows(true)` separates alpha-shadow candidate collection and
+opacity evaluation. Pass `false` to disable either. Both default to false, can be selected
+before loading a scene, and compile lazily. Await each option/scene/integrator switch before
+the next. They allocate bounded scratch in the existing work buffer. Opaque scenes retain
+the ordinary shadow fast path. These are performance experiments, not guaranteed speedups.
+
 ## Own the scene-loading workflow
 
 | API | Input / result |

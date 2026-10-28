@@ -7,6 +7,8 @@ vi.mock('../src/render/Wavefront', () => ({
 	Wavefront: class {
 		compiled = compilation.pending;
 		prepareStack = async () => {};
+		prepareLightStages = () => compilation.pending;
+		prepareShadowBatches = () => compilation.pending;
 		destroy = vi.fn();
 		constructor() { compilation.instances.push(this); }
 	},
@@ -35,6 +37,23 @@ function tracer(): PathTracer {
 
 describe('wavefront compilation ownership', () => {
 	beforeEach(() => { compilation.instances.length = 0; compilation.pending = Promise.resolve(); });
+
+	it.each(['setSeparateLight', 'setBatchedShadows'] as const)('%s publishes only after successful compilation and rejects disposal races', async method => {
+		const pathTracer = tracer();
+		await pathTracer.setIntegrator('wavefront');
+		const field = method === 'setSeparateLight' ? 'separateLight' : 'batchedShadows';
+		const failed = pending(); compilation.pending = failed.promise;
+		const first = pathTracer[method](true);
+		const rejected = expect(first).rejects.toThrow('compile failed');
+		expect(pathTracer[field]).not.toBe(true);
+		failed.reject(new Error('compile failed')); await rejected;
+		expect(pathTracer[field]).not.toBe(true);
+		const delayed = pending(); compilation.pending = delayed.promise;
+		const second = pathTracer[method](true);
+		const disposed = expect(second).rejects.toThrow(/destroyed/i);
+		pathTracer.destroy(); delayed.resolve(); await disposed;
+		expect(pathTracer[field]).not.toBe(true);
+	});
 
 	it('defers material kernels for empty scenes but prepares them when geometry arrives', async () => {
 		const pathTracer = tracer();

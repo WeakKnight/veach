@@ -9,8 +9,8 @@ import type { SceneDesc, WrapMode } from '../scene/Scene';
 import type { CpuTexture } from './vt/TileSource';
 import { materialShadeCapacities, type MaterialStackCapacity } from './MaterialCapacity';
 
-export function sceneShadeCapacities(scene: SceneDesc, materials: readonly CompiledMaterial[]): MaterialStackCapacity[] {
-	const capacities = materialShadeCapacities(materials), fallback = materials.length - 1;
+export function sceneShadeCapacities(scene: SceneDesc, materials: readonly CompiledMaterial[], separateLight = false): MaterialStackCapacity[] {
+	const capacities = materialShadeCapacities(materials, separateLight), fallback = materials.length - 1;
 	return [...new Set(scene.instances.map(instance => {
 		const material = scene.meshes[instance.mesh].material;
 		return capacities[material >= 0 && material < fallback ? material : fallback];

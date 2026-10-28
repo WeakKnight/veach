@@ -47,6 +47,14 @@ struct HitRecord
 // Node visits + triangle tests of the current invocation; feeds the traversal heat map.
 static uint gTraversalCost = 0u;
 
+// Batch shadow candidates in the reference BVH encounter order. A continuation replays
+// traversal and skips already shaded candidates, preserving stochastic alpha/VT state.
+static const uint SHADOW_BATCH_SIZE = 4u;
+static HitRecord gShadowBatch[SHADOW_BATCH_SIZE] = {};
+static uint gShadowBatchCount = 0u;
+static uint gShadowBatchSkip = 0u;
+static bool gShadowBatchComplete = false;
+
 float3 SafeRcp(float3 d)
 {
 	float3 s = select(d < 0.0, float3(-1e-20), float3(1e-20));
@@ -95,7 +103,7 @@ bool IntersectTriangle(float3 o, float3 d, float3 v0, float3 e1, float3 e2, floa
 }
 
 // Closest hit (anyHit = false) or first accepted hit (anyHit = true) within one BLAS.
-bool TraverseBLAS<let ALPHA : bool>(uint instanceIndex, Instance inst, float3 o, float3 d, float tMin, bool anyHit, inout HitRecord hit)
+bool TraverseBLAS<let ALPHA : bool, let COLLECT : bool = false, let SKIP : bool = false>(uint instanceIndex, Instance inst, float3 o, float3 d, float tMin, bool anyHit, inout HitRecord hit)
 {
 	float3 rD = SafeRcp(d);
 	bool alphaTested = ALPHA && (inst.flags & INSTANCE_FLAG_ALPHA_TESTED) != 0u;
@@ -122,6 +130,23 @@ bool TraverseBLAS<let ALPHA : bool>(uint instanceIndex, Instance inst, float3 o,
 					continue;
 				}
 				uint primitiveIndex = asuint(v0.w);
+				if ((COLLECT || SKIP) && gShadowBatchSkip > 0u)
+				{
+					gShadowBatchSkip--;
+					continue;
+				}
+				if (COLLECT)
+				{
+					HitRecord candidate;
+					candidate.t = t;
+					candidate.barycentrics = bary;
+					candidate.instanceIndex = instanceIndex;
+					candidate.primitiveIndex = primitiveIndex;
+					gShadowBatch[gShadowBatchCount++] = candidate;
+					gShadowBatchComplete = (inst.flags & INSTANCE_FLAG_ALPHA_TESTED) == 0u;
+					if (gShadowBatchComplete || gShadowBatchCount == SHADOW_BATCH_SIZE) return true;
+					continue;
+				}
 				if (alphaTested && AlphaTestRejects(inst, primitiveIndex, bary, t))
 				{
 					continue;
@@ -179,7 +204,7 @@ bool TraverseBLAS<let ALPHA : bool>(uint instanceIndex, Instance inst, float3 o,
 	return found;
 }
 
-bool TraceScene<let ALPHA : bool>(Ray ray, bool anyHit, inout HitRecord hit)
+bool TraceScene<let ALPHA : bool, let COLLECT : bool = false, let SKIP : bool = false>(Ray ray, bool anyHit, inout HitRecord hit)
 {
 	hit.t = ray.tMax;
 	hit.barycentrics = float2(0.0);
@@ -209,7 +234,7 @@ bool TraceScene<let ALPHA : bool>(Ray ray, bool anyHit, inout HitRecord hit)
 				Instance inst = gInstances[instanceIndex];
 				float3 o = InverseTransformPoint(inst, ray.origin);
 				float3 d = InverseTransformVector(inst, ray.direction);
-				if (TraverseBLAS<ALPHA>(instanceIndex, inst, o, d, ray.tMin, anyHit, hit))
+				if (TraverseBLAS<ALPHA, COLLECT, SKIP>(instanceIndex, inst, o, d, ray.tMin, anyHit, hit))
 				{
 					found = true;
 					if (anyHit)
@@ -272,4 +297,20 @@ bool TraceOcclusion<let ALPHA : bool = true>(Ray ray)
 {
 	HitRecord hit;
 	return TraceScene<ALPHA>(ray, true, hit);
+}
+
+void TraceShadowBatch(Ray ray, uint skipped)
+{
+	gShadowBatchCount = 0u;
+	gShadowBatchSkip = skipped;
+	gShadowBatchComplete = false;
+	HitRecord hit;
+	if (!TraceScene<false, true>(ray, true, hit)) gShadowBatchComplete = true;
+}
+
+bool TraceOcclusionResume(Ray ray, uint skipped)
+{
+	gShadowBatchSkip = skipped;
+	HitRecord hit;
+	return TraceScene<true, false, true>(ray, true, hit);
 }

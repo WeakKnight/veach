@@ -8,6 +8,7 @@ import Scene.SceneTypes;
 import Scene.SceneBindings;
 import Scene.SceneAccess;
 import RayTracing.Traversal;
+import Materials.AlphaTest;
 import Materials.MaterialSample;
 import Materials.MaterialProgram;
 import Materials.BSDF.BSDF;
@@ -51,6 +52,8 @@ uint MainQueueBase() { return HeaderBase() + 3u + gWavefront.capacity * WAVEFRON
 uint ShadeQueueBase() { return MainQueueBase() + (gWavefront.capacity + 3u) / 4u; }
 uint ShadowQueueBase() { return MainQueueBase() + 2u * ((gWavefront.capacity + 3u) / 4u); }
 uint BucketMetadataBase() { return ShadowQueueBase() + (gWavefront.capacity + 3u) / 4u; }
+// Extra SoA records follow the existing queues and 262 metadata records.
+uint LightWorkBase(uint index) { return BucketMetadataBase() + 262u + index; }
 uint QueueIndex(uint base, uint index) { return asuint(gAccum[base + index / 4u][index & 3u]); }
 
 uint2 WorkPixel(uint index)
@@ -215,7 +218,7 @@ void IntersectImpl<let ALPHA : bool, let DIRECT : bool>(uint3 tid)
 	if (ALPHA) StoreFeedbackState(base);
 }
 
-void QueueDirectLighting(uint base, SurfaceInteraction si, BSDF bsdf, float2 cone, float3 throughput, bool primary, inout RandomSequence rng)
+void QueueDirectLighting<let SEPARATE_LIGHT : bool>(uint base, SurfaceInteraction si, BSDF bsdf, float2 cone, float3 throughput, bool primary, inout RandomSequence rng)
 {
 	uint mask = 0u;
 	gRayCone = cone;
@@ -226,6 +229,7 @@ void QueueDirectLighting(uint base, SurfaceInteraction si, BSDF bsdf, float2 con
 		float3 origin; float3 dir;
 		float maxDistance = FLT_LARGE;
 		bool shadow = true, mis = true;
+		bool pendingLight = false;
 		if (source == 0u)
 		{
 			if (!EnvironmentEnabled()) continue;
@@ -237,7 +241,24 @@ void QueueDirectLighting(uint base, SurfaceInteraction si, BSDF bsdf, float2 con
 		else if (source == 1u)
 		{
 			if (LightCount() == 0u) continue;
-			ls = SampleEmissive(si.position, cone, rng);
+			if (SEPARATE_LIGHT)
+			{
+				uint lightIndex; float3 bary;
+				ls = SampleEmissiveGeometry(si.position, rng, lightIndex, bary);
+				EmissiveTriangle light = gLights[lightIndex];
+				pendingLight = (AnalyticFlags(light) & LIGHT_ANALYTIC) == 0u &&
+					((LoadMaterialHeader(asuint(light.n.w)).flags >> 26u) & 31u) != 0u;
+				if (pendingLight)
+				{
+					uint lightBase = LightWorkBase(base - WorkBase(0u));
+					gAccum[lightBase] = float4(bary, asfloat(lightIndex));
+					gAccum[Field(lightBase, 1u)] = float4(si.position, ls.solidAnglePdf);
+					// Keep the evaluation even if BSDF/PDF later rejects the sample:
+					// its VT feedback and random stream are part of the reference state.
+					mask |= 8u;
+				}
+			}
+			else ls = SampleEmissive(si.position, cone, rng);
 			if (!(any(ls.radiance > 0.0) && ls.solidAnglePdf > 0.0)) continue;
 			float3 lightPos = ComputeOffsetOrigin(ls.position, ls.normal);
 			origin = ShadowOrigin(si, lightPos - si.position);
@@ -264,7 +285,8 @@ void QueueDirectLighting(uint base, SurfaceInteraction si, BSDF bsdf, float2 con
 			uint offset = 12u + source * 3u;
 			gAccum[Field(base, offset)] = float4(origin, maxDistance);
 			gAccum[Field(base, offset + 1u)] = float4(dir, asfloat(uint(shadow)));
-			gAccum[Field(base, offset + 2u)] = float4(weight * ls.radiance * f / ls.solidAnglePdf, 0.0);
+			gAccum[Field(base, offset + 2u)] = pendingLight ? float4(f, weight)
+				: float4(weight * ls.radiance * f / ls.solidAnglePdf, 0.0);
 			mask |= 1u << source;
 		}
 	}
@@ -274,7 +296,7 @@ void QueueDirectLighting(uint base, SurfaceInteraction si, BSDF bsdf, float2 con
 }
 
 // PHASE: dynamic 0, primary 1, continuation 2. Tail retains the dynamic reference.
-void ShadePath<let DEFERRED : bool, let ALPHA : bool, let PHASE : uint = 0u, let LATE_PATH : bool = false>(uint base, inout WavefrontPath s, HitRecord hit, uint bounce)
+void ShadePath<let DEFERRED : bool, let ALPHA : bool, let PHASE : uint = 0u, let LATE_PATH : bool = false, let SEPARATE_LIGHT : bool = false>(uint base, inout WavefrontPath s, HitRecord hit, uint bounce)
 {
 	if (!LATE_PATH && any(s.path.absorption > 0.0)) s.path.throughput *= exp(s.path.absorption * -hit.t);
 	float hitConeWidth = s.path.coneWidth + s.path.coneSpread * hit.t;
@@ -318,7 +340,7 @@ void ShadePath<let DEFERRED : bool, let ALPHA : bool, let PHASE : uint = 0u, let
 	{
 		if (DEFERRED)
 		{
-			QueueDirectLighting(base, si, bsdf, float2(hitConeWidth, s.path.coneSpread), s.path.throughput, primary, rng);
+			QueueDirectLighting<SEPARATE_LIGHT>(base, si, bsdf, float2(hitConeWidth, s.path.coneSpread), s.path.throughput, primary, rng);
 		}
 		else
 		{
@@ -351,7 +373,7 @@ void ShadePath<let DEFERRED : bool, let ALPHA : bool, let PHASE : uint = 0u, let
 	s.active = 1u;
 }
 
-void ShadeImpl<let DIRECT : bool, let PHASE : uint = 0u, let LATE_PATH : bool = false, let BUCKET : bool = false, let COMPACT_BUCKET : bool = false>(uint3 tid)
+void ShadeImpl<let DIRECT : bool, let PHASE : uint = 0u, let LATE_PATH : bool = false, let BUCKET : bool = false, let COMPACT_BUCKET : bool = false, let SEPARATE_LIGHT : bool = false>(uint3 tid)
 {
 	uint count = DIRECT ? gWavefront.pathCount : asuint(gAccum[HeaderBase()].z);
 	uint bucket = MATERIAL_STACK_SIZE == 0u ? 0u : countbits(MATERIAL_STACK_SIZE - 1u) + 1u;
@@ -367,7 +389,7 @@ void ShadeImpl<let DIRECT : bool, let PHASE : uint = 0u, let LATE_PATH : bool = 
 		if (asuint(gAccum[base].w) == 0u) return;
 		uint instance = asuint(gAccum[Field(base, 8u)].w);
 		uint material = gInstances[instance].materialIndex;
-		uint capacity = (gMaterialData[material * 2u].w >> 16u) & 31u;
+		uint capacity = (gMaterialData[material * 2u].w >> (SEPARATE_LIGHT ? 21u : 16u)) & 31u;
 		if (capacity != MATERIAL_STACK_SIZE) return;
 	}
 	gAccum[Field(base, 11u)] = float4(0.0);
@@ -380,7 +402,7 @@ void ShadeImpl<let DIRECT : bool, let PHASE : uint = 0u, let LATE_PATH : bool = 
 	HitRecord hit;
 	hit.t = h.x; hit.barycentrics = h.yz; hit.instanceIndex = asuint(h.w);
 	hit.primitiveIndex = asuint(gAccum[Field(base, 9u)].x);
-	ShadePath<true, true, PHASE, LATE_PATH>(base, s, hit, PHASE == 1u ? 0u : gWavefront.bounce);
+	ShadePath<true, true, PHASE, LATE_PATH, SEPARATE_LIGHT>(base, s, hit, PHASE == 1u ? 0u : gWavefront.bounce);
 	StorePath<PHASE != 2u>(base, s);
 	StoreFeedbackState(base);
 }
@@ -392,6 +414,53 @@ void Shade(uint3 tid : SV_DispatchThreadID) { ShadeImpl<false>(tid); }
 [shader("compute")]
 [numthreads(64, 1, 1)]
 void ShadeDirect(uint3 tid : SV_DispatchThreadID) { ShadeImpl<true>(tid); }
+
+[shader("compute")]
+[numthreads(64, 1, 1)]
+void ShadeSurface(uint3 tid : SV_DispatchThreadID) { ShadeImpl<false, 0u, false, false, false, true>(tid); }
+
+[shader("compute")]
+[numthreads(64, 1, 1)]
+void ShadeSurfaceDirect(uint3 tid : SV_DispatchThreadID) { ShadeImpl<true, 0u, false, false, false, true>(tid); }
+
+[shader("compute")]
+[numthreads(64, 1, 1)]
+void ShadeSurfaceBucket(uint3 tid : SV_DispatchThreadID) { ShadeImpl<false, 0u, false, true, false, true>(tid); }
+
+[shader("compute")]
+[numthreads(64, 1, 1)]
+void ShadeSurfaceCompact(uint3 tid : SV_DispatchThreadID) { ShadeImpl<false, 0u, false, false, true, true>(tid); }
+
+void ShadeLightImpl<let DIRECT : bool>(uint3 tid)
+{
+	uint count = DIRECT ? gWavefront.pathCount : asuint(gAccum[HeaderBase()].y);
+	if (tid.x >= count) return;
+	uint index = DIRECT ? tid.x : QueueIndex(ShadowQueueBase(), tid.x);
+	uint base = WorkBase(index);
+	uint mask = asuint(gAccum[Field(base, 11u)].z);
+	if ((mask & 8u) == 0u) return;
+	uint lightBase = LightWorkBase(index);
+	float4 sample = gAccum[lightBase], viewer = gAccum[Field(lightBase, 1u)];
+	LoadFeedbackState(base);
+	float3 radiance = EvalSampledEmission(asuint(sample.w), sample.xyz, viewer.xyz, gAccum[Field(base, 11u)].xy);
+	if ((mask & 2u) != 0u)
+	{
+		float4 coefficient = gAccum[Field(base, 17u)];
+		// Preserve the reference's multiplication/division order.
+		gAccum[Field(base, 17u)] = float4(coefficient.w * radiance * coefficient.xyz / viewer.w, 0.0);
+		if (!any(radiance > 0.0)) mask &= ~2u;
+	}
+	gAccum[Field(base, 11u)].z = asfloat(mask & ~8u);
+	StoreFeedbackState(base);
+}
+
+[shader("compute")]
+[numthreads(64, 1, 1)]
+void ShadeLight(uint3 tid : SV_DispatchThreadID) { ShadeLightImpl<false>(tid); }
+
+[shader("compute")]
+[numthreads(64, 1, 1)]
+void ShadeLightDirect(uint3 tid : SV_DispatchThreadID) { ShadeLightImpl<true>(tid); }
 
 [shader("compute")]
 [numthreads(64, 1, 1)]
@@ -480,6 +549,139 @@ void ShadowImpl<let ALPHA : bool, let DIRECT : bool>(uint3 tid)
 	gAccum[Field(base, 11u)] = float4(0.0);
 	if (ALPHA) StoreFeedbackState(base);
 }
+
+bool ShadowBatchIndex<let DIRECT : bool>(uint slot, out uint index)
+{
+	uint count = DIRECT ? gWavefront.pathCount : asuint(gAccum[HeaderBase()].y);
+	index = 0u;
+	if (slot >= count) return false;
+	index = DIRECT ? slot : QueueIndex(ShadowQueueBase(), slot);
+	return asuint(gAccum[Field(WorkBase(index), 11u)].z) != 0u;
+}
+
+// Only one source is in flight per path, so alpha tests consume VT randomness in
+// exactly the same environment/emitter/sun and BVH order as serial Shadow.
+void CollectShadowBatchImpl<let DIRECT : bool, let INITIAL : bool>(uint3 tid)
+{
+	uint index;
+	if (!ShadowBatchIndex<DIRECT>(tid.x, index)) return;
+	uint base = WorkBase(index), aux = LightWorkBase(index);
+	uint4 state = INITIAL ? uint4(0u) : asuint(gAccum[Field(aux, 2u)]);
+	uint mask = asuint(gAccum[Field(base, 11u)].z);
+	while (state.x < 3u)
+	{
+		uint offset = 12u + state.x * 3u;
+		float4 direction = gAccum[Field(base, offset + 1u)];
+		if ((mask & (1u << state.x)) != 0u && asuint(direction.w) != 0u)
+		{
+			float4 origin = gAccum[Field(base, offset)];
+			TraceShadowBatch(Ray(origin.xyz, direction.xyz, origin.w), state.y);
+			state.z = gShadowBatchCount;
+			state.w = gShadowBatchComplete ? 1u : 0u;
+			for (uint i = 0u; i < state.z; i++)
+			{
+				HitRecord hit = gShadowBatch[i];
+				gAccum[Field(aux, 3u + i * 2u)] = float4(hit.t, hit.barycentrics, asfloat(hit.instanceIndex));
+				gAccum[Field(aux, 4u + i * 2u)] = float4(asfloat(hit.primitiveIndex), 0.0, 0.0, 0.0);
+			}
+			break;
+		}
+		state = uint4(state.x + 1u, 0u, 0u, 0u);
+	}
+	gAccum[Field(aux, 2u)] = asfloat(state);
+}
+
+void EvaluateShadowBatchImpl<let DIRECT : bool>(uint3 tid)
+{
+	uint index;
+	if (!ShadowBatchIndex<DIRECT>(tid.x, index)) return;
+	uint base = WorkBase(index), aux = LightWorkBase(index);
+	uint4 state = asuint(gAccum[Field(aux, 2u)]);
+	if (state.x >= 3u) return;
+	LoadFeedbackState(base);
+	gRayCone = gAccum[Field(base, 11u)].xy;
+	bool blocked = false;
+	for (uint i = 0u; i < state.z; i++)
+	{
+		float4 hit = gAccum[Field(aux, 3u + i * 2u)];
+		Instance inst = gInstances[asuint(hit.w)];
+		uint primitive = asuint(gAccum[Field(aux, 4u + i * 2u)].x);
+		if ((inst.flags & INSTANCE_FLAG_ALPHA_TESTED) == 0u || !AlphaTestRejects(inst, primitive, hit.yz, hit.x))
+		{
+			blocked = true;
+			break;
+		}
+	}
+	if (blocked) gAccum[Field(base, 11u)].z = asfloat(asuint(gAccum[Field(base, 11u)].z) & ~(1u << state.x));
+	state = blocked || state.w != 0u ? uint4(state.x + 1u, 0u, 0u, 0u) : uint4(state.x, state.y + state.z, 0u, 0u);
+	gAccum[Field(aux, 2u)] = asfloat(state);
+	StoreFeedbackState(base);
+}
+
+// Bound dispatch overhead, never transparency depth. Remaining candidates use the
+// reference any-hit loop after skipping the already evaluated prefix.
+void FinishShadowBatchImpl<let DIRECT : bool>(uint3 tid)
+{
+	uint index;
+	if (!ShadowBatchIndex<DIRECT>(tid.x, index)) return;
+	uint base = WorkBase(index);
+	uint4 state = asuint(gAccum[Field(LightWorkBase(index), 2u)]);
+	if (state.x >= 3u) return;
+	LoadFeedbackState(base);
+	gRayCone = gAccum[Field(base, 11u)].xy;
+	uint mask = asuint(gAccum[Field(base, 11u)].z);
+	for (uint source = state.x; source < 3u; source++)
+	{
+		if ((mask & (1u << source)) == 0u) continue;
+		uint offset = 12u + source * 3u;
+		float4 origin = gAccum[Field(base, offset)], direction = gAccum[Field(base, offset + 1u)];
+		if (asuint(direction.w) != 0u && TraceOcclusionResume(Ray(origin.xyz, direction.xyz, origin.w), source == state.x ? state.y : 0u)) mask &= ~(1u << source);
+	}
+	gAccum[Field(base, 11u)].z = asfloat(mask);
+	StoreFeedbackState(base);
+}
+
+void ResolveShadowBatchImpl<let DIRECT : bool>(uint3 tid)
+{
+	uint index;
+	if (!ShadowBatchIndex<DIRECT>(tid.x, index)) return;
+	uint base = WorkBase(index), mask = asuint(gAccum[Field(base, 11u)].z);
+	float3 sum = float3(0.0);
+	for (uint source = 0u; source < 3u; source++)
+		if ((mask & (1u << source)) != 0u) sum += gAccum[Field(base, 14u + source * 3u)].xyz;
+	float4 throughput = gAccum[Field(base, 10u)];
+	float3 contribution = throughput.xyz * sum;
+	if (throughput.w > 0.0) contribution = min(contribution, float3(throughput.w));
+	float4 path = gAccum[base];
+	path.xyz += contribution;
+	gAccum[base] = path;
+	gAccum[Field(base, 11u)] = float4(0.0);
+}
+
+#define SHADOW_BATCH_ENTRY(NAME, IMPL, DIRECT) \
+[shader("compute")] \
+[numthreads(64, 1, 1)] \
+void NAME(uint3 tid : SV_DispatchThreadID) { IMPL<DIRECT>(tid); }
+
+[shader("compute")]
+[numthreads(64, 1, 1)]
+void CollectShadowBatch(uint3 tid : SV_DispatchThreadID) { CollectShadowBatchImpl<false, true>(tid); }
+[shader("compute")]
+[numthreads(64, 1, 1)]
+void CollectShadowBatchDirect(uint3 tid : SV_DispatchThreadID) { CollectShadowBatchImpl<true, true>(tid); }
+[shader("compute")]
+[numthreads(64, 1, 1)]
+void ContinueShadowBatch(uint3 tid : SV_DispatchThreadID) { CollectShadowBatchImpl<false, false>(tid); }
+[shader("compute")]
+[numthreads(64, 1, 1)]
+void ContinueShadowBatchDirect(uint3 tid : SV_DispatchThreadID) { CollectShadowBatchImpl<true, false>(tid); }
+SHADOW_BATCH_ENTRY(EvaluateShadowBatch, EvaluateShadowBatchImpl, false)
+SHADOW_BATCH_ENTRY(EvaluateShadowBatchDirect, EvaluateShadowBatchImpl, true)
+SHADOW_BATCH_ENTRY(FinishShadowBatch, FinishShadowBatchImpl, false)
+SHADOW_BATCH_ENTRY(FinishShadowBatchDirect, FinishShadowBatchImpl, true)
+SHADOW_BATCH_ENTRY(ResolveShadowBatch, ResolveShadowBatchImpl, false)
+SHADOW_BATCH_ENTRY(ResolveShadowBatchDirect, ResolveShadowBatchImpl, true)
+#undef SHADOW_BATCH_ENTRY
 
 [shader("compute")]
 [numthreads(64, 1, 1)]

@@ -3,6 +3,7 @@
 import { compileSceneMaterials, sceneShadeCapacities } from '../src/render/SceneMaterials';
 import { packMaterialData } from '../src/render/GpuLayout';
 import { materialOpcodeMask } from '../src/render/MaterialProgramFeatures';
+import { materialLightCapacity, materialStackCapacity } from '../src/render/MaterialCapacity';
 import type { SceneDesc } from '../src/scene/Scene';
 import type { VirtualTextureSystem } from '../src/render/vt/VirtualTextureSystem';
 
@@ -19,6 +20,10 @@ export function materialScheduleVariants(device: GPUDevice, scene: SceneDesc, de
 		usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST, mappedAtCreation: true });
 	new Uint32Array(buffer.getMappedRange()).set(data); buffer.unmap();
 	const entry = (materials: typeof original, buffer: GPUBuffer) => ({ buffer,
+		surfaceCapacities: sceneShadeCapacities(scene, materials, true),
+		surfaceCapacity: materialStackCapacity(Math.max(0, ...materials.map(m => m.programStackSizes.surface))),
+		opacityCapacity: materialStackCapacity(Math.max(0, ...materials.map(m => m.programStackSizes.opacity))),
+		lightCapacity: materialStackCapacity(Math.max(0, ...materials.filter(m => m.emissive).map(materialLightCapacity))),
 		shadeCapacities: sceneShadeCapacities(scene, materials), stack: Math.max(0, ...materials.map(m => m.stackSize)), opcodes: materialOpcodeMask(materials) });
 	return { original: entry(original, originalBuffer), optimized: entry(optimized, buffer) };
 }

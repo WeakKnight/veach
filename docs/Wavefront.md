@@ -1855,3 +1855,133 @@ map to 8x8 pixel blocks, with explicit padding checks for non-multiple-of-eight 
 The compaction shader aliases the allocation as atomic uints in separate compute passes;
 no pass binds overlapping read/write aliases simultaneously. The 144-byte dispatch argument
 buffer is COPY_DST | INDIRECT, not a storage buffer. Compaction and copies stay on GPU.
+
+## Cycles-inspired light and alpha-shadow decomposition (2026-10-29)
+
+This follow-up is separate from the completed eight-hour investigation above. The local
+Cycles source (`E:/GitHub/cycles`, revision `3eb35f859`) uses `SHADE_LIGHT_NEE` for nonconstant NEE emission,
+constant-emitter fast paths, and GPU batches of four transparent shadow intersections.
+Its shader sorting dispatch targets surface shading; neither NEE-light nor transparent
+shadow SVM should be described as material sorted. Its fixed SVM stack also does not
+provide per-material hardware register allocation.
+
+Veach now offers two independent Renderer switches, both disabled by default:
+
+- `setSeparateLight(true)`: surface-only SVM capacities (including capacity scan and full
+  material grouping), a stack-free constant-emitter decoder, and `ShadeLight` at the
+  emission/masked-opacity maximum of potentially emissive materials. Analytic and constant
+  lights avoid deferred work. The existing reference/megakernel still evaluates NEE inline.
+- `setBatchedShadows(true)`: four rounds of candidate collection plus opacity evaluation,
+  each gathering up to four candidates for one light source per path. Collection and resolve
+  compile without SVM; evaluation and continuation fallback use opacity capacity. Opaque
+  scenes keep the existing shadow entry.
+
+The NEE task retains triangle index, all three barycentric weights, viewer position/pdf,
+BSDF coefficient/MIS weight and the pre-bounce cone. It evaluates even a sample whose
+BSDF/pdf later rejects its contribution, preserving reference VT feedback/random consumption.
+Shadows retain environment/emitter/sun order, and resolve adds all three contributions before
+throughput and firefly clamping. Surface sorting remains independent of light evaluation.
+
+Veach's stochastic alpha and mip selection require the original BVH encounter order.
+Unlike Cycles' distance-sorted nearest hits, each batch replays traversal and skips the
+already evaluated candidate prefix. This avoids persistent TLAS/BLAS stacks in work storage,
+but adds traversal work. After four batches, a complete resumed any-hit traversal handles the
+remaining candidates; there is no transparency-layer cutoff or estimator truncation.
+
+The optional scratch follows existing queue metadata: two SoA float4 fields for NEE, and
+nine more for batched shadows (one state plus two records per candidate). Thus light-only
+adds 32 bytes/path, batching adds 176 bytes/path in total, and combining them also adds 176.
+Neither allocation is present when both options are off. All remain within the eight-storage-
+buffer limit. Pipeline preparation is asynchronous/cached; flags publish after success,
+disposal races reject, and scratch is resized before drawing with the new option.
+
+`--separate-light` and `--batched-shadows` are accepted by correctness, benchmark and smoke
+scripts. `--cycles-sweep --paired --mode wavefront --compaction adaptive --balanced-order
+--repeats 5` measures the megakernel, existing wavefront, light-only, shadow-only and combined
+variants. `--cycles-fixtures --only deep-alpha,masked-emitter` adds targeted synthetic scenes;
+the ordinary five-scene list remains unchanged without that flag. Source fingerprints include
+the fixture and material-capacity metadata helpers.
+
+The independent-light path currently requires unified shading; capacity scan/full material
+grouping are supported, compact capacity partitions and direct bucket shading are rejected.
+Fused tails retain the reference inline implementation at global capacity. Fixed batching
+passes use the existing shadow queue rather than a second pending-work compaction queue;
+this implementation therefore trades dispatch and replay cost for SVM/traversal isolation.
+
+### Validation
+
+Shader compilation completes without warnings, TypeScript checking and library build pass,
+and all 218 unit tests pass (including capacity/header packing, independent stage preparation,
+scratch bounds, failed compilation and disposal races). The wavefront library chunk is
+849.13 kB / 101.42 kB gzip for this implementation.
+
+The post-batching correctness suites contain 72 GPU HDR/albedo/normal comparisons with
+zero maximum error: 10 alpha/emission cases, 20 focused fixture/constant/analytic/mixed cases,
+16 packet + program256 + full-material-group + direct-shadow cases, 12 standalone batch
+cases with all stages directly dispatched, 8 independent-light capacity-scan cases, and
+6 combined direct-surface/light/shadow cases with a fused tail starting at bounce one.
+The deep-alpha fixture records nonzero resumed-path counts before fallback, proving that
+more than four batches' worth of transparent intersections are handled. The mask emitter
+binds ShadeSurface at capacity zero and ShadeLight/opacity at capacity one. Tests also cover
+partial groups, 513x513 multi-tile images, terminated paths and clamping after the source sum.
+The constant-light cases exercise zero-stack emission and both Mask/Blend opacity semantics.
+
+The default smoke passes all 21 scenes; the enabled-stage smoke also passes helmet HDR,
+alpha, emissive and transmission. Every current screenshot was inspected. Captures are in
+`.tools/wavefront/cycles-default-smoke` and `cycles-stages-smoke`; default material and
+presentation behavior remain intact.
+
+### Original materials and targeted transparency measurements
+
+`cycles-stages-v1` uses 640x360, 8 bounces, 32 timed samples/block, 64 warmup samples per
+variant, optimized bytecode scheduling, scene opcode specialization and five balanced
+rounds on the exposed NVIDIA Lovelace adapter. All 115 recorded source hashes match the
+renderer after the run. All 140 paired HDR comparisons are exactly equal; all seven captures
+were inspected. The original five workloads and the two synthetic fixtures are separated
+below. Values are medians of the five per-round GPU spans, in milliseconds/sample.
+
+| Scene | Megakernel | Wavefront | Separate light | Batched shadows | Both |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Classroom | 9.519 | 8.230 | 8.264 | 8.216 | 8.250 |
+| Breakfast room | 4.071 | 5.833 | 5.836 | 5.837 | 5.844 |
+| BMW M6 | 2.668 | 5.355 | 5.382 | 5.375 | 5.354 |
+| Glass of water | 2.809 | 3.831 | 3.833 | 3.842 | 3.821 |
+| Veach MIS | 1.553 | 1.731 | 1.743 | 1.734 | 1.733 |
+| 24 transparent layers | 1.711 | 2.189 | 2.095 | 3.759 | 3.759 |
+| Masked emitter | 0.680 | 1.312 | 1.375 | 1.825 | 2.072 |
+
+For the five original scenes, median paired light-only changes versus wavefront are
++0.45/-0.57/+0.22/-0.96/+0.89 percent. Those materials have zero-capacity emitters and no
+alpha-tested geometry, so they exercise the constant-light path, not ShadeLight or shadow
+batching. Small shadow-only differences there are not evidence of batching gains.
+
+In the synthetic 24-layer and masked-emitter scenes, shadow batching regresses by median
+paired +71.75% and +44.10%; combined stages regress +71.82% and +67.10%. Light-only changes
+are -0.71% and +5.67%. Paired percentage medians need not equal the ratio of independently
+computed timing medians in the table. The measured batching design should remain opt-in:
+replay, scratch traffic and ten passes per shadow stage outweigh its smaller SVM scope here.
+
+### Mixed complex surface materials
+
+`cycles-stages-mixed8-v1` repeats the same balanced comparison on the same five assets
+with `--material-layers 8 --material-mixed`. Optimized scheduling produces scene capacities
+8/8/4/4/4. This changes surface complexity while retaining constant emitters and opaque
+shadow traversal; it does not stand in for a workload with expensive procedural emitters.
+All 100 paired HDR comparisons are exact, all 115 source hashes match, and all five captures
+were inspected. The remaining settings match the original-material sweep.
+
+| Scene | Megakernel | Wavefront | Separate light | Batched shadows | Both |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Classroom | 19.363 | 11.393 | 11.489 | 11.477 | 11.350 |
+| Breakfast room | 8.825 | 9.067 | 9.159 | 9.007 | 9.006 |
+| BMW M6 | 6.294 | 7.737 | 7.772 | 7.758 | 7.747 |
+| Glass of water | 7.080 | 6.330 | 6.344 | 6.324 | 6.319 |
+| Veach MIS | 3.117 | 3.305 | 3.437 | 3.447 | 3.271 |
+
+Median paired light-only changes are +0.47/+0.45/+0.51/+0.22/+3.98 percent; combined
+changes are -0.42/-0.12/+0.06/-0.21/-0.33 percent. Shadow-only variation on opaque MIS
+is +4.29% despite unchanged shadow kernels, reinforcing that these small changes cannot
+be used as evidence of reduced register pressure. Hardware register allocation/occupancy
+were not measured. Neither new option is promoted to a default. The implementation provides
+independent light/opacity stages and capacity controls for further measurement, while the
+reference estimator, transparency semantics and default execution remain available.

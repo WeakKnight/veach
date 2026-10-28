@@ -86,7 +86,7 @@ struct MaterialHeader
 	uint surface; // absolute program offsets in gMaterialData, PROGRAM_NONE if absent
 	uint opacity;
 	uint emission;
-	uint flags; // bit 0 double-sided, bits 8..9 alpha mode, bits 16..20 shading capacity
+	uint flags; // bit 0 double-sided, bits 8..9 alpha; capacities: shading 16..20, surface 21..25, light 26..30
 	uint textureBase;
 	uint constantBase;
 	float alphaCutoff;
@@ -573,4 +573,36 @@ float3 EvalEmission(MaterialHeader header, TextureCoords tc)
 	}
 	MaterialOutputs o = RunScalarMaterialProgram(header, header.emission, tc);
 	return o.inputs.emissionColor * o.inputs.emissionLuminance;
+}
+
+// Zero-stack scalar programs contain only constant Output/End instructions. This
+// decoder has no stack and never reaches texture or procedural evaluation.
+float4 ConstantMaterialOutput(MaterialHeader header, uint program, uint group, uint field, float4 fallback)
+{
+	if (program == PROGRAM_NONE) return fallback;
+	uint pc = program;
+	for (uint n = 0u; n < MATERIAL_MAX_INSTRUCTIONS; n++)
+	{
+		uint4 ins = gMaterialData[pc];
+		if ((ins.x & 0xffu) == OP_END) break;
+		uint outputGroup = ins.x >> 16u;
+		if (outputGroup == group)
+		{
+			uint operand = MaterialWord(pc * 4u + 1u + field);
+			if (operand != OPERAND_NONE) fallback = MaterialOperand(operand, float4(0.0), header.constantBase);
+		}
+		pc += (OUTPUT_INSTRUCTION_WORDS >> (2u * min(outputGroup, 9u))) & 3u;
+	}
+	return fallback;
+}
+
+float3 ConstantEmissiveRadiance(MaterialHeader header)
+{
+	BSDFInputs defaults = BSDFInputs.Default();
+	if (header.AlphaMode() == ALPHA_MODE_MASK &&
+		ConstantMaterialOutput(header, header.opacity, 9u, 0u, float4(defaults.geometryOpacity)).x < header.alphaCutoff)
+		return float3(0.0);
+	float luminance = ConstantMaterialOutput(header, header.emission, 8u, 0u, float4(defaults.emissionLuminance)).x;
+	float3 color = ConstantMaterialOutput(header, header.emission, 8u, 1u, float4(defaults.emissionColor, 0.0)).xyz;
+	return color * luminance;
 }

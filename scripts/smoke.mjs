@@ -54,6 +54,13 @@ if (integratorFlag >= 0) {
 	only.splice(integratorFlag, 2);
 }
 const wavefrontTuning = {};
+for (const [flag, field] of [['--separate-light', 'separateLight'], ['--batched-shadows', 'batchedShadows']]) {
+	const index = only.indexOf(flag);
+	if (index < 0) continue;
+	if (integrator !== 'wavefront') throw new Error(`${flag} requires wavefront`);
+	wavefrontTuning[field] = true;
+	only.splice(index, 1);
+}
 const bucketsFlag = only.indexOf('--shade-buckets');
 if (bucketsFlag >= 0) {
 	if (integrator !== 'wavefront') throw new Error('Buckets require wavefront');
@@ -230,6 +237,8 @@ try {
 				await page.waitForFunction(() => globalThis.veach?.samples > 0, { timeout: 120000 });
 				await page.evaluate(async tuning => {
 					const tracer = globalThis.veach.tracer;
+					if (tuning.separateLight) await globalThis.veach.setSeparateLight(true);
+					if (tuning.batchedShadows) await globalThis.veach.setBatchedShadows(true);
 					if (tracer.wavefront && tuning.shadeMode) await tracer.wavefront.prepareShadeMode(tuning.shadeMode, tracer.materialCapacity, tracer.materialOpcodes, tracer.boundMaterialOperandMode);
 					if (tracer.wavefront && tuning.shadeBuckets) await tracer.wavefront.prepareBuckets(globalThis.veach.scene.materialShadeCapacities, tracer.materialCapacity, tracer.materialOpcodes, tracer.boundMaterialOperandMode, tuning.shadeBucketMode ?? 'scan');
 					if (tracer.wavefront) Object.assign(tracer.wavefront, tuning);

@@ -22,9 +22,9 @@ selection (same expectation, visible only at 1 spp), and `clearcoatNormalTexture
   The compiler additionally reports independent `programStackSizes` for surface, opacity
   and emission; absent programs require zero slots. The aggregate `stackSize` remains their
   maximum. An experimental wavefront `shadeBuckets` path sizes each shading group using
-  max(current surface requirement, scene-wide emission requirement), rounded to 0/1/2/4/8/16.
-  The emission floor conservatively includes unused materials because NEE can evaluate another
-  material inside Shade. Header flags bits 16..20 store this capacity without changing layout.
+  max(current surface requirement, scene-wide light requirement), rounded to 0/1/2/4/8/16.
+  The light floor includes emission and masked-emitter opacity, conservatively including unused materials because NEE can evaluate another
+  material inside Shade. Header flags bits 16..20 store this capacity without changing layout. Bits 21..25 store surface-only capacity and bits 26..30 light capacity (emission plus opacity for Mask).
   Only capacities referenced by instances (including fallback materials) are prepared/dispatched.
   `shadeBucketMode = 'compact'` optionally partitions active hit indices into capacity ranges
   before shading; it uses the same material-header capacity and emission floor. The scan mode
@@ -282,7 +282,7 @@ then                     code blocks, one per distinct bytecode (shared by mater
 ```text
 MaterialHeader (GpuLayout.packMaterialData, MaterialProgram.LoadMaterialHeader)
   uint4 programs:  surface, opacity, emission (absolute uint4 offsets, PROGRAM_NONE if absent),
-                   flags (bit 0 double-sided, alpha mode in bits 8..9, shading capacity in bits 16..20)
+                   flags (bit 0 double-sided, alpha mode in bits 8..9, shading capacity in bits 16..20, surface capacity 21..25, light capacity 26..30)
   uint4 data:      textureTableOffset, constantOffset, asuint(alphaCutoff),
                    debugTexture (texture table entry feeding base_color, PROGRAM_NONE if none)
 ```
@@ -377,3 +377,23 @@ Measure with `npm run smoke` timings and debug view 7 before and after phase 3.
 - Opacity programs inside traversal: cap their length (or allow only texture × constant) to bound
   any-hit cost?
 - Vertex colors (`COLOR_0`) need a vertex attribute; the 64-byte `Vertex` has no room left.
+
+## Independent light and shadow SVM stages
+
+`Renderer.setSeparateLight(true)` enables an experimental wavefront path: `ShadeSurface`
+uses surface-only capacity, while `ShadeLight` uses the scene maximum of emission and
+masked-emitter opacity. Existing scan buckets use surface-only header bits; full material
+grouping retains one scene surface capacity. Compact capacity buckets and split/late shade
+modes currently cannot combine with this option. Each compiled entry still has a fixed
+stack capacity; this does not establish a hardware register reduction.
+
+Analytic and zero-stack emitters stay in the surface stage. The zero-stack decoder reads
+constant Output/End bytecode with identical defaults, including mask cutoff; it cannot reach
+texture/procedural operations. Nonconstant emission moves to the shadow queue before
+visibility. Deferred tasks run even when BSDF/pdf rejection makes their contribution zero,
+so per-path VT random state and feedback remain identical to the reference.
+
+`Renderer.setBatchedShadows(true)` compiles candidate collection/resolve at capacity zero,
+and opacity evaluation/fallback at the scene opacity capacity. These entries never evaluate
+surface BSDFs. Opaque scenes retain their existing specialized shadow entry. Both options
+are independent and disabled by default; see `Wavefront.md` for measured costs and limits.
