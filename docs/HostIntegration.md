@@ -1,71 +1,171 @@
 # Host renderer integration
 
-Implementation target: a host owns its scene graph, simulation and source assets. Veach owns
-only render resources, flat instances and GPU-derived data. The first host is Three.js; the
-core package must neither import Three.js nor depend on its object model.
+The application owns its scene graph, simulation and source assets. Veach owns persistent
+render resources, flat instances and GPU-derived data. The core has no Three.js dependency;
+`@tianyuliwiwo/veach/three` is an optional adapter, tested with Three.js r186.
 
-## Contract
+## Lifetime and publication
 
-- Scene-scoped, typed handles remain stable across updates. Resources are persistent, not
-  re-created every frame or deduplicated by hashing their contents.
-- A batch creates, updates and releases geometries, textures, materials, lights and instances.
-  References are validated against the final batch. Only one batch per scene is active.
-  Failed preparation leaves the last committed CPU scene intact. GPU publication must match.
-- Source data is application-owned. Small values are snapshotted; array data is snapshotted
-  for a commit before asynchronous preparation. Veach never disposes host objects/images.
-- Geometry is independent of material. Instances bind material slots and world transforms.
-- New host rendering is single-frame path tracing: samples within a frame may be averaged,
-  but radiance from previous frames is never accumulated. TAA and NRD are future consumers.
-  Their eventual histories advance on rendered frames, not on scene commits.
-- Existing loader/viewer exports remain supported. Host integration uses an explicit render
-  path so existing static-render regression fixtures can continue to compare the old API.
+Create a GPU-backed `RenderScene` with `renderer.createScene()`. `new RenderScene()` is useful
+for CPU-only tooling/tests; it cannot be rendered by an unrelated renderer.
 
-## GPU plan
+`beginUpdate()` opens one transaction. Create/update/release geometry, texture, material,
+instance and analytic-light handles; `await commit()` publishes the batch. References are
+validated against the final state, so removing an instance and its resources in either order
+is valid. Releasing a still-referenced resource fails. Handles are opaque, typed and scene
+scoped; they never become valid again after release.
 
-Retain the seven scene storage bindings. Allocate persistent buffer regions and fixed instance
-slots; merge writes to dirty regions. Keep unchanged BLAS data. Initially rebuild only changed
-geometries and rebuild the TLAS when instance bounds/membership change. A camera/material-only
-change does not rebuild acceleration structures. Refit is not required in the first version;
-the current high-quality spatial-split BVHs are not refittable.
+Array data and small descriptors are copied when each update method is called. ImageBitmap
+inputs are borrowed: keep them open until commit finishes. Veach never closes source images
+or disposes Three.js resources. GPU preparation and pipeline compilation finish before
+publication. Validation/preparation failures leave the previous CPU/GPU scene available; the
+transaction closes and the caller can retry. Device loss requires recreating the renderer.
 
-Keep material compilation, instance alpha/emission flags, emissive triangle records and light
-CDF changes consistent in the same publication. Keep texture registration and streaming state
-across transform-only commits. Handle texture revisions and stale asynchronous uploads.
+Only one transaction may be active per scene. `cancel()` closes an uncommitted transaction.
+The first empty commit initializes a renderable empty scene; later empty commits do nothing.
+`scene.dispose()` is idempotent; `renderer.destroy()` disposes all its scenes. Do not submit
+commands captured from old bindings after a commit. Source lifetimes stay with the application.
 
-## Adapter plan
+## Data contract
 
-Track host object identity to handles. Inspect each unique resource once per sync. Geometry
-changes use attribute identity/version/layout plus groups/draw ranges. Material changes use
-snapshots of supported values and texture references, not only Material.version. Texture
-changes distinguish source data from UV/sampling state. Unsupported skinning, morph targets,
-custom shader deformation and GPU-only textures must produce actionable diagnostics.
+- Geometry: indexed triangles, Float32 positions and Uint32 indices; optional normals,
+  tangents, UV0 and UV1. Missing normals use geometric normals. Groups are ordered,
+  nonoverlapping triangle ranges with material slots; omitted/empty groups use the full list
+  in slot zero. Each group is one shared BLAS.
+- Instances: geometry handle, material handles, invertible affine world matrix, enabled flag.
+  Parenting and local transforms stay in the host.
+- PBR: linear RGB base/emission, metallic/roughness, IOR/transmission, double-sidedness, unlit,
+  opaque/masked alpha, tangent-space normal map, independent texture maps. Bindings select
+  UV0/UV1, wrap, offset/scale/rotation and channel. Defaults: roughness G, metallic B, opacity A.
+  Blended alpha is not part of the host API.
+- Textures: RGBA8 bytes or ImageBitmap, plus srgb/linear interpretation. Content changes use
+  `setTexture`; transforms belong to the material. There is no content hash or per-frame scan.
+- Lights: existing `LightDesc` conventions (radiant power, point/spot/area). Hosts explicitly
+  convert photometric units. Sky, sun and environment are renderer-level settings.
+- Views: right-handed perspective matrices, camera looking down -Z, including off-axis views.
+  Orthographic, stereo, lens distortion, depth-of-field and near/far ray clipping are not
+  implemented in the host path.
 
-## Acceptance
+## Incremental GPU work
 
-- CPU tests: transactional references, rollback, ownership, shared resources, updates/releases.
-- GPU tests: transform-only commits preserve BLAS and geometry uploads; topology changes rebuild
-  only affected BLAS; material/texture changes render correctly; no stale handles or GPU errors.
-- Three.js tests: shared objects, attribute versions/replacement, scalar material changes,
-  texture versions/UV transforms, removal and disposal.
-- Two playable simple-geometry demos: aim trainer and racing, both rendered by Veach, with
-  input, scoring/progression, restart and teardown. Exercise resource creation, sharing,
-  movement, parameter edits, geometry/texture updates and removal.
-- Typecheck, unit suite, library and examples builds, generated shaders as applicable,
-  existing smoke suite, dedicated browser interaction checks and screenshot inspection.
+Seven persistent arenas hold nodes, triangles, instances, vertices, indices, material data
+and lights. The eighth storage binding remains per-pixel work. Regions keep offsets while
+capacity suffices; freed ranges are reused. Buffers grow geometrically and upload live regions
+once on growth. Ordinary commits upload dirty regions only and merge adjacent writes. The
+high-water GPU allocation is retained until scene disposal.
 
-## Work log
+| Change | GPU / acceleration work |
+| --- | --- |
+| Camera | Frame uniforms; no scene commit or BVH work |
+| Instance matrix / enabled / membership | Changed instance records; TLAS rebuild when bounds/membership change |
+| Positions / indices / groups | Changed geometry upload and group BLAS rebuild; TLAS update |
+| Normals / tangents / UV | Changed vertex region; unchanged BLAS/TLAS |
+| Material values / bindings | That material's compile/upload; affected instance flags/offsets |
+| Texture content / dimensions / color space | Affected VT pages and referencing materials |
+| Emitting geometry/material/transform or analytic lights | Light records and power CDF |
+| Nonemitting instance motion | Unchanged light buffer |
 
-- Isolated worktree created from `595ff67`, branch `codex/host-renderer-games`.
-- Original checkout contains concurrent Wavefront work and is not modified by this task.
-- Three.js development dependencies installed in this worktree only.
-- Added CPU `RenderScene` / `SceneUpdate` foundation with typed scene-scoped handles,
-  persistent resource maps, snapshots, final-reference validation, serialized commits,
-  rollback on sink failure, explicit cancellation and disposal. Not exported publicly yet;
-  the GPU sink and adapter are still pending.
-- Baseline: 193 tests passed, 6 skipped (sample-dependent or explicitly skipped cases).
-  New scene tests: 9 passed. Typecheck passed after adding the foundation.
-- Next: persistent GPU buffer regions and BLAS caching, scene-to-material conversion and
-  renderer commit sink, single-frame rendering path, Three adapter and package entry,
-  demos, GPU/browser validation, public documentation and final review.
-- Implementation and verification are in progress; the contract above is the target, not a
-  claim that all features are already implemented.
+BLAS refit is not implemented. Host build quality defaults to `BuildQuality.Fast`; override
+with `createScene({ bvhQuality })`. Changed geometry uploads its whole vertex region, not
+attribute subranges. Each commit still walks the flat instance list.
+
+`FrameUniforms.envInfo.z` stores an independent TLAS node base. TLAS primitive indices refer
+to sparse GPU instance slots. Material headers occupy 32-byte-aligned addresses in the existing
+buffer, with absolute program/constants/texture offsets. No new storage binding is needed.
+Experimental wavefront material bucketing can reach its ID limit sooner with sparse IDs.
+
+Dynamic textures retain unaffected layouts, chains and physical tiles. Each source/wrap
+combination has independent borders and a pinned tail. The default cache is 16×16 tiles;
+set `renderer.virtualTextureOptions` before creating scenes. All tails plus one streaming
+tile must fit. Reused virtual addresses are guarded by publication epochs that discard old
+feedback. RGBA8 resizing uses nearest-neighbor power-of-two resampling; bitmap resizing uses
+the existing GPU decode path. Streaming defaults to LRU, 64 uploads / 4 ms per frame, with
+speculative fills of unused slots. Texture publication invalidates feedback conservatively.
+
+## Three.js synchronization
+
+After simulation, `await adapter.sync(root, camera)`, then render with `adapter.scene` and
+`adapter.view(camera)`. Await each sync; failed commits do not advance detection snapshots.
+The adapter updates world matrices without rendering through a Three.js renderer.
+
+| Data | Detection |
+| --- | --- |
+| BufferAttribute | Identity, backing array, version, count, item size, normalization |
+| InterleavedBufferAttribute | Attribute/data identity, data version, stride, offset |
+| Index / drawRange / groups | Index identity/version/layout and small value snapshots |
+| Material | Supported scalar/color/vector values, version, maps and map transforms |
+| Texture source | Texture/source identity/version, image identity, color space, flipY, format/type |
+| Object3D / InstancedMesh | World matrices, count and resource bindings |
+| Visibility | Ancestors, material visibility and optional camera layers |
+
+Set `attribute.needsUpdate = true` after array edits, or `attribute.data.needsUpdate = true`
+for interleaved buffers. Pixel edits require `texture.needsUpdate = true`. No full-array
+comparisons are performed; Three.js update ranges are not consumed or cleared. Hidden meshes
+retain resources but leave the TLAS. Detached objects release Veach references; host `dispose()`
+events alone do not remove objects from the renderer. Host resources are never disposed by the
+adapter. `adapter.dispose()` releases its Veach scene.
+
+Single-material meshes ignore groups, matching Three.js. Material arrays use groups/drawRange.
+A geometry used in both modes has two renderer representations; instances within each mode
+share BLAS. Nonindexed geometry is converted without modifying the source. InstancedMesh
+transforms/count are supported, with a persistent handle per instance.
+
+Supported materials: MeshStandardMaterial, the supported MeshPhysicalMaterial subset, and
+MeshBasicMaterial (emission). Unsupported active features fail explicitly: custom shader
+callbacks/materials, skinning, morph targets, vertex/instance colors, flatShading overrides,
+lines/points/sprites/LOD, blended opacity, BackSide, clearcoat, sheen, anisotropy, iridescence,
+dispersion, volume thickness/attenuation, specular overrides, wireframe, alpha hashing, clipping
+planes, per-material environment maps, bump/displacement/AO/light/transmission maps, object-space normal maps, mixed
+material visibility in one mesh, BatchedMesh, scene material overrides, and automatic Three.js light conversion. The legacy glTF
+loader retains its broader material capabilities.
+
+Textures support loaded image/canvas/bitmap and RGBA8 DataTexture sources. GPU-only,
+render-target, compressed, cube and video sources need a future bridge. Canvas extraction
+requires readable same-origin/CORS images. flipY, UV channel, wrap and decomposable affine
+transforms are translated; shear (including rotated nonuniform repeat) is rejected. Sampler
+min/mag filtering and anisotropy use Veach's policy rather than Three.js emulation.
+
+## Frame behavior
+
+`renderFrame({ scene, view, frameIndex, samplesPerPixel })` replaces prior radiance every call.
+The frame ID varies the random sequence; samplesPerPixel (1–64) averages inside this frame.
+No host-frame OIDN runs. Keep frame IDs increasing across commits. Exposure adaptation retains
+presentation history, not path-traced radiance. Noise at low sample counts is expected.
+TAA, NRD, motion vectors and previous-position buffers are future work.
+
+The legacy `setScene` / `start` viewer remains progressive for static assets and OIDN. Stop
+its loop before using host frames. `start()` cannot run while a host scene is active. `onStats`
+is driven by the owned loop; host apps can read scene/VT/exposure getters and
+`hostSceneStats(scene)` (counters for the latest nonempty commit) directly.
+
+## Examples and verification
+
+`npm run dev:games` serves `http://127.0.0.1:5176`:
+
+- `?game=aim`: 45-second mouse drill, moving targets, streaks, generated texture changes,
+  shared target-geometry deformation, debris insertion/removal and pause/restart.
+- `?game=race`: keyboard circuit driving, checkpoints, three laps, timing, barriers, chase
+  camera, shared InstancedMesh scenery, pause/restart and R to return to the starting line.
+
+`npm run smoke:games` checks actual GPU radiance for material/texture/geometry edits, no
+cross-frame accumulation or stale geometry, shared release and empty scenes. It checks game
+inputs and pause/restart, and drives three laps through normal keyboard handlers. Reports and
+screenshots go to `.tools/games-smoke/`. `npm run build:games` builds `dist-games/`.
+
+CPU tests cover transactions, allocator reuse/growth, real tinybvh updates, emission CDFs,
+texture epochs and adapter detection. `npm run smoke` covers static glTF regressions.
+Generated shaders are checked in after shader builds.
+
+### Validation record (2026-10-29)
+
+- `npm run typecheck`, `npm run build`, `npm run build:lib`, `npm run build:games`: passed.
+- `npm run build:shaders`: generated the traversal changes and all specialization patches.
+  No WASM or BSDF source changed, so their generated binaries were not rebuilt.
+- `npm test`: 233 tests passed; the unrelated `.blend` fixture suite was skipped because its
+  Blender sample fixtures were absent. Available glTF sample-dependent tests ran.
+- `npm run smoke`: all 21 static rendering cases passed; screenshots inspected.
+- `npm run smoke:games`: eight GPU-readback scenarios, aim hit/miss and the full 45-second
+  session, three race laps using keyboard events, pause/restart and resource counters passed.
+  No browser, shader or WebGPU errors were reported; game screenshots inspected.
+- Library core and Three adapter imported successfully without a DOM. Package dry-run includes
+  the adapter JavaScript, declarations and integration guide. No package was published.

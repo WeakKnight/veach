@@ -2,6 +2,15 @@
 
 All lights share one buffer and one power CDF. Underestimated power is safe.
 
+Persistent host scenes rebuild this buffer when analytic lights or emitting draws change.
+Moving a nonemitting instance leaves it untouched. Emitting transforms recompute world-space
+area (including nonuniform scale), selection weights and CDF; records remain in primitive
+order. Shared geometry can have distinct emitting materials per instance. Light material and
+instance references use the persistent sparse slots. Host updates to texture-dependent
+emission invalidate the referencing compiled material and light estimates. Analytic lights
+use the same `LightDesc` units through `SceneUpdate`; Three.js lights require explicit host
+conversion in the first adapter version.
+
 ## Emissive triangles
 
 - Every triangle of an emissive instance is listed in primitive order (`lightOffset + primIdx`),

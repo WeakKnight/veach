@@ -60,11 +60,12 @@ export class GpuScene {
 	lightCount = 0;
 	analyticLightCount = 0;
 	tlasPrimOffset = 0;
+	tlasNodeOffset = 0;
 	boundsMin: Vec3 = [0, 0, 0];
 	boundsMax: Vec3 = [0, 0, 0];
 	stats!: SceneStats;
 
-	private constructor() {}
+	constructor() {}
 
 	// materials: compileSceneMaterials(scene).
 	static build(device: GPUDevice, bvh: TinyBVH, scene: SceneDesc, vt: VirtualTextureSystem, materials: readonly CompiledMaterial[], options: GpuSceneOptions = {}): GpuScene {

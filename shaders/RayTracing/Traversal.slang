@@ -252,7 +252,7 @@ bool TraceScene<let ALPHA : bool, let COLLECT : bool = false, let SKIP : bool = 
 		}
 
 		gTraversalCost++;
-		BVHNode node = gNodes[nodeRef];
+		BVHNode node = gNodes[gFrame.envInfo.z + nodeRef];
 		float dist1 = IntersectBox(node.lmin, node.lmax, ray.origin, rD, ray.tMin, hit.t);
 		float dist2 = IntersectBox(node.rmin, node.rmax, ray.origin, rD, ray.tMin, hit.t);
 		uint near = node.left;

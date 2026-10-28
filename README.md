@@ -4,6 +4,9 @@ A physically based path tracer for the web: **WebGPU** compute, **tinybvh** (com
 
 ## Features
 
+- Persistent engine-independent host scenes with resource handles, batched updates, shared BLAS
+  and incremental GPU uploads; optional Three.js adapter and single-frame rendering
+
 - Megakernel unidirectional path tracer with multiple importance sampling between BSDF sampling and next event estimation (environment map, emissive triangles, analytic sun)
 - Disney principled BSDF (diffuse, retro-reflection, sheen, specular, clearcoat, rough and smooth glass), alpha mask / stochastic blend, Russian roulette
 - Two-level acceleration structure: one tinybvh BLAS per mesh (SBVH by default) and a TLAS over instances, traversed by a hand-written stack traversal in Slang
@@ -33,11 +36,26 @@ Other parameters: `spp=<n>` stops after n samples, `debug=<0..9>` selects a debu
 
 ## npm package
 
+### Three.js game examples
+
+```sh
+npm run dev:games
+```
+
+Open `http://127.0.0.1:5176/?game=aim` for a 45-second mouse aim drill or
+`http://127.0.0.1:5176/?game=race` for a three-lap keyboard racing game (W/S, A/D, R reset).
+Both use procedural geometry, Three.js simulation and Veach rendering. Performance/Balanced/
+Quality select resolution and samples within the current frame; there is no temporal
+accumulation or denoising in these examples. `npm run smoke:games` verifies GPU updates and
+game interactions. See [host integration](docs/HostIntegration.md) for the supported subset.
+
+### Install
+
 ```sh
 npm install @tianyuliwiwo/veach
 ```
 
-The package is ES modules with TypeScript declarations; shaders, the tinybvh wasm and the BSDF tables are inlined, so it needs no asset configuration in any bundler. `@tianyuliwiwo/veach` is the renderer and loaders (no DOM side effects, imports in Node); `@tianyuliwiwo/veach/view` adds the `<veach-view>` custom element.
+The package is ES modules with TypeScript declarations; shaders, the tinybvh wasm and the BSDF tables are inlined, so it needs no asset configuration in any bundler. `@tianyuliwiwo/veach` is the renderer and loaders (no DOM side effects, imports in Node); `@tianyuliwiwo/veach/view` adds the `<veach-view>` custom element. `@tianyuliwiwo/veach/three` adds `ThreeAdapter`, with Three.js r186 as an optional peer dependency.
 
 See the [public API guide](docs/PublicAPI.md) for custom canvas integration, application-owned
 scene loading, environment switching, component embedding and resource cleanup.

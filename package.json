@@ -29,7 +29,11 @@
       "types": "./dist-lib/types/view/index.d.ts",
       "import": "./dist-lib/view.js"
     },
-    "./package.json": "./package.json"
+    "./package.json": "./package.json",
+    "./three": {
+      "types": "./dist-lib/types/three/index.d.ts",
+      "import": "./dist-lib/three.js"
+    }
   },
   "types": "./dist-lib/types/index.d.ts",
   "module": "./dist-lib/index.js",
@@ -40,6 +44,7 @@
     "dist-lib/*.js",
     "dist-lib/types/**/*.d.ts",
     "docs/PublicAPI.md",
+    "docs/HostIntegration.md",
     "LICENSE",
     "THIRD_PARTY_NOTICES.md",
     "licenses/*.txt"
@@ -63,7 +68,10 @@
     "dev:view": "vite --config examples/view/vite.config.ts",
     "build:view": "tsc --noEmit && vite build --config examples/view/vite.config.ts",
     "preview:view": "vite preview --config examples/view/vite.config.ts",
-    "prepack": "npm run build:lib"
+    "prepack": "npm run build:lib",
+    "dev:games": "vite --config examples/games/vite.config.ts",
+    "build:games": "tsc --noEmit && vite build --config examples/games/vite.config.ts",
+    "smoke:games": "node scripts/games-smoke.mjs"
   },
   "devDependencies": {
     "@types/three": "0.186.0",
@@ -77,5 +85,13 @@
   "dependencies": {
     "@webgpu/types": "^0.1.60",
     "oidn-webgpu": "0.6.0"
+  },
+  "peerDependencies": {
+    "three": ">=0.186.0 <0.187.0"
+  },
+  "peerDependenciesMeta": {
+    "three": {
+      "optional": true
+    }
   }
 }

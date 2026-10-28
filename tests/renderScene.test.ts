@@ -125,12 +125,13 @@ describe('persistent render scene', () => {
 		await expect(u.commit()).rejects.toThrow('material slot');
 	});
 
-	it('empty commits are no-ops and disposal is idempotent', async () => {
+	it('initializes empty scenes, then treats empty commits as no-ops; disposal is idempotent', async () => {
 		const apply = vi.fn(async () => {}), dispose = vi.fn();
 		const scene = new RenderScene(apply, dispose);
 		await scene.beginUpdate().commit();
-		expect(apply).not.toHaveBeenCalled();
-		expect(scene.revision).toBe(0);
+		await scene.beginUpdate().commit();
+		expect(apply).toHaveBeenCalledOnce();
+		expect(scene.revision).toBe(1);
 		scene.dispose(); scene.dispose();
 		expect(dispose).toHaveBeenCalledOnce();
 		expect(() => scene.beginUpdate()).toThrow('disposed');

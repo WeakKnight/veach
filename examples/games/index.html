@@ -1,0 +1,13 @@
+<!doctype html>
+<html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="icon" href="data:,"><title>Veach Arcade</title></head>
+<body><main id="app">
+<canvas id="viewport" aria-label="Game viewport"></canvas>
+<header><a class="brand" href="?game=aim"><span class="brand-icon">V</span> VEACH <small>ARCADE</small></a><nav><a href="?game=aim" data-game="aim">01 &nbsp; AIM LAB</a><a href="?game=race" data-game="race">02 &nbsp; APEX RUN</a></nav><span class="live"><i></i> LIVE RENDER</span></header>
+<section class="intro"><span class="eyebrow" id="eyebrow"></span><h1 id="title"></h1><p id="subtitle"></p></section>
+<section class="scoreboard" aria-live="polite"><div><small id="label1"></small><strong id="value1">—</strong></div><div><small id="label2"></small><strong id="value2">—</strong></div><div><small id="label3"></small><strong id="value3">—</strong></div></section>
+<div id="crosshair" aria-hidden="true"><i></i></div><div id="toast" aria-live="polite"></div>
+<aside id="map"><svg viewBox="0 0 120 120"><circle cx="60" cy="60" r="39" fill="none" stroke="#516064" stroke-width="15"/><circle cx="60" cy="60" r="39" fill="none" stroke="#bdcbc7" stroke-width="1" stroke-dasharray="3 4"/><path d="M55 99h10" stroke="#ffe09a" stroke-width="4"/><circle id="map-car" cx="60" cy="99" r="4" fill="#dcff80"/></svg><small>CIRCUIT 01</small></aside>
+<section id="overlay"><div class="card"><span class="eyebrow" id="card-tag">PREPARING YOUR SESSION</span><h2 id="card-title">Warming up the renderer</h2><p id="card-copy">Creating a world from simple geometry.</p><button id="start" disabled>LOADING…</button><div class="loading"><span id="load-progress"></span></div></div></section>
+<footer><div id="controls"></div><div class="footer-right"><button id="pause" disabled>PAUSE</button><button id="reset" disabled>RESTART</button><select id="quality" aria-label="Image quality"><option value="0.5">PERFORMANCE</option><option value="0.75">BALANCED</option><option value="1">QUALITY</option></select></div></footer>
+<div class="credit">THREE.JS HOST <span>×</span> VEACH PATH TRACING</div>
+</main><script type="module" src="./main.ts"></script></body></html>

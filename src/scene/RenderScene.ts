@@ -142,7 +142,7 @@ function texture(desc: TextureResource): TextureResource {
 	}
 	if (desc.colorSpace !== 'srgb' && desc.colorSpace !== 'linear') throw new Error('Invalid texture color space');
 	if ('data' in source) {
-		if (source.data.length !== source.width * source.height * 4) throw new Error('Texture requires RGBA8 pixels');
+		if (!(source.data instanceof Uint8Array || source.data instanceof Uint8ClampedArray) || source.data.length !== source.width * source.height * 4) throw new Error('Texture requires RGBA8 pixels');
 		return { ...desc, source: { ...source, data: source.data.slice() } };
 	}
 	return { ...desc }; // Borrow the bitmap; its lifetime stays with the application.
@@ -155,6 +155,7 @@ function material(desc: PbrMaterial): PbrMaterial {
 		if (value) {
 			finite(value, key);
 			if (value.length !== (key === 'normalScale' ? 2 : 3)) throw new Error(`Invalid ${key}`);
+			if (key !== 'normalScale' && value.some(v => v < 0)) throw new Error(`${key} must be nonnegative`);
 			Object.assign(out, { [key]: [...value] });
 		}
 	}
@@ -168,6 +169,7 @@ function material(desc: PbrMaterial): PbrMaterial {
 		const binding = desc[key];
 		if (!binding) continue;
 		finite([...(binding.offset ?? [0, 0]), ...(binding.scale ?? [1, 1]), binding.rotation ?? 0], key);
+		if ((binding.offset && binding.offset.length !== 2) || (binding.scale && binding.scale.length !== 2)) throw new Error('Texture offset and scale require two elements');
 		if (binding.texCoord !== undefined && binding.texCoord !== 0 && binding.texCoord !== 1) throw new Error('Unsupported UV channel');
 		for (const wrap of [binding.wrapU, binding.wrapV]) if (wrap && !['repeat', 'clamp', 'mirror'].includes(wrap)) throw new Error('Invalid wrap mode');
 		if (binding.channel !== undefined && ![0, 1, 2, 3].includes(binding.channel)) throw new Error('Invalid texture channel');
@@ -177,8 +179,16 @@ function material(desc: PbrMaterial): PbrMaterial {
 }
 
 function light(desc: LightDesc): LightDesc {
-	for (const key of ['position', 'direction', 'power', 'sizeU', 'sizeV'] as const) finite(desc[key], key);
+	if (!['point', 'spot', 'area'].includes(desc.type)) throw new Error('Unsupported light type');
+	for (const key of ['position', 'direction', 'power', 'sizeU', 'sizeV'] as const) {
+		if (desc[key].length !== 3) throw new Error(`Invalid light ${key}`);
+		finite(desc[key], key);
+	}
 	finite([desc.radius, desc.spotAngle, desc.spotBlend], 'light');
+	if (desc.power.some(v => v < 0) || desc.radius < 0 || desc.spotAngle < 0 || desc.spotAngle > Math.PI * 2 || desc.spotBlend < 0 || desc.spotBlend > 1) throw new Error('Invalid light power, radius or spot parameters');
+	if (desc.type !== 'point' && Math.hypot(...desc.direction) === 0) throw new Error('Light direction must be nonzero');
+	if (desc.type === 'spot' && desc.spotAngle === 0) throw new Error('Spot angle must be positive');
+	if (desc.type === 'area' && (Math.hypot(...desc.sizeU) === 0 || Math.hypot(...desc.sizeV) === 0)) throw new Error('Area light extents must be nonzero');
 	return { ...desc, position: [...desc.position], direction: [...desc.direction], power: [...desc.power], sizeU: [...desc.sizeU], sizeV: [...desc.sizeV] };
 }
 
@@ -323,7 +333,7 @@ export class SceneUpdate {
 			for (const desc of this.materials.values()) for (const key of textureKeys) {
 				if (desc[key]) requireValue(this.textures, desc[key].texture, 'texture');
 			}
-			if (Object.values(this.changes).some(set => set.size > 0)) {
+			if (this.previous.revision === 0 || Object.values(this.changes).some(set => set.size > 0)) {
 				await this.apply({ geometries: this.geometries, textures: this.textures, materials: this.materials, instances: this.instances, lights: this.lights, revision: this.previous.revision + 1 }, this.changes);
 			}
 		} finally { this.finish(); }
