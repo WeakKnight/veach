@@ -21,8 +21,11 @@ const ENTRIES = ['Initialize', 'Intersect', 'IntersectOpaque', 'Shade', 'Shadow'
 	'CompactIntersectAdaptive', 'CompactShadeAdaptive', 'CompactShadeSpatial', 'CompactIntersectPacket', 'CompactShadePacket',
 	'SortMaterial64', 'SortProgram64', 'SortMaterial256', 'SortProgram256',
 	'SortDirection64', 'SortDirection256',
+	'ShadePrimary', 'ShadeSecondary', 'ShadeLate', 'ShadePrimaryLate', 'ShadeSecondaryLate',
+	'ShadePrimaryDirect', 'ShadeSecondaryDirect', 'ShadeLateDirect', 'ShadePrimaryLateDirect', 'ShadeSecondaryLateDirect',
 	'ShadowOpaqueParallel', 'ShadowOpaqueParallelDirect', 'ShadowOpaqueParallelSky', 'ShadowOpaqueParallelSkyDirect'] as const;
 type Entry = typeof ENTRIES[number];
+type ShadeMode = 'unified' | 'split' | 'late' | 'split-late';
 
 export class Wavefront {
 	// Experimental tuning knob for the benchmark; keep the fully staged default until measured.
@@ -40,6 +43,8 @@ export class Wavefront {
 	raySortSize: 0 | 64 | 256 = 0;
 	// Generate exact 256-slot sort bounds in the existing work header.
 	sortIndirect = false;
+	// Separate primary AOV writes and/or defer unrelated state loads until after SVM.
+	shadeMode: ShadeMode = 'unified';
 	// Restore physical 8x8 path neighborhoods after shading; adaptive compaction only.
 	spatialQueues = false;
 	// Alpha traversal retains serial feedback/RNG ordering; only opaque scenes opt in.
@@ -92,13 +97,32 @@ export class Wavefront {
 	}
 
 	async prepareStack(capacity: MaterialStackCapacity, opcodes: MaterialOpcodeMask = ALL_MATERIAL_OPCODES, operandMode = 0): Promise<void> {
+		await this.prepareShadeMode(this.shadeMode, capacity, opcodes, operandMode);
+	}
+
+	// Prepare before publishing a new mode, so a renderer can keep drawing during compilation.
+	async prepareShadeMode(mode: ShadeMode, capacity: MaterialStackCapacity, opcodes: MaterialOpcodeMask = ALL_MATERIAL_OPCODES, operandMode = 0): Promise<void> {
+		if (!['unified', 'split', 'late', 'split-late'].includes(mode)) throw new Error('Invalid shade mode');
+		await this.prepareStageGroup('unified', capacity, opcodes, operandMode);
+		if (mode !== 'unified') await this.prepareStageGroup(mode, capacity, opcodes, operandMode);
+	}
+
+	private async prepareStageGroup(mode: ShadeMode, capacity: MaterialStackCapacity, opcodes: MaterialOpcodeMask, operandMode: number): Promise<void> {
 		if (this.destroyed) throw new Error('Wavefront has been destroyed');
 		const key = materialPipelineKey(capacity, opcodes, operandMode);
-		if (this.pipelines.has(key)) return;
-		let pending = this.compiling.get(key);
+		const compilationKey = `${key}/${mode}`;
+		let pending = this.compiling.get(compilationKey);
 		if (!pending) {
 			const module = this.device.createShaderModule({ label: 'Wavefront', code: specializeMaterialShader(wavefrontWgsl, 'Wavefront', capacity) });
-			pending = Promise.all(ENTRIES.filter(entry => !entry.endsWith('Subgroup') || this.compactSubgroupModule).map(async entryPoint => {
+			const selected = ENTRIES.filter(entry => {
+				const phase = entry.replace(/Direct$/, '');
+				const experimental = phase.startsWith('Shade') && phase !== 'Shade';
+				if (mode === 'unified') return !experimental && (!entry.endsWith('Subgroup') || this.compactSubgroupModule);
+				if (mode === 'late') return phase === 'ShadeLate';
+				const suffix = mode === 'split-late' ? 'Late' : '';
+				return phase === `ShadePrimary${suffix}` || phase === `ShadeSecondary${suffix}`;
+			});
+			pending = Promise.all(selected.map(async entryPoint => {
 				const compact = entryPoint.startsWith('Compact');
 				const sort = entryPoint.startsWith('Sort');
 				const shader = entryPoint.startsWith('ShadowOpaqueParallel') ? this.shadowModule
@@ -108,19 +132,21 @@ export class Wavefront {
 					: entryPoint.endsWith('Adaptive') ? this.compactAdaptiveModule
 					: entryPoint.endsWith('Spatial') ? this.compactSpatialModule
 					: entryPoint.endsWith('Subgroup') ? this.compactSubgroupModule! : compact ? this.compactModule : module;
-				const usesMaterial = ['Shade', 'ShadeDirect', 'Tail', 'TailOpaque', 'Intersect', 'IntersectDirect', 'Shadow', 'ShadowDirect'].includes(entryPoint);
+				const usesMaterial = entryPoint.startsWith('Shade') || ['Tail', 'TailOpaque', 'Intersect', 'IntersectDirect', 'Shadow', 'ShadowDirect'].includes(entryPoint);
 				const pipeline = await this.device.createComputePipelineAsync({ label: `wavefront.${entryPoint}.stack${capacity}`, layout: this.pipelineLayout,
 					compute: { module: shader, entryPoint: sort ? entryPoint.replace(/64|256/g, '') : compact ? entryPoint.replace(/Dense|Subgroup|Adaptive|Packet|Spatial/g, '') : entryPoint,
 						constants: usesMaterial ? materialPipelineConstants(capacity, opcodes, operandMode) : undefined } });
 				return [entryPoint, pipeline] as const;
 			})).then(entries => {
 				if (this.destroyed) throw new Error('Wavefront has been destroyed');
-				this.pipelines.set(key, new Map(entries));
+				const pipelines = this.pipelines.get(key) ?? new Map<Entry, GPUComputePipeline>();
+				for (const [entry, pipeline] of entries) pipelines.set(entry, pipeline);
+				this.pipelines.set(key, pipelines);
 			}).catch(error => {
-				this.compiling.delete(key);
+				this.compiling.delete(compilationKey);
 				throw error;
 			});
-			this.compiling.set(key, pending);
+			this.compiling.set(compilationKey, pending);
 		}
 		await pending;
 	}
@@ -151,6 +177,7 @@ export class Wavefront {
 		const direct = directStages === 7;
 		if (this.spatialQueues && (this.compaction !== 'adaptive' || direct)) throw new Error('Spatial queues require adaptive compaction');
 		if (!['serial', 'parallel', 'parallel-auto'].includes(this.shadowMode)) throw new Error('Invalid shadow mode');
+		if (!['unified', 'split', 'late', 'split-late'].includes(this.shadeMode)) throw new Error('Invalid shade mode');
 		if (!['none', 'material', 'program'].includes(this.sort) || ![64, 256].includes(this.sortSize)) throw new Error('Invalid shading sort');
 		if (this.sort !== 'none' && (directStages & 2) !== 0) throw new Error('Shading sort requires queued shading');
 		if (![0, 64, 256].includes(this.raySortSize)) throw new Error('Invalid ray sort size');
@@ -197,6 +224,8 @@ export class Wavefront {
 					: !hasAlphaTested && (entry === 'Intersect' || entry === 'Shadow' || entry === 'Tail') ? `${entry}Opaque` as Entry : entry;
 				if (pipeline === 'ShadowOpaque' && this.shadowMode !== 'serial')
 					pipeline = this.shadowMode === 'parallel-auto' && lightCount === 0 ? 'ShadowOpaqueParallelSky' : 'ShadowOpaqueParallel';
+				if (entry === 'Shade' && this.shadeMode !== 'unified')
+					pipeline = `Shade${this.shadeMode.startsWith('split') ? (bounce === 0 ? 'Primary' : 'Secondary') : ''}${this.shadeMode.endsWith('late') ? 'Late' : ''}` as Entry;
 				if (directStage) pipeline = `${pipeline}Direct` as Entry;
 				pass.setPipeline(pipelines.get(pipeline)!);
 				pass.setBindGroup(0, scene);

@@ -118,6 +118,16 @@ retaining the eight-storage-buffer limit. Its group 1 adds a dynamic uniform at 
 for tile origin, path count, bounce, capacity, experimental tail threshold, packet stage mask,
 and optional sort group size (seven uints in a 32-byte binding).
 Presentation reads only the image prefix.
+Experimental shading entries select unified, primary/continuation split, delayed path loads,
+or both (`Wavefront.shadeMode`). The split continuation entry preserves AOVs in storage:
+it updates field 5.w (cone spread) without writing albedo or field 6 (normal).
+Delayed entries initially load only active/direction/cone data and load the remaining path
+state after material evaluation. These entries share the existing layout and material
+specialization constants; no path fields, uniforms or storage bindings are added.
+Default preparation excludes the experimental shading pipelines. `prepareShadeMode` prepares
+only the requested entries before the host changes `shadeMode`; concurrent preparations share
+a promise, failed groups can retry, and completed groups merge into the material pipeline cache.
+Preparing another scene capacity also prepares the currently selected shading mode.
 GPU compaction views that allocation as atomic uints in its own pass; dispatch arguments
 are copied into a 48-byte COPY_DST | INDIRECT buffer. Its third record optionally supplies
 exact 256-slot sort bounds from the existing work header; no storage binding is added.

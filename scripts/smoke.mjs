@@ -54,6 +54,13 @@ if (integratorFlag >= 0) {
 	only.splice(integratorFlag, 2);
 }
 const wavefrontTuning = {};
+const shadeFlag = only.indexOf('--shade-mode');
+if (shadeFlag >= 0) {
+	const mode = only[shadeFlag + 1];
+	if (integrator !== 'wavefront' || !['unified', 'split', 'late', 'split-late'].includes(mode)) throw new Error('Invalid --shade-mode');
+	wavefrontTuning.shadeMode = mode;
+	only.splice(shadeFlag, 2);
+}
 const opaqueFlag = only.indexOf('--opaque-megakernel');
 const opaqueMegakernel = opaqueFlag >= 0;
 if (opaqueMegakernel) only.splice(opaqueFlag, 1);
@@ -208,8 +215,10 @@ try {
 				// The first frame proves initial scene loading is complete. Empty scenes need
 				// no wavefront kernels; geometry scenes must receive tuning after preparation.
 				await page.waitForFunction(() => globalThis.veach?.samples > 0, { timeout: 120000 });
-				await page.evaluate(tuning => {
-					if (globalThis.veach.tracer.wavefront) Object.assign(globalThis.veach.tracer.wavefront, tuning);
+				await page.evaluate(async tuning => {
+					const tracer = globalThis.veach.tracer;
+					if (tracer.wavefront && tuning.shadeMode) await tracer.wavefront.prepareShadeMode(tuning.shadeMode, tracer.materialCapacity, tracer.materialOpcodes, tracer.boundMaterialOperandMode);
+					if (tracer.wavefront) Object.assign(tracer.wavefront, tuning);
 					globalThis.veach.resetAccumulation();
 				}, wavefrontTuning);
 			}

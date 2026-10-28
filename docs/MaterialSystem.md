@@ -97,6 +97,13 @@ Non-goals (for now): closure graphs (`mix` / `add` / `layer` of pbrlib BSDFs, Cy
 Shader), OSL, displacement, volumes beyond the OpenPBR interior medium, running the MaterialX C++
 library at runtime. An experimental wavefront integrator now evaluates the same bytecode
 in a separate shading stage; see [Wavefront.md](Wavefront.md).
+Experimental `shadeMode` values `split`, `late` and `split-late` independently test
+primary/continuation AOV specialization and loading unrelated path state after SVM evaluation.
+The interpreter and bytecode are identical. Delayed loads move absorption application after
+material evaluation but before BSDF construction; the material evaluator neither consumes
+throughput nor writes path storage. The generated WGSL confirms this ordering and a scalar
+cone-spread store for continuation shading. Hardware register allocation is not measured
+by these source-level checks, and the default remains `unified` pending paired timings.
 Its optional chunk sorter groups shading paths by material index or shared surface-program
 offset. Programs with different constant pools can share the latter key because the bytecode
 block is deduplicated independently from constants; neither format nor interpreter changes.

@@ -25,6 +25,26 @@ Standard smoke cases additionally cover alpha masking/blending and other BSDF fe
 
 ## Measurement
 
+`--shade-mode unified|split|late|split-late` selects experimental shading entries.
+`--shade-sweep --paired --mode wavefront --balanced-order --repeats 5` compares the
+general megakernel, unified wavefront and the three candidates in balanced positions.
+The sweep uses 64 untimed warmup frames per variant. `split` compiles primary and
+continuation shading separately and avoids loading/storing continuation albedo and normal.
+`late` loads active/direction/cones first, evaluates the material, then loads the full path
+and applies absorption before BSDF construction. `split-late` combines both changes.
+Tail entries retain the unified path. The benchmark and correctness harness verify the
+actual shading pipeline against the pass bounce and direct/queued dispatch configuration;
+reports preserve bound pipeline labels and mode. The correctness harness compares all
+three output float4s (HDR and AOVs), including multi-tile and partial-workgroup cases.
+These are liveness experiments, not evidence of a particular hardware register count.
+Experimental pipelines compile only when requested via `prepareShadeMode`, before the host
+publishes the new mode; default preparation retains only the original shading entries.
+The split modes add four pipelines (primary/continuation, queued/direct), and late-only adds
+two. Prepared groups share concurrent requests and reject publication after destruction.
+The expanded WGSL module is shared, so this removes unused pipeline compilation but does not
+remove module download/parsing overhead. The library build's wavefront chunk grows from
+700.59 kB (81.48 kB gzip) to approximately 742 kB (87 kB gzip).
+
 `node scripts/wavefront-benchmark.mjs --out .tools/wavefront/baseline` runs all five.
 Optional arguments: `--mode`, `--only` (comma-separated names), `--width`, `--height`,
 `--samples`, `--repeats`, `--warmup`, `--bounces`, and `--scenes`.
@@ -1358,11 +1378,37 @@ traversal specialization; they must not all be attributed to wavefront/register 
 The original-material and stress runs together provide 120 exact HDR comparisons, with
 source hashes, actual pipeline/capacity checks and two balanced ordering cycles per run.
 
-Next experiments target shading-state liveness: retain primary albedo/normal without
-reloading/rewriting them on every continuation, and delay unrelated path-state loads until
-after SVM evaluation. Current generated WGSL loads WavefrontPath before EvalMaterial, but
-the native backend's register allocation remains unknown. Any benefit must be established
-by separate variants and complete GPU span measurements, with unchanged AOVs and HDR output.
+## Shading-state liveness experiment
+
+The `split`, `late` and `split-late` modes described above are implemented with unchanged
+bytecode, estimator arithmetic, RNG sequence and work storage. Generated WGSL confirms
+that continuation entries do not load albedo/normal and write only field 5.w for cone spread;
+delayed entries call EvalMaterial before LoadPath and absorption multiplication. This is
+source-level liveness evidence, not a measured hardware register count.
+
+Validation: shader generation, 208 unit tests, type checking and library build pass.
+Three preparation tests cover default exclusion of experimental entries, requested-phase
+caching across capacities, concurrent requests, destruction during compilation and retry.
+GPU comparisons against the forced-16-slot general megakernel all have maximum error zero
+across the full HDR/albedo/normal output buffer:
+
+- `correctness-tail-999-0-adaptive-shade-split-late-operands-0`: 46 cases, including all
+  material features, constant-only and empty scenes, clamps, partial workgroups and multiple tiles.
+- `correctness-tail-999-0-selected-subgroup-shade-late-operands-0`: 16 cases covering alpha,
+  procedural, analytic-light and eight-layer stress materials with the delayed mode alone.
+- `correctness-tail-2-0-selected-adaptive-shade-split-operands-0`: the same 16 cases with
+  split shading and a fused tail starting at bounce 2.
+- `correctness-tail-999-0-selected-adaptive-dispatch-sweep-shade-split-late-operands-0`:
+  36 cases spanning all eight direct-stage masks with alpha and procedural materials.
+- `correctness-tail-999-0-selected-packet-packet-sweep-shade-split-late-operands-0`:
+  36 cases spanning all eight packet-stage masks with analytic and procedural materials.
+
+These 150 comparisons record actual bound phase pipelines. The full 46-case run precedes
+the host-only lazy preparation refactor; the other 104 cases exercise the final preparation
+path. Shader sources/generated output are identical across those runs. The default remains
+unified pending complete paired GPU span measurements.
+`npm run smoke -- --integrator wavefront --shade-mode split-late helmet-hdr alpha transmission`
+passes all three 64-spp renders without GPU/console errors; all three screenshots were inspected.
 
 ## Work storage layout
 

@@ -74,7 +74,7 @@ void LoadFeedbackState(uint base)
 	gVTRandom = state.z;
 }
 
-WavefrontPath LoadPath(uint base)
+WavefrontPath LoadPath<let AOV : bool = true>(uint base)
 {
 	WavefrontPath s;
 	float4 a = gAccum[base], b = gAccum[Field(base, 1u)], c = gAccum[Field(base, 2u)];
@@ -84,21 +84,36 @@ WavefrontPath LoadPath(uint base)
 	s.path.origin = c.xyz; s.path.scatterPdf = c.w;
 	s.path.direction = d.xyz; s.path.lightsSampled = asuint(d.w) != 0u;
 	s.path.absorption = e.xyz; s.path.coneWidth = e.w;
-	s.albedo = f.xyz; s.path.coneSpread = f.w;
-	s.normal = gAccum[Field(base, 6u)].xyz;
+	s.albedo = AOV ? f.xyz : float3(0.0); s.path.coneSpread = f.w;
+	s.normal = AOV ? gAccum[Field(base, 6u)].xyz : float3(0.0);
 	s.path.lobe = 0u; // last-lobe identity is already encoded in cone spread / NEE state
 	return s;
 }
 
-void StorePath(uint base, WavefrontPath s)
+// Material evaluation needs only the incoming direction and texture footprint.
+WavefrontPath LoadShadingPath(uint base)
+{
+	WavefrontPath s = {};
+	s.active = asuint(gAccum[base].w);
+	s.path.direction = gAccum[Field(base, 3u)].xyz;
+	s.path.coneWidth = gAccum[Field(base, 4u)].w;
+	s.path.coneSpread = gAccum[Field(base, 5u)].w;
+	return s;
+}
+
+void StorePath<let AOV : bool = true>(uint base, WavefrontPath s)
 {
 	gAccum[base] = float4(s.path.radiance, asfloat(s.active));
 	gAccum[Field(base, 1u)] = float4(s.path.throughput, asfloat(s.randomSeed));
 	gAccum[Field(base, 2u)] = float4(s.path.origin, s.path.scatterPdf);
 	gAccum[Field(base, 3u)] = float4(s.path.direction, asfloat(uint(s.path.lightsSampled)));
 	gAccum[Field(base, 4u)] = float4(s.path.absorption, s.path.coneWidth);
-	gAccum[Field(base, 5u)] = float4(s.albedo, s.path.coneSpread);
-	gAccum[Field(base, 6u)] = float4(s.normal, 0.0);
+	if (AOV)
+	{
+		gAccum[Field(base, 5u)] = float4(s.albedo, s.path.coneSpread);
+		gAccum[Field(base, 6u)] = float4(s.normal, 0.0);
+	}
+	else gAccum[Field(base, 5u)].w = s.path.coneSpread;
 }
 
 [shader("compute")]
@@ -199,7 +214,7 @@ void IntersectImpl<let ALPHA : bool, let DIRECT : bool>(uint3 tid)
 	if (ALPHA) StoreFeedbackState(base);
 }
 
-void QueueDirectLighting(uint base, SurfaceInteraction si, BSDF bsdf, float2 cone, float3 throughput, uint bounce, inout RandomSequence rng)
+void QueueDirectLighting(uint base, SurfaceInteraction si, BSDF bsdf, float2 cone, float3 throughput, bool primary, inout RandomSequence rng)
 {
 	uint mask = 0u;
 	gRayCone = cone;
@@ -253,19 +268,27 @@ void QueueDirectLighting(uint base, SurfaceInteraction si, BSDF bsdf, float2 con
 		}
 	}
 	// Clamp the sum of direct contributions, matching the megakernel exactly.
-	gAccum[Field(base, 10u)] = float4(throughput, bounce > 0u ? gFrame.envParams.w / gFrame.envParams.z : 0.0);
+	gAccum[Field(base, 10u)] = float4(throughput, primary ? 0.0 : gFrame.envParams.w / gFrame.envParams.z);
 	gAccum[Field(base, 11u)] = float4(cone, asfloat(mask), 0.0);
 }
 
-void ShadePath<let DEFERRED : bool, let ALPHA : bool>(uint base, inout WavefrontPath s, HitRecord hit, uint bounce)
+// PHASE: dynamic 0, primary 1, continuation 2. Tail retains the dynamic reference.
+void ShadePath<let DEFERRED : bool, let ALPHA : bool, let PHASE : uint = 0u, let LATE_PATH : bool = false>(uint base, inout WavefrontPath s, HitRecord hit, uint bounce)
 {
-	if (any(s.path.absorption > 0.0)) s.path.throughput *= exp(s.path.absorption * -hit.t);
+	if (!LATE_PATH && any(s.path.absorption > 0.0)) s.path.throughput *= exp(s.path.absorption * -hit.t);
 	float hitConeWidth = s.path.coneWidth + s.path.coneSpread * hit.t;
 	SurfaceInteraction si = GetSurfaceInteraction(s.path.direction, hit, hitConeWidth);
 	float3 V = -s.path.direction;
 	MaterialSample ms = EvalMaterial(si, V);
+	if (LATE_PATH)
+	{
+		// EvalMaterial does not mutate path storage; no other lane owns this path.
+		s = LoadPath<PHASE != 2u>(base);
+		if (any(s.path.absorption > 0.0)) s.path.throughput *= exp(s.path.absorption * -hit.t);
+	}
 	BSDF bsdf = BSDF(ms.inputs, V, s.path.throughput, BSDF_RGB_WAVELENGTHS, 1.0);
-	if (bounce == 0u)
+	bool primary = PHASE == 1u || (PHASE == 0u && bounce == 0u);
+	if (primary)
 	{
 		s.albedo = ms.albedo;
 		s.normal = si.frontFacing ? ms.inputs.basis.n : -ms.inputs.basis.n;
@@ -275,7 +298,7 @@ void ShadePath<let DEFERRED : bool, let ALPHA : bool>(uint base, inout Wavefront
 	if (any(bsdf.emission > 0.0))
 	{
 		float mis = 1.0;
-		if (bounce > 0u && s.path.lightsSampled)
+		if (!primary && s.path.lightsSampled)
 		{
 			Instance inst = gInstances[si.instanceIndex];
 			float pdf = EmissiveHitPdf(inst, si.primitiveIndex, s.path.origin, si.position);
@@ -283,7 +306,7 @@ void ShadePath<let DEFERRED : bool, let ALPHA : bool>(uint base, inout Wavefront
 		}
 		float3 contribution = s.path.throughput * mis * bsdf.emission;
 		float clampValue = gFrame.envParams.w / gFrame.envParams.z;
-		if (clampValue > 0.0 && bounce > 0u) contribution = min(contribution, float3(clampValue));
+		if (clampValue > 0.0 && !primary) contribution = min(contribution, float3(clampValue));
 		s.path.radiance += contribution;
 	}
 	if (bounce == gFrame.settings.x) return;
@@ -294,13 +317,13 @@ void ShadePath<let DEFERRED : bool, let ALPHA : bool>(uint base, inout Wavefront
 	{
 		if (DEFERRED)
 		{
-			QueueDirectLighting(base, si, bsdf, float2(hitConeWidth, s.path.coneSpread), s.path.throughput, bounce, rng);
+			QueueDirectLighting(base, si, bsdf, float2(hitConeWidth, s.path.coneSpread), s.path.throughput, primary, rng);
 		}
 		else
 		{
 			float3 direct = s.path.throughput * NextEventEstimation<ALPHA>(si, bsdf, float2(hitConeWidth, s.path.coneSpread), rng);
 			float clampValue = gFrame.envParams.w / gFrame.envParams.z;
-			if (clampValue > 0.0 && bounce > 0u) direct = min(direct, float3(clampValue));
+			if (clampValue > 0.0 && !primary) direct = min(direct, float3(clampValue));
 			s.path.radiance += direct;
 		}
 	}
@@ -327,22 +350,24 @@ void ShadePath<let DEFERRED : bool, let ALPHA : bool>(uint base, inout Wavefront
 	s.active = 1u;
 }
 
-void ShadeImpl<let DIRECT : bool>(uint3 tid)
+void ShadeImpl<let DIRECT : bool, let PHASE : uint = 0u, let LATE_PATH : bool = false>(uint3 tid)
 {
 	uint count = DIRECT ? gWavefront.pathCount : asuint(gAccum[HeaderBase()].z);
 	if (tid.x >= count) return;
 	uint index = DIRECT ? tid.x : QueueIndex(ShadeQueueBase(), tid.x);
 	uint base = WorkBase(index);
 	gAccum[Field(base, 11u)] = float4(0.0);
-	WavefrontPath s = LoadPath(base);
+	WavefrontPath s;
+	if (LATE_PATH) s = LoadShadingPath(base);
+	else s = LoadPath<PHASE != 2u>(base);
 	if (s.active == 0u) return;
 	LoadFeedbackState(base);
 	float4 h = gAccum[Field(base, 8u)];
 	HitRecord hit;
 	hit.t = h.x; hit.barycentrics = h.yz; hit.instanceIndex = asuint(h.w);
 	hit.primitiveIndex = asuint(gAccum[Field(base, 9u)].x);
-	ShadePath<true, true>(base, s, hit, gWavefront.bounce);
-	StorePath(base, s);
+	ShadePath<true, true, PHASE, LATE_PATH>(base, s, hit, PHASE == 1u ? 0u : gWavefront.bounce);
+	StorePath<PHASE != 2u>(base, s);
 	StoreFeedbackState(base);
 }
 
@@ -353,6 +378,23 @@ void Shade(uint3 tid : SV_DispatchThreadID) { ShadeImpl<false>(tid); }
 [shader("compute")]
 [numthreads(64, 1, 1)]
 void ShadeDirect(uint3 tid : SV_DispatchThreadID) { ShadeImpl<true>(tid); }
+
+#define SHADE_ENTRY(NAME, DIRECT, PHASE, LATE) \
+[shader("compute")] \
+[numthreads(64, 1, 1)] \
+void NAME(uint3 tid : SV_DispatchThreadID) { ShadeImpl<DIRECT, PHASE, LATE>(tid); }
+
+SHADE_ENTRY(ShadePrimary, false, 1u, false)
+SHADE_ENTRY(ShadeSecondary, false, 2u, false)
+SHADE_ENTRY(ShadeLate, false, 0u, true)
+SHADE_ENTRY(ShadePrimaryLate, false, 1u, true)
+SHADE_ENTRY(ShadeSecondaryLate, false, 2u, true)
+SHADE_ENTRY(ShadePrimaryDirect, true, 1u, false)
+SHADE_ENTRY(ShadeSecondaryDirect, true, 2u, false)
+SHADE_ENTRY(ShadeLateDirect, true, 0u, true)
+SHADE_ENTRY(ShadePrimaryLateDirect, true, 1u, true)
+SHADE_ENTRY(ShadeSecondaryLateDirect, true, 2u, true)
+#undef SHADE_ENTRY
 
 // Finish sparse tail paths without repeatedly materializing state and launching stages.
 // The shared intersection/shading helpers preserve the staged estimator and random sequence.
