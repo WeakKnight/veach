@@ -26,8 +26,8 @@ if (![0, 1, 2, 3, 4, 5, 6, 7].includes(operandMode)) throw new Error('Invalid op
 const shadeBuckets = process.argv.includes('--shade-buckets');
 const bucketModeOption = process.argv.indexOf('--bucket-mode');
 const shadeBucketMode = bucketModeOption < 0 ? 'scan' : process.argv[bucketModeOption + 1];
-if (!['scan', 'compact'].includes(shadeBucketMode)) throw new Error('Invalid bucket mode');
-if (shadeBuckets && shadeBucketMode === 'compact' && (compaction === 'none' || (directStages & 2) !== 0)) throw new Error('Compact buckets require queued shading');
+if (!['scan', 'compact', 'material'].includes(shadeBucketMode)) throw new Error('Invalid bucket mode');
+if (shadeBuckets && shadeBucketMode !== 'scan' && (compaction === 'none' || (directStages & 2) !== 0)) throw new Error('Compact buckets require queued shading');
 const shadeOption = process.argv.indexOf('--shade-mode');
 const shadeMode = shadeOption < 0 ? 'unified' : process.argv[shadeOption + 1];
 if (!['unified', 'split', 'late', 'split-late'].includes(shadeMode)) throw new Error('Invalid shade mode');
@@ -60,7 +60,7 @@ if (dispatchSweep && compaction === 'none') throw new Error('Dispatch sweep requ
 if (!['dense', 'queued', 'subgroup', 'adaptive', 'packet', 'none'].includes(compaction)) throw new Error('Invalid compaction mode');
 if ((compaction === 'none' || compaction === 'packet' || directStages === 7) && tailThreshold !== 0) throw new Error('Direct/packet dispatch supports fixed tails only');
 if (!Number.isInteger(tailStart) || tailStart < 0) throw new Error('Invalid tail start');
-const output = join(root, `.tools/wavefront/correctness-tail-${tailStart}-${tailThreshold}${only.length ? '-selected' : ''}${disableSubgroups ? '-no-subgroups' : ''}-${compaction}${packetSweep ? '-packet-sweep' : packetStages !== 7 ? `-packet-${packetStages}` : ''}${dispatchSweep ? '-dispatch-sweep' : directStages ? `-direct-${directStages}` : ''}${sort !== 'none' ? `-sort-${sort}-${sortSize}` : ''}${raySortSize ? `-rays-${raySortSize}` : ''}${sortIndirect ? '-sort-indirect' : ''}${spatialQueues ? '-spatial' : ''}${opaqueMegakernel ? '-opaque' : ''}${shadeBuckets ? `-buckets${shadeBucketMode === 'compact' ? '-compact' : ''}` : ''}-shade-${shadeMode}-operands-${operandMode}${shadowMode !== 'serial' ? `-shadow-${shadowMode}` : ''}`);
+const output = join(root, `.tools/wavefront/correctness-tail-${tailStart}-${tailThreshold}${only.length ? '-selected' : ''}${disableSubgroups ? '-no-subgroups' : ''}-${compaction}${packetSweep ? '-packet-sweep' : packetStages !== 7 ? `-packet-${packetStages}` : ''}${dispatchSweep ? '-dispatch-sweep' : directStages ? `-direct-${directStages}` : ''}${sort !== 'none' ? `-sort-${sort}-${sortSize}` : ''}${raySortSize ? `-rays-${raySortSize}` : ''}${sortIndirect ? '-sort-indirect' : ''}${spatialQueues ? '-spatial' : ''}${opaqueMegakernel ? '-opaque' : ''}${shadeBuckets ? `-buckets${shadeBucketMode !== 'scan' ? `-${shadeBucketMode}` : ''}` : ''}-shade-${shadeMode}-operands-${operandMode}${shadowMode !== 'serial' ? `-shadow-${shadowMode}` : ''}`);
 mkdirSync(output, { recursive: true });
 const chrome = [process.env.CHROME_PATH, 'C:/Program Files/Google/Chrome/Application/chrome.exe',
 	'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe', '/usr/bin/google-chrome', '/usr/bin/chromium'].find(p => p && existsSync(p));
@@ -307,6 +307,88 @@ try {
 				}
 			} finally { for (const { buffer } of captures) buffer.destroy(); }
 		}
+		async function renderMaterialBucketCheckedFrame() {
+			const captures = [], begin = GPUCommandEncoder.prototype.beginComputePass;
+			let current = null;
+			GPUCommandEncoder.prototype.beginComputePass = function(descriptor = {}) {
+				const label = descriptor.label ?? '', partition = /^wavefront\.(CountMaterials|PrefixMaterials|ScatterMaterials)\.b/.exec(label);
+				const shade = /^wavefront\.ShadeBucketCompact(\d+)\.b/.exec(label);
+				if (!partition && !shade) return begin.call(this, descriptor);
+				if (partition?.[1] === 'CountMaterials') {
+					const cap = r.tracer.wavefront.capacity(r.tracer.width * r.tracer.height), header = r.tracer.width * r.tracer.height * 48;
+					const queueA = header + 48 + cap * 336, stride = Math.ceil(cap / 4) * 16, metadataBytes = 96 + materialHeaderCount * 16;
+					const buffer = r.device.createBuffer({ size: 64 + cap * 40 + metadataBytes, usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ });
+					current = { buffer, cap, queueA, stride, metadataBytes, ops: [] }; captures.push(current);
+					this.copyBufferToBuffer(r.tracer.accumulation, header, buffer, 0, 48);
+					this.copyBufferToBuffer(r.tracer.accumulation, header + 48, buffer, 48, cap * 16);
+					this.copyBufferToBuffer(r.tracer.accumulation, header + 48 + cap * 128, buffer, 48 + cap * 16, cap * 16);
+					this.copyBufferToBuffer(r.tracer.accumulation, queueA + stride, buffer, 48 + cap * 32, cap * 4);
+					this.copyBufferToBuffer(r.tracer.wavefront.indirect, 0, buffer, 48 + cap * 40 + metadataBytes, 16);
+				}
+				check(current !== null, 'Material stage without CountMaterials');
+				const capture = current, { buffer, cap, queueA, stride, metadataBytes } = capture;
+				const pass = begin.call(this, descriptor), end = pass.end.bind(pass), encoder = this;
+				const direct = pass.dispatchWorkgroups.bind(pass), indirect = pass.dispatchWorkgroupsIndirect.bind(pass), stage = partition?.[1] ?? 'Shade';
+				pass.dispatchWorkgroups = (x, y = 1, z = 1) => { capture.ops.push({ stage, x, y, z }); direct(x, y, z); };
+				pass.dispatchWorkgroupsIndirect = (args, offset) => {
+					check(args === r.tracer.wavefront.indirect, 'Wrong material indirect buffer');
+					capture.ops.push({ stage, offset, capacity: shade ? Number(shade[1]) : null }); indirect(args, offset);
+				};
+				if (stage === 'ScatterMaterials') pass.end = () => {
+					end();
+					encoder.copyBufferToBuffer(r.tracer.accumulation, queueA + 2 * stride, buffer, 48 + cap * 36, cap * 4);
+					encoder.copyBufferToBuffer(r.tracer.accumulation, queueA + 3 * stride, buffer, 48 + cap * 40, metadataBytes);
+				};
+				return pass;
+			};
+			try {
+				if (sort !== 'none' || raySortSize !== 0) await renderSortCheckedFrame();
+				else { r.renderFrame(); await r.device.queue.onSubmittedWorkDone(); }
+			} finally { GPUCommandEncoder.prototype.beginComputePass = begin; }
+			try {
+				for (const { buffer, cap, metadataBytes, ops } of captures) {
+					await buffer.mapAsync(GPUMapMode.READ);
+					const data = buffer.getMappedRange(), count = new Uint32Array(data, 0, 12)[2];
+					const active = new Uint32Array(data, 48, cap * 4), hit = new Uint32Array(data, 48 + cap * 16, cap * 4);
+					const input = new Uint32Array(data, 48 + cap * 32, cap), output = new Uint32Array(data, 48 + cap * 36, cap);
+					const metadata = new Uint32Array(data, 48 + cap * 40, metadataBytes / 4), args = new Uint32Array(data, 48 + cap * 40 + metadataBytes, 4);
+					check(count <= cap && args[0] * 64 >= count && args[1] === 1 && args[2] === 1, 'Invalid material partition input dispatch');
+					const expected = new Map(), seen = new Set();
+					for (let i = 0; i < count; i++) {
+						const path = input[i]; check(path < cap, 'Invalid material input path');
+						if (active[path * 4 + 3] === 0) continue;
+						check(!expected.has(path), 'Duplicate material input path'); expected.set(path, i);
+					}
+					let total = 0;
+					for (let material = 0; material < materialHeaderCount; material++) {
+						const base = 24 + material * 4, size = metadata[base], offset = metadata[base + 1], cursor = metadata[base + 2];
+						check(offset === total && cursor === size && total + size <= cap, 'Invalid material count/prefix/cursor');
+						if (materialHeaderCount === 256 && size > 0) {
+							const boundary = [63, 64, 127, 254, 255].indexOf(material);
+							if (boundary >= 0) bucketVerification.boundaryMask = (bucketVerification.boundaryMask ?? 0) | (1 << boundary);
+						}
+						const groupLast = new Map();
+						for (let i = offset; i < offset + size; i++) {
+							const path = output[i];
+							check(expected.has(path) && !seen.has(path) && sortMaterialOf[hit[path * 4 + 3]] === material, 'Wrong material membership or duplicate path');
+							seen.add(path);
+							const position = expected.get(path), group = Math.floor(position / 64);
+							check(position > (groupLast.get(group) ?? -1), 'Material scatter lost local ordering'); groupLast.set(group, position);
+						}
+						total += size; bucketVerification.emptyBuckets += Number(size === 0);
+					}
+					check(total === expected.size && seen.size === expected.size, 'Material partition omitted paths');
+					for (let bucket = 0; bucket < 6; bucket++) check(metadata[bucket * 4] === total && metadata[bucket * 4 + 1] === 0, 'Invalid full material queue summary');
+					check(ops.length === 4 && ops[0].stage === 'CountMaterials' && ops[0].offset === 0
+						&& ops[1].stage === 'PrefixMaterials' && ops[1].x === 1 && ops[1].y === 1 && ops[1].z === 1
+						&& ops[2].stage === 'ScatterMaterials' && ops[2].offset === 0
+						&& ops[3].stage === 'Shade' && ops[3].offset === 0 && ops[3].capacity === r.tracer.materialCapacity, 'Wrong global material dispatch sequence');
+					bucketVerification.passes++; bucketVerification.entries += total; bucketVerification.dispatches++;
+					buffer.unmap();
+				}
+				if (captures.length && materialHeaderCount === 256) check(bucketVerification.boundaryMask === 31, '256-header fixture did not exercise all boundary material IDs');
+			} finally { for (const { buffer } of captures) buffer.destroy(); }
+		}
 		async function snapshot() {
 			const bytes = r.tracer.width * r.tracer.height * 48;
 			const buffer = r.device.createBuffer({ size: bytes, usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ });
@@ -351,8 +433,8 @@ try {
 				if (bounce !== undefined) {
 					const bucket = /^wavefront\.ShadeBucket(?:Direct|Compact)?\.stack(\d+)$/.exec(pipeline.label);
 					const actualCapacity = bucket ? Number(bucket[1]) : expectedCapacity;
-					check(!bucket || (shadeBuckets && r.scene.materialShadeCapacities.includes(actualCapacity)), 'Unexpected shading bucket');
-					const expected = `Shade${bucket ? `Bucket${shadeBucketMode === 'compact' ? 'Compact' : ''}` : ''}${shadeMode.startsWith('split') ? (bounce === 0 ? 'Primary' : 'Secondary') : ''}${shadeMode.endsWith('late') ? 'Late' : ''}${compaction === 'none' || (stageMask & 2) !== 0 ? 'Direct' : ''}`;
+					check(!bucket || (shadeBuckets && (shadeBucketMode === 'material' ? actualCapacity === expectedCapacity : r.scene.materialShadeCapacities.includes(actualCapacity))), 'Unexpected shading bucket');
+					const expected = `Shade${bucket ? `Bucket${shadeBucketMode !== 'scan' ? 'Compact' : ''}` : ''}${shadeMode.startsWith('split') ? (bounce === 0 ? 'Primary' : 'Secondary') : ''}${shadeMode.endsWith('late') ? 'Late' : ''}${compaction === 'none' || (stageMask & 2) !== 0 ? 'Direct' : ''}`;
 					check(pipeline.label === `wavefront.${expected}.stack${actualCapacity}`, 'Wrong bound shading phase');
 					observedShading.add(pipeline.label);
 				}
@@ -374,7 +456,9 @@ try {
 			};
 			try {
 				while (r.samples < config.samples) {
-					if (r.samples === 0 && mode === 'wavefront' && shadeBuckets && shadeBucketMode === 'compact') await renderBucketCheckedFrame();
+					if (r.samples === 0 && mode === 'wavefront' && shadeBuckets && shadeBucketMode !== 'scan') {
+						if (shadeBucketMode === 'material') await renderMaterialBucketCheckedFrame(); else await renderBucketCheckedFrame();
+					}
 					else if (r.samples === 0 && mode === 'wavefront' && (sort !== 'none' || raySortSize !== 0)) await renderSortCheckedFrame();
 					else r.renderFrame();
 					await r.device.queue.onSubmittedWorkDone();
@@ -383,10 +467,10 @@ try {
 			shadePipelines = [...observedShading];
 			if (mode === 'wavefront' && r.scene.instanceCount > 0 && (tailStart > 0 || tailThreshold > 0)) {
 				const caps = r.scene.materialShadeCapacities;
-				const expected = shadeBuckets && !(caps.length === 1 && caps[0] === expectedCapacity) ? caps : [];
+				const expected = shadeBuckets ? (shadeBucketMode === 'material' ? [expectedCapacity] : !(caps.length === 1 && caps[0] === expectedCapacity) ? caps : []) : [];
 				const actual = shadePipelines.filter(x => x.startsWith('wavefront.ShadeBucket')).map(x => Number(x.split('.stack')[1])).sort((a,b) => a-b);
 				check(JSON.stringify(actual) === JSON.stringify(expected), 'Missing or duplicate shading bucket');
-				if (shadeBucketMode === 'compact') check((bucketVerification.passes > 0) === (expected.length > 0), 'Compact bucket diagnostics were not exercised');
+				if (shadeBucketMode !== 'scan') check((bucketVerification.passes > 0) === (expected.length > 0), 'Compact bucket diagnostics were not exercised');
 			}
 			if (mode === 'wavefront' && r.scene.instanceCount > 0 && (tailStart > 0 || tailThreshold > 0)) check(shadePipelines.length > 0, 'Shading kernels were not exercised');
 			megakernelPipelines = [...observedMegakernel];
@@ -465,6 +549,10 @@ try {
 				{ width: 513, height: 513, bounces: 2, samples: 2 },
 			] },
 			{ name: 'bucket-emission', file: 'EmissiveStrengthTest.glb', bucketEmission: true, configurations: [
+				{ width: 129, height: 97, bounces: 8, samples: 16, clamp: 2 },
+				{ width: 513, height: 513, bounces: 2, samples: 2 },
+			] },
+			{ name: 'bucket-many', file: 'MetalRoughSpheres.glb', bucketMany: true, configurations: [
 				{ width: 129, height: 97, bounces: 8, samples: 16, clamp: 2 },
 				{ width: 513, height: 513, bounces: 2, samples: 2 },
 			] },
@@ -551,6 +639,13 @@ try {
 					});
 					desc.meshes.forEach((mesh, i) => { mesh.material = i % 4; });
 				}
+				if (scene.bucketMany) {
+					const { stressMaterial } = await import('/scripts/wavefront-material-stress.ts');
+					const { defaultMaterialGraph } = await import('/src/material/GLTFMaterial.ts');
+					desc.materials = Array.from({ length: 255 }, (_, i) => ({ ...desc.materials[0], graph:
+						[63, 64, 127, 254].includes(i) ? stressMaterial(defaultMaterialGraph(), i === 254 ? 8 : 3) : defaultMaterialGraph() }));
+					desc.meshes.forEach((mesh, i) => { mesh.material = [63, 64, 127, 254, -1][i % 5]; });
+				}
 				if (scene.bucketEmission) {
 					const { GraphBuilder } = await import('/src/material/Graph.ts');
 					const { AlphaMode } = await import('/src/scene/Scene.ts');
@@ -564,6 +659,7 @@ try {
 					});
 				}
 				await r.setScene(desc);
+				if (scene.bucketMany) check(r.scene.materialCount === 256 && r.tracer.materialCount === 256, 'Material-group boundary fixture did not bind 256 headers');
 				const { materialScheduleVariants } = await import('/scripts/wavefront-material-variants.ts');
 				materialVariants = materialScheduleVariants(r.device, desc, r.vt.descriptorOf, r.scene.materials);
 				if (scene.bucketMixed) check(materialVariants.optimized.shadeCapacities.includes(0) && materialVariants.optimized.shadeCapacities.length >= 2, `Mixed bucket fixture lost constant or complex materials: ${materialVariants.optimized.shadeCapacities}`);
@@ -579,7 +675,7 @@ try {
 				if (scene.procedural) check((r.scene.materialOpcodes[1] & 7) === 7 && (r.scene.materialOpcodes[0] >>> 31) === 1,
 					'Procedural regression did not compile Transform/Noise/Magic/Checker');
 				materialHeaderCount = desc.materials.length + 1;
-				if (sort !== 'none' || (shadeBuckets && shadeBucketMode === 'compact')) {
+				if (sort !== 'none' || (shadeBuckets && shadeBucketMode !== 'scan')) {
 					const { compileSceneMaterials } = await import('/src/render/SceneMaterials.ts');
 					const { packMaterialData } = await import('/src/render/GpuLayout.ts');
 					const compiled = compileSceneMaterials(desc, { schedule: true });
@@ -608,7 +704,7 @@ try {
 					const reference = await render('megakernel', config, 16);
 					if (scene.emptyAnalytic) check(reference.some((value, i) => i % 12 < 3 && value > 0), 'Empty analytic-light test did not see a light');
 					const masks = dispatchSweep ? Array.from({ length: tailThreshold === 0 ? 8 : 7 }, (_, i) => i)
-						.filter(mask => !(shadeBuckets && shadeBucketMode === 'compact') || (mask & 2) === 0) : [directStages];
+						.filter(mask => !(shadeBuckets && shadeBucketMode !== 'scan') || (mask & 2) === 0) : [directStages];
 					const packetMasks = packetSweep ? Array.from({ length: 8 }, (_, i) => i) : [packetStages];
 					for (const { mode, stageMask, packetMask } of [{ mode: 'megakernel', stageMask: 0, packetMask: packetStages }, ...packetMasks.flatMap(packetMask => masks.map(stageMask => ({ mode: 'wavefront', stageMask, packetMask })))]) {
 						const candidate = await render(mode, config, null, stageMask, packetMask);

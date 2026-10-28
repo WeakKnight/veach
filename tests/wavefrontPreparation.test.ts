@@ -14,10 +14,30 @@ function fixture() {
 	const wavefront = new Wavefront(device as unknown as GPUDevice, {} as GPUBindGroupLayout, 1);
 	return { device, wavefront };
 }
-const experimental = (label = '') => /^wavefront\.(?:Shade(?:Primary|Secondary|Late|Bucket)|CountBuckets|PrefixBuckets|ScatterBuckets)/.test(label);
+const experimental = (label = '') => /^wavefront\.(?:Shade(?:Primary|Secondary|Late|Bucket)|(?:Count|Prefix|Scatter)(?:Buckets|Materials))/.test(label);
 
 describe('wavefront shading preparation', () => {
 	afterEach(() => vi.unstubAllGlobals());
+
+	it('groups materials with one global-capacity shading pipeline, including a single capacity', async () => {
+		const { device, wavefront } = fixture();
+		await wavefront.compiled;
+		const count = device.createComputePipelineAsync.mock.calls.length;
+		await wavefront.prepareBuckets([0, 4], 16, [0xffffffff, 0xffffffff], 0, 'material');
+		await wavefront.prepareBuckets([0, 4], 16, [0xffffffff, 0xffffffff], 0, 'material');
+		await wavefront.prepareBuckets([0], 0, [0xffffffff, 0xffffffff], 0, 'material');
+		expect(device.createComputePipelineAsync.mock.calls.slice(count).map(([d]) => d.label).sort()).toEqual([
+			'wavefront.CountMaterials.stack0', 'wavefront.CountMaterials.stack16',
+			'wavefront.PrefixMaterials.stack0', 'wavefront.PrefixMaterials.stack16',
+			'wavefront.ScatterMaterials.stack0', 'wavefront.ScatterMaterials.stack16',
+			'wavefront.ShadeBucketCompact.stack0', 'wavefront.ShadeBucketCompact.stack16',
+		]);
+		wavefront.bind({} as GPUBuffer, {} as GPUTexture);
+		wavefront.shadeBuckets = true; wavefront.shadeBucketMode = 'material';
+		for (const materials of [0, 257, NaN]) expect(() => wavefront.encode({} as GPUCommandEncoder, {} as GPUBindGroup,
+			1, 1, 1, false, 1, 0, [0, 0], 0, [1], materials)).toThrow('1..256 materials');
+		wavefront.destroy();
+	});
 
 	it('prepares compact shading and partition stages lazily without scan pipelines', async () => {
 		const { device, wavefront } = fixture();

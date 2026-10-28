@@ -75,9 +75,9 @@ const config = {
 if (Object.entries(config).filter(([key, value]) => key.endsWith('Sweep') && value).length > 1) throw new Error('Choose one sweep at a time');
 if (!['unified', 'split', 'late', 'split-late'].includes(config.shadeMode)) throw new Error('Invalid shade mode');
 if ((config.shadeBuckets || config.bucketSweep || config.partitionSweep) && config.shadeMode !== 'unified') throw new Error('Buckets require unified shading');
-if (!['scan', 'compact'].includes(config.shadeBucketMode)) throw new Error('Invalid bucket mode');
+if (!['scan', 'compact', 'material'].includes(config.shadeBucketMode)) throw new Error('Invalid bucket mode');
 if (config.partitionSweep && (!config.paired || config.shadeBuckets)) throw new Error('Partition sweep requires paired unbucketed base');
-if ((config.partitionSweep || ((config.shadeBuckets || config.bucketSweep) && config.shadeBucketMode === 'compact')) && (config.compaction === 'none' || (config.directStages & 2) !== 0)) throw new Error('Compact buckets require queued shading');
+if ((config.partitionSweep || ((config.shadeBuckets || config.bucketSweep) && config.shadeBucketMode !== 'scan')) && (config.compaction === 'none' || (config.directStages & 2) !== 0)) throw new Error('Compact buckets require queued shading');
 if (config.bucketSweep && (!config.paired || config.shadeBuckets)) throw new Error('Bucket sweep requires paired unbucketed base');
 if (config.shadeSweep && (!config.paired || config.shadeMode !== 'unified')) throw new Error('Shade sweep requires paired unified base');
 if (config.opaqueSweep && (!config.paired || config.opaqueMegakernel)) throw new Error('Opaque sweep requires paired general traversal');
@@ -463,7 +463,8 @@ try {
 				if (tracedPasses.has(this)) {
 					const bucket = /^wavefront\.ShadeBucket(?:Direct|Compact)?\.stack(\d+)$/.exec(pipeline.label);
 					const actualCapacity = bucket ? Number(bucket[1]) : renderer.tracer.materialCapacity;
-					if (bucket && (!renderer.tracer.wavefront.shadeBuckets || !renderer.scene.materialShadeCapacities.includes(actualCapacity))) throw new Error('Unexpected shading bucket');
+					if (bucket && (!renderer.tracer.wavefront.shadeBuckets || !(renderer.tracer.wavefront.shadeBucketMode === 'material'
+						? actualCapacity === renderer.tracer.materialCapacity : renderer.scene.materialShadeCapacities.includes(actualCapacity)))) throw new Error('Unexpected shading bucket');
 					if (!pipeline.label.endsWith(`.stack${actualCapacity}`)) throw new Error(`Wrong tracing pipeline: ${pipeline.label}`);
 					const constants = pipelineConstants.get(pipeline) ?? {};
 					if ('0' in constants && (constants['0'] !== renderer.tracer.materialOpcodes[0] || constants['1'] !== renderer.tracer.materialOpcodes[1])) throw new Error('Wrong bound opcode specialization');
@@ -472,7 +473,7 @@ try {
 					const bounce = shadePasses.get(this);
 					if (bounce !== undefined) {
 						const wf = renderer.tracer.wavefront, mode = wf.shadeMode;
-						const expected = `Shade${bucket ? `Bucket${wf.shadeBucketMode === 'compact' ? 'Compact' : ''}` : ''}${mode.startsWith('split') ? (bounce === 0 ? 'Primary' : 'Secondary') : ''}${mode.endsWith('late') ? 'Late' : ''}${wf.compaction === 'none' || (wf.directStages & 2) !== 0 ? 'Direct' : ''}`;
+						const expected = `Shade${bucket ? `Bucket${wf.shadeBucketMode !== 'scan' ? 'Compact' : ''}` : ''}${mode.startsWith('split') ? (bounce === 0 ? 'Primary' : 'Secondary') : ''}${mode.endsWith('late') ? 'Late' : ''}${wf.compaction === 'none' || (wf.directStages & 2) !== 0 ? 'Direct' : ''}`;
 						if (pipeline.label !== `wavefront.${expected}.stack${actualCapacity}`) throw new Error('Wrong bound shading phase');
 					}
 					observedConstants.set(pipeline.label, constants);

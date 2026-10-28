@@ -63,7 +63,7 @@ if (bucketsFlag >= 0) {
 const bucketModeFlag = only.indexOf('--bucket-mode');
 if (bucketModeFlag >= 0) {
 	const mode = only[bucketModeFlag + 1];
-	if (!wavefrontTuning.shadeBuckets || !['scan', 'compact'].includes(mode)) throw new Error('Bucket mode requires --shade-buckets');
+	if (!wavefrontTuning.shadeBuckets || !['scan', 'compact', 'material'].includes(mode)) throw new Error('Bucket mode requires --shade-buckets');
 	wavefrontTuning.shadeBucketMode = mode;
 	only.splice(bucketModeFlag, 2);
 }

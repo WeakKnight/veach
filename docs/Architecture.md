@@ -138,12 +138,20 @@ group. Compaction and shadow traversal occur once after all shading groups. The 
 does not repartition the queue. Experimental `shadeBucketMode = 'compact'` instead runs
 CountBuckets/PrefixBuckets/ScatterBuckets, temporarily storing grouped hit indices in the
 shadow queue C. B remains intact; CompactShade overwrites C only after all buckets finish.
-Twelve float4 records (six count/offset/cursor records and six dispatch records) are appended
-after the three queues. Existing path/queue offsets and the seven uniform words are unchanged.
+Scratch after the three queues reserves 262 float4 records (4,192 bytes). Capacity grouping
+uses its first twelve records (six count/offset/cursor records and six dispatch records).
+Full-queue material grouping instead uses six queue summaries followed by 256 material
+count/offset/cursor records. Existing path/queue offsets and the first seven uniform words
+are unchanged; the eighth word now carries `GpuScene.materialCount`, including fallback.
 GPU compaction views that allocation as atomic uints in its own pass; dispatch arguments
 are copied into a 144-byte COPY_DST | INDIRECT buffer. Its third record optionally supplies
 exact 256-slot sort bounds from the existing work header; records 3..8 supply capacity-bucket
 bounds. No storage binding is added. Partition/shading pipelines compile only when requested.
+Experimental `shadeBucketMode = 'material'` runs CountMaterials/PrefixMaterials/ScatterMaterials
+and one existing ShadeBucketCompact entry at the global scene capacity. It preserves B,
+groups C by exact material identity, and reuses the original input indirect bound with a
+guard against the actual active count. It does not shrink the SVM or copy new dispatch args.
+The current experiment rejects more than 256 material headers and direct shading.
 Chunk sorting can group shading queue B by material/program and continuation queue A by
 direction octant. Both are opt-in and preserve physical path records and RNG state.
 Opaque traversal variants omit the opacity

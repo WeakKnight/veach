@@ -32,6 +32,7 @@ const programs = [
 		'ShadePrimaryDirect', 'ShadeSecondaryDirect', 'ShadeLateDirect', 'ShadePrimaryLateDirect', 'ShadeSecondaryLateDirect'].map(e => [e, 'compute']) },
 	{ name: 'WavefrontCompact', source: 'Passes/WavefrontCompact.slang', entries: [['CompactIntersect', 'compute'], ['CompactShade', 'compute']] },
 	{ name: 'WavefrontBuckets', source: 'Passes/WavefrontBuckets.slang', entries: ['CountBuckets', 'PrefixBuckets', 'ScatterBuckets'].map(e => [e, 'compute']) },
+	{ name: 'WavefrontMaterialBuckets', source: 'Passes/WavefrontMaterialBuckets.slang', entries: ['CountMaterials', 'PrefixMaterials', 'ScatterMaterials'].map(e => [e, 'compute']) },
 	{ name: 'WavefrontSort64', source: 'Passes/WavefrontSort.slang', defines: ['VEACH_SORT_SIZE=64'], entries: [['SortMaterial', 'compute'], ['SortProgram', 'compute'], ['SortDirection', 'compute']] },
 	{ name: 'WavefrontShadow', source: 'Passes/WavefrontShadow.slang', entries: ['ShadowOpaqueParallel', 'ShadowOpaqueParallelDirect', 'ShadowOpaqueParallelSky', 'ShadowOpaqueParallelSkyDirect'].map(e => [e, 'compute']) },
 	{ name: 'WavefrontSort256', source: 'Passes/WavefrontSort.slang', defines: ['VEACH_SORT_SIZE=256'], entries: [['SortMaterial', 'compute'], ['SortProgram', 'compute'], ['SortDirection', 'compute']] },

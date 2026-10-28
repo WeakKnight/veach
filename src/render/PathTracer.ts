@@ -44,6 +44,7 @@ export class PathTracer {
 	boundOpaqueMegakernel = false;
 	materialOpcodes: MaterialOpcodeMask = ALL_MATERIAL_OPCODES;
 	materialShadeCapacities: readonly MaterialStackCapacity[] = [];
+	materialCount = 0;
 	private presentPipeline!: GPURenderPipeline;
 	readonly compiled: Promise<void>; // all pipelines (including exposure) have compiled
 	private readonly sampler: GPUSampler;
@@ -239,6 +240,7 @@ export class PathTracer {
 		this.materialCapacity = this.sceneCapacity(scene);
 		this.materialOpcodes = this.sceneOpcodes(scene);
 		this.materialShadeCapacities = scene.materialShadeCapacities;
+		this.materialCount = scene.materialCount;
 		this.boundMaterialOperandMode = this.materialOperandMode;
 		this.boundOpaqueMegakernel = this.sceneOpaque(scene);
 		const pipeline = this.useEmptyPipeline(scene) ? this.emptyPipeline : this.materialPipelines.get(`${materialPipelineKey(this.materialCapacity, this.materialOpcodes, this.boundMaterialOperandMode)}/${Number(this.boundOpaqueMegakernel)}`);
@@ -409,7 +411,7 @@ export class PathTracer {
 			return;
 		}
 		if (this.integrator === 'wavefront' && this.hasGeometry && debugMode === 0) {
-			this.wavefront!.encode(encoder, this.sceneBindGroup, this.width, this.height, maxBounces, this.hasAlphaTested, this.materialCapacity, this.lightCount, this.materialOpcodes, this.boundMaterialOperandMode, this.materialShadeCapacities);
+			this.wavefront!.encode(encoder, this.sceneBindGroup, this.width, this.height, maxBounces, this.hasAlphaTested, this.materialCapacity, this.lightCount, this.materialOpcodes, this.boundMaterialOperandMode, this.materialShadeCapacities, this.materialCount);
 			return;
 		}
 		const pass = encoder.beginComputePass({ label: 'pathTracing' });

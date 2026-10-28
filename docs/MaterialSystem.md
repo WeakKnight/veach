@@ -118,6 +118,10 @@ by these source-level checks, and the default remains `unified` pending paired t
 Its optional chunk sorter groups shading paths by material index or shared surface-program
 offset. Programs with different constant pools can share the latter key because the bytecode
 block is deduplicated independently from constants; neither format nor interpreter changes.
+The optional `shadeBucketMode = 'material'` experiment groups the full hit queue by exact
+material identity, retaining the global SVM capacity in one existing compact shading entry.
+This isolates coherence from capacity specialization. It supports at most 256 headers,
+including the fallback, with a host-side guard; the ordinary renderer has no such limit.
 
 ## Pipeline
 

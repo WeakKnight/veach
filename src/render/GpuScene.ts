@@ -50,6 +50,7 @@ export class GpuScene {
 	instanceCount = 0;
 	hasAlphaTested = false;
 	materialStackSize = 0;
+	materialCount = 0;
 	materialShadeCapacities: MaterialStackCapacity[] = [];
 	materialOpcodes: MaterialOpcodeMask = [0, 0];
 	lightCount = 0;
@@ -72,6 +73,7 @@ export class GpuScene {
 			throw new Error('GpuScene: expected the compiled scene materials plus the default material');
 		}
 		const defaultMaterialIndex = materials.length - 1;
+		out.materialCount = materials.length;
 		out.materialStackSize = Math.max(0, ...materials.map(material => material.stackSize));
 		out.materialShadeCapacities = sceneShadeCapacities(scene, materials);
 		out.materialOpcodes = materialOpcodeMask(materials);

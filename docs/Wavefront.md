@@ -1673,12 +1673,49 @@ experiment is full-queue material grouping at unchanged global SVM capacity, to 
 shader coherence independently of capacity specialization; the existing 64/256 sorts
 only group paths inside small chunks.
 
+## Full-queue material grouping (experimental)
+
+`--shade-buckets --bucket-mode material` retains the global SVM capacity and groups all
+active hit indices within each bounded tile by exact material identity. It does not group
+across tiles. CountMaterials/PrefixMaterials/ScatterMaterials
+reuse queue C; original B remains intact for the next compaction. One existing
+ShadeBucketCompact entry at the scene capacity consumes C. All six capacity summaries
+describe the same full queue, so no new SVM interpreter or shading implementation is needed.
+The input indirect dispatch bound is sufficient; shading guards against the active total.
+This differs from both capacity grouping and the existing 64/256-slot local sorts.
+
+The experiment currently accepts 1..256 material headers including fallback. `GpuScene`
+publishes that count with the scene, and the eighth uniform word passes it to partitioning.
+The host rejects out-of-range counts before encoding GPU work. This limit only applies to
+the opt-in experiment. Per-workgroup lane masks preserve local input order; global group
+reservation order can vary. Packet slots are filtered before hit/material access.
+
+`--bucket-mode material --bucket-sweep --paired --mode wavefront --compaction adaptive
+--balanced-order --repeats 5` compares general megakernel, ordinary wavefront, full-queue
+material grouping, local program256 sorting, and their combination. GPU diagnostics check
+the exact active permutation, material membership, prefix/cursor/counts, local order,
+the global-capacity pipeline and the actual indirect offset. A 256-header fixture uses
+material IDs 63/64/127/254 and fallback 255 with many empty groups and multiple tiles.
+The final implementation passes 58 complete GPU regression comparisons, 20 direct-stage
+combinations, and 72 packet-mask combinations with program256 sorting, fixed tails from
+bounce two and subgroups disabled. Both older capacity-grouping implementations also
+pass 12 control comparisons each on the final sources. All 174 HDR/AOV comparisons have
+zero error. Full-suite diagnostics inspect 326 material partitions, 428,869 active path
+entries and 7,247 empty groups. The 256-header fixture proves all five boundary IDs are
+actually present in the grouped queue, in the full, direct and packet runs.
+All 214 unit tests, shader compilation, TypeScript checking and library build pass.
+The extra shader module is 9.0 KiB; existing SVM/shading generated modules are unchanged.
+The wavefront library chunk is 767.41 kB (90.24 kB gzip). Helmet HDR, alpha and
+transmission smoke renders pass at 64 spp; all three captures were inspected and
+saved in `.tools/wavefront/material-bucket-smoke`. Performance is pending.
+
 ## Work storage layout
 
 Group 1 binding 0 contains the original image prefix (three float4 per pixel), then
 three float4 headers, 21 float4 field arrays at the current tile capacity, then three
-packed uint index queues (main A, main B, shadow), then twelve float4 bucket metadata
-and dispatch records (192 bytes). Header words 0/1/2 store A/shadow/B counts;
+packed uint index queues (main A, main B, shadow), then 262 float4 scratch records
+(4,192 bytes). Capacity grouping uses the first twelve records; material grouping uses
+six summaries followed by up to 256 count/offset/cursor records. Header words 0/1/2 store A/shadow/B counts;
 word 3 optionally stores the current main queue's exact 256-slot sort bound.
 Intersect reads A, CompactIntersect scans A and writes B, Shade reads B, and CompactShade
 scans B and writes A plus shadow indices. Compact dispatch sizes come from the input queue's
