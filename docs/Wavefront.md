@@ -7,6 +7,49 @@ The requested investigation lasts at least eight hours, through 10:14 Hong Kong 
 and includes implementation, repeated measurements, correctness checks, and optimization.
 The megakernel remains the reference for image and performance comparisons.
 
+## Investigation outcome
+
+The requested eight-hour investigation has exceeded its minimum duration. The five
+fixed scenes below were used throughout implementation, repeated paired measurements,
+and correctness checks. This document retains the chronological experiments; proposed
+next steps inside older entries are historical and are superseded by later results.
+
+- Automatic scene-wide SVM capacity (0/1/2/4/8/16), including the constant-only interpreter,
+  is enabled for both integrators. The controlled `material-zero-sweep-v2` comparison
+  reduced general-megakernel GPU spans by approximately 31/37/37/57/35 percent versus
+  fixed capacity16 on the five original scenes. These are measurements from that paired
+  run, not an attribution to measured hardware register counts.
+- The staged integrator, SoA path state and GPU queues are available through
+  `await renderer.setIntegrator('wavefront')`; the default remains the general megakernel.
+  On the final original-material sweep, adaptive wavefront wins classroom (8.536 versus
+  10.372 ms/sample) but loses the other four scenes. Default wavefront compaction remains
+  dense; the final comparison explicitly selects adaptive compaction.
+- Full-queue material grouping at unchanged SVM capacity is useful for some heterogeneous
+  procedural workloads. Against adaptive wavefront, it reduces paired GPU time by
+  16.66/4.61/3.61 percent on classroom/breakfast/glass at 640x360 and
+  14.92/3.69/3.22 percent at 1280x720. Every paired round improves in those three scenes.
+  It loses on original materials and does not win on every complex scene, so remains opt-in.
+  Its 256-material-header bound, including fallback, applies only to this experiment.
+- Tail fusion, direct/packet/subgroup/adaptive compaction, traversal specialization,
+  shadow parallelism, local/program/direction sorting, exact sort dispatch, opcode/operand
+  specialization, material live-range scheduling, shading liveness and capacity grouping
+  were implemented and measured. No unmeasured combination is promoted as a universal
+  default. The opaque-megakernel controls also show that general-reference wavefront gains
+  cannot all be credited to stage separation.
+- The final renderer passes 214 unit tests, shader compilation, TypeScript checking,
+  library build and all 21 default smoke cases with inspected screenshots. The latest
+  feature has 174 exact GPU HDR/AOV regression comparisons, including alpha/emission,
+  partial groups, multiple tiles, disabled subgroups and 256-header boundaries. Its three
+  complete five-scene performance sweeps add 300 exact per-round HDR comparisons and
+  15 inspected captures. Source fingerprints cover 114 files and match the final renderer.
+
+The final material-grouping measurements are at revision `99f8fc2`; their reports are
+`material-groups-original-v2`, `material-groups-mixed8-v2`, and
+`material-groups-mixed8-720p-v2` under `.tools/wavefront`. All planned runs, verifiers and
+image inspections for this investigation are complete. Timing conclusions are limited
+to the measured adapter/workloads; native register allocation and occupancy were not
+measured. The implementation and benchmark controls remain available for further work.
+
 ## Fixed research scenes
 
 From `E:/GitHub/gltf-research-scenes/scenes`, use the extended GLBs for:
@@ -1714,7 +1757,74 @@ expectation. Material grouping must expect one global-capacity shading pipeline 
 for single-capacity scenes. This assertion now matches the independent correctness
 harness. A two-scene check covers both nonzero and zero capacity with all five variants
 and exact HDR comparisons; its short warmup is only for harness validation, not timing.
-Complete performance sweeps remain pending.
+The complete performance sweeps are recorded below.
+
+### Full-queue material grouping: paired measurements
+
+Revision `99f8fc2` was held fixed for three sweeps of the five scenes. Each uses five
+balanced rounds, 64 warmup frames per variant, 32 measured spp and eight bounces.
+The variants are general megakernel, adaptive wavefront, full material grouping,
+program256 local sorting, and local sorting followed by full material grouping.
+The original and mixed 1..8-layer workloads use 640x360; the third repeats the mixed
+workload at 1280x720, spanning multiple path tiles. All three sweep verifiers pass.
+All 300 per-round candidate HDR comparisons have zero error, all 15 presentation
+captures were inspected, and all 114 recorded source fingerprints match the files
+after the runs. Complete GPU span medians in ms/sample:
+
+| Workload / variant | classroom | breakfast-room | bmw-m6 | glass-of-water | veach-mis |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Original / general megakernel | 10.372 | 4.342 | 2.707 | 2.845 | 1.550 |
+| Original / wavefront | 8.536 | 6.067 | 5.369 | 3.742 | 1.738 |
+| Original / material groups | 9.279 | 6.308 | 5.609 | 4.041 | 1.946 |
+| Original / program256 | 8.606 | 6.952 | 5.733 | 3.935 | 1.863 |
+| Original / program256 + groups | 9.220 | 7.134 | 5.893 | 4.200 | 2.054 |
+| Mixed / general megakernel | 26.459 | 11.525 | 8.183 | 6.577 | 3.888 |
+| Mixed / wavefront | 11.189 | 8.585 | 7.354 | 5.733 | 3.098 |
+| Mixed / material groups | 9.283 | 8.200 | 7.410 | 5.498 | 3.357 |
+| Mixed / program256 | 9.828 | 9.141 | 7.667 | 5.617 | 3.178 |
+| Mixed / program256 + groups | 9.235 | 8.931 | 7.663 | 5.755 | 3.461 |
+| Mixed 720p / general megakernel | 98.191 | 39.396 | 24.861 | 23.894 | 14.668 |
+| Mixed 720p / wavefront | 41.757 | 31.102 | 26.623 | 20.417 | 12.410 |
+| Mixed 720p / material groups | 35.324 | 29.873 | 27.214 | 19.760 | 12.946 |
+| Mixed 720p / program256 | 37.869 | 32.485 | 27.943 | 19.981 | 12.881 |
+| Mixed 720p / program256 + groups | 35.106 | 32.253 | 28.486 | 20.609 | 13.397 |
+
+Material grouping regresses in every original-material round in every scene: median
+paired changes versus wavefront are +7.82/+3.98/+4.47/+7.16/+11.96 percent in table order.
+Unlike capacity grouping, this experiment still groups single-capacity/zero-capacity
+scenes, so these are actual changed-path measurements, not unchanged-path controls.
+Original classroom's mean Shade rises from 1.459 to 1.651 ms, with another 0.517 ms
+of Count/Prefix/Scatter work. Removing only partition overhead would not establish
+a win on that scene.
+
+With mixed materials, grouping changes paired time by -16.66/-4.61/+0.69/-3.61/+8.25
+percent. Classroom, breakfast and glass improve in every round. BMW has mixed directions
+(-0.10..+1.47%); MIS loses in every round (+0.06..+9.29%). Classroom's mean Shade drops
+from 5.883 to 3.595 ms while partitioning costs 0.407 ms. Breakfast Shade drops from
+3.718 to 3.070 ms with 0.240 ms partitioning; glass drops from 2.406 to 1.979 ms with
+0.226 ms partitioning. BMW's shading reduction (2.666 to 2.428 ms) is approximately
+consumed by its 0.268 ms partitioning cost. Stage times are means, separate from the
+complete-span medians above.
+
+At 720p, paired grouping changes are -14.92/-3.69/+2.01/-3.22/+4.61 percent. Every round
+improves classroom/breakfast/glass and regresses BMW/MIS. The improvement ranges are
+-16.27..-13.28%, -4.69..-3.16%, and -4.46..-2.29% respectively. Thus the three-scene
+benefit survives multiple path tiles and four times as many pixels; it is not a
+universal benefit of complex materials. BMW's general megakernel also beats ordinary
+wavefront in every 720p round, despite the opposite median ordering at 640x360.
+
+On mixed 640x360 materials, full grouping beats program256 in every paired round for
+classroom/breakfast/BMW (-6.38/-10.33/-2.89% median), has mixed directions on glass, and
+loses on MIS. Adding program256 before grouping is not a general improvement: it adds
+cost in breakfast/BMW/glass/MIS compared with grouping alone at both resolutions.
+Classroom's combined medians are slightly lower, but the gain from the extra sort is
+small relative to grouping's main benefit. Keep the controls independent and opt-in.
+
+These results establish useful shader-coherence gains at unchanged global SVM capacity
+for selected workloads. They do not establish a hardware register reduction. Capacity
+specialization, interpreter changes, sorting and stage decomposition must continue to be
+compared independently; the failed capacity-partition experiments above should not be
+described as equivalent to this material-identity grouping result.
 
 ## Work storage layout
 

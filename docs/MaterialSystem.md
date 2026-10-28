@@ -29,6 +29,11 @@ selection (same expectation, visible only at 1 spp), and `clearcoatNormalTexture
   `shadeBucketMode = 'compact'` optionally partitions active hit indices into capacity ranges
   before shading; it uses the same material-header capacity and emission floor. The scan mode
   remains available as a comparison. Both preserve bytecode, material evaluation and RNG state.
+  A separate experimental `shadeBucketMode = 'material'` groups the full active hit queue
+  within each path tile by material identity, then runs one shading pipeline at the global
+  SVM capacity. It accepts up to 256 headers including fallback, without imposing that limit
+  on ordinary rendering. It improves selected complex workloads but regresses simple ones;
+  all grouping modes remain opt-in. See Wavefront.md for balanced five-scene measurements.
   Global traversal, shadow and tail capacities retain the original conservative bound.
   Capacity zero is a constant-only scene specialization: every compiled surface, opacity
   and emission program must need zero temporary slots. The compiler then emits only
