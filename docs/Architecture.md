@@ -128,6 +128,14 @@ Default preparation excludes the experimental shading pipelines. `prepareShadeMo
 only the requested entries before the host changes `shadeMode`; concurrent preparations share
 a promise, failed groups can retry, and completed groups merge into the material pipeline cache.
 Preparing another scene capacity also prepares the currently selected shading mode.
+The optional `shadeBuckets` experiment scans the hit queue with statically sized ShadeBucket
+kernels. Material-header flags bits 16..20 carry the surface/emission capacity bound;
+`GpuScene.materialShadeCapacities` lists referenced groups and is bound with the scene.
+The host prepares those kernels before enabling the mode. A sole group equal to the existing
+scene capacity reuses the ordinary Shade path. Other stages still use the global capacity.
+Nonmatching/dead paths return before writing anything, preserving shadows created by another
+group. Compaction and shadow traversal occur once after all shading groups. This version
+does not repartition the queue and adds no work-buffer fields, uniform words or bindings.
 GPU compaction views that allocation as atomic uints in its own pass; dispatch arguments
 are copied into a 48-byte COPY_DST | INDIRECT buffer. Its third record optionally supplies
 exact 256-slot sort bounds from the existing work header; no storage binding is added.

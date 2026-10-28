@@ -54,6 +54,12 @@ if (integratorFlag >= 0) {
 	only.splice(integratorFlag, 2);
 }
 const wavefrontTuning = {};
+const bucketsFlag = only.indexOf('--shade-buckets');
+if (bucketsFlag >= 0) {
+	if (integrator !== 'wavefront') throw new Error('Buckets require wavefront');
+	wavefrontTuning.shadeBuckets = true;
+	only.splice(bucketsFlag, 1);
+}
 const shadeFlag = only.indexOf('--shade-mode');
 if (shadeFlag >= 0) {
 	const mode = only[shadeFlag + 1];
@@ -218,6 +224,7 @@ try {
 				await page.evaluate(async tuning => {
 					const tracer = globalThis.veach.tracer;
 					if (tracer.wavefront && tuning.shadeMode) await tracer.wavefront.prepareShadeMode(tuning.shadeMode, tracer.materialCapacity, tracer.materialOpcodes, tracer.boundMaterialOperandMode);
+					if (tracer.wavefront && tuning.shadeBuckets) await tracer.wavefront.prepareBuckets(globalThis.veach.scene.materialShadeCapacities, tracer.materialCapacity, tracer.materialOpcodes, tracer.boundMaterialOperandMode);
 					if (tracer.wavefront) Object.assign(tracer.wavefront, tuning);
 					globalThis.veach.resetAccumulation();
 				}, wavefrontTuning);

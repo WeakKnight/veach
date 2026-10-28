@@ -350,12 +350,22 @@ void ShadePath<let DEFERRED : bool, let ALPHA : bool, let PHASE : uint = 0u, let
 	s.active = 1u;
 }
 
-void ShadeImpl<let DIRECT : bool, let PHASE : uint = 0u, let LATE_PATH : bool = false>(uint3 tid)
+void ShadeImpl<let DIRECT : bool, let PHASE : uint = 0u, let LATE_PATH : bool = false, let BUCKET : bool = false>(uint3 tid)
 {
 	uint count = DIRECT ? gWavefront.pathCount : asuint(gAccum[HeaderBase()].z);
 	if (tid.x >= count) return;
 	uint index = DIRECT ? tid.x : QueueIndex(ShadeQueueBase(), tid.x);
 	uint base = WorkBase(index);
+	if (BUCKET)
+	{
+		// Dead slots can contain invalid hits. Nonmatching passes must not clear shadows
+		// emitted by a prior bucket, including paths that terminated after NEE.
+		if (asuint(gAccum[base].w) == 0u) return;
+		uint instance = asuint(gAccum[Field(base, 8u)].w);
+		uint material = gInstances[instance].materialIndex;
+		uint capacity = (gMaterialData[material * 2u].w >> 16u) & 31u;
+		if (capacity != MATERIAL_STACK_SIZE) return;
+	}
 	gAccum[Field(base, 11u)] = float4(0.0);
 	WavefrontPath s;
 	if (LATE_PATH) s = LoadShadingPath(base);
@@ -378,6 +388,14 @@ void Shade(uint3 tid : SV_DispatchThreadID) { ShadeImpl<false>(tid); }
 [shader("compute")]
 [numthreads(64, 1, 1)]
 void ShadeDirect(uint3 tid : SV_DispatchThreadID) { ShadeImpl<true>(tid); }
+
+[shader("compute")]
+[numthreads(64, 1, 1)]
+void ShadeBucket(uint3 tid : SV_DispatchThreadID) { ShadeImpl<false, 0u, false, true>(tid); }
+
+[shader("compute")]
+[numthreads(64, 1, 1)]
+void ShadeBucketDirect(uint3 tid : SV_DispatchThreadID) { ShadeImpl<true, 0u, false, true>(tid); }
 
 #define SHADE_ENTRY(NAME, DIRECT, PHASE, LATE) \
 [shader("compute")] \

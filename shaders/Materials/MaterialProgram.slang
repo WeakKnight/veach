@@ -86,7 +86,7 @@ struct MaterialHeader
 	uint surface; // absolute program offsets in gMaterialData, PROGRAM_NONE if absent
 	uint opacity;
 	uint emission;
-	uint flags; // bit 0 double-sided, bits 8..9 alpha mode
+	uint flags; // bit 0 double-sided, bits 8..9 alpha mode, bits 16..20 shading capacity
 	uint textureBase;
 	uint constantBase;
 	float alphaCutoff;

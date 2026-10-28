@@ -14,10 +14,26 @@ function fixture() {
 	const wavefront = new Wavefront(device as unknown as GPUDevice, {} as GPUBindGroupLayout, 1);
 	return { device, wavefront };
 }
-const experimental = (label = '') => /^wavefront\.Shade(?:Primary|Secondary|Late)/.test(label);
+const experimental = (label = '') => /^wavefront\.Shade(?:Primary|Secondary|Late|Bucket)/.test(label);
 
 describe('wavefront shading preparation', () => {
 	afterEach(() => vi.unstubAllGlobals());
+
+	it('prepares only bucket shading kernels at smaller capacities and reuses a single global bucket', async () => {
+		const { device, wavefront } = fixture();
+		await wavefront.compiled;
+		const count = device.createComputePipelineAsync.mock.calls.length;
+		await wavefront.prepareBuckets([1], 1, [0xffffffff, 0xffffffff]);
+		expect(device.createComputePipelineAsync).toHaveBeenCalledTimes(count);
+		await wavefront.prepareBuckets([0, 4], 16, [0xffffffff, 0xffffffff]);
+		await wavefront.prepareBuckets([0, 4], 16, [0xffffffff, 0xffffffff]);
+		expect(device.createComputePipelineAsync.mock.calls.slice(count).map(([d]) => d.label).sort()).toEqual([
+			'wavefront.ShadeBucket.stack0', 'wavefront.ShadeBucket.stack4',
+			'wavefront.ShadeBucketDirect.stack0', 'wavefront.ShadeBucketDirect.stack4',
+		]);
+		await expect(wavefront.prepareBuckets([8], 4, [0, 0])).rejects.toThrow('Invalid shading bucket');
+		wavefront.destroy();
+	});
 
 	it('keeps experimental entries out of default preparation and caches only requested phases', async () => {
 		const { device, wavefront } = fixture();

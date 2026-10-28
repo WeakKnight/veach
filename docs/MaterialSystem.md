@@ -19,6 +19,14 @@ selection (same expectation, visible only at 1 spp), and `clearcoatNormalTexture
   uses a lightweight empty-scene pipeline; geometry pipelines compile when a scene arrives.
   This applies to both megakernel and wavefront;
   the bytecode format, 16-slot compiler limit, and CPU reference are unchanged.
+  The compiler additionally reports independent `programStackSizes` for surface, opacity
+  and emission; absent programs require zero slots. The aggregate `stackSize` remains their
+  maximum. An experimental wavefront `shadeBuckets` path sizes each shading group using
+  max(current surface requirement, scene-wide emission requirement), rounded to 0/1/2/4/8/16.
+  The emission floor conservatively includes unused materials because NEE can evaluate another
+  material inside Shade. Header flags bits 16..20 store this capacity without changing layout.
+  Only capacities referenced by instances (including fallback materials) are prepared/dispatched.
+  Global traversal, shadow and tail capacities retain the original conservative bound.
   Capacity zero is a constant-only scene specialization: every compiled surface, opacity
   and emission program must need zero temporary slots. The compiler then emits only
   Output/End instructions with constant operands. This module retains the shared output
@@ -262,7 +270,7 @@ then                     code blocks, one per distinct bytecode (shared by mater
 ```text
 MaterialHeader (GpuLayout.packMaterialData, MaterialProgram.LoadMaterialHeader)
   uint4 programs:  surface, opacity, emission (absolute uint4 offsets, PROGRAM_NONE if absent),
-                   flags (bit 0 double-sided, alpha mode in bits 8..9)
+                   flags (bit 0 double-sided, alpha mode in bits 8..9, shading capacity in bits 16..20)
   uint4 data:      textureTableOffset, constantOffset, asuint(alphaCutoff),
                    debugTexture (texture table entry feeding base_color, PROGRAM_NONE if none)
 ```

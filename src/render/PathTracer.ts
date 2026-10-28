@@ -43,6 +43,7 @@ export class PathTracer {
 	opaqueMegakernel = false;
 	boundOpaqueMegakernel = false;
 	materialOpcodes: MaterialOpcodeMask = ALL_MATERIAL_OPCODES;
+	materialShadeCapacities: readonly MaterialStackCapacity[] = [];
 	private presentPipeline!: GPURenderPipeline;
 	readonly compiled: Promise<void>; // all pipelines (including exposure) have compiled
 	private readonly sampler: GPUSampler;
@@ -226,7 +227,7 @@ export class PathTracer {
 		const operandMode = this.materialOperandMode;
 		const opaque = this.sceneOpaque(scene);
 		await Promise.all([this.useEmptyPipeline(scene) ? this.compiled : this.prepareMaterialPipeline(capacity, opcodes, operandMode, opaque),
-			this.integrator === 'wavefront' && scene.instanceCount > 0 ? this.prepareWavefront(capacity, opcodes, operandMode) : Promise.resolve()]);
+			this.integrator === 'wavefront' && scene.instanceCount > 0 ? this.prepareWavefront(capacity, opcodes, operandMode, scene.materialShadeCapacities) : Promise.resolve()]);
 		if (this.destroyed) throw new Error('Path tracer has been destroyed');
 	}
 
@@ -237,6 +238,7 @@ export class PathTracer {
 	setScene(scene: GpuScene, environment: Environment, vt: VirtualTextureSystem): void {
 		this.materialCapacity = this.sceneCapacity(scene);
 		this.materialOpcodes = this.sceneOpcodes(scene);
+		this.materialShadeCapacities = scene.materialShadeCapacities;
 		this.boundMaterialOperandMode = this.materialOperandMode;
 		this.boundOpaqueMegakernel = this.sceneOpaque(scene);
 		const pipeline = this.useEmptyPipeline(scene) ? this.emptyPipeline : this.materialPipelines.get(`${materialPipelineKey(this.materialCapacity, this.materialOpcodes, this.boundMaterialOperandMode)}/${Number(this.boundOpaqueMegakernel)}`);
@@ -361,7 +363,7 @@ export class PathTracer {
 		return this.feedbackTexture;
 	}
 
-	private async prepareWavefront(capacity: MaterialStackCapacity, opcodes: MaterialOpcodeMask, operandMode: number): Promise<void> {
+	private async prepareWavefront(capacity: MaterialStackCapacity, opcodes: MaterialOpcodeMask, operandMode: number, shadeCapacities: readonly MaterialStackCapacity[] = []): Promise<void> {
 		if (this.destroyed) throw new Error('Path tracer has been destroyed');
 		this.wavefrontLoading ??= import('./Wavefront').then(async ({ Wavefront }) => {
 			if (this.destroyed) throw new Error('Path tracer has been destroyed');
@@ -387,13 +389,14 @@ export class PathTracer {
 		}
 		this.wavefront = wavefront;
 		await wavefront.prepareStack(capacity, opcodes, operandMode);
+		if (wavefront.shadeBuckets) await wavefront.prepareBuckets(shadeCapacities, capacity, opcodes, operandMode);
 		if (this.destroyed) throw new Error('Path tracer has been destroyed');
 	}
 
 	async setIntegrator(mode: 'megakernel' | 'wavefront'): Promise<void> {
 		if (this.destroyed) throw new Error('Path tracer has been destroyed');
 		if (mode === this.integrator) return;
-		if (mode === 'wavefront' && this.hasGeometry) await this.prepareWavefront(this.materialCapacity, this.materialOpcodes, this.boundMaterialOperandMode);
+		if (mode === 'wavefront' && this.hasGeometry) await this.prepareWavefront(this.materialCapacity, this.materialOpcodes, this.boundMaterialOperandMode, this.materialShadeCapacities);
 		if (this.destroyed) throw new Error('Path tracer has been destroyed');
 		this.integrator = mode;
 		const width = this.width, height = this.height;
@@ -406,7 +409,7 @@ export class PathTracer {
 			return;
 		}
 		if (this.integrator === 'wavefront' && this.hasGeometry && debugMode === 0) {
-			this.wavefront!.encode(encoder, this.sceneBindGroup, this.width, this.height, maxBounces, this.hasAlphaTested, this.materialCapacity, this.lightCount, this.materialOpcodes, this.boundMaterialOperandMode);
+			this.wavefront!.encode(encoder, this.sceneBindGroup, this.width, this.height, maxBounces, this.hasAlphaTested, this.materialCapacity, this.lightCount, this.materialOpcodes, this.boundMaterialOperandMode, this.materialShadeCapacities);
 			return;
 		}
 		const pass = encoder.beginComputePass({ label: 'pathTracing' });

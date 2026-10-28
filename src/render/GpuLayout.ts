@@ -3,6 +3,7 @@ import type { CompiledMaterial } from '../material/Compile';
 import type { TextureSampling } from '../material/Evaluate';
 import type { Mat4, Vec3 } from '../math/Math';
 import type { LightDesc } from '../scene/Scene';
+import { materialShadeCapacities } from './MaterialCapacity';
 
 export const INSTANCE_BYTES = 128;
 export const VERTEX_BYTES = 64;
@@ -184,6 +185,7 @@ function packTextureRef(f32: Float32Array, u32: Uint32Array, at: number, t: Text
 //   then                code blocks, one per distinct bytecode (materials differing only in
 //                       constants and textures share one)
 export function packMaterialData(materials: readonly CompiledMaterial[], slotOf: (source: number) => TextureSlot | null): Uint32Array {
+	const shadeCapacities = materialShadeCapacities(materials);
 	let size = materials.length * MATERIAL_HEADER_WORDS;
 	const dataBase = materials.map((m) => {
 		const base = size;
@@ -208,7 +210,7 @@ export function packMaterialData(materials: readonly CompiledMaterial[], slotOf:
 		const program = (offset: number) => (offset < 0 ? PROGRAM_NONE : codeBase[i] + offset);
 		const constantBase = dataBase[i] + m.textures.length * 2;
 		const h = i * MATERIAL_HEADER_WORDS * 4;
-		u32.set([program(m.surface), program(m.opacity), program(m.emission), (m.doubleSided ? MATERIAL_FLAG_DOUBLE_SIDED : 0) | ((m.alphaMode & 3) << 8)], h);
+		u32.set([program(m.surface), program(m.opacity), program(m.emission), (m.doubleSided ? MATERIAL_FLAG_DOUBLE_SIDED : 0) | ((m.alphaMode & 3) << 8) | (shadeCapacities[i] << 16)], h);
 		u32.set([dataBase[i], constantBase, 0, m.debugTexture < 0 ? PROGRAM_NONE : m.debugTexture], h + 4);
 		f32[h + 6] = m.alphaCutoff;
 		m.textures.forEach((t, k) => packTextureRef(f32, u32, (dataBase[i] + k * 2) * 4, t, slotOf(t.source)));

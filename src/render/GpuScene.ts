@@ -9,7 +9,8 @@ import type { CompiledMaterial } from '../material/Compile';
 import { luminance, mat4, vec3, type Mat4, type Vec3 } from '../math/Math';
 import type { SceneDesc } from '../scene/Scene';
 import { INSTANCE_BYTES, INSTANCE_FLAG_ALPHA_TESTED, INSTANCE_FLAG_EMISSIVE, LIGHT_BYTES, VERTEX_BYTES, packAnalyticLight, packInstance, packMaterialData, packVertices } from './GpuLayout';
-import { emissionLuminance } from './SceneMaterials';
+import { emissionLuminance, sceneShadeCapacities } from './SceneMaterials';
+import type { MaterialStackCapacity } from './MaterialCapacity';
 import { materialOpcodeMask, type MaterialOpcodeMask } from './MaterialProgramFeatures';
 import type { CpuTexture } from './vt/TileSource';
 import type { VirtualTextureSystem } from './vt/VirtualTextureSystem';
@@ -49,6 +50,7 @@ export class GpuScene {
 	instanceCount = 0;
 	hasAlphaTested = false;
 	materialStackSize = 0;
+	materialShadeCapacities: MaterialStackCapacity[] = [];
 	materialOpcodes: MaterialOpcodeMask = [0, 0];
 	lightCount = 0;
 	analyticLightCount = 0;
@@ -71,6 +73,7 @@ export class GpuScene {
 		}
 		const defaultMaterialIndex = materials.length - 1;
 		out.materialStackSize = Math.max(0, ...materials.map(material => material.stackSize));
+		out.materialShadeCapacities = sceneShadeCapacities(scene, materials);
 		out.materialOpcodes = materialOpcodeMask(materials);
 		const materialData = packMaterialData(materials, vt.descriptorOf);
 		const materialOf = (mesh: number) => {

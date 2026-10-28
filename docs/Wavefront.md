@@ -1,5 +1,24 @@
 # Wavefront implementation and performance experiment
 
+## Cycles implementation cross-check
+
+The local `E:/GitHub/cycles` checkout provides a useful architectural comparison.
+`src/integrator/path_trace_work_gpu.cpp` builds active path-index arrays and sorts
+surface shading by shader; `src/kernel/integrator/state.h` keeps persistent GPU
+path state in SoA storage. `src/kernel/integrator/shade_surface.h` retains shader
+evaluation, direct-light work and BSDF bounce within one surface-shading invocation,
+avoiding a separate persistent closure buffer between those operations.
+
+Cycles' `src/kernel/svm/svm.h` declares `float stack[SVM_STACK_SIZE]` (255 floats in
+this checkout). Its implementation comment expects GPU thread-private local memory
+because the stack is large and dynamically indexed. This is not shared workgroup
+memory, nor evidence that each virtual slot occupies a hardware register. Sorting
+improves instruction and memory coherence; it does not by itself lower a kernel's
+static register allocation. Veach's capacity-specific pipelines test a separate
+optimization axis. Backend register counts and spills remain unmeasured here.
+
+## Investigation scope
+
 Work started 2026-10-28 02:14 Hong Kong time (2026-10-27 18:14 UTC).
 The requested investigation lasts at least eight hours, through 10:14 Hong Kong time,
 and includes implementation, repeated measurements, correctness checks, and optimization.
@@ -1471,7 +1490,41 @@ only groups programs; all lanes still use the scene's maximum compiled capacity.
 group must also cover the scene-wide emission-program requirement because NEE evaluates
 other emissive materials. A nonmatching group must return before any path/shadow write,
 especially the current shadow-mask clear. Mixed-complexity workloads are the relevant target;
-uniform capacity-16 stress remains a useful overhead control. This grouping is not yet implemented.
+uniform capacity-16 stress remains a useful overhead control. The initial implementation follows.
+
+## Shading capacity groups
+
+`--shade-buckets` now enables an initial scan-based implementation, default off. Each referenced
+capacity scans the same shading queue (or direct physical slots), exits before any write when
+the material belongs to another group, and uses a statically sized SVM. This is not a compacted
+partition: repeated dispatches, queue reads and inactive lanes are explicit costs to measure.
+The current implementation requires unified shading; fixed/adaptive tails keep their global
+capacity. A single group equal to the global capacity reuses ordinary shading. `prepareBuckets`
+compiles only the two queued/direct shading entries per needed capacity, without compiling
+traversal/tail kernels at every size.
+
+Independent compiler program maxima are packed through a conservative scene-wide emission
+floor, since NEE evaluates other materials. Alpha traversal and shadow opacity remain bounded
+by the global stack requirement. Dead slots are checked before reading potentially invalid hit
+indices, and nonmatching groups never clear shadow metadata. Even a path terminating after NEE
+can have a pending shadow contribution that subsequent groups must preserve.
+
+`--bucket-sweep --paired --mode wavefront --compaction adaptive --balanced-order --repeats 5`
+compares general megakernel, unified wavefront, capacity scans, program-sorted wavefront and
+program-sorted capacity scans. When the base is already sorted or uses direct shading, only
+the capacity candidate is added; choose repeats in multiples of the resulting variant count.
+This isolates capacity effects from program coherence. Correctness checks record actual bucket
+pipeline capacities and include mixed constant/complex surfaces and cross-material emission
+programs, partial groups and multiple tiles. No hardware register counts are inferred.
+
+The scan implementation passes all 54 GPU regression comparisons in adaptive mode,
+with exact HDR/AOV agreement against the forced-capacity reference, and 212 unit tests.
+The mixed fixture explicitly assigns four material graphs to the sphere asset's five
+meshes (the source asset shares just one material). Its optimized shading capacities
+are 0/2/4; the cross-material emission fixture uses 2/8, exercising the emission floor
+for constant surfaces. Both fixtures cover partial workgroups and more than one tile.
+Shader compilation, TypeScript checking and the library build also pass. Performance
+and additional dispatch-combination validation remain pending; the option stays off.
 
 ## Work storage layout
 

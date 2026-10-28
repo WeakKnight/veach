@@ -26,6 +26,7 @@ export interface CompiledMaterial {
 	opacity: number; // geometry_opacity (alpha test, -1 for opaque materials)
 	emission: number; // emission_luminance and emission_color (light sampling)
 	stackSize: number; // float4 slots
+	programStackSizes: { surface: number; opacity: number; emission: number };
 	alphaTested: boolean;
 	emissive: boolean;
 	debugTexture: number; // texture table entry feeding base_color (debug view 9), -1 if none
@@ -129,12 +130,12 @@ class ProgramCompiler {
 
 	// scalar: the program runs where only texture coordinates are known (BVH traversal, light
 	// sampling), so it may not read other geometry or apply normal maps.
-	compile(fields: readonly string[], scalar = false): number {
+	compile(fields: readonly string[], scalar = false): { offset: number; stackSize: number } {
 		const graph = this.graph;
 		const surface = graph.nodes[graph.surface];
 		const present = fields.filter((f) => surface.inputs[f] !== undefined);
 		if (present.length === 0) {
-			return -1;
+			return { offset: -1, stackSize: 0 };
 		}
 
 		const live = new Set<number>();
@@ -338,7 +339,7 @@ class ProgramCompiler {
 			throw new Error(`material compiler: ${graph.name} needs ${size} stack slots (max ${MAX_STACK_SIZE})`);
 		}
 		this.stackSize = Math.max(this.stackSize, size);
-		return offset;
+		return { offset, stackSize: size };
 	}
 }
 
@@ -366,10 +367,11 @@ export function compileMaterial(graph: MaterialGraph, options: MaterialCompileOp
 		code: Uint32Array.from(c.code),
 		constants: Float32Array.from(c.constants.lanes),
 		textures: c.textures.entries,
-		surface,
-		opacity,
-		emission,
+		surface: surface.offset,
+		opacity: opacity.offset,
+		emission: emission.offset,
 		stackSize: c.stackSize,
+		programStackSizes: { surface: surface.stackSize, opacity: opacity.stackSize, emission: emission.stackSize },
 		alphaTested: g.alphaMode !== AlphaMode.Opaque && surfaceInputs.geometry_opacity !== undefined,
 		emissive: surfaceInputs.emission_luminance !== undefined,
 		debugTexture,

@@ -1,12 +1,7 @@
 import { materialStackVariants, type MaterialStackVariantData } from '../generated/shaders/MaterialStackVariants';
 
-export const MATERIAL_STACK_CAPACITIES = [0, 1, 2, 4, 8, 16] as const;
-export type MaterialStackCapacity = typeof MATERIAL_STACK_CAPACITIES[number];
-
-export function materialStackCapacity(required: number): MaterialStackCapacity {
-	if (!Number.isInteger(required) || required < 0 || required > 16) throw new Error(`Invalid material stack requirement: ${required}`);
-	return MATERIAL_STACK_CAPACITIES.find(capacity => capacity >= required)!;
-}
+import type { MaterialStackCapacity } from './MaterialCapacity';
+export { MATERIAL_STACK_CAPACITIES, materialStackCapacity, type MaterialStackCapacity } from './MaterialCapacity';
 
 // Restore exact Slang output from generated edits, sharing the large common module in the bundle.
 // WGSL pipeline overrides cannot size function-scope arrays, so these are shader-module variants.

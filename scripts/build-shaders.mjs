@@ -27,7 +27,7 @@ const programs = [
 	{ name: 'PathTracingOpaque', source: 'Passes/PathTracing.slang', defines: ['VEACH_OPAQUE_SCENE=1'], entries: [['main', 'compute']] },
 	{ name: 'PathTracingEmpty', source: 'Passes/PathTracing.slang', defines: ['VEACH_EMPTY_SCENE=1'], entries: [['main', 'compute']] },
 	{ name: 'Wavefront', source: 'Passes/Wavefront.slang', entries: ['Initialize', 'Intersect', 'IntersectOpaque', 'Shade', 'Shadow', 'ShadowOpaque', 'Tail', 'TailOpaque', 'Finalize',
-		'IntersectDirect', 'IntersectOpaqueDirect', 'ShadeDirect', 'ShadowDirect', 'ShadowOpaqueDirect',
+		'IntersectDirect', 'IntersectOpaqueDirect', 'ShadeDirect', 'ShadeBucket', 'ShadeBucketDirect', 'ShadowDirect', 'ShadowOpaqueDirect',
 		'ShadePrimary', 'ShadeSecondary', 'ShadeLate', 'ShadePrimaryLate', 'ShadeSecondaryLate',
 		'ShadePrimaryDirect', 'ShadeSecondaryDirect', 'ShadeLateDirect', 'ShadePrimaryLateDirect', 'ShadeSecondaryLateDirect'].map(e => [e, 'compute']) },
 	{ name: 'WavefrontCompact', source: 'Passes/WavefrontCompact.slang', entries: [['CompactIntersect', 'compute'], ['CompactShade', 'compute']] },

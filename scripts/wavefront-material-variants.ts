@@ -1,6 +1,6 @@
 // Benchmark fixture: switch only instruction scheduling while retaining geometry,
 // lights and virtual-texture residency. Each variant owns one material buffer.
-import { compileSceneMaterials } from '../src/render/SceneMaterials';
+import { compileSceneMaterials, sceneShadeCapacities } from '../src/render/SceneMaterials';
 import { packMaterialData } from '../src/render/GpuLayout';
 import { materialOpcodeMask } from '../src/render/MaterialProgramFeatures';
 import type { SceneDesc } from '../src/scene/Scene';
@@ -19,6 +19,6 @@ export function materialScheduleVariants(device: GPUDevice, scene: SceneDesc, de
 		usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST, mappedAtCreation: true });
 	new Uint32Array(buffer.getMappedRange()).set(data); buffer.unmap();
 	const entry = (materials: typeof original, buffer: GPUBuffer) => ({ buffer,
-		stack: Math.max(0, ...materials.map(m => m.stackSize)), opcodes: materialOpcodeMask(materials) });
+		shadeCapacities: sceneShadeCapacities(scene, materials), stack: Math.max(0, ...materials.map(m => m.stackSize)), opcodes: materialOpcodeMask(materials) });
 	return { original: entry(original, originalBuffer), optimized: entry(optimized, buffer) };
 }
