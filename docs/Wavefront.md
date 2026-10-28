@@ -1242,6 +1242,55 @@ no GPU correctness or performance evidence yet; opaque specialization must retai
 kernel for any scene with alpha-tested instances. This comparison can separate a useful
 scene specialization from gains attributable to stage decomposition.
 
+### Continuation octant sorting, five balanced rounds
+
+`ray-sort-original-v1` (revision `a19ed35`) compares the original five scenes with adaptive
+compaction, automatic material capacity, 32 measured samples, 64 warmup samples per block,
+and five balanced rounds. All 100 non-reference paired HDR comparisons are exact, the
+saved-output/order verifier passes, and all five screenshots were inspected. Median GPU
+spans in milliseconds per sample:
+
+| Variant | classroom | breakfast-room | bmw-m6 | glass-of-water | veach-mis |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Megakernel | 10.041 | 4.350 | 2.673 | 2.810 | 1.548 |
+| Wavefront, unsorted | 8.571 | 6.092 | 5.366 | 3.728 | 1.750 |
+| Direction64 | 8.856 | 6.049 | 5.477 | 3.870 | 1.822 |
+| Direction256, direct | 8.734 | 6.129 | 5.683 | 3.961 | 1.859 |
+| Direction256, exact indirect | 8.898 | 6.145 | 5.787 | 3.927 | 1.858 |
+
+The 64-slot sort lowers breakfast-room's paired-round median span by only 0.63%; it is
+slower in every paired round on the other four scenes. Direction256 does not establish a
+general gain either. Its mean Intersect time falls from 3.846 to 3.761 ms in classroom and
+4.030 to 3.941 ms in breakfast-room, but sorting itself costs 0.170/0.120 ms and other stages
+also change. BMW, glass and MIS show higher Intersect time after direction256 sorting.
+This octant key therefore does not reliably improve traversal coherence enough to pay for
+queue reordering. Exact dispatch reduces breakfast-room's mean sorting cost from 0.120 to
+0.101 ms, but adds count-generation/copy overhead; classroom's combined compaction time
+increases from approximately 0.566 to 0.650 ms. Ray sorting and exact sort dispatch remain
+disabled by default. Per-stage times are means and must not be subtracted directly from
+the table's median spans. Reports also confirm the actual 64-indirect, 256-direct and
+256-indirect dispatch modes rather than inferring them from requested settings.
+
+### Exact program256 dispatch with mixed complex materials
+
+`sort-indirect-mixed8-v1` uses the same revision, fixed scenes and timing settings, with
+eight-layer mixed materials, program256 sorting, and six balanced rounds (two cycles with
+opposite order). All 60 paired HDR comparisons are exact, the sweep verifier passes, and
+all five screenshots were inspected. Median spans:
+
+| Variant | classroom | breakfast-room | bmw-m6 | glass-of-water | veach-mis |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Program256, full-tile direct | 9.859 | 9.135 | 7.651 | 5.623 | 3.177 |
+| Program256, exact indirect | 9.853 | 9.094 | 7.593 | 5.654 | 3.224 |
+
+Paired-round median changes are -0.55/-0.52/-0.21/+0.62/+1.59 percent. Every scene has
+both faster and slower rounds, so these data do not establish a stable benefit. Sorting
+cost decreases by roughly 0.02 ms/sample, while compaction costs rise by roughly 0.02-0.04
+ms/sample. The option remains disabled. BMW's megakernel span varies from 6.826 to 8.474 ms
+and glass from 6.513 to 7.801 ms, reinforcing the need to compare the two wavefront variants
+within each round rather than crediting changes in the megakernel baseline to this dispatch
+optimization. Both sorting investigations include full span timing and preserved HDR output.
+
 ## Work storage layout
 
 Group 1 binding 0 contains the original image prefix (three float4 per pixel), then
