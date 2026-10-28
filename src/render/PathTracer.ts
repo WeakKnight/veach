@@ -39,6 +39,9 @@ export class PathTracer {
 	materialOpcodeSpecialization = false;
 	materialOperandMode = 0;
 	boundMaterialOperandMode = 0;
+	// Internal traversal experiment; alpha-tested scenes always retain the general kernel.
+	opaqueMegakernel = false;
+	boundOpaqueMegakernel = false;
 	materialOpcodes: MaterialOpcodeMask = ALL_MATERIAL_OPCODES;
 	private presentPipeline!: GPURenderPipeline;
 	readonly compiled: Promise<void>; // all pipelines (including exposure) have compiled
@@ -185,15 +188,24 @@ export class PathTracer {
 		return this.materialOpcodeSpecialization ? scene.materialOpcodes : ALL_MATERIAL_OPCODES;
 	}
 
-	private async prepareMaterialPipeline(capacity: MaterialStackCapacity, opcodes: MaterialOpcodeMask, operandMode: number): Promise<GPUComputePipeline> {
+	private sceneOpaque(scene: GpuScene): boolean {
+		return this.opaqueMegakernel && scene.instanceCount > 0 && !scene.hasAlphaTested;
+	}
+
+	private async prepareMaterialPipeline(capacity: MaterialStackCapacity, opcodes: MaterialOpcodeMask, operandMode: number, opaque = false): Promise<GPUComputePipeline> {
 		if (this.destroyed) throw new Error('Path tracer has been destroyed');
-		const key = materialPipelineKey(capacity, opcodes, operandMode);
+		const key = `${materialPipelineKey(capacity, opcodes, operandMode)}/${Number(opaque)}`;
 		const existing = this.materialPipelines.get(key);
 		if (existing) return existing;
 		let pending = this.materialPipelineLoading.get(key);
 		if (!pending) {
-			const module = this.device.createShaderModule({ label: 'PathTracing', code: specializeMaterialShader(pathTracingWgsl, 'PathTracing', capacity) });
-			pending = this.device.createComputePipelineAsync({ label: `pathTracing.stack${capacity}`, layout: this.computeLayout, compute: { module, entryPoint: 'main', constants: materialPipelineConstants(capacity, opcodes, operandMode) } }).then(pipeline => {
+			pending = (async () => {
+				const code = opaque ? (await import('./OpaqueMaterialShader')).opaqueMaterialShader(capacity)
+					: specializeMaterialShader(pathTracingWgsl, 'PathTracing', capacity);
+				if (this.destroyed) throw new Error('Path tracer has been destroyed');
+				const module = this.device.createShaderModule({ label: opaque ? 'PathTracingOpaque' : 'PathTracing', code });
+				return this.device.createComputePipelineAsync({ label: `pathTracing.${opaque ? 'opaque.' : ''}stack${capacity}`, layout: this.computeLayout, compute: { module, entryPoint: 'main', constants: materialPipelineConstants(capacity, opcodes, operandMode) } });
+			})().then(pipeline => {
 				if (this.destroyed) throw new Error('Path tracer has been destroyed');
 				this.materialPipelines.set(key, pipeline);
 				return pipeline;
@@ -212,7 +224,8 @@ export class PathTracer {
 		const capacity = this.sceneCapacity(scene);
 		const opcodes = this.sceneOpcodes(scene);
 		const operandMode = this.materialOperandMode;
-		await Promise.all([this.useEmptyPipeline(scene) ? this.compiled : this.prepareMaterialPipeline(capacity, opcodes, operandMode),
+		const opaque = this.sceneOpaque(scene);
+		await Promise.all([this.useEmptyPipeline(scene) ? this.compiled : this.prepareMaterialPipeline(capacity, opcodes, operandMode, opaque),
 			this.integrator === 'wavefront' && scene.instanceCount > 0 ? this.prepareWavefront(capacity, opcodes, operandMode) : Promise.resolve()]);
 		if (this.destroyed) throw new Error('Path tracer has been destroyed');
 	}
@@ -225,7 +238,8 @@ export class PathTracer {
 		this.materialCapacity = this.sceneCapacity(scene);
 		this.materialOpcodes = this.sceneOpcodes(scene);
 		this.boundMaterialOperandMode = this.materialOperandMode;
-		const pipeline = this.useEmptyPipeline(scene) ? this.emptyPipeline : this.materialPipelines.get(materialPipelineKey(this.materialCapacity, this.materialOpcodes, this.boundMaterialOperandMode));
+		this.boundOpaqueMegakernel = this.sceneOpaque(scene);
+		const pipeline = this.useEmptyPipeline(scene) ? this.emptyPipeline : this.materialPipelines.get(`${materialPipelineKey(this.materialCapacity, this.materialOpcodes, this.boundMaterialOperandMode)}/${Number(this.boundOpaqueMegakernel)}`);
 		if (!pipeline) throw new Error('Material pipeline must be prepared before binding a scene');
 		this.computePipeline = pipeline;
 		this.hasAlphaTested = scene.hasAlphaTested;

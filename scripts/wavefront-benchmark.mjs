@@ -57,14 +57,18 @@ const config = {
 	operandModes: option('operand-modes', '1,2,3').split(',').map(Number),
 	balancedOrder: args.includes('--balanced-order'),
 	opcodeMode: option('opcodes', 'full'),
+	opaqueMegakernel: args.includes('--opaque-megakernel'),
+	opaqueSweep: args.includes('--opaque-sweep'),
 	opcodeSweep: args.includes('--opcode-sweep'),
 	materialLayers: Number(option('material-layers', 0)),
 	materialMixed: args.includes('--material-mixed'),
 	materialSchedule: option('material-schedule', 'original'),
 	scheduleSweep: args.includes('--schedule-sweep'),
-	variantWarmup: Number(option('variant-warmup', args.includes('--material-sweep') || args.includes('--opcode-sweep') || args.includes('--schedule-sweep') || args.includes('--spatial-sweep') || args.includes('--operand-sweep') || args.includes('--ray-sort-sweep') || args.includes('--sort-indirect-sweep') ? 64 : 8)),
+	variantWarmup: Number(option('variant-warmup', args.includes('--material-sweep') || args.includes('--opcode-sweep') || args.includes('--schedule-sweep') || args.includes('--spatial-sweep') || args.includes('--operand-sweep') || args.includes('--ray-sort-sweep') || args.includes('--sort-indirect-sweep') || args.includes('--opaque-sweep') ? 64 : 8)),
 };
 if (Object.entries(config).filter(([key, value]) => key.endsWith('Sweep') && value).length > 1) throw new Error('Choose one sweep at a time');
+if (config.opaqueSweep && (!config.paired || config.opaqueMegakernel)) throw new Error('Opaque sweep requires paired general traversal');
+if (config.opaqueMegakernel && config.paired) throw new Error('Use --opaque-sweep to retain a general paired reference');
 if (![0, 64, 256].includes(config.raySortSize)) throw new Error('Invalid ray sort size');
 if ((config.raySortSize !== 0 || config.raySortSweep) && (config.compaction === 'none' || (config.directStages & 1) !== 0 || config.dispatchSweep || config.compactionSweep)) throw new Error('Ray sorting requires fixed queued intersection');
 if (config.sortIndirect && !((config.sort !== 'none' && config.sortSize === 256) || config.raySortSize === 256)) throw new Error('Indirect sorting requires a 256-slot sort');
@@ -161,9 +165,11 @@ if (config.raySortSweep) {
 		config.variants.push({ name: `rays-${raySortSize}${sortIndirect ? '-indirect' : ''}`, raySortSize, sortIndirect, tailStart: config.tailStart, tailThreshold: config.tailThreshold });
 }
 if (config.sortIndirectSweep) config.variants.push({ name: 'sort-indirect', sortIndirect: true, tailStart: config.tailStart, tailThreshold: config.tailThreshold });
+if (config.opaqueSweep) config.variants.push({ name: 'megakernel-opaque', mode: 'megakernel', opaqueMegakernel: true, tailStart: config.tailStart, tailThreshold: config.tailThreshold });
 for (const variant of config.variants) {
 	variant.mode ??= 'wavefront';
 	variant.materialStack ??= config.materialStack;
+	variant.opaqueMegakernel ??= config.opaqueMegakernel;
 	variant.compaction ??= config.compaction;
 	variant.directStages ??= config.directStages;
 	variant.packetStages ??= config.packetStages;
@@ -241,7 +247,7 @@ const assertUnchangedSources = () => {
 const referenceReport = { ...report, config: { ...config, mode: 'megakernel' }, results: [] };
 const variantReports = Object.fromEntries(config.variants.slice(1).map(variant => {
 	mkdirSync(join(output, variant.name), { recursive: true });
-	return [variant.name, { ...report, config: { ...config, mode: variant.mode, materialStack: variant.materialStack, tailStart: variant.tailStart, tailThreshold: variant.tailThreshold, compaction: variant.compaction, directStages: variant.directStages, packetStages: variant.packetStages, sort: variant.sort, sortSize: variant.sortSize, raySortSize: variant.raySortSize, sortIndirect: variant.sortIndirect, spatialQueues: variant.spatialQueues, shadowMode: variant.shadowMode, operandMode: variant.operandMode, opcodeMode: variant.opcodeMode, materialSchedule: variant.materialSchedule }, results: [] }];
+	return [variant.name, { ...report, config: { ...config, mode: variant.mode, opaqueMegakernel: variant.opaqueMegakernel, materialStack: variant.materialStack, tailStart: variant.tailStart, tailThreshold: variant.tailThreshold, compaction: variant.compaction, directStages: variant.directStages, packetStages: variant.packetStages, sort: variant.sort, sortSize: variant.sortSize, raySortSize: variant.raySortSize, sortIndirect: variant.sortIndirect, spatialQueues: variant.spatialQueues, shadowMode: variant.shadowMode, operandMode: variant.operandMode, opcodeMode: variant.opcodeMode, materialSchedule: variant.materialSchedule }, results: [] }];
 }));
 writeFileSync(join(candidateOutput, 'report.json'), JSON.stringify(report, null, 2));
 try {
@@ -279,7 +285,7 @@ try {
 				});
 			};
 			GPUDevice.prototype.createShaderModule = function(descriptor) {
-				if (descriptor.label === 'PathTracing' || descriptor.label === 'Wavefront') {
+				if (descriptor.label === 'PathTracing' || descriptor.label === 'PathTracingOpaque' || descriptor.label === 'Wavefront') {
 					const capacities = [...descriptor.code.matchAll(/var stack_\d+\s*:\s*array<vec4<f32>,\s*i32\((\d+)\)>/g)].map(match => Number(match[1]));
 					if (!capacities.length) capacities.push(0); // Constant-only modules have no SVM stack.
 					if (capacities.some(capacity => capacity !== capacities[0])) throw new Error('Unexpected effective SVM shader capacity');
@@ -313,6 +319,7 @@ try {
 			renderer.tracer.materialStackOverride = config.materialSchedule === 'optimized' ? null : config.materialStack;
 			renderer.tracer.materialOpcodeSpecialization = config.opcodeMode === 'scene';
 			renderer.tracer.materialOperandMode = config.operandMode;
+			renderer.tracer.opaqueMegakernel = config.opaqueMegakernel;
 			Object.assign(renderer.settings, { maxSamples: 0, samplesPerFrame: 1, maxBounces: config.bounces,
 				autoExposureMethod: AutoExposureMethod.Manual, autoExposureBias: 0, localExposureMethod: LocalExposureMethod.None,
 				environmentIntensity: c.environment, fireflyClamp: config.clamp });
@@ -363,7 +370,8 @@ try {
 			const materialCapacity = renderer.tracer.materialCapacity;
 			const expectedCapacity = config.materialStack ?? [0, 1, 2, 4, 8, 16].find(capacity => capacity >= materialStackRequired);
 			if (materialCapacity !== expectedCapacity) throw new Error('Incorrect production material capacity selection');
-			for (const label of config.mode === 'wavefront' ? ['PathTracing', 'Wavefront'] : ['PathTracing']) {
+			const initialMegakernel = renderer.tracer.boundOpaqueMegakernel ? 'PathTracingOpaque' : 'PathTracing';
+			for (const label of config.mode === 'wavefront' ? [initialMegakernel, 'Wavefront'] : [initialMegakernel]) {
 				if (!observedStackCapacities[label]?.includes(materialCapacity)) throw new Error(`Missing ${label} shader specialization`);
 			}
 			const device = renderer.device;
@@ -474,7 +482,7 @@ try {
 					const order = config.measurementOrders[repeat];
 					schedule.sort((a, b) => order.indexOf(a.name) - order.indexOf(b.name));
 				} else {
-					if (config.tailSweep || config.compactionSweep || config.dispatchSweep || config.packetSweep || config.materialSweep || config.sortSweep || config.shadowSweep || config.opcodeSweep || config.scheduleSweep || config.spatialSweep || config.operandSweep || config.raySortSweep || config.sortIndirectSweep) schedule.push(...schedule.splice(0, repeat % schedule.length));
+					if (config.tailSweep || config.compactionSweep || config.dispatchSweep || config.packetSweep || config.materialSweep || config.sortSweep || config.shadowSweep || config.opcodeSweep || config.scheduleSweep || config.spatialSweep || config.operandSweep || config.raySortSweep || config.sortIndirectSweep || config.opaqueSweep) schedule.push(...schedule.splice(0, repeat % schedule.length));
 					if (config.paired && repeat % 2 !== 0) schedule.reverse();
 				}
 				for (const [measurementPosition, variant] of schedule.entries()) {
@@ -488,18 +496,21 @@ try {
 						if (requestedStack !== null && requestedStack < requiredStack) throw new Error(`Material sweep needs at least ${requiredStack} stack slots`);
 						const requestedOpcodes = (variant.opcodeMode ?? config.opcodeMode) === 'scene';
 						const requestedOperands = variant.operandMode ?? config.operandMode;
-						if (renderer.tracer.materialStackOverride !== requestedStack || renderer.tracer.materialOpcodeSpecialization !== requestedOpcodes || currentMaterialSchedule !== requestedSchedule || renderer.tracer.materialOperandMode !== requestedOperands) {
+						const requestedOpaque = variant.opaqueMegakernel ?? config.opaqueMegakernel;
+						if (renderer.tracer.materialStackOverride !== requestedStack || renderer.tracer.materialOpcodeSpecialization !== requestedOpcodes || currentMaterialSchedule !== requestedSchedule || renderer.tracer.materialOperandMode !== requestedOperands || renderer.tracer.opaqueMegakernel !== requestedOpaque) {
 							if (material) Object.assign(renderer.scene, { materials: material.buffer, materialStackSize: material.stack, materialOpcodes: material.opcodes });
 							currentMaterialSchedule = requestedSchedule;
 							renderer.tracer.materialStackOverride = requestedStack;
 							renderer.tracer.materialOpcodeSpecialization = requestedOpcodes;
 							renderer.tracer.materialOperandMode = requestedOperands;
+							renderer.tracer.opaqueMegakernel = requestedOpaque;
 							await renderer.tracer.prepareScene(renderer.scene);
 							renderer.bindScene();
 						}
 						const expectedStack = requestedStack ?? [0, 1, 2, 4, 8, 16].find(n => n >= requiredStack);
 						if (renderer.tracer.boundMaterialOperandMode !== requestedOperands) throw new Error('Operand sweep selected the wrong mode');
 						if (renderer.tracer.materialCapacity !== expectedStack) throw new Error('Material sweep selected the wrong capacity');
+						if (renderer.tracer.boundOpaqueMegakernel !== (requestedOpaque && renderer.scene.instanceCount > 0 && !renderer.scene.hasAlphaTested)) throw new Error('Wrong bound opaque traversal selection');
 						await renderer.setIntegrator(mode);
 						if (mode === 'wavefront') Object.assign(renderer.tracer.wavefront, { tailStart: variant.tailStart, tailThreshold: variant.tailThreshold, compaction: variant.compaction, directStages: variant.directStages, packetStages: variant.packetStages, sort: variant.sort, sortSize: variant.sortSize, raySortSize: variant.raySortSize, sortIndirect: variant.sortIndirect, spatialQueues: variant.spatialQueues, shadowMode: variant.shadowMode });
 						// Warm each selected pipeline before timing while retaining identical scene/VT data.
@@ -544,6 +555,12 @@ try {
 					const sortedSpans = [...spanTimings].sort((a, b) => a - b);
 					const medianSpanMs = (sortedSpans[Math.floor((sortedSpans.length - 1) / 2)] + sortedSpans[Math.floor(sortedSpans.length / 2)]) * 0.5;
 					if (observedMaterialSchedules.size !== 1) throw new Error('Material schedule binding was not exercised');
+					if (mode === 'megakernel') {
+						const expected = `pathTracing.${renderer.tracer.boundOpaqueMegakernel ? 'opaque.' : ''}stack${renderer.tracer.materialCapacity}`;
+						if (observedPipelines.size !== 1 || !observedPipelines.has(expected)) throw new Error('Wrong measured megakernel traversal pipeline');
+						const shader = renderer.tracer.boundOpaqueMegakernel ? 'PathTracingOpaque' : 'PathTracing';
+						if (!observedStackCapacities[shader]?.includes(renderer.tracer.materialCapacity)) throw new Error('Wrong measured shader capacity');
+					}
 					if (mode === 'wavefront' && config.bounces > 0 && (variant.tailStart > 1 || variant.tailThreshold > 0)) {
 						const directions = [...observedPipelines].filter(label => label.startsWith('wavefront.SortDirection'));
 						if (directions.length !== (variant.raySortSize ? 1 : 0) || directions.some(label => !label.startsWith(`wavefront.SortDirection${variant.raySortSize}.`))) throw new Error('Wrong direction sort pipeline');
@@ -552,7 +569,7 @@ try {
 						const spatial = [...observedPipelines].some(label => label.includes('.CompactShadeSpatial.'));
 						if (spatial !== variant.spatialQueues) throw new Error('Wrong spatial queue pipeline');
 					}
-					repeats.push({ measurementPosition, measurementStartedAt, measurementFinishedAt, mode, operandMode: renderer.tracer.boundMaterialOperandMode, materialSchedule: currentMaterialSchedule, boundMaterialSchedules: [...observedMaterialSchedules], materialStackRequired: renderer.scene.materialStackSize, materialCapacity: renderer.tracer.materialCapacity, pipelineLabels: [...observedPipelines], sortDispatches: [...observedSortDispatches], opcodeConstants: Object.fromEntries(observedConstants), materialOpcodes: renderer.tracer.materialOpcodes, variant: variant.name, repeat, medianMs, medianSpanMs, meanMs: timings.reduce((a, b) => a + b) / timings.length, wallMs, timings, spanTimings, stages });
+					repeats.push({ measurementPosition, measurementStartedAt, measurementFinishedAt, mode, opaqueMegakernel: renderer.tracer.boundOpaqueMegakernel, operandMode: renderer.tracer.boundMaterialOperandMode, materialSchedule: currentMaterialSchedule, boundMaterialSchedules: [...observedMaterialSchedules], materialStackRequired: renderer.scene.materialStackSize, materialCapacity: renderer.tracer.materialCapacity, pipelineLabels: [...observedPipelines], sortDispatches: [...observedSortDispatches], opcodeConstants: Object.fromEntries(observedConstants), materialOpcodes: renderer.tracer.materialOpcodes, variant: variant.name, repeat, medianMs, medianSpanMs, meanMs: timings.reduce((a, b) => a + b) / timings.length, wallMs, timings, spanTimings, stages });
 					console.log(`[benchmark] ${c.name}: ${variant.name} repeat ${repeat + 1}, GPU passes ${medianMs.toFixed(3)}, span ${medianSpanMs.toFixed(3)} ms/sample`);
 					if (config.paired) {
 						const hdr = await renderer.readRadiance();

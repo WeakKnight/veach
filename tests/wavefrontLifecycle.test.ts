@@ -25,6 +25,7 @@ function tracer(): PathTracer {
 		integrator: 'megakernel' as const, width: 8, height: 8, hasGeometry: true,
 		materialPipelines: new Map(), materialPipelineLoading: new Map(), materialCapacity: 16,
 		materialOperandMode: 0, boundMaterialOperandMode: 0,
+		opaqueMegakernel: false, boundOpaqueMegakernel: false,
 		resize: vi.fn(),
 		uniformBuffer: { destroy: vi.fn() }, toneLUT: { destroy: vi.fn() },
 		displayTransform: { destroy: vi.fn() }, bsdfTables: { destroy: vi.fn() },
@@ -109,6 +110,21 @@ describe('wavefront compilation ownership', () => {
 
 describe('material pipeline preparation', () => {
 	const scene = { instanceCount: 1, materialStackSize: 3 } as GpuScene;
+	it('specializes opaque traversal independently, falls back for alpha, and reuses cached pipelines', async () => {
+		const device = { createShaderModule: vi.fn(() => ({})), createComputePipelineAsync: vi.fn().mockResolvedValue({}) };
+		const pathTracer = tracer();
+		Object.assign(pathTracer, { device, opaqueMegakernel: true });
+		const opaqueScene = { ...scene, hasAlphaTested: false } as GpuScene;
+		const alphaScene = { ...scene, hasAlphaTested: true } as GpuScene;
+		await Promise.all([pathTracer.prepareScene(opaqueScene), pathTracer.prepareScene(opaqueScene)]);
+		await pathTracer.prepareScene(alphaScene);
+		pathTracer.opaqueMegakernel = false;
+		await pathTracer.prepareScene(opaqueScene);
+		pathTracer.opaqueMegakernel = true;
+		await pathTracer.prepareScene(opaqueScene);
+		expect(device.createComputePipelineAsync.mock.calls.map(([d]) => d.label)).toEqual(['pathTracing.opaque.stack4', 'pathTracing.stack4']);
+		expect(pathTracer.boundOpaqueMegakernel).toBe(false);
+	});
 	it('does not reuse a pipeline compiled for another scene opcode set', async () => {
 		const device = { createShaderModule: vi.fn(() => ({})), createComputePipelineAsync: vi.fn().mockResolvedValue({}) };
 		const pathTracer = tracer();

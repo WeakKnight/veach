@@ -156,6 +156,19 @@ dispatch remain supported. The default is serial. `--shadow-sweep` compares all 
 within the same scene/residency and cannot combine with other sweeps. GPU correctness
 reports record and verify the actual shadow pipeline, including alpha fallback.
 
+`--opaque-sweep --paired --mode wavefront` adds a megakernel with opaque-scene traversal
+specialization alongside the general megakernel reference and unchanged wavefront schedule.
+The internal `opaqueMegakernel` control defaults to false. Requested specialization is used
+only when the bound scene has geometry and no alpha-tested instances; empty and alpha scenes
+retain their existing kernels. The separately compiled module and stack-variant data load
+only on demand. The six capacities share the general module's binding layout and material
+pipeline constants. All ordinary generated shaders remain byte-for-byte unchanged.
+Use a multiple of three repeats with `--balanced-order`; the default per-block warmup is 64.
+`--opaque-megakernel` enables a standalone benchmark, smoke or GPU correctness run. The
+correctness script always retains a general full-stack reference and verifies actually bound
+pipeline labels, including alpha fallback. Paired performance requires `--opaque-sweep` so
+the general reference cannot silently inherit the requested specialization.
+
 ## Design constraints
 
 - Keep at most eight storage buffers per stage. Pack work data into existing bindings.
@@ -1234,13 +1247,21 @@ This totals 106 GPU cases. The shader build, 198 unit tests, typecheck and libra
 Helmet HDR, alpha and transmission smoke renders pass with both program256 and direction256
 exact dispatch enabled; all three screenshots were inspected. Performance measurements follow.
 
-An isolated prototype specializes the megakernel's closest-hit and NEE traversal to `ALPHA=false`:
+The follow-up opaque megakernel specializes closest-hit and NEE traversal to `ALPHA=false`:
 all five reference workloads currently bind opaque wavefront traversal, while the reference
 megakernel retains the general alpha-capable traversal (runtime instance flags skip opacity
-evaluation). Its isolated 0/1/2/4/8/16-slot modules all compile. This opaque prototype has
-no GPU correctness or performance evidence yet; opaque specialization must retain the general
-kernel for any scene with alpha-tested instances. This comparison can separate a useful
-scene specialization from gains attributable to stage decomposition.
+evaluation). Its 0/1/2/4/8/16-slot modules all compile. The internal opt-in now selects the
+specialization only for geometry without alpha-tested instances, with explicit pipeline-label
+checks in the GPU harness. The shader build preserves all pre-existing generated modules
+and their stack-variant data byte-for-byte. The 205 unit tests and typecheck pass, including
+opaque variant reconstruction and concurrent/cache/fallback ownership checks. The library
+build isolates the optional payload in a 647.80 kB (77.13 kB gzip) lazy chunk. All 46 GPU
+regression cases pass with exact output: alpha/constant-alpha/transmission/clearcoat select
+the general kernel, empty scenes select the empty kernel, and emissive/analytic/procedural/
+stress/helmet/specgloss/anisotropy exercise opaque pipelines at capacities 1/4/8. The saved
+report records actual bound labels. Helmet HDR, alpha and transmission smoke renders with
+the opt-in enabled pass, and all three screenshots were inspected. Performance is still being evaluated. This comparison
+can separate a useful scene specialization from gains attributable to stage decomposition.
 
 ### Continuation octant sorting, five balanced rounds
 

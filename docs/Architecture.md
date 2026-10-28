@@ -125,6 +125,11 @@ Chunk sorting can group shading queue B by material/program and continuation que
 direction octant. Both are opt-in and preserve physical path records and RNG state.
 Opaque traversal variants omit the opacity
 interpreter when `GpuScene.hasAlphaTested` is false (derived from instanced materials).
+The megakernel has a separate internal `opaqueMegakernel` experiment, disabled by default:
+it lazily loads a Slang-compiled module specializing closest-hit and NEE traversal, with
+automatic fallback to the general module for alpha-tested or empty scenes. Its pipeline
+cache includes the traversal choice as well as material capacity, opcode mask and operand
+mode. Shared path state, binding layouts and the wavefront kernels are unchanged.
 An experimental opaque-shadow module can evaluate light sources concurrently within a
 workgroup and reduce their contributions in source order; it reuses the same bindings
 and is selected only for scenes without alpha-tested instances. The scene light count

@@ -54,6 +54,9 @@ if (integratorFlag >= 0) {
 	only.splice(integratorFlag, 2);
 }
 const wavefrontTuning = {};
+const opaqueFlag = only.indexOf('--opaque-megakernel');
+const opaqueMegakernel = opaqueFlag >= 0;
+if (opaqueMegakernel) only.splice(opaqueFlag, 1);
 const raySortFlag = only.indexOf('--ray-sort-size');
 if (raySortFlag >= 0) {
 	const size = Number(only[raySortFlag + 1]);
@@ -189,16 +192,17 @@ try {
 		const start = Date.now();
 		await page.goto(`${base}?${c.query}&integrator=${integrator}`, { waitUntil: 'load' });
 		try {
-			if (opcodeMode !== null || operandMode !== null) {
+			if (opcodeMode !== null || operandMode !== null || opaqueMegakernel) {
 				await page.waitForFunction(() => globalThis.veach?.samples > 0, { timeout: 120000 });
-				await page.evaluate(async ({ mode, operands }) => {
+				await page.evaluate(async ({ mode, operands, opaque }) => {
 					const renderer = globalThis.veach;
 					if (mode !== null) renderer.tracer.materialOpcodeSpecialization = mode === 'scene';
 					if (operands !== null) renderer.tracer.materialOperandMode = operands;
+					renderer.tracer.opaqueMegakernel = opaque;
 					await renderer.tracer.prepareScene(renderer.scene);
 					renderer.bindScene();
 					renderer.resetAccumulation();
-				}, { mode: opcodeMode, operands: operandMode });
+				}, { mode: opcodeMode, operands: operandMode, opaque: opaqueMegakernel });
 			}
 			if (Object.keys(wavefrontTuning).length) {
 				// The first frame proves initial scene loading is complete. Empty scenes need

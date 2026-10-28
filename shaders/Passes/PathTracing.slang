@@ -19,6 +19,14 @@ import Materials.VirtualTexture;
 #ifndef VEACH_EMPTY_SCENE
 #define VEACH_EMPTY_SCENE 0
 #endif
+#ifndef VEACH_OPAQUE_SCENE
+#define VEACH_OPAQUE_SCENE 0
+#endif
+#if VEACH_OPAQUE_SCENE
+#define VEACH_TRAVERSAL_ALPHA false
+#else
+#define VEACH_TRAVERSAL_ALPHA true
+#endif
 
 // Per pixel: [0] radiance * pre-exposure, [1] albedo, [2] shading normal; running averages.
 [[vk::binding(0, 1)]] RWStructuredBuffer<float4> gAccum;
@@ -217,7 +225,7 @@ void main(uint3 tid: SV_DispatchThreadID)
 		hit.instanceIndex = INVALID_INDEX;
 		hit.primitiveIndex = INVALID_INDEX;
 #else
-		HitRecord hit = TraceClosest(ray);
+		HitRecord hit = TraceClosest<VEACH_TRAVERSAL_ALPHA>(ray);
 #endif
 
 		if (bounce == 0u && debugMode == DEBUG_TRAVERSAL)
@@ -380,7 +388,7 @@ void main(uint3 tid: SV_DispatchThreadID)
 		path.lightsSampled = bsdf.MaxActiveAlpha() >= NEAR_SPECULAR_ALPHA;
 		if (path.lightsSampled)
 		{
-			float3 direct = path.throughput * NextEventEstimation(si, bsdf, float2(hitConeWidth, path.coneSpread), rng);
+			float3 direct = path.throughput * NextEventEstimation<VEACH_TRAVERSAL_ALPHA>(si, bsdf, float2(hitConeWidth, path.coneSpread), rng);
 			if (fireflyClamp > 0.0 && bounce > 0u)
 			{
 				direct = min(direct, float3(fireflyClamp));

@@ -29,6 +29,9 @@ selection (same expectation, visible only at 1 spp), and `clearcoatNormalTexture
   the base fingerprint; tests verify reconstructed output against each compiler output's SHA256.
   Function-local WGSL array sizes cannot be pipeline overrides. Pipelines are compiled lazily,
   cached by capacity, opcode mask and operand mode per renderer, and prepared before replacing the active scene.
+  An optional opaque megakernel adds traversal specialization to its cache key. Its base module
+  and `OpaqueMaterialStackVariants.ts` are loaded lazily and use the same lossless reconstruction
+  checks for capacities 0/1/2/4/8/16. Alpha-tested scenes retain the general shader module.
   The generated edit format uses JavaScript string positions, removal lengths and replacement text;
   runtime validates the base fingerprint and edit bounds. The build uses unchanged-line
   anchors when functions are removed, checks exact reconstruction, and records SHA256.
