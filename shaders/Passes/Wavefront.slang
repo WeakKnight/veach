@@ -50,6 +50,7 @@ uint HeaderBase() { return gFrame.frame.x * gFrame.frame.y * 3u; }
 uint MainQueueBase() { return HeaderBase() + 3u + gWavefront.capacity * WAVEFRONT_STRIDE; }
 uint ShadeQueueBase() { return MainQueueBase() + (gWavefront.capacity + 3u) / 4u; }
 uint ShadowQueueBase() { return MainQueueBase() + 2u * ((gWavefront.capacity + 3u) / 4u); }
+uint BucketMetadataBase() { return ShadowQueueBase() + (gWavefront.capacity + 3u) / 4u; }
 uint QueueIndex(uint base, uint index) { return asuint(gAccum[base + index / 4u][index & 3u]); }
 
 uint2 WorkPixel(uint index)
@@ -350,11 +351,14 @@ void ShadePath<let DEFERRED : bool, let ALPHA : bool, let PHASE : uint = 0u, let
 	s.active = 1u;
 }
 
-void ShadeImpl<let DIRECT : bool, let PHASE : uint = 0u, let LATE_PATH : bool = false, let BUCKET : bool = false>(uint3 tid)
+void ShadeImpl<let DIRECT : bool, let PHASE : uint = 0u, let LATE_PATH : bool = false, let BUCKET : bool = false, let COMPACT_BUCKET : bool = false>(uint3 tid)
 {
 	uint count = DIRECT ? gWavefront.pathCount : asuint(gAccum[HeaderBase()].z);
+	uint bucket = MATERIAL_STACK_SIZE == 0u ? 0u : countbits(MATERIAL_STACK_SIZE - 1u) + 1u;
+	if (COMPACT_BUCKET) count = asuint(gAccum[BucketMetadataBase() + bucket].x);
 	if (tid.x >= count) return;
 	uint index = DIRECT ? tid.x : QueueIndex(ShadeQueueBase(), tid.x);
+	if (COMPACT_BUCKET) index = QueueIndex(ShadowQueueBase(), asuint(gAccum[BucketMetadataBase() + bucket].y) + tid.x);
 	uint base = WorkBase(index);
 	if (BUCKET)
 	{
@@ -396,6 +400,10 @@ void ShadeBucket(uint3 tid : SV_DispatchThreadID) { ShadeImpl<false, 0u, false, 
 [shader("compute")]
 [numthreads(64, 1, 1)]
 void ShadeBucketDirect(uint3 tid : SV_DispatchThreadID) { ShadeImpl<true, 0u, false, true>(tid); }
+
+[shader("compute")]
+[numthreads(64, 1, 1)]
+void ShadeBucketCompact(uint3 tid : SV_DispatchThreadID) { ShadeImpl<false, 0u, false, false, true>(tid); }
 
 #define SHADE_ENTRY(NAME, DIRECT, PHASE, LATE) \
 [shader("compute")] \

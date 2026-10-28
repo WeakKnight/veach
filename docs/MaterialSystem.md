@@ -26,6 +26,9 @@ selection (same expectation, visible only at 1 spp), and `clearcoatNormalTexture
   The emission floor conservatively includes unused materials because NEE can evaluate another
   material inside Shade. Header flags bits 16..20 store this capacity without changing layout.
   Only capacities referenced by instances (including fallback materials) are prepared/dispatched.
+  `shadeBucketMode = 'compact'` optionally partitions active hit indices into capacity ranges
+  before shading; it uses the same material-header capacity and emission floor. The scan mode
+  remains available as a comparison. Both preserve bytecode, material evaluation and RNG state.
   Global traversal, shadow and tail capacities retain the original conservative bound.
   Capacity zero is a constant-only scene specialization: every compiled surface, opacity
   and emission program must need zero temporary slots. The compiler then emits only

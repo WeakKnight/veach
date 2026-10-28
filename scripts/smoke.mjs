@@ -60,6 +60,13 @@ if (bucketsFlag >= 0) {
 	wavefrontTuning.shadeBuckets = true;
 	only.splice(bucketsFlag, 1);
 }
+const bucketModeFlag = only.indexOf('--bucket-mode');
+if (bucketModeFlag >= 0) {
+	const mode = only[bucketModeFlag + 1];
+	if (!wavefrontTuning.shadeBuckets || !['scan', 'compact'].includes(mode)) throw new Error('Bucket mode requires --shade-buckets');
+	wavefrontTuning.shadeBucketMode = mode;
+	only.splice(bucketModeFlag, 2);
+}
 const shadeFlag = only.indexOf('--shade-mode');
 if (shadeFlag >= 0) {
 	const mode = only[shadeFlag + 1];
@@ -224,7 +231,7 @@ try {
 				await page.evaluate(async tuning => {
 					const tracer = globalThis.veach.tracer;
 					if (tracer.wavefront && tuning.shadeMode) await tracer.wavefront.prepareShadeMode(tuning.shadeMode, tracer.materialCapacity, tracer.materialOpcodes, tracer.boundMaterialOperandMode);
-					if (tracer.wavefront && tuning.shadeBuckets) await tracer.wavefront.prepareBuckets(globalThis.veach.scene.materialShadeCapacities, tracer.materialCapacity, tracer.materialOpcodes, tracer.boundMaterialOperandMode);
+					if (tracer.wavefront && tuning.shadeBuckets) await tracer.wavefront.prepareBuckets(globalThis.veach.scene.materialShadeCapacities, tracer.materialCapacity, tracer.materialOpcodes, tracer.boundMaterialOperandMode, tuning.shadeBucketMode ?? 'scan');
 					if (tracer.wavefront) Object.assign(tracer.wavefront, tuning);
 					globalThis.veach.resetAccumulation();
 				}, wavefrontTuning);

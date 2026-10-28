@@ -62,17 +62,22 @@ const config = {
 	shadeMode: option('shade-mode', 'unified'),
 	shadeSweep: args.includes('--shade-sweep'),
 	shadeBuckets: args.includes('--shade-buckets'),
+	shadeBucketMode: option('bucket-mode', 'scan'),
+	partitionSweep: args.includes('--partition-sweep'),
 	bucketSweep: args.includes('--bucket-sweep'),
 	opcodeSweep: args.includes('--opcode-sweep'),
 	materialLayers: Number(option('material-layers', 0)),
 	materialMixed: args.includes('--material-mixed'),
 	materialSchedule: option('material-schedule', 'original'),
 	scheduleSweep: args.includes('--schedule-sweep'),
-	variantWarmup: Number(option('variant-warmup', args.includes('--material-sweep') || args.includes('--opcode-sweep') || args.includes('--schedule-sweep') || args.includes('--spatial-sweep') || args.includes('--operand-sweep') || args.includes('--ray-sort-sweep') || args.includes('--sort-indirect-sweep') || args.includes('--opaque-sweep') || args.includes('--shade-sweep') || args.includes('--bucket-sweep') ? 64 : 8)),
+	variantWarmup: Number(option('variant-warmup', args.includes('--material-sweep') || args.includes('--opcode-sweep') || args.includes('--schedule-sweep') || args.includes('--spatial-sweep') || args.includes('--operand-sweep') || args.includes('--ray-sort-sweep') || args.includes('--sort-indirect-sweep') || args.includes('--opaque-sweep') || args.includes('--shade-sweep') || args.includes('--bucket-sweep') || args.includes('--partition-sweep') ? 64 : 8)),
 };
 if (Object.entries(config).filter(([key, value]) => key.endsWith('Sweep') && value).length > 1) throw new Error('Choose one sweep at a time');
 if (!['unified', 'split', 'late', 'split-late'].includes(config.shadeMode)) throw new Error('Invalid shade mode');
-if ((config.shadeBuckets || config.bucketSweep) && config.shadeMode !== 'unified') throw new Error('Buckets require unified shading');
+if ((config.shadeBuckets || config.bucketSweep || config.partitionSweep) && config.shadeMode !== 'unified') throw new Error('Buckets require unified shading');
+if (!['scan', 'compact'].includes(config.shadeBucketMode)) throw new Error('Invalid bucket mode');
+if (config.partitionSweep && (!config.paired || config.shadeBuckets)) throw new Error('Partition sweep requires paired unbucketed base');
+if ((config.partitionSweep || ((config.shadeBuckets || config.bucketSweep) && config.shadeBucketMode === 'compact')) && (config.compaction === 'none' || (config.directStages & 2) !== 0)) throw new Error('Compact buckets require queued shading');
 if (config.bucketSweep && (!config.paired || config.shadeBuckets)) throw new Error('Bucket sweep requires paired unbucketed base');
 if (config.shadeSweep && (!config.paired || config.shadeMode !== 'unified')) throw new Error('Shade sweep requires paired unified base');
 if (config.opaqueSweep && (!config.paired || config.opaqueMegakernel)) throw new Error('Opaque sweep requires paired general traversal');
@@ -181,7 +186,9 @@ if (config.bucketSweep && config.sort === 'none' && config.compaction !== 'none'
 	for (const shadeBuckets of [false, true]) config.variants.push({ name: shadeBuckets ? 'buckets-program' : 'sort-program', shadeBuckets,
 		sort: 'program', sortSize: 256, tailStart: config.tailStart, tailThreshold: config.tailThreshold });
 }
+if (config.partitionSweep) for (const shadeBucketMode of ['scan', 'compact']) config.variants.push({ name: `buckets-${shadeBucketMode}`, shadeBuckets: true, shadeBucketMode, tailStart: config.tailStart, tailThreshold: config.tailThreshold });
 for (const variant of config.variants) {
+	variant.shadeBucketMode ??= config.shadeBucketMode;
 	variant.shadeBuckets ??= config.shadeBuckets;
 	variant.shadeMode ??= config.shadeMode;
 	variant.mode ??= 'wavefront';
@@ -264,7 +271,7 @@ const assertUnchangedSources = () => {
 const referenceReport = { ...report, config: { ...config, mode: 'megakernel' }, results: [] };
 const variantReports = Object.fromEntries(config.variants.slice(1).map(variant => {
 	mkdirSync(join(output, variant.name), { recursive: true });
-	return [variant.name, { ...report, config: { ...config, mode: variant.mode, opaqueMegakernel: variant.opaqueMegakernel, materialStack: variant.materialStack, tailStart: variant.tailStart, tailThreshold: variant.tailThreshold, compaction: variant.compaction, directStages: variant.directStages, packetStages: variant.packetStages, sort: variant.sort, sortSize: variant.sortSize, raySortSize: variant.raySortSize, sortIndirect: variant.sortIndirect, shadeMode: variant.shadeMode, shadeBuckets: variant.shadeBuckets, spatialQueues: variant.spatialQueues, shadowMode: variant.shadowMode, operandMode: variant.operandMode, opcodeMode: variant.opcodeMode, materialSchedule: variant.materialSchedule }, results: [] }];
+	return [variant.name, { ...report, config: { ...config, mode: variant.mode, opaqueMegakernel: variant.opaqueMegakernel, materialStack: variant.materialStack, tailStart: variant.tailStart, tailThreshold: variant.tailThreshold, compaction: variant.compaction, directStages: variant.directStages, packetStages: variant.packetStages, sort: variant.sort, sortSize: variant.sortSize, raySortSize: variant.raySortSize, sortIndirect: variant.sortIndirect, shadeMode: variant.shadeMode, shadeBuckets: variant.shadeBuckets, shadeBucketMode: variant.shadeBucketMode, spatialQueues: variant.spatialQueues, shadowMode: variant.shadowMode, operandMode: variant.operandMode, opcodeMode: variant.opcodeMode, materialSchedule: variant.materialSchedule }, results: [] }];
 }));
 writeFileSync(join(candidateOutput, 'report.json'), JSON.stringify(report, null, 2));
 try {
@@ -383,8 +390,9 @@ try {
 				renderer.tracer.wavefront.raySortSize = config.raySortSize;
 				renderer.tracer.wavefront.sortIndirect = config.sortIndirect;
 				renderer.tracer.wavefront.shadeMode = config.shadeMode;
-				if (config.shadeBuckets) await renderer.tracer.wavefront.prepareBuckets(renderer.scene.materialShadeCapacities, renderer.tracer.materialCapacity, renderer.tracer.materialOpcodes, renderer.tracer.boundMaterialOperandMode);
+				if (config.shadeBuckets) await renderer.tracer.wavefront.prepareBuckets(renderer.scene.materialShadeCapacities, renderer.tracer.materialCapacity, renderer.tracer.materialOpcodes, renderer.tracer.boundMaterialOperandMode, config.shadeBucketMode);
 				renderer.tracer.wavefront.shadeBuckets = config.shadeBuckets;
+				renderer.tracer.wavefront.shadeBucketMode = config.shadeBucketMode;
 				renderer.tracer.wavefront.spatialQueues = config.spatialQueues;
 				renderer.tracer.wavefront.shadowMode = config.shadowMode;
 			}
@@ -453,7 +461,7 @@ try {
 			};
 			GPUComputePassEncoder.prototype.setPipeline = function(pipeline) {
 				if (tracedPasses.has(this)) {
-					const bucket = /^wavefront\.ShadeBucket(?:Direct)?\.stack(\d+)$/.exec(pipeline.label);
+					const bucket = /^wavefront\.ShadeBucket(?:Direct|Compact)?\.stack(\d+)$/.exec(pipeline.label);
 					const actualCapacity = bucket ? Number(bucket[1]) : renderer.tracer.materialCapacity;
 					if (bucket && (!renderer.tracer.wavefront.shadeBuckets || !renderer.scene.materialShadeCapacities.includes(actualCapacity))) throw new Error('Unexpected shading bucket');
 					if (!pipeline.label.endsWith(`.stack${actualCapacity}`)) throw new Error(`Wrong tracing pipeline: ${pipeline.label}`);
@@ -464,7 +472,7 @@ try {
 					const bounce = shadePasses.get(this);
 					if (bounce !== undefined) {
 						const wf = renderer.tracer.wavefront, mode = wf.shadeMode;
-						const expected = `Shade${bucket ? 'Bucket' : ''}${mode.startsWith('split') ? (bounce === 0 ? 'Primary' : 'Secondary') : ''}${mode.endsWith('late') ? 'Late' : ''}${wf.compaction === 'none' || (wf.directStages & 2) !== 0 ? 'Direct' : ''}`;
+						const expected = `Shade${bucket ? `Bucket${wf.shadeBucketMode === 'compact' ? 'Compact' : ''}` : ''}${mode.startsWith('split') ? (bounce === 0 ? 'Primary' : 'Secondary') : ''}${mode.endsWith('late') ? 'Late' : ''}${wf.compaction === 'none' || (wf.directStages & 2) !== 0 ? 'Direct' : ''}`;
 						if (pipeline.label !== `wavefront.${expected}.stack${actualCapacity}`) throw new Error('Wrong bound shading phase');
 					}
 					observedConstants.set(pipeline.label, constants);
@@ -496,7 +504,7 @@ try {
 				}
 				const pass = begin.call(this, descriptor);
 				if (trace) tracedPasses.add(pass);
-				const shadeMatch = /^wavefront\.Shade(?:Bucket\d+)?\.b(\d+)/.exec(descriptor.label ?? '');
+				const shadeMatch = /^wavefront\.Shade(?:Bucket(?:Compact)?\d+)?\.b(\d+)/.exec(descriptor.label ?? '');
 				if (shadeMatch) shadePasses.set(pass, Number(shadeMatch[1]));
 				const sortMatch = trace && /^wavefront\.Sort(?:Material|Program|Direction)(64|256)\./.exec(descriptor.label);
 				if (sortMatch) sortPasses.set(pass, Number(sortMatch[1]));
@@ -508,14 +516,14 @@ try {
 			let presentationVariant = config.mode;
 			const pairedErrors = [];
 			for (let repeat = 0; repeat < config.repeats; repeat++) {
-				const schedule = config.paired ? [{ name: 'megakernel' }, ...config.variants] : [{ name: config.mode, tailStart: config.tailStart, tailThreshold: config.tailThreshold, compaction: config.compaction, directStages: config.directStages, packetStages: config.packetStages, sort: config.sort, sortSize: config.sortSize, raySortSize: config.raySortSize, sortIndirect: config.sortIndirect, shadeMode: config.shadeMode, shadeBuckets: config.shadeBuckets, spatialQueues: config.spatialQueues, shadowMode: config.shadowMode, opcodeMode: config.opcodeMode }];
+				const schedule = config.paired ? [{ name: 'megakernel' }, ...config.variants] : [{ name: config.mode, tailStart: config.tailStart, tailThreshold: config.tailThreshold, compaction: config.compaction, directStages: config.directStages, packetStages: config.packetStages, sort: config.sort, sortSize: config.sortSize, raySortSize: config.raySortSize, sortIndirect: config.sortIndirect, shadeMode: config.shadeMode, shadeBuckets: config.shadeBuckets, shadeBucketMode: config.shadeBucketMode, spatialQueues: config.spatialQueues, shadowMode: config.shadowMode, opcodeMode: config.opcodeMode }];
 				// Legacy sweeps rotate/reverse each round. Balanced sweeps cover every position
 				// once per full cycle and reverse alternate cycles.
 				if (config.balancedOrder) {
 					const order = config.measurementOrders[repeat];
 					schedule.sort((a, b) => order.indexOf(a.name) - order.indexOf(b.name));
 				} else {
-					if (config.tailSweep || config.compactionSweep || config.dispatchSweep || config.packetSweep || config.materialSweep || config.sortSweep || config.shadowSweep || config.opcodeSweep || config.scheduleSweep || config.spatialSweep || config.operandSweep || config.raySortSweep || config.sortIndirectSweep || config.opaqueSweep || config.shadeSweep || config.bucketSweep) schedule.push(...schedule.splice(0, repeat % schedule.length));
+					if (config.tailSweep || config.compactionSweep || config.dispatchSweep || config.packetSweep || config.materialSweep || config.sortSweep || config.shadowSweep || config.opcodeSweep || config.scheduleSweep || config.spatialSweep || config.operandSweep || config.raySortSweep || config.sortIndirectSweep || config.opaqueSweep || config.shadeSweep || config.bucketSweep || config.partitionSweep) schedule.push(...schedule.splice(0, repeat % schedule.length));
 					if (config.paired && repeat % 2 !== 0) schedule.reverse();
 				}
 				for (const [measurementPosition, variant] of schedule.entries()) {
@@ -546,13 +554,13 @@ try {
 						if (renderer.tracer.boundOpaqueMegakernel !== (requestedOpaque && renderer.scene.instanceCount > 0 && !renderer.scene.hasAlphaTested)) throw new Error('Wrong bound opaque traversal selection');
 						await renderer.setIntegrator(mode);
 						if (mode === 'wavefront') await renderer.tracer.wavefront.prepareShadeMode(variant.shadeMode, renderer.tracer.materialCapacity, renderer.tracer.materialOpcodes, renderer.tracer.boundMaterialOperandMode);
-						if (mode === 'wavefront' && variant.shadeBuckets) await renderer.tracer.wavefront.prepareBuckets(renderer.scene.materialShadeCapacities, renderer.tracer.materialCapacity, renderer.tracer.materialOpcodes, renderer.tracer.boundMaterialOperandMode);
-						if (mode === 'wavefront') Object.assign(renderer.tracer.wavefront, { tailStart: variant.tailStart, tailThreshold: variant.tailThreshold, compaction: variant.compaction, directStages: variant.directStages, packetStages: variant.packetStages, sort: variant.sort, sortSize: variant.sortSize, raySortSize: variant.raySortSize, sortIndirect: variant.sortIndirect, shadeMode: variant.shadeMode, shadeBuckets: variant.shadeBuckets, spatialQueues: variant.spatialQueues, shadowMode: variant.shadowMode });
+						if (mode === 'wavefront' && variant.shadeBuckets) await renderer.tracer.wavefront.prepareBuckets(renderer.scene.materialShadeCapacities, renderer.tracer.materialCapacity, renderer.tracer.materialOpcodes, renderer.tracer.boundMaterialOperandMode, variant.shadeBucketMode);
+						if (mode === 'wavefront') Object.assign(renderer.tracer.wavefront, { tailStart: variant.tailStart, tailThreshold: variant.tailThreshold, compaction: variant.compaction, directStages: variant.directStages, packetStages: variant.packetStages, sort: variant.sort, sortSize: variant.sortSize, raySortSize: variant.raySortSize, sortIndirect: variant.sortIndirect, shadeMode: variant.shadeMode, shadeBuckets: variant.shadeBuckets, shadeBucketMode: variant.shadeBucketMode, spatialQueues: variant.spatialQueues, shadowMode: variant.shadowMode });
 						// Warm each selected pipeline before timing while retaining identical scene/VT data.
 						for (let warm = 0; warm < config.variantWarmup; warm++) { renderer.renderFrame(); await device.queue.onSubmittedWorkDone(); }
 					}
 					renderer.resetAccumulation();
-					if (mode === 'wavefront' && (renderer.tracer.wavefront.shadeMode !== variant.shadeMode || renderer.tracer.wavefront.shadeBuckets !== variant.shadeBuckets)) throw new Error('Requested shading mode was not selected');
+					if (mode === 'wavefront' && (renderer.tracer.wavefront.shadeMode !== variant.shadeMode || renderer.tracer.wavefront.shadeBuckets !== variant.shadeBuckets || renderer.tracer.wavefront.shadeBucketMode !== variant.shadeBucketMode)) throw new Error('Requested shading mode was not selected');
 					observedPipelines = new Set(); observedConstants = new Map(); observedMaterialSchedules = new Set();
 					observedSortDispatches = new Set();
 					const measurementStartedAt = Date.now();
@@ -611,7 +619,7 @@ try {
 						const actual = [...observedPipelines].filter(x => x.startsWith('wavefront.ShadeBucket')).map(x => Number(x.split('.stack')[1])).sort((a,b) => a-b);
 						if (JSON.stringify(actual) !== JSON.stringify(expected)) throw new Error('Missing or duplicate shading bucket');
 					}
-					repeats.push({ shadeBuckets: mode === 'wavefront' && renderer.tracer.wavefront.shadeBuckets, materialShadeCapacities: renderer.scene.materialShadeCapacities, shadeMode: mode === 'wavefront' ? renderer.tracer.wavefront.shadeMode : null, measurementPosition, measurementStartedAt, measurementFinishedAt, mode, opaqueMegakernel: renderer.tracer.boundOpaqueMegakernel, operandMode: renderer.tracer.boundMaterialOperandMode, materialSchedule: currentMaterialSchedule, boundMaterialSchedules: [...observedMaterialSchedules], materialStackRequired: renderer.scene.materialStackSize, materialCapacity: renderer.tracer.materialCapacity, pipelineLabels: [...observedPipelines], sortDispatches: [...observedSortDispatches], opcodeConstants: Object.fromEntries(observedConstants), materialOpcodes: renderer.tracer.materialOpcodes, variant: variant.name, repeat, medianMs, medianSpanMs, meanMs: timings.reduce((a, b) => a + b) / timings.length, wallMs, timings, spanTimings, stages });
+					repeats.push({ shadeBucketMode: mode === 'wavefront' ? renderer.tracer.wavefront.shadeBucketMode : null, shadeBuckets: mode === 'wavefront' && renderer.tracer.wavefront.shadeBuckets, materialShadeCapacities: renderer.scene.materialShadeCapacities, shadeMode: mode === 'wavefront' ? renderer.tracer.wavefront.shadeMode : null, measurementPosition, measurementStartedAt, measurementFinishedAt, mode, opaqueMegakernel: renderer.tracer.boundOpaqueMegakernel, operandMode: renderer.tracer.boundMaterialOperandMode, materialSchedule: currentMaterialSchedule, boundMaterialSchedules: [...observedMaterialSchedules], materialStackRequired: renderer.scene.materialStackSize, materialCapacity: renderer.tracer.materialCapacity, pipelineLabels: [...observedPipelines], sortDispatches: [...observedSortDispatches], opcodeConstants: Object.fromEntries(observedConstants), materialOpcodes: renderer.tracer.materialOpcodes, variant: variant.name, repeat, medianMs, medianSpanMs, meanMs: timings.reduce((a, b) => a + b) / timings.length, wallMs, timings, spanTimings, stages });
 					console.log(`[benchmark] ${c.name}: ${variant.name} repeat ${repeat + 1}, GPU passes ${medianMs.toFixed(3)}, span ${medianSpanMs.toFixed(3)} ms/sample`);
 					if (config.paired) {
 						const hdr = await renderer.readRadiance();

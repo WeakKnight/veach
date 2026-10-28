@@ -14,10 +14,25 @@ function fixture() {
 	const wavefront = new Wavefront(device as unknown as GPUDevice, {} as GPUBindGroupLayout, 1);
 	return { device, wavefront };
 }
-const experimental = (label = '') => /^wavefront\.Shade(?:Primary|Secondary|Late|Bucket)/.test(label);
+const experimental = (label = '') => /^wavefront\.(?:Shade(?:Primary|Secondary|Late|Bucket)|CountBuckets|PrefixBuckets|ScatterBuckets)/.test(label);
 
 describe('wavefront shading preparation', () => {
 	afterEach(() => vi.unstubAllGlobals());
+
+	it('prepares compact shading and partition stages lazily without scan pipelines', async () => {
+		const { device, wavefront } = fixture();
+		await wavefront.compiled;
+		const count = device.createComputePipelineAsync.mock.calls.length;
+		await wavefront.prepareBuckets([0, 4], 16, [0xffffffff, 0xffffffff], 0, 'compact');
+		await wavefront.prepareBuckets([0, 4], 16, [0xffffffff, 0xffffffff], 0, 'compact');
+		expect(device.createComputePipelineAsync.mock.calls.slice(count).map(([d]) => d.label).sort()).toEqual([
+			'wavefront.CountBuckets.stack16', 'wavefront.PrefixBuckets.stack16', 'wavefront.ScatterBuckets.stack16',
+			'wavefront.ShadeBucketCompact.stack0', 'wavefront.ShadeBucketCompact.stack4',
+		]);
+		expect(wavefront.shadeBucketMode).toBe('scan');
+		wavefront.destroy();
+		await expect(wavefront.prepareBuckets([1], 1, [0, 0])).rejects.toThrow('destroyed');
+	});
 
 	it('prepares only bucket shading kernels at smaller capacities and reuses a single global bucket', async () => {
 		const { device, wavefront } = fixture();

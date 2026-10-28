@@ -1,22 +1,5 @@
 # Wavefront implementation and performance experiment
 
-## Cycles implementation cross-check
-
-The local `E:/GitHub/cycles` checkout provides a useful architectural comparison.
-`src/integrator/path_trace_work_gpu.cpp` builds active path-index arrays and sorts
-surface shading by shader; `src/kernel/integrator/state.h` keeps persistent GPU
-path state in SoA storage. `src/kernel/integrator/shade_surface.h` retains shader
-evaluation, direct-light work and BSDF bounce within one surface-shading invocation,
-avoiding a separate persistent closure buffer between those operations.
-
-Cycles' `src/kernel/svm/svm.h` declares `float stack[SVM_STACK_SIZE]` (255 floats in
-this checkout). Its implementation comment expects GPU thread-private local memory
-because the stack is large and dynamically indexed. This is not shared workgroup
-memory, nor evidence that each virtual slot occupies a hardware register. Sorting
-improves instruction and memory coherence; it does not by itself lower a kernel's
-static register allocation. Veach's capacity-specific pipelines test a separate
-optimization axis. Backend register counts and spills remain unmeasured here.
-
 ## Investigation scope
 
 Work started 2026-10-28 02:14 Hong Kong time (2026-10-27 18:14 UTC).
@@ -225,10 +208,14 @@ The local `E:/GitHub/cycles` implementation uses the same broad decomposition on
 and samples the continuation BSDF in the shading stage; closest-hit and shadow traversal
 are separate scheduled kernels. `src/integrator/path_trace_work_gpu.cpp` builds queued
 path arrays and groups surface work by shader, with partitioned sorting on supported devices.
-Integrator state is stored between kernels rather than keeping the entire path live.
+Integrator state is stored between kernels in GPU SoA storage (`state.h`) rather than
+keeping the entire path live. Shader evaluation and BSDF consumption stay in the same
+surface invocation, avoiding a separate persistent closure buffer.
 
 Wavefront does not remove SVM storage. `src/kernel/svm/svm.h::svm_eval_nodes` still declares
-`float stack[SVM_STACK_SIZE]`. Veach likewise retains a scene-sized float4 VM stack in
+`float stack[SVM_STACK_SIZE]` (255 floats in this checkout). Its implementation comment
+expects GPU thread-private local memory because the stack is large and dynamically
+indexed; this is not shared workgroup memory. Veach retains a scene-sized float4 VM stack in
 `MaterialProgram.slang`. These source-language local arrays are not proof that every slot
 resides in a hardware register: dynamic indexing and compiler decisions may produce private
 memory accesses or spills. The intended benefit is smaller live state and independently
@@ -1598,11 +1585,50 @@ the compact-range implementation is the next candidate, with explicit queue and
 indirect-dispatch validation required before measuring it. The shader/backend
 register-allocation mechanism remains unmeasured.
 
+## Compact capacity ranges (experimental)
+
+`--shade-buckets --bucket-mode compact` replaces repeated queue scans with
+CountBuckets/PrefixBuckets/ScatterBuckets followed by ShadeBucketCompact entries.
+Each workgroup builds two 32-bit lane masks per capacity, then popcounts produce
+stable local ranks. Global workgroup reservation order can vary. The shader needs
+no subgroup feature. Count and Scatter read B, filter inactive packet slots, and
+write grouped indices into queue C, which is free until CompactShade creates new
+shadow indices. No queue copy or path-record move is needed. Original B/counts stay
+intact for existing compaction modes. Direct shading is rejected; fixed/adaptive
+tails retain their global-capacity implementation.
+
+Each capacity has a count, cumulative offset and scatter cursor in appended scratch
+storage. Prefix creates exact indirect arguments, including zero-work buckets. The
+host copies all six argument records to the indirect buffer and dispatches each
+prepared shading capacity at its own offset. A sole bucket matching the global
+capacity still uses ordinary Shade and performs no partition work. Preparation is
+lazy and completes before the host publishes the new mode.
+
+`--partition-sweep --paired --mode wavefront --compaction adaptive --balanced-order
+--repeats 4` compares general megakernel, ordinary wavefront, scans and compact ranges.
+The same `--sort program --sort-size 256` option can apply to all wavefront variants.
+Correctness diagnostics read GPU queues, material headers, metadata and actual
+indirect arguments outside timing. They check an exact active-path permutation,
+bucket membership, prefix/cursor/count agreement, local ordering, and dispatch offsets.
+The final compact implementation passes 54 full GPU regression comparisons, 20
+direct-intersection/shadow combinations (masks 0/1/4/5), and 54 packet-mask comparisons
+with program256 sorting, fixed tails from bounce two and subgroups disabled. A further
+12 scan-mode controls on the same sources also pass. All 140 HDR/AOV comparisons have
+zero error. Full-suite GPU partition diagnostics inspect 134 partitions containing
+266,886 active path entries, including 644 empty buckets and 310 shading dispatches.
+The queue checks use actual bound GPU material headers and copied indirect arguments;
+test-only COPY_SRC usage enables those readbacks without changing production buffers.
+All 213 unit tests, shader compilation, TypeScript checking and library build pass.
+Helmet HDR, alpha and transmission smoke renders pass at 64 spp and all three captures
+were inspected (`.tools/wavefront/compact-bucket-smoke`). The wavefront library chunk
+is 757.17 kB (89.05 kB gzip). Performance results are pending.
+
 ## Work storage layout
 
 Group 1 binding 0 contains the original image prefix (three float4 per pixel), then
 three float4 headers, 21 float4 field arrays at the current tile capacity, then three
-packed uint index queues (main A, main B, shadow). Header words 0/1/2 store A/shadow/B counts;
+packed uint index queues (main A, main B, shadow), then twelve float4 bucket metadata
+and dispatch records (192 bytes). Header words 0/1/2 store A/shadow/B counts;
 word 3 optionally stores the current main queue's exact 256-slot sort bound.
 Intersect reads A, CompactIntersect scans A and writes B, Shade reads B, and CompactShade
 scans B and writes A plus shadow indices. Compact dispatch sizes come from the input queue's
@@ -1623,5 +1649,5 @@ Each field array is SoA across paths. The tile capacity is
 at most 262,144, bounded by the storage binding and allocation limits. Initial indices
 map to 8x8 pixel blocks, with explicit padding checks for non-multiple-of-eight images.
 The compaction shader aliases the allocation as atomic uints in separate compute passes;
-no pass binds overlapping read/write aliases simultaneously. The 48-byte dispatch argument
+no pass binds overlapping read/write aliases simultaneously. The 144-byte dispatch argument
 buffer is COPY_DST | INDIRECT, not a storage buffer. Compaction and copies stay on GPU.

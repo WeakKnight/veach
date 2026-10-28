@@ -134,11 +134,16 @@ kernels. Material-header flags bits 16..20 carry the surface/emission capacity b
 The host prepares those kernels before enabling the mode. A sole group equal to the existing
 scene capacity reuses the ordinary Shade path. Other stages still use the global capacity.
 Nonmatching/dead paths return before writing anything, preserving shadows created by another
-group. Compaction and shadow traversal occur once after all shading groups. This version
-does not repartition the queue and adds no work-buffer fields, uniform words or bindings.
+group. Compaction and shadow traversal occur once after all shading groups. The scan mode
+does not repartition the queue. Experimental `shadeBucketMode = 'compact'` instead runs
+CountBuckets/PrefixBuckets/ScatterBuckets, temporarily storing grouped hit indices in the
+shadow queue C. B remains intact; CompactShade overwrites C only after all buckets finish.
+Twelve float4 records (six count/offset/cursor records and six dispatch records) are appended
+after the three queues. Existing path/queue offsets and the seven uniform words are unchanged.
 GPU compaction views that allocation as atomic uints in its own pass; dispatch arguments
-are copied into a 48-byte COPY_DST | INDIRECT buffer. Its third record optionally supplies
-exact 256-slot sort bounds from the existing work header; no storage binding is added.
+are copied into a 144-byte COPY_DST | INDIRECT buffer. Its third record optionally supplies
+exact 256-slot sort bounds from the existing work header; records 3..8 supply capacity-bucket
+bounds. No storage binding is added. Partition/shading pipelines compile only when requested.
 Chunk sorting can group shading queue B by material/program and continuation queue A by
 direction octant. Both are opt-in and preserve physical path records and RNG state.
 Opaque traversal variants omit the opacity
