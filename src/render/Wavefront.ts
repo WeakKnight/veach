@@ -43,7 +43,7 @@ export class Wavefront {
 	// Experimental tuning knob for the benchmark; keep the fully staged default until measured.
 	tailStart = Number.POSITIVE_INFINITY;
 	tailThreshold = 0;
-	compaction: 'dense' | 'queued' | 'subgroup' | 'adaptive' | 'packet' | 'none' = 'dense';
+	compaction: 'dense' | 'queued' | 'subgroup' | 'adaptive' | 'packet' | 'none' = 'adaptive';
 	// Internal experiment: bits 1/2/4 select direct intersection/shading/shadow dispatch.
 	directStages = 0;
 	// Bits select packet retention in the queues consumed by intersection/shading/shadow.

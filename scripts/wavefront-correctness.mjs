@@ -111,6 +111,8 @@ try {
 		const canvas = document.querySelector('canvas');
 		canvas.style.cssText = 'width:129px;height:97px';
 		const r = await api.Renderer.create(canvas, { denoiser: null });
+		check(r.integrator === 'wavefront' && r.tracer.materialOpcodeSpecialization, 'Wrong renderer defaults');
+		check(!r.tracer.separateLight && !r.tracer.batchedShadows, 'Experimental stages enabled by default');
 		GPUAdapter.prototype.requestDevice = requestDevice;
 		check(r.device.limits.maxStorageBuffersPerShaderStage === 8, 'Storage binding budget was not enforced');
 		check(!disableSubgroups || !r.device.features.has('subgroups'), 'Subgroups were not disabled');

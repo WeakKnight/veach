@@ -10,7 +10,8 @@ implementations when every compiled surface/opacity/emission program is constant
 other capacities remain 1/2/4/8/16. Wavefront selection before geometry arrives is deferred;
 scene loading prepares its stages alongside the reference kernel. Geometry-free
 scenes allocate only the accumulation image prefix, without wavefront scratch.
-An experimental scene-derived opcode mask can specialize the material interpreter using
+The default integrator is wavefront with adaptive compaction and unified shading.
+A scene-derived opcode mask specializes the material interpreter by default using
 two pipeline constants. Pipeline caches include the mask as well as stack capacity;
 the zero-stack module omits these constants. The scene mask includes all three programs,
 unused materials and fallback materials, and requires no GPU buffer or binding changes.

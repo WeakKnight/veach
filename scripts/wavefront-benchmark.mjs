@@ -360,7 +360,7 @@ try {
 				environmentIntensity: c.environment, fireflyClamp: config.clamp });
 			renderer.sun.enabled = c.environment > 0;
 			const integratorStart = performance.now();
-			if (config.mode !== 'megakernel') await renderer.setIntegrator(config.mode);
+			await renderer.setIntegrator(config.mode);
 			const integratorInitMs = performance.now() - integratorStart;
 			const loadStart = performance.now();
 			const sceneDescription = c.fixture ? (await import('/scripts/wavefront-cycles-fixtures.ts')).cyclesFixture(c.fixture) : await loadGLTF(`/__research/${c.name}.glb`);

@@ -36,7 +36,7 @@ export class PathTracer {
 	materialCapacity: MaterialStackCapacity = 1;
 	// Internal experiment control; null selects the compiler-derived scene bound.
 	materialStackOverride: MaterialStackCapacity | null = null;
-	materialOpcodeSpecialization = false;
+	materialOpcodeSpecialization = true;
 	materialOperandMode = 0;
 	boundMaterialOperandMode = 0;
 	// Internal traversal experiment; alpha-tested scenes always retain the general kernel.
@@ -70,7 +70,7 @@ export class PathTracer {
 	private wavefront: Wavefront | null = null;
 	private wavefrontLoading: Promise<Wavefront> | null = null;
 	private destroyed = false;
-	integrator: 'megakernel' | 'wavefront' = 'megakernel';
+	integrator: 'megakernel' | 'wavefront' = 'wavefront';
 	width = 0;
 	height = 0;
 

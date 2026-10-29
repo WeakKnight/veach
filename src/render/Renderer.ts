@@ -299,7 +299,7 @@ export class Renderer {
 		return this.frameIndex;
 	}
 
-	/** Experimental GPU stage decomposition. Switching clears accumulated samples. */
+	/** Select the default wavefront integrator or megakernel reference. Switching clears accumulated samples. */
 	async setIntegrator(mode: 'megakernel' | 'wavefront'): Promise<void> {
 		if (mode !== 'megakernel' && mode !== 'wavefront') throw new Error(`Unknown integrator: ${mode}`);
 		if (this.destroyed) throw new Error('Renderer has been destroyed');

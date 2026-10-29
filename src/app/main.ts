@@ -72,7 +72,8 @@ async function main(): Promise<void> {
 	}).finally(() => clearInterval(ticker));
 	(globalThis as unknown as { veach: Renderer }).veach = renderer;
 	// Empty-scene selection is cheap; scene loading prepares the required pipelines together.
-	if (params.get('integrator') === 'wavefront') await renderer.setIntegrator('wavefront');
+	const integrator = params.get('integrator');
+	if (integrator === 'wavefront' || integrator === 'megakernel') await renderer.setIntegrator(integrator);
 	new OrbitController(renderer.camera, canvas, () => renderer.resetAccumulation());
 
 	const reset = () => renderer.resetAccumulation();

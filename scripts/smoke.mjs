@@ -47,7 +47,7 @@ const cases = [
 ];
 const only = process.argv.slice(2);
 const integratorFlag = only.indexOf('--integrator');
-let integrator = 'megakernel';
+let integrator = 'wavefront';
 if (integratorFlag >= 0) {
 	integrator = only[integratorFlag + 1];
 	if (!['megakernel', 'wavefront'].includes(integrator)) throw new Error('--integrator must be megakernel or wavefront');
@@ -217,7 +217,7 @@ try {
 		page.on('pageerror', (e) => errors.push(String(e)));
 		const target = c.target ?? Number(new URLSearchParams(c.query).get('spp') ?? 16);
 		const start = Date.now();
-		await page.goto(`${base}?${c.query}&integrator=${integrator}`, { waitUntil: 'load' });
+		await page.goto(`${base}?${c.query}${integratorFlag >= 0 ? `&integrator=${integrator}` : ''}`, { waitUntil: 'load' });
 		try {
 			if (opcodeMode !== null || operandMode !== null || opaqueMegakernel) {
 				await page.waitForFunction(() => globalThis.veach?.samples > 0, { timeout: 120000 });
@@ -266,11 +266,15 @@ try {
 		if (errorText) errors.push(errorText);
 		const stats = await page.evaluate(() => {
 			const m = globalThis.veach;
-			return m ? { samples: m.samples, scene: m.sceneStats, vt: m.virtualTextureStats } : null;
+			return m ? { samples: m.samples, scene: m.sceneStats, vt: m.virtualTextureStats, integrator: m.integrator,
+				compaction: m.tracer.wavefront?.compaction, sceneOpcodes: m.tracer.materialOpcodeSpecialization } : null;
 		});
 		await page.screenshot({ path: join(outDir, `${c.name}.png`) });
 		const ms = Date.now() - start;
 		const tris = stats?.scene?.triangles ?? 0;
+		if (stats?.integrator !== integrator) errors.push('Wrong integrator selected');
+		if (integratorFlag < 0 && Object.keys(wavefrontTuning).length === 0 && opcodeMode === null && tris > 0
+			&& (stats?.compaction !== 'adaptive' || !stats?.sceneOpcodes)) errors.push('Wrong default wavefront profile');
 		if (c.name === 'custom-model' && tris === 0) errors.push('custom model did not load any triangles');
 		if (errors.length) {
 			failures++;

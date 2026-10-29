@@ -15,6 +15,10 @@ A physically based path tracer for the web: **WebGPU** compute, **tinybvh** (com
 - OIDN WebGPU HDR denoising with albedo/normal guides, enabled by default after 128 samples; the default model is included and loaded separately
 - Ten built-in display LUTs plus external 3D `.cube` / float32 LUTs, with explicit color-space metadata; ACES2 remains the default display transform
 
+Wavefront is the default integrator, with adaptive GPU queues and scene-specialized material
+programs. Use `renderer.setIntegrator('megakernel')` or the demo URL parameter
+`integrator=megakernel` to select the reference renderer.
+
 ## Quick start
 
 ```sh

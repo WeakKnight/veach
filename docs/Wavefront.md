@@ -1,5 +1,34 @@
 # Wavefront implementation and performance experiment
 
+## Current production defaults (2026-10-29)
+
+Wavefront is now the default integrator, using adaptive compaction, scene-derived opcode
+specialization and automatic 0/1/2/4/8/16 SVM capacity. Shading stays unified, all main
+stages consume GPU queues, and bytecode retains its original scheduling order. Sorting,
+material/capacity grouping, fused tails, parallel shadows, separate NEE and alpha-shadow
+queues remain opt-in. This is a general-purpose configuration, not a claim of a universal
+winner: the historical original-material measurements still favor megakernel in four of
+five scenes, while heterogeneous materials can favor wavefront substantially.
+
+Adaptive compaction was validated at 360p and 1080p; `opcode-sweep-v2` measured adaptive
+wavefront plus scene opcode specialization and improved the two changed-shader scenes in
+every paired round. The latest alpha queue measurements still regress versus ordinary
+shadows, so that option is not enabled. `setIntegrator('megakernel')` and the demo URL
+`?integrator=megakernel` retain an explicit reference path. Empty scenes stay on the small
+camera/environment kernel and debug views retain their reference implementation.
+
+Validation: all 219 unit tests, TypeScript checking and library build pass. Thirty GPU
+HDR/albedo/normal comparisons across empty, opaque, deep alpha, Mask/Blend, transmission,
+emissive, analytic and procedural cases have zero maximum error. All 21 no-parameter smoke
+cases pass and assert the actual default integrator/compaction/opcode policy; all captures
+were inspected and saved in `.tools/wavefront/default-profile-smoke`. Explicit megakernel
+URL selection also passes empty-sky and alpha smoke checks. The benchmark always applies
+its requested integrator explicitly so its megakernel baseline remains independent of
+production defaults.
+
+The investigation entries below describe historical defaults and experiments. This section
+supersedes their default-setting statements; their measurements and caveats remain valid.
+
 ## Investigation scope
 
 Work started 2026-10-28 02:14 Hong Kong time (2026-10-27 18:14 UTC).
@@ -1837,7 +1866,7 @@ word 3 optionally stores the current main queue's exact 256-slot sort bound.
 Intersect reads A, CompactIntersect scans A and writes B, Shade reads B, and CompactShade
 scans B and writes A plus shadow indices. Compact dispatch sizes come from the input queue's
 indirect arguments; clearing the output count preserves the input count. An empty queue thus
-dispatches no further compaction work. This applies to queued/subgroup modes. The default
+dispatches no further compaction work. This applies to queued/subgroup modes. The optional
 dense mode scans physical path slots and writes the same alternating output queues, preserving
 the earlier traversal ordering behavior and avoiding input-index loads.
 Compaction has five separately compiled modules: dense, queued, adaptive and packet

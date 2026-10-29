@@ -54,13 +54,13 @@ selection (same expectation, visible only at 1 spp), and `clearcoatNormalTexture
   Tests cover EOF/newline changes and repeated-line edits as well as actual Slang modules.
   `npm run build:shaders -- --material-stack 1` still emits standalone investigation modules
   under `.tools/wavefront/stack-1`. See [Wavefront.md](Wavefront.md) for paired measurements.
-- Experimental scene opcode specialization uses two uint32 pipeline constants to disable
+- Scene opcode specialization, enabled by default, uses two uint32 pipeline constants to disable
   unused interpreter cases. The host decodes the union of surface, opacity and emission
   instructions across all compiled materials, including unused materials and the fallback;
   extension operand words are skipped. This allows backend dead-code elimination without
   changing bytecode, numerical operations, or the CPU interpreter. The full instruction set
-  remains the default pending measurements. Capacity zero has no override declarations and
-  shares one pipeline irrespective of opcode mask. Both integrators prepare and cache the
+  remains available through the internal benchmark override. Capacity zero has no override
+  declarations and shares one pipeline irrespective of opcode mask. Both integrators prepare and cache the
   requested mask before binding the scene; shader-free wavefront stages need no constants.
 - Experimental operand loading uses pipeline constant ID 2, with `materialOperandMode = 0`
   retaining eager stack reads. Bit 1 guards stack reads for constant/absent operands;

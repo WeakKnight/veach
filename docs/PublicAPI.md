@@ -46,10 +46,13 @@ after uploading the scene and preparing any required material pipeline variant, 
 `SceneStats`. Variants are cached per renderer. Call `setScene` again to replace it; await
 one scene change before starting the next. The renderer observes canvas size changes.
 
-For experimental GPU A/B comparisons, `await renderer.setIntegrator('wavefront')` lazily
-compiles the staged path tracer when geometry is present and resets accumulation. Use `'megakernel'` to return to
-the default reference. `renderer.integrator` reports the selected mode. Await each switch
-before another; diagnostic views currently use the reference kernel in either mode.
+The default is wavefront with adaptive GPU queue compaction, automatic scene SVM capacity,
+and scene opcode specialization. Shading is unified; material sorting/grouping, fused tails,
+independent NEE and queued alpha shadows remain opt-in because their gains depend on the scene.
+`await renderer.setIntegrator('megakernel')` selects the reference integrator;
+`await renderer.setIntegrator('wavefront')` restores the default integrator. Switching resets
+accumulation. `renderer.integrator` reports the selection. Await each switch before another;
+diagnostic views use the reference kernel in either mode.
 Selecting wavefront before loading geometry defers compilation until `setScene`, allowing its
 required pipelines to compile together at the scene's material stack capacity. Geometry-free
 scenes use the lightweight camera/environment/analytic-light kernel in either mode.
