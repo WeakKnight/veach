@@ -29,10 +29,11 @@ the same texture context, evaluates emission/masked opacity, then completes the 
 before visibility. It uses the same multiplication order and VT state as inline SampleEmissive.
 Light tasks are not material sorted. Surface sorting does not imply light-shader coherence.
 
-Batched alpha shadows collect up to four BVH candidates without SVM, evaluate opacity in a
-separate entry, and repeat for four batches. They retain BVH encounter order and source order
-(environment, emitter, sun), including texture feedback. Continuations replay traversal and
-skip the evaluated prefix; a complete any-hit fallback handles all remaining candidates.
-Thus four batches limit dispatch overhead, not transparency depth. This differs from Cycles'
-closest-hit distance batches because Veach must preserve its stochastic alpha/VT sequence.
-The three surviving source contributions are summed before throughput/clamping, as before.
+The legacy `setBatchedShadows` switch now enables no-SVM visibility classification followed
+by a compacted alpha queue. The first geometric candidate includes alpha geometry: miss is
+visible, opaque is blocked, and alpha is unresolved. Only unresolved source bits are retraced
+from their original intervals. Each path retains environment/emitter/sun alpha evaluation
+order and VT state; resolved sources are not traced again. The three surviving contributions
+are summed in original order before throughput/clamping. There are no fixed rounds, prefix
+skips, candidate arrays or transparency-depth limits. Pure opaque scenes use the original
+shadow kernel and allocation. The pending queue reuses shading queue B after CompactShade.

@@ -175,3 +175,46 @@ void CompactIntersect(uint3 tid : SV_DispatchThreadID, uint3 local : SV_GroupThr
 [numthreads(64, 1, 1)]
 void CompactShade(uint3 tid : SV_DispatchThreadID, uint3 local : SV_GroupThreadID)
 { CompactImpl<true>(tid, local); }
+
+// Reuse the finished shading queue for pending alpha paths. Never overwrite the
+// main continuation queue/count/dispatch, which the next bounce still consumes.
+void CompactShadowAlphaImpl<let DIRECT : bool>(uint3 tid, uint3 local)
+{
+	uint lane = local.x, header = gFrame.frame.x * gFrame.frame.y * 12u;
+	if (lane == 0u) gInputCount = DIRECT ? gWavefront.pathCount : gWork[header + 1u].load();
+	GroupMemoryBarrierWithGroupSync();
+	uint queue = header + 12u + gWavefront.capacity * 84u;
+	uint stride = ((gWavefront.capacity + 3u) / 4u) * 4u;
+	uint index = 0u, flag = 0u;
+	if (tid.x < gInputCount)
+	{
+		index = DIRECT ? tid.x : gWork[queue + 2u * stride + tid.x].load();
+		flag = uint(gWork[header + 12u + index * 4u + 44u * gWavefront.capacity + 3u].load() != 0u);
+	}
+	gPrefix[lane] = uint2(flag, 0u);
+	GroupMemoryBarrierWithGroupSync();
+	[unroll]
+	for (uint offset = 1u; offset < 64u; offset *= 2u)
+	{
+		uint value = lane >= offset ? gPrefix[lane - offset].x : 0u;
+		GroupMemoryBarrierWithGroupSync();
+		gPrefix[lane].x += value;
+		GroupMemoryBarrierWithGroupSync();
+	}
+	if (lane == 0u && gPrefix[63u].x != 0u)
+	{
+		gOffsets.x = gWork[header + 2u].add(gPrefix[63u].x);
+		gWork[header + 8u].max((gOffsets.x + gPrefix[63u].x + 63u) / 64u);
+	}
+	GroupMemoryBarrierWithGroupSync();
+	if (flag != 0u) gWork[queue + stride + gOffsets.x + gPrefix[lane].x - 1u].store(index);
+}
+
+[shader("compute")]
+[numthreads(64, 1, 1)]
+void CompactShadowAlpha(uint3 tid : SV_DispatchThreadID, uint3 local : SV_GroupThreadID)
+{ CompactShadowAlphaImpl<false>(tid, local); }
+[shader("compute")]
+[numthreads(64, 1, 1)]
+void CompactShadowAlphaDirect(uint3 tid : SV_DispatchThreadID, uint3 local : SV_GroupThreadID)
+{ CompactShadowAlphaImpl<true>(tid, local); }

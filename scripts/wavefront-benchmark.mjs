@@ -224,7 +224,7 @@ const measurementVariants = ['megakernel', ...config.variants.map(v => v.name)];
 if (config.balancedOrder && (!config.paired || config.repeats % measurementVariants.length !== 0)) throw new Error(`--balanced-order requires paired repeats in multiples of ${measurementVariants.length}`);
 config.measurementOrders = config.balancedOrder ? Array.from({ length: config.repeats }, (_, repeat) => balancedMeasurementOrder(measurementVariants, repeat)) : null;
 const cases = [
-	...(args.includes('--cycles-fixtures') ? ['deep-alpha', 'masked-emitter'].map(name => ({ name, fixture: name, file: 'scripts/wavefront-cycles-fixtures.ts', environment: 0, presentationExposure: 0 })) : []),
+	...(args.includes('--cycles-fixtures') ? ['deep-alpha', 'masked-emitter', 'mixed-alpha', 'opaque-shadow'].map(name => ({ name, fixture: name, file: 'scripts/wavefront-cycles-fixtures.ts', environment: 0, presentationExposure: 0 })) : []),
 	{ name: 'classroom', file: 'classroom/gltf/classroom_extended.glb', environment: 1, presentationExposure: 4 },
 	{ name: 'breakfast-room', file: 'breakfast-room/gltf/breakfast_room_extended.glb', environment: 1, presentationExposure: 6 },
 	{ name: 'bmw-m6', file: 'bmw-m6/gltf/bmw_m6_extended.glb', environment: 1, presentationExposure: 2 },
@@ -478,8 +478,8 @@ try {
 					const caps = wf?.separateLight ? renderer.scene.materialSurfaceCapacities : renderer.scene.materialShadeCapacities;
 					const actualCapacity = bucket ? Number(bucket[1]) : stage.startsWith('ShadeSurface') ? surfaceCapacity
 						: stage.startsWith('ShadeLight') ? renderer.scene.materialLightCapacity
-						: /^(Evaluate|Finish)ShadowBatch/.test(stage) ? renderer.scene.materialOpacityCapacity
-						: stage.includes('ShadowBatch') ? 0 : renderer.tracer.materialCapacity;
+						: stage === 'ShadowAlpha' ? renderer.scene.materialOpacityCapacity
+						: /^(ShadowClassify|CompactShadowAlpha)/.test(stage) ? 0 : renderer.tracer.materialCapacity;
 					if (bucket && (!renderer.tracer.wavefront.shadeBuckets || !(renderer.tracer.wavefront.shadeBucketMode === 'material'
 						? actualCapacity === surfaceCapacity : caps.includes(actualCapacity)))) throw new Error('Unexpected shading bucket');
 					if (!pipeline.label.endsWith(`.stack${actualCapacity}`)) throw new Error(`Wrong tracing pipeline: ${pipeline.label}`);
@@ -592,7 +592,7 @@ try {
 						captureQueues = false;
 						measuring = false;
 						if (!labels.length) throw new Error('No trace passes were measured');
-						if (mode === 'wavefront' && (variant.compaction === 'none' || variant.directStages === 7) && labels.some(label => label.includes('.Compact')))
+						if (mode === 'wavefront' && (variant.compaction === 'none' || variant.directStages === 7) && labels.some(label => label.includes('.Compact') && !label.includes('.CompactShadowAlpha')))
 							throw new Error('Direct dispatch unexpectedly ran compaction');
 						const encoder = device.createCommandEncoder();
 						encoder.resolveQuerySet(queries, 0, labels.length * 2, resolved, 0);

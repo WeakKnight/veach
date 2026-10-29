@@ -56,11 +56,13 @@ scenes use the lightweight camera/environment/analytic-light kernel in either mo
 
 Two additional experimental switches apply to wavefront and reset accumulation:
 `await renderer.setSeparateLight(true)` separates nonconstant NEE emission evaluation;
-`await renderer.setBatchedShadows(true)` separates alpha-shadow candidate collection and
-opacity evaluation. Pass `false` to disable either. Both default to false, can be selected
-before loading a scene, and compile lazily. Await each option/scene/integrator switch before
-the next. They allocate bounded scratch in the existing work buffer. Opaque scenes retain
-the ordinary shadow fast path. These are performance experiments, not guaranteed speedups.
+`await renderer.setBatchedShadows(true)` enables no-SVM opaque/miss classification and
+a compacted queue for unresolved alpha shadows (the method retains its original name).
+Pass `false` to disable either. Both default to false, can be selected before loading a scene,
+and compile lazily. Await each option/scene/integrator switch before
+the next. Separate light allocates bounded scratch in the existing work buffer; alpha shadows reuse
+existing queues and add no per-path allocation. Opaque scenes retain the ordinary shadow
+fast path and tile capacity. These are performance experiments, not guaranteed speedups.
 
 ## Own the scene-loading workflow
 

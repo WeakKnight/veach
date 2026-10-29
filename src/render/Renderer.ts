@@ -318,7 +318,7 @@ export class Renderer {
 		this.resetAccumulation();
 	}
 
-	/** Experimental batched alpha shadow evaluation; switching resets accumulation. */
+	/** Experimental opaque classification and queued alpha shadows; switching resets accumulation. */
 	async setBatchedShadows(enabled: boolean): Promise<void> {
 		if (this.destroyed) throw new Error('Renderer has been destroyed');
 		if (enabled === this.tracer.batchedShadows) return;

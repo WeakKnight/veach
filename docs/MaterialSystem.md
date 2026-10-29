@@ -393,7 +393,9 @@ texture/procedural operations. Nonconstant emission moves to the shadow queue be
 visibility. Deferred tasks run even when BSDF/pdf rejection makes their contribution zero,
 so per-path VT random state and feedback remain identical to the reference.
 
-`Renderer.setBatchedShadows(true)` compiles candidate collection/resolve at capacity zero,
-and opacity evaluation/fallback at the scene opacity capacity. These entries never evaluate
+`Renderer.setBatchedShadows(true)` compiles geometric classification at capacity zero,
+and the compacted alpha-only slow path at the scene opacity capacity. The fast kernel
+resolves opaque hits and misses without SVM; alpha candidates trigger one full retrace
+of the original interval, preserving BVH encounter order and VT state. These entries never evaluate
 surface BSDFs. Opaque scenes retain their existing specialized shadow entry. Both options
 are independent and disabled by default; see `Wavefront.md` for measured costs and limits.

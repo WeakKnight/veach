@@ -14,7 +14,7 @@ function fixture() {
 	const wavefront = new Wavefront(device as unknown as GPUDevice, {} as GPUBindGroupLayout, 1);
 	return { device, wavefront };
 }
-const experimental = (label = '') => /^wavefront\.(?:Shade(?:Primary|Secondary|Late|Bucket|Surface|Light)|(?:Collect|Continue|Evaluate|Finish|Resolve)ShadowBatch|(?:Count|Prefix|Scatter)(?:Buckets|Materials))/.test(label);
+const experimental = (label = '') => /^wavefront\.(?:Shade(?:Primary|Secondary|Late|Bucket|Surface|Light)|(?:ShadowClassify|ShadowAlpha|CompactShadowAlpha)|(?:Count|Prefix|Scatter)(?:Buckets|Materials))/.test(label);
 
 describe('wavefront shading preparation', () => {
 	afterEach(() => vi.unstubAllGlobals());
@@ -27,17 +27,56 @@ describe('wavefront shading preparation', () => {
 		await wavefront.prepareShadowBatches(1, [0xffffffff, 0xffffffff]);
 		const added = device.createComputePipelineAsync.mock.calls.slice(count).map(([d]) => d);
 		expect(added.filter(d => d.label?.includes('ShadeLight')).every(d => d.label?.endsWith('stack2'))).toBe(true);
-		expect(added.filter(d => /(?:Evaluate|Finish)ShadowBatch/.test(d.label!)).map(d => d.label)).toHaveLength(4);
-		expect(added.filter(d => /(?:Evaluate|Finish)ShadowBatch/.test(d.label!)).every(d => d.label?.endsWith('stack1') && d.compute.constants)).toBe(true);
-		expect(added.filter(d => /(?:Collect|Continue|Resolve)ShadowBatch/.test(d.label!)).every(d => d.label?.endsWith('stack0') && !d.compute.constants)).toBe(true);
+		expect(added.filter(d => /\.ShadowAlpha\./.test(d.label!)).map(d => d.label)).toHaveLength(1);
+		expect(added.filter(d => /\.ShadowAlpha\./.test(d.label!)).every(d => d.label?.endsWith('stack1') && d.compute.constants)).toBe(true);
+		expect(added.filter(d => /(?:ShadowClassify|CompactShadowAlpha)/.test(d.label!)).every(d => d.label?.endsWith('stack0') && !d.compute.constants)).toBe(true);
 		const n = device.createComputePipelineAsync.mock.calls.length;
 		await wavefront.prepareShadowBatches(1, [0xffffffff, 0xffffffff]);
 		expect(device.createComputePipelineAsync).toHaveBeenCalledTimes(n);
 		Object.assign(device.limits, { maxStorageBufferBindingSize: 128 * 1024 * 1024, maxBufferSize: 128 * 1024 * 1024 });
-		const size = wavefront.storageBytes(1000);
+		const size = wavefront.storageBytes(1000), capacity = wavefront.capacity(1024 * 1024);
 		wavefront.batchedShadows = true;
-		expect(wavefront.storageBytes(1000) - size).toBe(1000 * 176);
+		expect(wavefront.storageBytes(1000) - size).toBe(0);
+		expect(wavefront.capacity(1024 * 1024)).toBe(capacity);
+		wavefront.separateLight = true;
+		expect(wavefront.storageBytes(1000) - size).toBe(1000 * 32);
 		expect(wavefront.storageBytes(1024 * 1024) + 1024 * 1024 * 48).toBeLessThanOrEqual(128 * 1024 * 1024);
+		wavefront.destroy();
+	});
+
+	it('keeps opaque dispatch unchanged and dispatches alpha only through the compact queue', async () => {
+		const { device, wavefront } = fixture();
+		Object.assign(device.limits, { maxStorageBufferBindingSize: 128 * 1024 * 1024, maxBufferSize: 128 * 1024 * 1024 });
+		Object.assign(device, { queue: { writeBuffer() {} }, createBindGroup: () => ({}) });
+		await wavefront.compiled;
+		await wavefront.prepareShadowBatches(1, [0xffffffff, 0xffffffff]);
+		wavefront.bind({} as GPUBuffer, { createView: () => ({}) } as GPUTexture);
+		const passes: { label: string; indirect?: number; direct?: boolean }[] = [];
+		const encoder = {
+			beginComputePass: ({ label }: { label: string }) => {
+				const pass = { label }; passes.push(pass);
+				return { setPipeline() {}, setBindGroup() {}, end() {},
+					dispatchWorkgroups: () => Object.assign(pass, { direct: true }),
+					dispatchWorkgroupsIndirect: (_buffer: GPUBuffer, offset: number) => Object.assign(pass, { indirect: offset }) };
+			},
+			clearBuffer() {}, copyBufferToBuffer() {},
+		} as unknown as GPUCommandEncoder;
+		const encode = (alpha: boolean) => {
+			passes.length = 0;
+			wavefront.encode(encoder, {} as GPUBindGroup, 129, 97, 3, alpha, 1, 0, [0xffffffff, 0xffffffff]);
+			return passes.map(p => ({ ...p }));
+		};
+		const opaque = encode(false);
+		wavefront.batchedShadows = true;
+		expect(encode(false)).toEqual(opaque);
+		for (const directStages of [0, 4, 7]) {
+			wavefront.directStages = directStages;
+			const alpha = encode(true);
+			for (const name of ['ShadowClassify', 'CompactShadowAlpha', 'ShadowAlpha'])
+				expect(alpha.filter(p => p.label.startsWith(`wavefront.${name}.`))).toHaveLength(6); // Two padded tiles, three bounces.
+			expect(alpha.filter(p => p.label.startsWith('wavefront.ShadowAlpha.')).every(p => p.indirect === 16 && !p.direct)).toBe(true);
+			expect(alpha.some(p => p.label.includes('ShadowBatch') || p.label.startsWith('wavefront.Shadow.'))).toBe(false);
+		}
 		wavefront.destroy();
 	});
 

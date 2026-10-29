@@ -550,102 +550,9 @@ void ShadowImpl<let ALPHA : bool, let DIRECT : bool>(uint3 tid)
 	if (ALPHA) StoreFeedbackState(base);
 }
 
-bool ShadowBatchIndex<let DIRECT : bool>(uint slot, out uint index)
+// Resolve in source order so the sum, throughput multiplication and clamp match Shadow.
+void ResolveShadowVisibility(uint base, uint mask)
 {
-	uint count = DIRECT ? gWavefront.pathCount : asuint(gAccum[HeaderBase()].y);
-	index = 0u;
-	if (slot >= count) return false;
-	index = DIRECT ? slot : QueueIndex(ShadowQueueBase(), slot);
-	return asuint(gAccum[Field(WorkBase(index), 11u)].z) != 0u;
-}
-
-// Only one source is in flight per path, so alpha tests consume VT randomness in
-// exactly the same environment/emitter/sun and BVH order as serial Shadow.
-void CollectShadowBatchImpl<let DIRECT : bool, let INITIAL : bool>(uint3 tid)
-{
-	uint index;
-	if (!ShadowBatchIndex<DIRECT>(tid.x, index)) return;
-	uint base = WorkBase(index), aux = LightWorkBase(index);
-	uint4 state = INITIAL ? uint4(0u) : asuint(gAccum[Field(aux, 2u)]);
-	uint mask = asuint(gAccum[Field(base, 11u)].z);
-	while (state.x < 3u)
-	{
-		uint offset = 12u + state.x * 3u;
-		float4 direction = gAccum[Field(base, offset + 1u)];
-		if ((mask & (1u << state.x)) != 0u && asuint(direction.w) != 0u)
-		{
-			float4 origin = gAccum[Field(base, offset)];
-			TraceShadowBatch(Ray(origin.xyz, direction.xyz, origin.w), state.y);
-			state.z = gShadowBatchCount;
-			state.w = gShadowBatchComplete ? 1u : 0u;
-			for (uint i = 0u; i < state.z; i++)
-			{
-				HitRecord hit = gShadowBatch[i];
-				gAccum[Field(aux, 3u + i * 2u)] = float4(hit.t, hit.barycentrics, asfloat(hit.instanceIndex));
-				gAccum[Field(aux, 4u + i * 2u)] = float4(asfloat(hit.primitiveIndex), 0.0, 0.0, 0.0);
-			}
-			break;
-		}
-		state = uint4(state.x + 1u, 0u, 0u, 0u);
-	}
-	gAccum[Field(aux, 2u)] = asfloat(state);
-}
-
-void EvaluateShadowBatchImpl<let DIRECT : bool>(uint3 tid)
-{
-	uint index;
-	if (!ShadowBatchIndex<DIRECT>(tid.x, index)) return;
-	uint base = WorkBase(index), aux = LightWorkBase(index);
-	uint4 state = asuint(gAccum[Field(aux, 2u)]);
-	if (state.x >= 3u) return;
-	LoadFeedbackState(base);
-	gRayCone = gAccum[Field(base, 11u)].xy;
-	bool blocked = false;
-	for (uint i = 0u; i < state.z; i++)
-	{
-		float4 hit = gAccum[Field(aux, 3u + i * 2u)];
-		Instance inst = gInstances[asuint(hit.w)];
-		uint primitive = asuint(gAccum[Field(aux, 4u + i * 2u)].x);
-		if ((inst.flags & INSTANCE_FLAG_ALPHA_TESTED) == 0u || !AlphaTestRejects(inst, primitive, hit.yz, hit.x))
-		{
-			blocked = true;
-			break;
-		}
-	}
-	if (blocked) gAccum[Field(base, 11u)].z = asfloat(asuint(gAccum[Field(base, 11u)].z) & ~(1u << state.x));
-	state = blocked || state.w != 0u ? uint4(state.x + 1u, 0u, 0u, 0u) : uint4(state.x, state.y + state.z, 0u, 0u);
-	gAccum[Field(aux, 2u)] = asfloat(state);
-	StoreFeedbackState(base);
-}
-
-// Bound dispatch overhead, never transparency depth. Remaining candidates use the
-// reference any-hit loop after skipping the already evaluated prefix.
-void FinishShadowBatchImpl<let DIRECT : bool>(uint3 tid)
-{
-	uint index;
-	if (!ShadowBatchIndex<DIRECT>(tid.x, index)) return;
-	uint base = WorkBase(index);
-	uint4 state = asuint(gAccum[Field(LightWorkBase(index), 2u)]);
-	if (state.x >= 3u) return;
-	LoadFeedbackState(base);
-	gRayCone = gAccum[Field(base, 11u)].xy;
-	uint mask = asuint(gAccum[Field(base, 11u)].z);
-	for (uint source = state.x; source < 3u; source++)
-	{
-		if ((mask & (1u << source)) == 0u) continue;
-		uint offset = 12u + source * 3u;
-		float4 origin = gAccum[Field(base, offset)], direction = gAccum[Field(base, offset + 1u)];
-		if (asuint(direction.w) != 0u && TraceOcclusionResume(Ray(origin.xyz, direction.xyz, origin.w), source == state.x ? state.y : 0u)) mask &= ~(1u << source);
-	}
-	gAccum[Field(base, 11u)].z = asfloat(mask);
-	StoreFeedbackState(base);
-}
-
-void ResolveShadowBatchImpl<let DIRECT : bool>(uint3 tid)
-{
-	uint index;
-	if (!ShadowBatchIndex<DIRECT>(tid.x, index)) return;
-	uint base = WorkBase(index), mask = asuint(gAccum[Field(base, 11u)].z);
 	float3 sum = float3(0.0);
 	for (uint source = 0u; source < 3u; source++)
 		if ((mask & (1u << source)) != 0u) sum += gAccum[Field(base, 14u + source * 3u)].xyz;
@@ -658,30 +565,66 @@ void ResolveShadowBatchImpl<let DIRECT : bool>(uint3 tid)
 	gAccum[Field(base, 11u)] = float4(0.0);
 }
 
-#define SHADOW_BATCH_ENTRY(NAME, IMPL, DIRECT) \
-[shader("compute")] \
-[numthreads(64, 1, 1)] \
-void NAME(uint3 tid : SV_DispatchThreadID) { IMPL<DIRECT>(tid); }
+// First geometric candidate, including alpha geometry. No material or VT work is
+// reachable here. An alpha candidate is unresolved, never an accepted occluder.
+void ShadowClassifyImpl<let DIRECT : bool>(uint3 tid)
+{
+	uint count = DIRECT ? gWavefront.pathCount : asuint(gAccum[HeaderBase()].y);
+	if (tid.x >= count) return;
+	uint index = DIRECT ? tid.x : QueueIndex(ShadowQueueBase(), tid.x);
+	uint base = WorkBase(index);
+	float4 info = gAccum[Field(base, 11u)];
+	uint mask = asuint(info.z), pending = 0u;
+	if (mask == 0u) return;
+	for (uint source = 0u; source < 3u; source++)
+	{
+		uint bit = 1u << source;
+		if ((mask & bit) == 0u) continue;
+		uint offset = 12u + source * 3u;
+		float4 origin = gAccum[Field(base, offset)], direction = gAccum[Field(base, offset + 1u)];
+		HitRecord hit;
+		if (asuint(direction.w) != 0u && TraceScene<false>(Ray(origin.xyz, direction.xyz, origin.w), true, hit))
+		{
+			if ((gInstances[hit.instanceIndex].flags & INSTANCE_FLAG_ALPHA_TESTED) != 0u) pending |= bit;
+			else mask &= ~bit;
+		}
+	}
+	if (pending == 0u) ResolveShadowVisibility(base, mask);
+	else gAccum[Field(base, 11u)] = float4(info.xy, asfloat(mask), asfloat(pending));
+}
+
+// Queue B is free after CompactShade. Only pending paths reach this kernel;
+// only their alpha-marked sources are retraced, in environment/emitter/sun order.
+[shader("compute")]
+[numthreads(64, 1, 1)]
+void ShadowAlpha(uint3 tid : SV_DispatchThreadID)
+{
+	if (tid.x >= asuint(gAccum[HeaderBase()].z)) return;
+	uint base = WorkBase(QueueIndex(ShadeQueueBase(), tid.x));
+	float4 info = gAccum[Field(base, 11u)];
+	uint mask = asuint(info.z), pending = asuint(info.w);
+	LoadFeedbackState(base);
+	gRayCone = info.xy;
+	for (uint source = 0u; source < 3u; source++)
+	{
+		uint bit = 1u << source;
+		if ((pending & bit) == 0u) continue;
+		uint offset = 12u + source * 3u;
+		float4 origin = gAccum[Field(base, offset)], direction = gAccum[Field(base, offset + 1u)];
+		// Restart the original interval to preserve BVH/VT order. The first
+		// geometric candidate need not be nearest, so advancing tMin is unsafe.
+		if (TraceOcclusion<true>(Ray(origin.xyz, direction.xyz, origin.w))) mask &= ~bit;
+	}
+	ResolveShadowVisibility(base, mask);
+	StoreFeedbackState(base);
+}
 
 [shader("compute")]
 [numthreads(64, 1, 1)]
-void CollectShadowBatch(uint3 tid : SV_DispatchThreadID) { CollectShadowBatchImpl<false, true>(tid); }
+void ShadowClassify(uint3 tid : SV_DispatchThreadID) { ShadowClassifyImpl<false>(tid); }
 [shader("compute")]
 [numthreads(64, 1, 1)]
-void CollectShadowBatchDirect(uint3 tid : SV_DispatchThreadID) { CollectShadowBatchImpl<true, true>(tid); }
-[shader("compute")]
-[numthreads(64, 1, 1)]
-void ContinueShadowBatch(uint3 tid : SV_DispatchThreadID) { CollectShadowBatchImpl<false, false>(tid); }
-[shader("compute")]
-[numthreads(64, 1, 1)]
-void ContinueShadowBatchDirect(uint3 tid : SV_DispatchThreadID) { CollectShadowBatchImpl<true, false>(tid); }
-SHADOW_BATCH_ENTRY(EvaluateShadowBatch, EvaluateShadowBatchImpl, false)
-SHADOW_BATCH_ENTRY(EvaluateShadowBatchDirect, EvaluateShadowBatchImpl, true)
-SHADOW_BATCH_ENTRY(FinishShadowBatch, FinishShadowBatchImpl, false)
-SHADOW_BATCH_ENTRY(FinishShadowBatchDirect, FinishShadowBatchImpl, true)
-SHADOW_BATCH_ENTRY(ResolveShadowBatch, ResolveShadowBatchImpl, false)
-SHADOW_BATCH_ENTRY(ResolveShadowBatchDirect, ResolveShadowBatchImpl, true)
-#undef SHADOW_BATCH_ENTRY
+void ShadowClassifyDirect(uint3 tid : SV_DispatchThreadID) { ShadowClassifyImpl<true>(tid); }
 
 [shader("compute")]
 [numthreads(64, 1, 1)]

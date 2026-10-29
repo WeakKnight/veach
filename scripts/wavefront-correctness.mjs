@@ -123,7 +123,7 @@ try {
 		let materialHeaderCount = 0;
 		let bucketVerification = { passes: 0, entries: 0, emptyBuckets: 0, dispatches: 0 };
 		let sortVerification = { passes: 0, entries: 0, reordered: 0, directionPasses: 0, indirect256Passes: 0 };
-		let batchVerification = { resumedPaths: 0 }, lightPipelines = [];
+		let batchVerification = { pendingPaths: 0, pendingRays: 0, passes: 0 }, lightPipelines = [];
 		let shadePipelines = [], shadowPipelines = [], compactPipelines = [], megakernelPipelines = [];
 		let opcodeConstants = [];
 		let materialVariants = null;
@@ -426,16 +426,18 @@ try {
 			sortVerification = { passes: 0, entries: 0, reordered: 0, directionPasses: 0, indirect256Passes: 0 };
 			bucketVerification = { passes: 0, entries: 0, emptyBuckets: 0, dispatches: 0 };
 			const observedShading = new Set(), observedMegakernel = new Set(), observedShadows = new Set(), observedLights = new Set(), observedCompaction = new Set(), observedOpcodes = new Set(), setPipeline = GPUComputePassEncoder.prototype.setPipeline;
-			batchVerification = { resumedPaths: 0 };
+			batchVerification = { pendingPaths: 0, pendingRays: 0, passes: 0 };
 			const batchCaptures = [];
 			const beginShadePass = GPUCommandEncoder.prototype.beginComputePass, shadePasses = new WeakMap();
 			GPUCommandEncoder.prototype.beginComputePass = function(descriptor = {}) {
-				if (r.samples === 0 && (descriptor.label ?? '').startsWith('wavefront.FinishShadowBatch.')) {
+				if (r.samples === 0 && (descriptor.label ?? '').startsWith('wavefront.ShadowAlpha.')) {
 					const pixels = r.tracer.width * r.tracer.height, cap = r.tracer.wavefront.capacity(pixels);
-					const offset = pixels * 48 + 48 + cap * 336 + Math.ceil(cap / 4) * 48 + 4192 + cap * 32;
-					const buffer = r.device.createBuffer({ size: cap * 16, usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ });
-					this.copyBufferToBuffer(r.tracer.accumulation, offset, buffer, 0, cap * 16);
-					batchCaptures.push(buffer);
+					const queue = pixels * 48 + 48 + cap * 336 + Math.ceil(cap / 4) * 16;
+					const buffer = r.device.createBuffer({ size: 48 + cap * 20, usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ });
+					this.copyBufferToBuffer(r.tracer.accumulation, pixels * 48, buffer, 0, 48);
+					this.copyBufferToBuffer(r.tracer.accumulation, queue, buffer, 48, cap * 4);
+					this.copyBufferToBuffer(r.tracer.accumulation, pixels * 48 + 48 + cap * 11 * 16, buffer, 48 + cap * 4, cap * 16);
+					batchCaptures.push({ buffer, cap });
 				}
 				const pass = beginShadePass.call(this, descriptor);
 				const match = /^wavefront\.Shade(?:Bucket(?:Compact)?\d+)?\.b(\d+)/.exec(descriptor.label ?? '');
@@ -480,10 +482,23 @@ try {
 					await r.device.queue.onSubmittedWorkDone();
 				}
 			} finally { GPUComputePassEncoder.prototype.setPipeline = setPipeline; GPUCommandEncoder.prototype.beginComputePass = beginShadePass; }
-			for (const buffer of batchCaptures) {
+			for (const { buffer, cap } of batchCaptures) {
 				await buffer.mapAsync(GPUMapMode.READ);
 				const data = new Uint32Array(buffer.getMappedRange());
-				for (let i = 0; i < data.length; i += 4) if (data[i] < 3 && data[i + 1] >= 16) batchVerification.resumedPaths++;
+				const count = data[2], indices = new Set();
+				check(count <= cap && data[8] === Math.ceil(count / 64), 'Invalid alpha queue dispatch count');
+				for (let i = 0; i < count; i++) {
+					const index = data[12 + i];
+					check(index < cap && !indices.has(index), 'Duplicate/out-of-range alpha queue path');
+					indices.add(index);
+					const mask = data[12 + cap + index * 4 + 2], pending = data[12 + cap + index * 4 + 3];
+					check(pending > 0 && pending < 8 && (pending & mask) === pending, 'Resolved path entered alpha queue');
+					batchVerification.pendingRays += (pending & 1) + ((pending >> 1) & 1) + ((pending >> 2) & 1);
+				}
+				for (let index = 0; index < cap; index++)
+					check((data[12 + cap + index * 4 + 3] !== 0) === indices.has(index), 'Pending path omitted from alpha queue');
+				batchVerification.pendingPaths += count;
+				batchVerification.passes++;
 				buffer.unmap(); buffer.destroy();
 			}
 			lightPipelines = [...observedLights];
@@ -506,12 +521,13 @@ try {
 			if (mode === 'wavefront' && config.bounces > 0 && tailStart > 0 && r.scene.instanceCount > 0)
 				check(compactPipelines.some(label => label.includes('.CompactShadeSpatial.')) === spatialQueues, 'Wrong spatial queue pipeline');
 			opcodeConstants = [...observedOpcodes].map(value => JSON.parse(value));
-			if (r.scene.instanceCount > 0 && r.tracer.materialCapacity > 0) check(opcodeConstants.length === 1, 'SVM opcode constants were not exercised');
+			const noSvmStages = mode === 'wavefront' && separateLight && !r.scene.hasAlphaTested && r.scene.materialSurfaceCapacity === 0 && r.scene.materialLightCapacity === 0 && tailStart > config.bounces;
+			if (r.scene.instanceCount > 0 && r.tracer.materialCapacity > 0) check(opcodeConstants.length === (noSvmStages ? 0 : 1), 'Unexpected SVM opcode execution');
 			const expectedShadow = r.scene.hasAlphaTested ? 'Shadow' : shadowMode === 'serial' ? 'ShadowOpaque'
 				: shadowMode === 'parallel-auto' && r.scene.lightCount === 0 ? 'ShadowOpaqueParallelSky' : 'ShadowOpaqueParallel';
 			const suffix = compaction === 'none' || (stageMask & 4) !== 0 ? 'Direct' : '';
 			const batch = mode === 'wavefront' && batchedShadows && r.scene.hasAlphaTested;
-			const expectedShadows = batch ? ['Collect', 'Continue', 'Evaluate', 'Finish', 'Resolve'].map(stage => `wavefront.${stage}ShadowBatch${suffix}.stack${['Evaluate', 'Finish'].includes(stage) ? r.scene.materialOpacityCapacity : 0}`) : [`wavefront.${expectedShadow}${suffix}.stack${r.tracer.materialCapacity}`];
+			const expectedShadows = batch ? [`wavefront.ShadowClassify${suffix}.stack0`, `wavefront.ShadowAlpha.stack${r.scene.materialOpacityCapacity}`] : [`wavefront.${expectedShadow}${suffix}.stack${r.tracer.materialCapacity}`];
 			check(shadowPipelines.every(label => expectedShadows.includes(label)), 'Wrong shadow pipeline');
 			if (batch && config.bounces > 0 && tailStart > 0) check(expectedShadows.every(label => observedShadows.has(label)), 'Missing shadow batch stage');
 			const expectLight = mode === 'wavefront' && separateLight && r.scene.materialLightCapacity > 0 && r.scene.lightCount > 0 && config.bounces > 0 && tailStart > 0;
@@ -533,7 +549,7 @@ try {
 			return values;
 		}
 		const scenes = [
-			...['deep-alpha', 'masked-emitter'].map(name => ({ name, cyclesFixture: name, file: null, configurations: [
+			...['deep-alpha', 'masked-emitter', 'mixed-alpha', 'opaque-shadow'].map(name => ({ name, cyclesFixture: name, file: null, configurations: [
 				{ width: 129, height: 97, bounces: 3, samples: 8, clamp: 2 },
 				{ width: 513, height: 513, bounces: 1, samples: 2 },
 			] })),
@@ -749,7 +765,7 @@ try {
 							maxError = Math.max(maxError, error); squared += error * error; refSquared += reference[i] * reference[i];
 						}
 						const relativeL2 = Math.sqrt(squared / Math.max(refSquared, 1e-30));
-						if (scene.name === 'deep-alpha' && mode === 'wavefront' && batchedShadows && tailStart > 0) check(batchVerification.resumedPaths > 0, 'Deep alpha did not exercise continuation beyond four batches');
+						if (scene.name === 'deep-alpha' && mode === 'wavefront' && batchedShadows && tailStart > 0) check(batchVerification.pendingPaths > 0, 'Deep alpha did not exercise the pending alpha queue');
 						const result = { scene: scene.name, mode, compaction, directStages: stageMask, packetStages: packetMask, sort, sortSize, raySortSize, sortIndirect, shadeMode, shadeBuckets, shadeBucketMode, separateLight, batchedShadows, spatialQueues, operandMode, opaqueMegakernel, shadowMode, batchVerification, lightPipelines, shadePipelines, shadowPipelines, compactPipelines, megakernelPipelines, sortVerification, bucketVerification, opcodeConstants, materialSchedules: { original: materialVariants.original.stack, optimized: materialVariants.optimized.stack }, subgroups: r.device.features.has('subgroups'), materialCapacity: r.tracer.materialCapacity, materialShadeCapacities: r.scene.materialShadeCapacities, materialSurfaceCapacities: r.scene.materialSurfaceCapacities, materialLightCapacity: r.scene.materialLightCapacity, materialOpacityCapacity: r.scene.materialOpacityCapacity, ...config, maxError, relativeL2 };
 						results.push(result);
 						console.log(`[correctness] ${JSON.stringify(result)}`);

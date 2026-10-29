@@ -3,7 +3,7 @@ import { GraphBuilder } from '../src/material/Graph';
 import { mat4 } from '../src/math/Math';
 
 // Deterministic stress cases for independent light and opacity programs.
-export function cyclesFixture(kind: 'deep-alpha' | 'masked-emitter'): SceneDesc {
+export function cyclesFixture(kind: 'deep-alpha' | 'masked-emitter' | 'mixed-alpha' | 'opaque-shadow'): SceneDesc {
 	const receiver = defaultMaterial();
 	const alpha = defaultMaterial(), b = new GraphBuilder();
 	const uv = b.node('texcoord', 'vector2', { index: 0 });
@@ -22,12 +22,13 @@ export function cyclesFixture(kind: 'deep-alpha' | 'masked-emitter'): SceneDesc 
 	}
 	plane(0, 0, 5);
 	if (kind === 'deep-alpha') for (let i = 0; i < 24; i++) plane(0.15 + i * 0.06, 1, 4);
-	else plane(2, 1, 0.8, 2);
+	else if (kind === 'masked-emitter') plane(2, 1, 0.8, 2);
+	else { plane(1, kind === 'opaque-shadow' ? 0 : 1, 0.8, 1); plane(1.5, 0, 0.5, -1); }
 	const camera = mat4.identity(); camera[14] = 5;
 	return { materials: [receiver, alpha], textures: [], meshes,
 		instances: meshes.map((_, mesh) => ({ mesh, transform: mat4.identity() })),
 		cameras: [{ name: kind, transform: camera, yfov: 0.7 }],
-		lights: kind === 'deep-alpha' ? [{ type: 'point', position: [0, 0, 3], direction: [0, 0, -1], power: [100, 100, 100],
+		lights: kind !== 'masked-emitter' ? [{ type: 'point', position: [0, 0, 3], direction: [0, 0, -1], power: [100, 100, 100],
 			radius: 0, spotAngle: 1, spotBlend: 0, sizeU: [0,0,0], sizeV: [0,0,0], ellipse: false, visibleToCamera: false, castShadow: true }] : [],
 	};
 }

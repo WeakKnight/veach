@@ -200,14 +200,17 @@ index the TLAS prim indices, which are appended to `gIndices` at `counts.z`.
 ### Optional light and alpha-shadow stages
 
 Wavefront can append two float4 SoA fields per tile path after the existing 262 metadata
-records for deferred NEE (32 bytes/path). Batched alpha shadows append another nine fields
-(144 bytes/path): source/skip/count/end metadata and four candidate intersections. Default
-wavefront allocates neither extension. Capacity calculations include the selected extension,
-image prefix, queue rounding and device buffer limits. Existing queue/metadata offsets and
-the eight-storage-buffer binding budget are unchanged; option switches resize scratch.
+records for deferred NEE (32 bytes/path). Alpha-shadow separation adds no scratch fields:
+field 11.w holds the three-bit pending-source mask, queue B is reused after CompactShade,
+and header.z holds its count. Queue A and its indirect dispatch remain untouched. The
+classification kernel resolves opaque/miss-only paths immediately; a compaction pass writes
+only unresolved paths to B, then ShadowAlpha retraces only their marked sources. Shadow
+indirect arguments at offset 16 are replaced with the pending count after compaction.
+Pure opaque scenes use the original shadow kernel, queue layout and tile capacity.
+The eight-storage-buffer binding budget is unchanged.
 
 Material header flags additionally encode rounded surface-only capacity in bits 21..25 and
 light capacity in bits 26..30. Light capacity is max(emission, opacity when AlphaMode.Mask).
 `GpuScene` publishes independent scene surface/light/opacity maxima for pipeline preparation.
-Light and batched-shadow stages use the existing shadow queue/indirect argument at offset 16;
+Light and classification stages consume shadow queue C; pending alpha work consumes B;
 no CPU readback or extra per-stage storage binding is used.

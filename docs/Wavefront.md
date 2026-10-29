@@ -1856,7 +1856,10 @@ The compaction shader aliases the allocation as atomic uints in separate compute
 no pass binds overlapping read/write aliases simultaneously. The 144-byte dispatch argument
 buffer is COPY_DST | INDIRECT, not a storage buffer. Compaction and copies stay on GPU.
 
-## Cycles-inspired light and alpha-shadow decomposition (2026-10-29)
+## Initial Cycles-inspired light and alpha-shadow decomposition (2026-10-29; shadow batching superseded)
+
+The fixed four-round shadow implementation and measurements below are historical.
+The opaque fast path / pending alpha queue section below replaces that shadow design.
 
 This follow-up is separate from the completed eight-hour investigation above. The local
 Cycles source (`E:/GitHub/cycles`, revision `3eb35f859`) uses `SHADE_LIGHT_NEE` for nonconstant NEE emission,
@@ -1985,3 +1988,90 @@ be used as evidence of reduced register pressure. Hardware register allocation/o
 were not measured. Neither new option is promoted to a default. The implementation provides
 independent light/opacity stages and capacity controls for further measurement, while the
 reference estimator, transparency semantics and default execution remain available.
+
+
+## Opaque fast path and pending alpha queue (2026-10-29)
+
+`setBatchedShadows(true)` retains its API name but now uses three stages in alpha scenes:
+`ShadowClassify` (stack 0), `CompactShadowAlpha` (no SVM), and `ShadowAlpha` (opacity capacity).
+Pure opaque scenes retain the original single shadow dispatch, allocation and tile capacity.
+
+Classification includes all geometric candidates. Misses and opaque-first hits resolve
+immediately; an alpha-first candidate marks that source unresolved. Ignoring alpha geometry
+and treating an opaque-only miss as visible would leak light. Only unresolved paths enter
+the compact queue, and only their marked sources run alpha traversal. The source masks
+share field 11, while the pending queue reuses queue B after shading finishes. Header.z and
+the shadow dispatch arguments are repurposed, leaving the main continuation queue intact.
+No added storage binding or per-path scratch is needed (previously 176 bytes/path).
+Separate-light scratch remains 32 bytes/path when independently enabled.
+
+Each marked ray restarts its original interval once, preserving the reference BVH encounter
+order. Classification consumes no VT randomness; slow sources execute in environment,
+emitter, sun order. An arbitrary first BVH candidate is not necessarily nearest, so it is
+unsafe to advance tMin to its distance. Resolved and slow results are summed in original
+source order before throughput and clamping. This eliminates the repeated four-hit prefix
+replays and fallback, without a transparency depth cutoff. It does not sort alpha materials
+or establish native register/occupancy improvements.
+
+Correctness instrumentation reads the compact queue before ShadowAlpha, checks dispatch
+bounds, unique in-range indices and nonempty pending source masks. Fixtures include a
+pure opaque control, a mixed opaque/alpha scene, a 24-layer transparent stack and a masked
+emitter. Tests also compare partial groups, multi-tile images, clamping, direct dispatch,
+packet queues, material grouping and texture-backed Mask/Blend materials against the
+reference HDR/albedo/normal buffers.
+
+### Paired performance
+
+Artifacts: `.tools/wavefront/alpha-fast-v1`. The run uses 640x360, 8 bounces,
+32 samples per timed block, 64 initial warmup samples plus 8 after each variant switch,
+optimized material scheduling,
+adaptive compaction, and five balanced rounds across megakernel, ordinary wavefront,
+light-only, alpha-only and combined modes on the NVIDIA Lovelace adapter. All 115 recorded
+source hashes match. The 120 unique paired HDR comparisons have zero maximum error;
+all six captures were inspected. The reference report duplicates the wavefront comparisons
+and is not counted as an additional 30 comparisons.
+
+The frame columns are medians of per-round GPU spans (ms/sample). The change column is
+the median of matched-round alpha-only / ordinary-wavefront ratios, so it need not equal
+the ratio of the two displayed medians. Shadow totals include classification, compaction
+and alpha evaluation, summing all bounces within each round before taking the median.
+
+| Scene | Ordinary wavefront | Alpha queue | Paired frame change | Ordinary shadow | Alpha shadow stages |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Opaque control | 1.1689 | 1.1561 | -0.21% | 0.1128 | 0.1145 |
+| Classroom (opaque) | 8.4823 | 8.4972 | +0.22% | 2.6376 | 2.6396 |
+| Veach MIS (opaque) | 1.7388 | 1.7475 | +0.65% | 0.6589 | 0.7033 |
+| Mixed opaque/alpha | 1.2513 | 1.4700 | +18.51% | 0.1180 | 0.2702 |
+| Deep alpha (24 layers) | 2.1422 | 2.2574 | +5.71% | 0.5623 | 0.6991 |
+| Masked emitter | 1.1540 | 1.2867 | +14.06% | 0.0722 | 0.1568 |
+
+The historical fixed-batch run (`cycles-stages-v1`) spent 2.0890 ms in deep-alpha shadow
+kernels and 0.6407 ms for the masked emitter, versus 0.6991 and 0.1568 here. These are
+separate runs, not a contemporaneous paired old/new experiment; the historical run also
+used 64 warmup samples after each variant switch instead of 8. The earlier paired frame
+penalties were +71.75% and +44.10%, respectively.
+
+The new implementation removes the large fixed-batch regression and keeps pure opaque
+frame timings within about 1%, but does not beat the ordinary shadow path in these alpha
+fixtures. Their opacity programs require only one SVM slot. In the mixed fixture,
+classification costs 0.1164 ms, compaction 0.0617 ms and alpha evaluation 0.0904 ms
+(individual stage medians). A cheap opacity program does not offset that dispatch,
+compaction and initial traversal overhead. Keep the option default-off; no universal
+speedup or native register reduction is claimed.
+
+### Validation of the replacement
+
+Shader generation completes without compiler warnings; TypeScript checking, library build,
+and all 219 unit tests pass. Unit coverage checks unchanged opaque dispatch/allocation,
+opacity-only pipeline capacity, and indirect alpha dispatch even when main stages are direct.
+
+The default smoke run passes 21 scenes, and the enabled light/alpha run passes helmet HDR,
+alpha, emissive and transmission. All 25 current captures were inspected; saved screenshots
+are in `.tools/wavefront/alpha-fast-default-smoke` and `alpha-fast-enabled-smoke`.
+
+All 126 GPU HDR/albedo/normal comparisons have zero maximum error: 16 standalone alpha
+fixture cases, 40 combined light/alpha cases (including texture-backed Mask/Blend and
+constant opacity), 54 packet-queue cases sweeping all eight direct-stage masks, and 16
+program-sorted full-material-group cases with direct shadow classification. The compact
+queue checks exact membership as well as bounds and uniqueness, including empty queues
+and multi-tile images. The final source fingerprint still matches all 115 benchmark inputs.
