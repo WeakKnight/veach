@@ -3,6 +3,17 @@
 There is no bindless: every texture is a streaming virtual texture, after Unreal SVT
 (`src/render/vt`, `shaders/Materials/VirtualTexture.slang`).
 
+`HostTextureSystem` supplies dynamic scenes through the same `SceneTextures` binding interface.
+Its fixed physical cache defaults to 16×16 tiles, with persistent source/wrap variants, reusable
+virtual address ranges and pinned tails. Content updates replace only affected variants;
+source versions are explicit, not inferred from pixel hashes. Page-table growth replaces its
+GPU texture and rebinds the scene. Publication epochs reject feedback captured before content
+or address changes. Defaults are 64 page uploads / 4 ms per frame, and speculative filling
+uses free slots only. RGBA8 inputs are resized to power-of-two dimensions using nearest-neighbor;
+ImageBitmap inputs use the existing decode path. Unlike the static viewer, host streaming
+never resets a temporal radiance history because host frames have none. The following cache
+sizing/accumulation rules describe the legacy static `VirtualTextureSystem` unless noted.
+
 ## Layout
 
 - Textures are resampled to power-of-two sizes and split into 128-texel pages with a 4-texel

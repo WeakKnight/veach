@@ -68,7 +68,7 @@ export const VT_FEEDBACK_PERIOD = FEEDBACK_JITTER.length;
 export const VT_FEEDBACK_SHIFT = 2;
 
 // Decodes an image to tightly packed RGBA8 at a power-of-two size, exactly (no premultiplication).
-async function decodeImages(device: GPUDevice, images: ImageBitmap[], maxSize: number): Promise<MipLevel[]> {
+export async function decodeImages(device: GPUDevice, images: ImageBitmap[], maxSize: number): Promise<MipLevel[]> {
 	const jobs = await Promise.all(
 		images.map(async (image) => {
 			const width = Math.min(nextPowerOfTwo(image.width), maxSize);

@@ -12,7 +12,8 @@ import { OIDNGuides } from './denoise/OIDNGuides';
 import type { Environment } from './Environment';
 import { ACCUM_BYTES_PER_PIXEL, FRAME_UNIFORM_BYTES } from './GpuLayout';
 import type { GpuScene } from './GpuScene';
-import { VT_FEEDBACK_SHIFT, type VirtualTextureSystem } from './vt/VirtualTextureSystem';
+import { VT_FEEDBACK_SHIFT } from './vt/VirtualTextureSystem';
+import type { SceneTextures } from './vt/SceneTextures';
 import type { Wavefront } from './Wavefront';
 import { materialStackCapacity, specializeMaterialShader, type MaterialStackCapacity } from './MaterialShaderVariants';
 import { ALL_MATERIAL_OPCODES, materialPipelineKey, materialPipelineConstants, type MaterialOpcodeMask } from './MaterialProgramFeatures';
@@ -242,7 +243,7 @@ export class PathTracer {
 		return scene.instanceCount === 0 && this.materialStackOverride === null;
 	}
 
-	setScene(scene: GpuScene, environment: Environment, vt: VirtualTextureSystem): void {
+	setScene(scene: GpuScene, environment: Environment, vt: SceneTextures): void {
 		this.materialCapacity = this.sceneCapacity(scene);
 		this.materialOpcodes = this.sceneOpcodes(scene);
 		this.materialShadeCapacities = scene.materialShadeCapacities;

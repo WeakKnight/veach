@@ -10,6 +10,15 @@ selection (same expectation, visible only at 1 spp), and `clearcoatNormalTexture
 
 ## Current implementation
 
+Persistent host scenes accept the smaller `PbrMaterial` descriptor. `HostMaterial.ts` lowers
+it through the same graph/compiler, including independent metallic/roughness channels, masked
+opacity and two-component normal scale. MeshBasicMaterial uses emission. The descriptor does
+not expose every glTF extension. Changed descriptors and materials referencing changed texture
+sources are compiled again; unrelated material regions remain untouched. Each persistent
+material block includes its header, program, constants and texture refs. Header/program offsets
+are adjusted to absolute locations, so existing shader access requires no new binding.
+Changes to the shared light stack floor repack affected capacity flags consistently.
+
 - Every material is a MaterialX-subset graph (`MaterialDesc.graph`; glTF metal-rough with its
   extensions and `KHR_materials_pbrSpecularGlossiness` in `GLTFMaterial.ts`), lowered to
   `open_pbr_surface` (= `BSDFInputs`), optimized and compiled to bytecode (`src/material`, format

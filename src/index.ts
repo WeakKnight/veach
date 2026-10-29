@@ -13,7 +13,13 @@ export {
 	type RenderSettings,
 	type RendererCreateOptions,
 	type RendererStats,
+	type HostFrame,
+	type HostView,
 } from './render/Renderer';
+export { RenderScene, SceneUpdate, type GeometryHandle, type TextureHandle, type MaterialHandle,
+	type InstanceHandle, type LightHandle, type GeometryResource, type TextureResource,
+	type ResourceTextureBinding, type PbrMaterial, type RenderInstance } from './scene/RenderScene';
+export type { HostGpuUpdateStats } from './render/HostGpuScene';
 export { AutoExposureMethod, LuminanceMethod, exponentialAdaptationM, histogramLogMin, luminanceWeights, type ExposureStats } from './render/AutoExposure';
 export type { OIDNDenoiserOptions, DenoisingState } from './render/denoise/OIDNDenoiser';
 export type { DenoisingInputs } from './render/denoise/OIDNGuides';

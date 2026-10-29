@@ -2,6 +2,16 @@
 
 ## Source layout
 
+Persistent host integration lives in `src/scene/RenderScene.ts`, `src/render/HostGpuScene.ts`,
+`StorageArena.ts`, `src/material/HostMaterial.ts`, and `src/render/vt/HostTextureSystem.ts`.
+`src/three/` is a separate optional package entry; the core has no Three.js imports.
+Transactions prepare before publishing dirty GPU regions. BLAS are shared per geometry group;
+the TLAS uses sparse instance slots and its node base is `FrameUniforms.envInfo.z` (the former
+reserved word). Frame uniforms remain 224 bytes and the eight-storage-buffer limit is unchanged.
+Host material IDs are 32-byte header addresses rather than dense indices. Host rendering resets
+the current frame sample counter each call, while changing the seed using the host frame ID.
+The static viewer remains progressive. See [HostIntegration.md](HostIntegration.md).
+
 Renderer initialization compiles `PathTracingEmpty.wgsl`, an empty-scene specialization of
 `PathTracing.slang` that retains camera rays, analytic-light visibility, background, and
 accumulation. Full material/traversal pipelines are prepared on scene loading, with stack

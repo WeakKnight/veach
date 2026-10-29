@@ -7,6 +7,7 @@ node_modules/
 dist/
 dist-lib/
 dist-view-demo/
+dist-games/
 .tools/
 public/samples/
 *.log

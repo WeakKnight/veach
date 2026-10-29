@@ -1,8 +1,9 @@
 // Public entry point: owns the WebGPU device, the scene and the progressive render loop.
 import { BuildQuality, TinyBVH } from '../accel/TinyBVH';
 import type { HDRImage } from '../loaders/HDRLoader';
-import type { Vec3 } from '../math/Math';
+import { mat4, type Vec3 } from '../math/Math';
 import type { SceneDesc } from '../scene/Scene';
+import { RenderScene } from '../scene/RenderScene';
 import { sunTransmittance } from './Atmosphere';
 import { AtmosphereBaker } from './AtmosphereBaker';
 import { loadBSDFTables } from './BSDFTables';
@@ -20,6 +21,9 @@ import {
 	packFrameUniforms,
 } from './GpuLayout';
 import { GpuScene, type SceneStats } from './GpuScene';
+import { HostGpuScene, type HostGpuUpdateStats, type PreparedHostScene } from './HostGpuScene';
+import { HostTextureSystem, type PreparedHostTextures } from './vt/HostTextureSystem';
+import type { SceneTextures } from './vt/SceneTextures';
 import { bakeFusionTables, calibrateZCurve, contrastScaleToEV, evaluateCurve, neutralToneResponse, type CurveKeys, type ZCurve } from './LocalExposureCurve';
 import { PathTracer } from './PathTracer';
 import { loadBuiltinLUT, type DisplayTransform, type DisplayTransformState, type DisplayTransformResult } from './color/BuiltinLUTs';
@@ -145,6 +149,27 @@ export interface RendererCreateOptions {
 	denoiser?: OIDNDenoiserOptions | null;
 }
 
+export interface HostView {
+	/** Column-major, invertible affine camera-to-world matrix; camera looks down -Z. */
+	worldFromCamera: Float32Array;
+	/** Column-major right-handed perspective projection. Orthographic views are not yet supported. */
+	clipFromView: Float32Array;
+}
+
+export interface HostFrame {
+	scene: RenderScene;
+	view: HostView;
+	frameIndex: number;
+	samplesPerPixel?: number;
+}
+
+interface HostState {
+	gpu: HostGpuScene;
+	textures: HostTextureSystem;
+	scene: GpuScene | null;
+	lastUpdate: HostGpuUpdateStats | null;
+}
+
 // Readable names of the pipelines still compiling, for progress messages.
 function pendingPipelines(labels: string[]): string {
 	if (labels.includes('pathTracing')) return labels.length > 1 ? `path tracer and ${labels.length - 1} more` : 'path tracer';
@@ -181,7 +206,11 @@ export class Renderer {
 	onStats: ((stats: RendererStats) => void) | null = null;
 
 	private scene: GpuScene | null = null;
-	private vt: VirtualTextureSystem | null = null;
+	private vt: SceneTextures | null = null;
+	private readonly hosts = new Map<RenderScene, HostState>();
+	private activeHost: RenderScene | null = null;
+	private hostView: { position: Vec3; forward: Vec3; right: Vec3; up: Vec3; spread: number } | null = null;
+	private hostFrameIndex = 0;
 	virtualTextureOptions: VirtualTextureOptions = {};
 	private readonly sky: AtmosphereBaker;
 	private hdrEnvironment: Environment | null = null;
@@ -491,6 +520,40 @@ export class Renderer {
 		return { width, height, samples, data };
 	}
 
+	/** Create persistent host state. The caller owns the simulation and calls renderFrame(frame). */
+	createScene(options: { bvhQuality?: BuildQuality } = {}): RenderScene {
+		if (this.destroyed) throw new Error('Renderer has been destroyed');
+		const state: HostState = { gpu: new HostGpuScene(this.device, this.bvh, options.bvhQuality ?? BuildQuality.Fast),
+			textures: new HostTextureSystem(this.device, this.virtualTextureOptions), scene: null, lastUpdate: null };
+		const scene = new RenderScene(async (snapshot, changes) => {
+			let texturePlan: PreparedHostTextures | null = null, gpuPlan: PreparedHostScene | null = null;
+			try {
+				texturePlan = await state.textures.prepare(snapshot);
+				if (this.destroyed || scene.isDisposed) throw new Error('Scene was disposed during preparation');
+				gpuPlan = state.gpu.prepare(snapshot, changes, texturePlan.resolve, texturePlan);
+				await this.tracer.prepareScene(gpuPlan.scene);
+				if (this.destroyed || scene.isDisposed) throw new Error('Scene was disposed during preparation');
+				texturePlan.publish(); gpuPlan.publish();
+				state.scene = gpuPlan.scene; state.lastUpdate = gpuPlan.stats;
+				if (this.activeHost === scene) {
+					this.scene = state.scene; this.vt = state.textures;
+					this.tracer.setScene(state.scene, this.environment, state.textures);
+				}
+			} catch (error) { texturePlan?.discard(); gpuPlan?.discard(); throw error; }
+		}, () => {
+			state.gpu.destroy(); state.textures.destroy(); this.hosts.delete(scene);
+			if (this.activeHost === scene) { this.activeHost = null; this.hostView = null; this.scene = null; this.vt = null; }
+		});
+		this.hosts.set(scene, state);
+		return scene;
+	}
+
+	hostSceneStats(scene: RenderScene): HostGpuUpdateStats | null {
+		const state = this.hosts.get(scene);
+		if (!state) throw new Error('Scene does not belong to this renderer');
+		return state.lastUpdate;
+	}
+
 	async setScene(desc: SceneDesc, options: { frameCamera?: boolean; useSceneCamera?: boolean } = {}): Promise<SceneStats> {
 		if (this.destroyed) throw new Error('Renderer has been destroyed');
 		const materials = compileSceneMaterials(desc);
@@ -506,8 +569,8 @@ export class Renderer {
 			vt.destroy();
 			throw error;
 		}
-		this.scene?.destroy();
-		this.vt?.destroy();
+		if (!this.activeHost) { this.scene?.destroy(); this.vt?.destroy(); }
+		this.activeHost = null; this.hostView = null;
 		this.scene = scene;
 		this.vt = vt;
 		this.forceExposureTarget = true;
@@ -590,6 +653,7 @@ export class Renderer {
 		// pendingRequests is unmet demand from the last feedback batch, not queued work.
 		// With a full VT cache or a low sample limit it can stay nonzero forever.
 		this.streamingPending = pendingFeedback || this.vt.stats.uploadsLastFrame > 0;
+		if (this.activeHost) return; // host frames never preserve radiance from a previous frame
 		if (mapped > 0) this.streamedCoverage += coverage;
 		const quiet = this.vt.stats.uploadsLastFrame === 0 && this.vt.stats.pendingRequests === 0;
 		this.quietFeedbackFrames = quiet ? this.quietFeedbackFrames + feedbackFrames : 0;
@@ -626,15 +690,15 @@ export class Renderer {
 		const s = this.settings;
 		const scene = this.scene;
 		const aspect = this.tracer.width / this.tracer.height;
-		const basis = this.camera.basis(aspect);
+		const basis = this.hostView ?? this.camera.basis(aspect);
 		const sun = sunUniforms(this.sun, this.usingProceduralSky ? this.sunTransmittance : undefined);
 		let flags = FRAME_FLAG_ENVIRONMENT;
 		if (this.environment.importance) flags |= FRAME_FLAG_ENV_IMPORTANCE;
 		if (s.environmentVisible) flags |= FRAME_FLAG_ENV_VISIBLE;
 		if (this.sun.enabled && Math.max(...sun.radiance) > 0) flags |= FRAME_FLAG_SUN;
 		packFrameUniforms(this.uniformData, {
-			cameraPosition: this.camera.position,
-			lensRadius: this.camera.lensRadius,
+			cameraPosition: this.hostView?.position ?? this.camera.position,
+			lensRadius: this.hostView ? 0 : this.camera.lensRadius,
 			cameraRight: basis.right,
 			focusDistance: this.camera.effectiveFocusDistance,
 			cameraUp: basis.up,
@@ -642,7 +706,7 @@ export class Renderer {
 			width: this.tracer.width,
 			height: this.tracer.height,
 			frameIndex: this.frameIndex,
-			seed: Math.imul(this.frameIndex + 1, 0x9e3779b9),
+			seed: Math.imul(this.frameIndex + 1, 0x9e3779b9) ^ (this.activeHost ? Math.imul(this.hostFrameIndex + 1, 0x85ebca6b) : 0),
 			maxBounces: s.maxBounces,
 			debugMode: s.debugMode,
 			flags,
@@ -650,6 +714,7 @@ export class Renderer {
 			instanceCount: scene?.instanceCount ?? 0,
 			lightCount: scene?.lightCount ?? 0,
 			tlasPrimOffset: scene?.tlasPrimOffset ?? 0,
+			tlasNodeOffset: scene?.tlasNodeOffset ?? 0,
 			analyticLightCount: scene?.analyticLightCount ?? 0,
 			envCdfWidth: this.environment.width,
 			envCdfHeight: this.environment.height,
@@ -667,29 +732,34 @@ export class Renderer {
 			vtFeedbackJitter: feedbackJitter,
 			vtFeedbackShift: VT_FEEDBACK_SHIFT,
 			vtInvPhysicalSize: this.vt?.invPhysicalSize ?? 1,
-			pixelSpreadAngle: Math.atan((2 * Math.tan(this.camera.fovY / 2)) / this.tracer.height),
+			pixelSpreadAngle: this.hostView ? Math.atan(this.hostView.spread / this.tracer.height) : Math.atan((2 * Math.tan(this.camera.fovY / 2)) / this.tracer.height),
 			vtMipBias: s.textureMipBias,
 		});
 		this.device.queue.writeBuffer(this.tracer.uniformBuffer, 0, this.uniformData);
 	}
 
 	get converged(): boolean {
+		if (this.activeHost) return false;
 		return this.settings.maxSamples > 0 && this.frameIndex >= this.settings.maxSamples;
 	}
 
 	// Traces samplesPerFrame samples (unless converged) and presents the accumulation.
-	renderFrame(): void {
+	renderFrame(frame?: HostFrame): void {
 		if (this.destroyed) return;
+		if (frame) this.useHostFrame(frame);
+		else if (this.activeHost) throw new Error('Host rendering requires renderFrame({ scene, view, frameIndex })');
+		if (!this.scene || !this.vt) return;
 		this.resize();
 		if (!this.tracer.ready) {
 			return;
 		}
 		this.updateSky();
 		this.updateStreaming();
+		if (frame) this.frameIndex = 0;
 		if (this.frameIndex === 0) {
 			this.preExposure = this.nextPreExposure();
 		}
-		const samples = this.settings.debugMode !== DebugMode.None ? 1 : Math.max(1, this.settings.samplesPerFrame);
+		const samples = this.settings.debugMode !== DebugMode.None ? 1 : Math.max(1, frame?.samplesPerPixel ?? this.settings.samplesPerFrame);
 		if ((!this.converged || this.settings.debugMode !== DebugMode.None) && this.denoiseAttempt) this.invalidateDenoising();
 		for (let i = 0; i < samples && !this.converged; i++) {
 			this.writeUniforms(this.vt?.nextFeedbackJitter() ?? 0);
@@ -721,7 +791,33 @@ export class Renderer {
 		if (exposed) {
 			this.tracer.autoExposure.afterSubmit();
 		}
-		this.maybeDenoise();
+		if (!frame) this.maybeDenoise();
+	}
+
+	private useHostFrame(frame: HostFrame): void {
+		if (this.running) throw new Error('Stop the renderer-owned loop before rendering host frames');
+		if (!Number.isSafeInteger(frame.frameIndex) || frame.frameIndex < 0) throw new Error('frameIndex must be a nonnegative integer');
+		if (frame.samplesPerPixel !== undefined && (!Number.isInteger(frame.samplesPerPixel) || frame.samplesPerPixel < 1 || frame.samplesPerPixel > 64)) {
+			throw new Error('samplesPerPixel must be an integer in [1, 64]');
+		}
+		const state = this.hosts.get(frame.scene);
+		if (!state || frame.scene.isDisposed) throw new Error('Scene does not belong to this renderer or was disposed');
+		if (!state.scene) throw new Error('Commit scene resources before rendering');
+		const { worldFromCamera: world, clipFromView: projection } = frame.view;
+		if (world.length !== 16 || projection.length !== 16 || ![...world, ...projection].every(Number.isFinite)
+			|| !mat4.invert(world) || world[3] !== 0 || world[7] !== 0 || world[11] !== 0 || world[15] !== 1
+			|| projection[11] !== -1 || projection[15] !== 0 || !(projection[0] > 0) || !(projection[5] > 0)) {
+			throw new Error('Host view requires an affine camera and right-handed perspective projection');
+		}
+		this.hostView = { position: mat4.transformPoint(world, [0, 0, 0]),
+			forward: mat4.transformVector(world, [projection[8] / projection[0], projection[9] / projection[5], -1]),
+			right: mat4.transformVector(world, [1 / projection[0], 0, 0]), up: mat4.transformVector(world, [0, 1 / projection[5], 0]), spread: 2 / projection[5] };
+		if (!this.activeHost) { this.scene?.destroy(); this.vt?.destroy(); this.invalidateDenoising(); }
+		this.activeHost = frame.scene; this.hostFrameIndex = frame.frameIndex;
+		if (this.scene !== state.scene || this.vt !== state.textures) {
+			this.scene = state.scene; this.vt = state.textures;
+			this.tracer.setScene(state.scene, this.environment, state.textures);
+		}
 	}
 
 	private zCurve(tonemapper: Tonemapper): ZCurve | null {
@@ -830,6 +926,7 @@ export class Renderer {
 	}
 
 	start(): void {
+		if (this.activeHost) throw new Error('Host scenes use an application-owned frame loop');
 		if (this.running) return;
 		this.running = true;
 		const loop = (time: number) => {
@@ -862,8 +959,8 @@ export class Renderer {
 		this.displayRequest++;
 		this.stop();
 		this.resizeObserver?.disconnect();
-		this.scene?.destroy();
-		this.vt?.destroy();
+		if (!this.activeHost) { this.scene?.destroy(); this.vt?.destroy(); }
+		for (const scene of [...this.hosts.keys()]) scene.dispose();
 		this.hdrEnvironment?.destroy();
 		this.sky.destroy();
 		this.tracer.destroy();

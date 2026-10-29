@@ -1,6 +1,6 @@
 # Veach public API
 
-Veach has two supported JavaScript entry points. These exports and their generated TypeScript
+Veach has three supported JavaScript entry points. These exports and their generated TypeScript
 declarations are shipped in the release package. Applications should not import `src/`,
 `dist-lib/types/` or other implementation paths.
 
@@ -8,11 +8,114 @@ declarations are shipped in the release package. Applications should not import 
 | --- | --- |
 | `@tianyuliwiwo/veach` | Renderer, scene loaders, scene data types, camera, settings and advanced utilities |
 | `@tianyuliwiwo/veach/view` | `<veach-view>`, typed component events and drag-and-drop helpers |
+| `@tianyuliwiwo/veach/three` | Optional Three.js r186 adapter |
 
 The core entry can be imported without a DOM in Node / SSR. Creating a renderer requires a
 browser with WebGPU and an HTML canvas. Import `@tianyuliwiwo/veach/view` only in the browser: it registers
 the custom element. JavaScript applications use the same API; TypeScript adds completion and
 type checking without requiring the original sources.
+
+## Persistent host scenes
+
+The host owns its scene graph and assets. Veach holds flat render resources with stable typed
+handles. See [HostIntegration.md](HostIntegration.md) for lifetime, synchronization, update
+costs and supported features.
+
+```ts
+import { Renderer, mat4 } from '@tianyuliwiwo/veach';
+
+const renderer = await Renderer.create(canvas, { denoiser: null });
+const scene = renderer.createScene();
+const update = scene.beginUpdate();
+const texture = update.createTexture({
+	source: { width: 1, height: 1, data: new Uint8Array([255, 120, 40, 255]) },
+	colorSpace: 'srgb',
+});
+const material = update.createMaterial({ roughness: 0.6, baseColorMap: { texture } });
+const geometry = update.createGeometry({
+	positions: new Float32Array([-1, -1, 0, 1, -1, 0, 0, 1, 0]),
+	indices: new Uint32Array([0, 1, 2]),
+	uv0: new Float32Array([0, 0, 1, 0, 0.5, 1]),
+});
+const instance = update.addInstance({ geometry, materials: [material], worldMatrix: mat4.identity() });
+await update.commit();
+
+// After simulation, commit changes before rendering. Camera matrices come from the host.
+const next = scene.beginUpdate();
+next.setInstanceTransform(instance, worldMatrix);
+await next.commit();
+renderer.renderFrame({ scene, view: { worldFromCamera, clipFromView }, frameIndex: 0, samplesPerPixel: 1 });
+
+// Final-reference validation permits these operations in any order in the batch.
+const release = scene.beginUpdate();
+release.removeInstance(instance);
+release.releaseGeometry(geometry);
+release.releaseMaterial(material);
+release.releaseTexture(texture);
+await release.commit();
+scene.dispose();
+renderer.destroy();
+```
+
+| Transaction API | Behavior |
+| --- | --- |
+| `createGeometry`, `setGeometry` | Create or replace indexed geometry/topology |
+| `updateGeometryAttributes` | Replace positions/normals/tangents/UV without changing vertex count |
+| `createTexture`, `setTexture` | Create/replace RGBA8 or borrowed ImageBitmap source |
+| `createMaterial`, `setMaterial` | Create/replace PBR descriptors |
+| `addInstance`, `setInstanceTransform/Geometry/Materials/Enabled` | Manage flat instances |
+| `addLight`, `setLight`, `removeLight` | Existing `LightDesc` analytic lights |
+| `removeInstance`, `releaseGeometry/Material/Texture` | Remove references/resources |
+| `commit`, `cancel` | Publish asynchronously or discard uncommitted edits |
+
+Descriptors/arrays are copied at update time; keep borrowed bitmaps open until commit finishes.
+Await commits before the next update. Preparation failure preserves the last committed scene.
+An initial empty commit creates a renderable empty scene. `scene.stats` reports resource counts;
+`renderer.hostSceneStats(scene)` reports latest commit BLAS/TLAS builds, material compiles,
+uploaded bytes by buffer and buffer growths.
+
+Host frames never accumulate radiance across calls. Use increasing `frameIndex` values for
+random seeds and optionally 1–64 samples within a frame. This path has no temporal denoiser;
+TAA/NRD will be separate integrations. The static viewer API below remains progressive.
+
+## Three.js host
+
+Install `three@~0.186.1`; it is an optional peer dependency used only by the adapter entry.
+TypeScript hosts should also install `@types/three@~0.186.0` as a development dependency.
+
+```ts
+import * as THREE from 'three';
+import { Renderer } from '@tianyuliwiwo/veach';
+import { ThreeAdapter } from '@tianyuliwiwo/veach/three';
+
+const renderer = await Renderer.create(canvas, { denoiser: null });
+const adapter = new ThreeAdapter(renderer);
+const world = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(60, canvas.clientWidth / canvas.clientHeight, 0.1, 100);
+camera.position.z = 5;
+const box = new THREE.Mesh(new THREE.BoxGeometry(), new THREE.MeshStandardMaterial({ color: 'orange' }));
+world.add(box);
+let frameIndex = 0;
+let stopped = false;
+async function frame() {
+	if (stopped) return;
+	box.rotation.y += 0.01;
+	camera.aspect = canvas.clientWidth / canvas.clientHeight;
+	camera.updateProjectionMatrix();
+	await adapter.sync(world, camera);
+	if (stopped) return;
+	renderer.renderFrame({ scene: adapter.scene, view: adapter.view(camera), frameIndex: frameIndex++ });
+	requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+// On teardown, stop scheduling frames, await any in-flight sync, then:
+// adapter.dispose(); renderer.destroy(); dispose host resources separately.
+```
+
+Set attributes/textures `needsUpdate` after editing their arrays/pixels. Small material values
+and transforms are compared automatically. Removed objects release Veach references; shared
+resources survive until their last reference disappears. Unsupported shader, deformation and
+texture features produce errors; see the integration guide for the exact initial subset.
 
 ## Embed in your own canvas
 

@@ -358,7 +358,7 @@ fn TraceScene_0( ray_0 : Ray_0,  anyHit_0 : bool,  hit_0 : ptr<function, HitReco
             continue;
         }
         gTraversalCost_0 = gTraversalCost_0 + u32(1);
-        var node_1 : BVHNode_std430_0 = gNodes_0[nodeRef_1];
+        var node_1 : BVHNode_std430_0 = gNodes_0[gFrame_0.envInfo_0.z + nodeRef_1];
         var dist1_2 : f32 = IntersectBox_0(node_1.lmin_0, node_1.lmax_0, ray_0.origin_0, _S23, ray_0.tMin_0, (*hit_0).t_0);
         var dist2_2 : f32 = IntersectBox_0(node_1.rmin_0, node_1.rmax_0, ray_0.origin_0, _S23, ray_0.tMin_0, (*hit_0).t_0);
         var far_1 : u32;

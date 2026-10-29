@@ -5115,7 +5115,7 @@ fn TraceScene_0( ray_0 : Ray_0,  anyHit_0 : bool,  hit_0 : ptr<function, HitReco
             continue;
         }
         gTraversalCost_0 = gTraversalCost_0 + u32(1);
-        var node_1 : BVHNode_std430_0 = gNodes_0[nodeRef_1];
+        var node_1 : BVHNode_std430_0 = gNodes_0[gFrame_0.envInfo_0.z + nodeRef_1];
         var dist1_2 : f32 = IntersectBox_0(node_1.lmin_0, node_1.lmax_0, ray_0.origin_0, _S266, ray_0.tMin_0, (*hit_0).t_6);
         var dist2_2 : f32 = IntersectBox_0(node_1.rmin_0, node_1.rmax_0, ray_0.origin_0, _S266, ray_0.tMin_0, (*hit_0).t_6);
         var far_1 : u32;
@@ -13258,7 +13258,7 @@ fn TraceScene_1( ray_2 : Ray_0,  anyHit_1 : bool,  hit_4 : ptr<function, HitReco
             continue;
         }
         gTraversalCost_0 = gTraversalCost_0 + u32(1);
-        var node_3 : BVHNode_std430_0 = gNodes_0[nodeRef_3];
+        var node_3 : BVHNode_std430_0 = gNodes_0[gFrame_0.envInfo_0.z + nodeRef_3];
         var dist1_6 : f32 = IntersectBox_0(node_3.lmin_0, node_3.lmax_0, ray_2.origin_0, _S482, ray_2.tMin_0, (*hit_4).t_6);
         var dist2_6 : f32 = IntersectBox_0(node_3.rmin_0, node_3.rmax_0, ray_2.origin_0, _S482, ray_2.tMin_0, (*hit_4).t_6);
         var far_3 : u32;
@@ -15504,7 +15504,7 @@ fn TraceScene_2( ray_4 : Ray_0,  anyHit_2 : bool,  hit_14 : ptr<function, HitRec
             continue;
         }
         gTraversalCost_0 = gTraversalCost_0 + u32(1);
-        var node_5 : BVHNode_std430_0 = gNodes_0[nodeRef_5];
+        var node_5 : BVHNode_std430_0 = gNodes_0[gFrame_0.envInfo_0.z + nodeRef_5];
         var dist1_10 : f32 = IntersectBox_0(node_5.lmin_0, node_5.lmax_0, ray_4.origin_0, _S584, ray_4.tMin_0, (*hit_14).t_6);
         var dist2_10 : f32 = IntersectBox_0(node_5.rmin_0, node_5.rmax_0, ray_4.origin_0, _S584, ray_4.tMin_0, (*hit_14).t_6);
         var far_5 : u32;
@@ -16080,7 +16080,7 @@ fn TraceScene_3( ray_7 : Ray_0,  anyHit_3 : bool,  hit_17 : ptr<function, HitRec
             continue;
         }
         gTraversalCost_0 = gTraversalCost_0 + u32(1);
-        var node_7 : BVHNode_std430_0 = gNodes_0[nodeRef_7];
+        var node_7 : BVHNode_std430_0 = gNodes_0[gFrame_0.envInfo_0.z + nodeRef_7];
         var dist1_14 : f32 = IntersectBox_0(node_7.lmin_0, node_7.lmax_0, ray_7.origin_0, _S628, ray_7.tMin_0, (*hit_17).t_6);
         var dist2_14 : f32 = IntersectBox_0(node_7.rmin_0, node_7.rmax_0, ray_7.origin_0, _S628, ray_7.tMin_0, (*hit_17).t_6);
         var far_7 : u32;
@@ -16931,7 +16931,7 @@ fn TraceScene_4( ray_10 : Ray_0,  anyHit_4 : bool,  hit_34 : ptr<function, HitRe
             continue;
         }
         gTraversalCost_0 = gTraversalCost_0 + u32(1);
-        var node_8 : BVHNode_std430_0 = gNodes_0[nodeRef_8];
+        var node_8 : BVHNode_std430_0 = gNodes_0[gFrame_0.envInfo_0.z + nodeRef_8];
         var dist1_16 : f32 = IntersectBox_0(node_8.lmin_0, node_8.lmax_0, ray_10.origin_0, _S705, ray_10.tMin_0, (*hit_34).t_6);
         var dist2_16 : f32 = IntersectBox_0(node_8.rmin_0, node_8.rmax_0, ray_10.origin_0, _S705, ray_10.tMin_0, (*hit_34).t_6);
         var far_8 : u32;

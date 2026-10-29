@@ -15,7 +15,8 @@
     "noEmit": true,
     "paths": {
       "@tianyuliwiwo/veach": ["./src/index.ts"],
-      "@tianyuliwiwo/veach/view": ["./src/view/index.ts"]
+      "@tianyuliwiwo/veach/view": ["./src/view/index.ts"],
+      "@tianyuliwiwo/veach/three": ["./src/three/index.ts"]
     }
   },
   "include": ["src", "tests", "examples"]

@@ -3,6 +3,12 @@
 Exposure, local exposure and tone mapping are presentation settings (`isPresentationSetting`):
 changing them never resets accumulation.
 
+Persistent host frames have no cross-frame radiance accumulation. They still use the same
+presentation/exposure passes, including exposure adaptation between frames. Each host frame
+chooses its pre-exposure once and averages only samples inside that frame. Host rendering does
+not run OIDN; TAA/NRD integration is future work. Static viewer accumulation behavior below is
+unchanged.
+
 When OIDN is enabled and complete, histogram, local exposure and tone mapping read the denoised
 HDR presentation buffer at the same pre-exposure scale. Raw path-tracing accumulation stays
 untouched. Display/LUT changes reuse the denoised result. See [Denoising.md](Denoising.md).
