@@ -9,7 +9,38 @@ and correctness fallbacks remain available. This default was enabled by user cho
 during iteration, before completing the original performance matrix.
 See the [recorded validation and performance results](PrimaryVisibilityResults.md).
 
+[SHARC-style spatial radiance caching](Sharc.md) reduces continuation work at
+eligible rough secondary hits. Sparse full paths train the cache, tile-finalization
+dispatches accumulate updates, and one resolve after all tiles publishes next-sample
+radiance. It is enabled by default (`setSharc(false)` or `?sharc=0` disables it); ordinary queued shading, primary
+visibility and shadow handling remain the source of training samples. Fused tails are
+currently excluded. The SHARC document records the small integration check, not a full
+performance qualification.
+
 ## Current production defaults (2026-10-29)
+
+Startup prepares active dispatch choices only: the current alpha/opaque traversal, compaction
+and shading paths. Tail, Direct, sorting, parallel shadows and alternate compaction entries
+are compiled on demand. The renderer checks configuration readiness before tracing and
+retains the last presented image while missing pipelines compile. Low-level callers that
+invoke `Wavefront.encode` directly must call `prepareStack` after changing dispatch controls
+and set `hasAlphaTested` to match the scene; bucket/light preparations remain explicit.
+Per-entry promises share concurrent work and retain successful entries when another fails.
+Megakernel is no longer eagerly compiled alongside wavefront; switching integrators awaits
+it, and debug views request it lazily before rendering. No shader math or defaults change.
+
+Focused local aim-game startup check (Chrome, NVIDIA Lovelace, 960×640 viewport): pipeline
+creation fell from 73 to 42; entries unused in the sampled initial frames fell from 40 to 9
+(the remaining unused entries are base renderer facilities). A fresh browser session reached
+game-ready in 6.80 seconds versus 11.96 before; same-session reload took 0.32 versus 0.93
+seconds. These are single before/after observations, not a benchmark distribution or a
+guarantee across driver caches. The remaining cold-session bottleneck was the required
+`Shade.stack1` pipeline, about 6.09 seconds including asynchronous queue/compile waiting.
+The startup change passed 22 targeted preparation/lifecycle tests, the production game
+build/typecheck, and a browser switch through UV debug, normal view, megakernel and wavefront
+without GPU/browser errors. The switch reused one reference pipeline; the final game
+screenshot was inspected. Local records are `.tools/startup-before.json`,
+`.tools/startup-profile.json` and `.tools/startup-modes.json`.
 
 Wavefront is now the default integrator, using adaptive compaction, scene-derived opcode
 specialization and automatic 0/1/2/4/8/16 SVM capacity. Shading stays unified, all main

@@ -33,7 +33,7 @@ export interface GpuSceneOptions {
 function createBuffer(device: GPUDevice, label: string, data: ArrayBufferView | ArrayBuffer, minBytes = 16): GPUBuffer {
 	const bytes = data instanceof ArrayBuffer ? new Uint8Array(data) : new Uint8Array(data.buffer, data.byteOffset, data.byteLength);
 	const size = Math.max(minBytes, Math.ceil(bytes.byteLength / 16) * 16);
-	const buffer = device.createBuffer({ label, size, usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST, mappedAtCreation: true });
+	const buffer = device.createBuffer({ label, size, usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST | GPUBufferUsage.COPY_SRC, mappedAtCreation: true });
 	new Uint8Array(buffer.getMappedRange()).set(bytes);
 	buffer.unmap();
 	return buffer;

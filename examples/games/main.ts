@@ -1,6 +1,8 @@
 import * as THREE from 'three';
 import { Renderer, LocalExposureMethod } from '../../src/render/Renderer';
 import { ThreeAdapter } from '../../src/three';
+import { createRendererConsole } from '../../src/debug/RendererConsole';
+import { DebugConsole } from '../../src/view/DebugConsole';
 import './style.css';
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
@@ -13,6 +15,7 @@ $('eyebrow').textContent = mode === 'aim' ? '01 / PRECISION TRAINING' : '02 / TI
 $('title').textContent = mode === 'aim' ? 'AIM LAB' : 'APEX RUN';
 $('subtitle').textContent = mode === 'aim' ? 'Find your rhythm. Make every shot count.' : 'One circuit. Three laps. Your best line.';
 $('controls').innerHTML = mode === 'aim' ? '<kbd>MOUSE</kbd> AIM &nbsp; <kbd>CLICK</kbd> FIRE &nbsp; <kbd>SPACE</kbd> PAUSE' : '<kbd>W S</kbd> DRIVE &nbsp; <kbd>A D</kbd> STEER &nbsp; <kbd>R</kbd> RESET';
+$('controls').insertAdjacentHTML('beforeend', ' &nbsp; <kbd>~</kbd> CONSOLE');
 const scene = new THREE.Scene(), camera = new THREE.PerspectiveCamera(55, 1, 0.1, 150);
 const box = new THREE.BoxGeometry(1, 1, 1), sphere = new THREE.IcosahedronGeometry(1, 2);
 const materials = new Set<THREE.Material>(), geometries = new Set<THREE.BufferGeometry>([box, sphere]);
@@ -37,6 +40,8 @@ function paintTexture(hits: number) {
 paintTexture(0);
 const striped = pbr(0xffffff); striped.map = texture;
 let renderer: Renderer, adapter: ThreeAdapter;
+let debugConsole: DebugConsole | undefined, consoleBusy = false;
+let sceneSync: Promise<unknown> = Promise.resolve();
 let frame = 0, ready = false, playing = false, finished = false, closed = false, lastTime = performance.now(), toastUntil = 0;
 const keys = new Set<string>();
 let elapsed = 0, hits = 0, shots = 0, combo = 0, score = 0;
@@ -120,7 +125,7 @@ function showCard(tag: string, title: string, copy: string, button: string) {
 	$('overlay').classList.remove('hidden'); $('card-tag').textContent = tag; $('card-title').textContent = title; $('card-copy').textContent = copy; $('start').textContent = button;
 }
 function begin() {
-	if (!ready) return;
+	if (!ready || debugConsole?.isOpen) return;
 	if (finished) restart();
 	playing = true; lastTime = performance.now(); $('overlay').classList.add('hidden'); document.body.classList.add('playing'); $('pause').textContent = 'PAUSE';
 }
@@ -149,6 +154,7 @@ function finish() {
 $('start').onclick = begin; $('pause').onclick = pause; $('reset').onclick = restart;
 $<HTMLSelectElement>('quality').onchange = event => { if (renderer) { renderer.settings.resolutionScale = Number((event.target as HTMLSelectElement).value); renderer.settings.samplesPerFrame = renderer.settings.resolutionScale === 1 ? 4 : renderer.settings.resolutionScale === 0.75 ? 2 : 1; } };
 window.addEventListener('keydown', e => {
+	if (debugConsole?.isOpen || consoleBusy || (e.target instanceof HTMLElement && e.target.matches('input,textarea,select,[contenteditable]'))) return;
 	if (['Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.code)) e.preventDefault();
 	if (e.code === 'Space' && !e.repeat) pause();
 	if (e.code === 'KeyR' && !e.repeat && ready) { if (mode === 'race' && playing) { resetCar(); checkpoint = 0; lapStart = elapsed; checkpointMarkers.forEach((m, i) => { m.material = i === 0 ? green : orange; }); toast('BACK ON TRACK'); } else restart(); }
@@ -161,7 +167,7 @@ canvas.addEventListener('pointermove', e => {
 	$('crosshair').style.left = `${e.clientX}px`; $('crosshair').style.top = `${e.clientY}px`;
 });
 canvas.addEventListener('pointerdown', e => {
-	if (mode !== 'aim' || !playing || e.button !== 0) return;
+	if (mode !== 'aim' || !playing || debugConsole?.isOpen || consoleBusy || e.button !== 0) return;
 	const rect = canvas.getBoundingClientRect(); pointer.set((e.clientX - rect.left) / rect.width * 2 - 1, 1 - (e.clientY - rect.top) / rect.height * 2);
 	camera.updateMatrixWorld(); scene.updateMatrixWorld(); raycaster.setFromCamera(pointer, camera);
 	shots++; const hit = raycaster.intersectObjects(targets.map(t => t.mesh), false)[0];
@@ -181,7 +187,7 @@ canvas.addEventListener('pointerdown', e => {
 
 function tick(dt: number) {
 	if (performance.now() > toastUntil) $('toast').textContent = '';
-	if (playing) {
+	if (playing && !debugConsole?.isOpen && !consoleBusy) {
 		elapsed += dt;
 		if (mode === 'aim') {
 			for (const t of targets) { t.mesh.position.x = t.base.x + Math.sin(elapsed * 1.5 + t.phase) * 0.55; t.mesh.position.y = t.base.y + Math.cos(elapsed + t.phase) * 0.15; }
@@ -216,11 +222,14 @@ function tick(dt: number) {
 async function loop(now: number) {
 	if (closed) return;
 	const dt = Math.min((now - lastTime) / 1000, 0.25); lastTime = now;
+	if (consoleBusy) { requestAnimationFrame(loop); return; }
 	try {
 		const steps = Math.max(1, Math.ceil(dt / 0.02)); for (let i = 0; i < steps; i++) tick(dt / steps);
 		camera.aspect = canvas.clientWidth / canvas.clientHeight; camera.updateProjectionMatrix();
-		await adapter.sync(scene, camera);
+		sceneSync = adapter.sync(scene, camera);
+		await sceneSync;
 		if (closed) return;
+		if (consoleBusy) { requestAnimationFrame(loop); return; }
 		renderer.renderFrame({ scene: adapter.scene, view: adapter.view(camera), frameIndex: frame++, samplesPerPixel: renderer.settings.samplesPerFrame });
 		requestAnimationFrame(loop);
 	} catch (error) { showError(error); }
@@ -232,11 +241,24 @@ function showError(error: unknown) {
 }
 
 async function init() {
-	renderer = await Renderer.create(canvas, { denoiser: null, onProgress: p => { $('card-copy').textContent = p.message; $('load-progress').style.width = `${p.progress * 100}%`; } });
+	renderer = await Renderer.create(canvas, {
+		denoiser: null,
+		onProgress: p => { $('card-copy').textContent = p.progress === 1 ? 'Renderer ready; preparing the game scene' : p.message; $('load-progress').style.width = `${p.progress * 25}%`; },
+		onSceneProgress: p => { $('card-copy').textContent = p.message; $('load-progress').style.width = `${25 + p.progress * 75}%`; },
+	});
 	if (closed) { renderer.destroy(); return; }
 	renderer.settings.maxBounces = 3; renderer.settings.resolutionScale = 0.5; renderer.settings.localExposureMethod = LocalExposureMethod.None;
+	renderer.settings.accumulation = false;
 	renderer.sun.elevation = 55; renderer.sun.azimuth = 20;
 	adapter = new ThreeAdapter(renderer); await adapter.sync(scene, camera);
+	debugConsole = new DebugConsole(createRendererConsole(renderer, {
+		cameraFov: { get: () => camera.fov, set: degrees => { camera.fov = degrees; camera.updateProjectionMatrix(); } },
+		execute: async action => {
+			consoleBusy = true;
+			try { await sceneSync; if (closed) throw new Error('Game was closed'); return await action(); }
+			finally { consoleBusy = false; lastTime = performance.now(); }
+		},
+	}), { onOpenChange: open => { keys.clear(); lastTime = performance.now(); document.body.classList.toggle('console-open', open); } });
 	ready = true; for (const id of ['start', 'pause', 'reset']) $<HTMLButtonElement>(id).disabled = false;
 	$('load-progress').style.width = '100%';
 	showCard(mode === 'aim' ? '45 SECOND DRILL' : 'THREE LAP CHALLENGE', mode === 'aim' ? 'Fast hands. Clear mind.' : 'Find the perfect line.', mode === 'aim' ? 'Click the moving targets. Build a streak for bonus points. Six targets, forty-five seconds, no second chances.' : 'W to accelerate, S to brake. A and D to steer. Follow the green checkpoint and finish three laps. R puts you back on track.', 'START SESSION');
@@ -245,10 +267,10 @@ async function init() {
 		get stats() { return { resources: adapter.scene.stats, gpu: renderer.hostSceneStats(adapter.scene), revision: adapter.scene.revision }; },
 		targets: () => targets.map(t => { const p = t.mesh.position.clone().project(camera); return { x: (p.x + 1) / 2 * canvas.clientWidth, y: (1 - p.y) / 2 * canvas.clientHeight }; }),
 		// Explicit test surface: real host objects, no alternate rendering path.
-		scene, camera, renderer, adapter, texture, car,
+		scene, camera, renderer, adapter, texture, car, debugConsole,
 	} });
 	lastTime = performance.now(); requestAnimationFrame(loop);
 }
-window.addEventListener('pagehide', () => { closed = true; adapter?.dispose(); renderer?.destroy(); for (const g of geometries) g.dispose(); for (const m of materials) m.dispose(); texture.dispose(); });
+window.addEventListener('pagehide', () => { closed = true; debugConsole?.dispose(); adapter?.dispose(); renderer?.destroy(); for (const g of geometries) g.dispose(); for (const m of materials) m.dispose(); texture.dispose(); });
 window.addEventListener('pageshow', event => { if (event.persisted) location.reload(); });
 init().catch(showError);

@@ -21,6 +21,23 @@ const experimental = (label = '') => /^wavefront\.(?:Shade(?:Primary|Secondary|L
 describe('wavefront shading preparation', () => {
 	afterEach(() => vi.unstubAllGlobals());
 
+	it('compiles active dispatch choices and lazily adds tail/direct/sort variants once', async () => {
+		const { device, wavefront } = fixture();
+		await wavefront.compiled;
+		const labels = () => device.createComputePipelineAsync.mock.calls.map(([d]) => d.label!);
+		expect(labels().some(label => /Tail|Direct|Sort|Dense|Packet|Spatial/.test(label))).toBe(false);
+		expect(labels()).toContain('wavefront.CompactIntersectAdaptive.stack1');
+		wavefront.tailStart = 2; wavefront.directStages = 4; wavefront.sort = 'material';
+		await wavefront.prepareStack(1);
+		expect(labels()).toEqual(expect.arrayContaining(['wavefront.Tail.stack1', 'wavefront.ShadowDirect.stack1', 'wavefront.SortMaterial64.stack1']));
+		expect(labels().filter(label => label === 'wavefront.Shade.stack1')).toHaveLength(1);
+		const count = labels().length;
+		wavefront.tailStart = Infinity; wavefront.directStages = 0; wavefront.sort = 'none';
+		await wavefront.prepareStack(1);
+		expect(labels()).toHaveLength(count);
+		wavefront.destroy();
+	});
+
 	it('prepares light and alpha work at independent capacities without traversal SVM', async () => {
 		const { device, wavefront } = fixture();
 		await wavefront.compiled;
@@ -63,17 +80,19 @@ describe('wavefront shading preparation', () => {
 			},
 			clearBuffer() {}, copyBufferToBuffer() {},
 		} as unknown as GPUCommandEncoder;
-		const encode = (alpha: boolean) => {
+		const encode = async (alpha: boolean) => {
+			wavefront.hasAlphaTested = alpha;
+			await wavefront.prepareStack(1);
 			passes.length = 0;
 			wavefront.encode(encoder, {} as GPUBindGroup, 129, 97, 3, alpha, 1, 0, [0xffffffff, 0xffffffff]);
 			return passes.map(p => ({ ...p }));
 		};
-		const opaque = encode(false);
+		const opaque = await encode(false);
 		wavefront.batchedShadows = true;
-		expect(encode(false)).toEqual(opaque);
+		expect(await encode(false)).toEqual(opaque);
 		for (const directStages of [0, 4, 7]) {
 			wavefront.directStages = directStages;
-			const alpha = encode(true);
+			const alpha = await encode(true);
 			for (const name of ['ShadowClassify', 'CompactShadowAlpha', 'ShadowAlpha'])
 				expect(alpha.filter(p => p.label.startsWith(`wavefront.${name}.`))).toHaveLength(6); // Two padded tiles, three bounces.
 			expect(alpha.filter(p => p.label.startsWith('wavefront.ShadowAlpha.')).every(p => p.indirect === 16 && !p.direct)).toBe(true);
@@ -172,7 +191,7 @@ describe('wavefront shading preparation', () => {
 		device.createComputePipelineAsync.mockRejectedValueOnce(new Error('compile failed'));
 		await expect(wavefront.prepareShadeMode('late', 1)).rejects.toThrow('compile failed');
 		await wavefront.prepareShadeMode('late', 1);
-		expect(device.createComputePipelineAsync).toHaveBeenCalledTimes(count + 4);
+		expect(device.createComputePipelineAsync).toHaveBeenCalledTimes(count + 3); // Only the failed entry retries.
 		wavefront.destroy();
 	});
 });

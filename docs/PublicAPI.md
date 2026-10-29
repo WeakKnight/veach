@@ -15,6 +15,48 @@ browser with WebGPU and an HTML canvas. Import `@tianyuliwiwo/veach/view` only i
 the custom element. JavaScript applications use the same API; TypeScript adds completion and
 type checking without requiring the original sources.
 
+## Runtime console
+
+The viewer and games expose rendering settings through a `~` console. Embedders can use
+`createRendererConsole(renderer)` from the core entry and `DebugConsole` from the view entry.
+`renderer.sharcSettings`, `separateLight` and `batchedShadows` expose current configurations
+for queries. See [Console.md](Console.md) for command names and host integration.
+
+## Temporal anti-aliasing
+
+`settings.taaEnabled` defaults to true. TAA runs for host frames, and for the static viewer
+when `settings.accumulation = false`; progressive accumulation defaults to true in the static
+viewer and bypasses TAA. `taaNewFrameWeight` (0.1), `taaColorClampingFactor` (2), and
+`taaMaximumRadiance` (100) control feedback. `renderer.resetTaa()` discards history;
+`renderer.taaStats` reports execution, last reset reason and allocation. For host teleports,
+pass `cameraCut: true` in `renderFrame`. See [TemporalAA.md](TemporalAA.md).
+
+`settings.taaMotionVectorDebug = true` visualizes signed pixel motion while TAA is active,
+without resetting history or applying exposure/tone mapping. `renderer.motionVectorBuffer`
+returns a borrowed GPU buffer (or null when inactive), with two float4s per render pixel:
+`[previousMinusCurrentX, previousMinusCurrentY, 0, valid]`, then `[previousWorldXYZ, 0]`.
+Motion excludes jitter; background's previousWorld is a direction. The buffer is overwritten
+each frame and replaced on resize; callers must not destroy it. Supports camera and rigid
+instance motion, not deformation or reflected/refracted secondary-surface motion.
+
+## Radiance cache
+
+```ts
+// SHARC is enabled by default for eligible wavefront rendering.
+// Optional scene-unit voxel size; zero automatically uses scene diagonal / 256.
+await renderer.setSharc(true, { voxelSize: 0.1, capacity: 65536 });
+const mode = renderer.sharcStats; // synchronous eligibility and memory information
+const counters = await renderer.readSharcStats(); // explicit GPU readback
+renderer.resetSharc(); // discard history and image accumulation
+await renderer.setSharc(false); // release cache storage and reset accumulation
+```
+
+`SharcSettings`, `SharcStats` and `defaultSharcSettings` are exported from the core entry.
+Cache queries approximate indirect transport and reduce continuation work after warmup.
+Camera motion preserves cache history; scene, lighting and streamed texture changes
+invalidate it. Exposure and tone mapping do not invalidate it. See [Sharc.md](Sharc.md)
+for supported surfaces, controls, fallback reasons and the limited integration measurement.
+
 ## Persistent host scenes
 
 The host owns its scene graph and assets. Veach holds flat render resources with stable typed
@@ -148,6 +190,14 @@ function dispose() {
 after uploading the scene and preparing any required material pipeline variant, and returns
 `SceneStats`. Variants are cached per renderer. Call `setScene` again to replace it; await
 one scene change before starting the next. The renderer observes canvas size changes.
+
+For host/Three.js games, pass `onSceneProgress` to `Renderer.create` to observe the first
+commit of each host scene (0–1 for that preparation). It includes textures/materials,
+geometry and scene shader compilation after `create` has returned. `onProgress` still
+reports base renderer creation only. The example games reserve the last 75% of their
+loading bar for this actual scene preparation. `setIntegrator` awaits any missing reference
+pipeline; assigning a debug view may temporarily retain the last frame while that pipeline
+compiles. Returning to previously prepared configurations reuses their cached pipelines.
 
 The default is wavefront with adaptive GPU queue compaction, automatic scene SVM capacity,
 and scene opcode specialization. Shading is unified; material sorting/grouping, fused tails,

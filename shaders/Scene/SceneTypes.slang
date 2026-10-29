@@ -141,4 +141,8 @@ struct FrameUniforms
 	uint4 vtInfo;	 // physical pages per row, page table width, feedback jitter (x | y << 16), feedback shift
 	float4 vtParams; // 1 / physical size, pixel spread angle (radians), mip bias, unused
 	uint4 primaryVisibility; // scratch word offset, cluster-instance pairs offset/count, instance slot bound
+	uint4 sharc; // cache word offset, cell count (0 = off), record word offset, cache epoch
+	float4 sharcParams; // base voxel size, minimum roughness, reserved
+	uint4 sharcControl; // minimum samples, history frames, stale epochs, tile record count
+	float4 temporal; // TAA film jitter xy [0,1], primary guide output enabled, motion vector debug
 };

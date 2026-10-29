@@ -6,6 +6,7 @@ static const float PRIMARY_NEAR = 1e-4;
 
 float2 PrimaryCameraJitter()
 {
+	if (gFrame.temporal.z != 0.0) return gFrame.temporal.xy;
 	RandomSequence rng = RandomSequence(0x56495342u, gFrame.frame.w);
 	return rng.Next2D();
 }

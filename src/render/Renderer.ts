@@ -1,4 +1,6 @@
 import type { PrimaryVisibilityMode, PrimaryVisibilityStats } from './PrimaryVisibility';
+import type { SharcSettings, SharcStats } from './SharcCache';
+import { TemporalAA, type TaaStats } from './TemporalAA';
 // Public entry point: owns the WebGPU device, the scene and the progressive render loop.
 import { BuildQuality, TinyBVH } from '../accel/TinyBVH';
 import type { HDRImage } from '../loaders/HDRLoader';
@@ -49,6 +51,13 @@ export enum LocalExposureMethod {
 const FUSION_SIGMA = 0.2;
 
 export interface RenderSettings {
+	/** Progressive cross-frame accumulation. Host frames always render independently. */
+	accumulation: boolean;
+	taaEnabled: boolean;
+	taaNewFrameWeight: number;
+	taaColorClampingFactor: number;
+	taaMaximumRadiance: number;
+	taaMotionVectorDebug: boolean;
 	maxBounces: number;
 	maxSamples: number; // 0 = unlimited
 	samplesPerFrame: number;
@@ -94,6 +103,12 @@ export interface RenderSettings {
 
 export function defaultRenderSettings(): RenderSettings {
 	return {
+		accumulation: true,
+		taaEnabled: true,
+		taaNewFrameWeight: 0.1,
+		taaColorClampingFactor: 2,
+		taaMaximumRadiance: 100,
+		taaMotionVectorDebug: false,
 		maxBounces: 8,
 		maxSamples: 128,
 		samplesPerFrame: 1,
@@ -132,7 +147,7 @@ export function defaultRenderSettings(): RenderSettings {
 
 // Applied when presenting (the accumulation is pre-exposed), so changing them keeps the samples.
 export function isPresentationSetting(key: keyof RenderSettings): boolean {
-	return key === 'tonemapper' || key.startsWith('autoExposure') || key.startsWith('histogramLog') || key.startsWith('localExposure') || key === 'visualizeLocalExposure';
+	return key === 'tonemapper' || key.startsWith('autoExposure') || key.startsWith('histogramLog') || key.startsWith('localExposure') || key === 'visualizeLocalExposure' || key === 'taaMotionVectorDebug';
 }
 
 // Renderer.create progress. Without a browser pipeline cache (first visit, new shaders) compiling
@@ -147,6 +162,8 @@ export interface InitProgress {
 
 export interface RendererCreateOptions {
 	onProgress?: (progress: InitProgress) => void;
+	/** First host-scene preparation, after create(): resources, geometry and actual scene pipelines. */
+	onSceneProgress?: (progress: InitProgress) => void;
 	/** Omit for bundled OIDN; null disables denoising and its model download. */
 	denoiser?: OIDNDenoiserOptions | null;
 }
@@ -159,6 +176,8 @@ export interface HostView {
 }
 
 export interface HostFrame {
+	/** Explicit teleport/cut: discard temporal history for this frame. */
+	cameraCut?: boolean;
 	scene: RenderScene;
 	view: HostView;
 	frameIndex: number;
@@ -233,6 +252,11 @@ export class Renderer {
 	private lastFrameTime = 0;
 	private frameMs = 0;
 	private readonly uniformData = new ArrayBuffer(FRAME_UNIFORM_BYTES);
+	private readonly taa: TemporalAA;
+	private onSceneProgress?: (progress: InitProgress) => void;
+	private taaActive = false;
+	private temporalFrame = 0;
+	private progressiveMode: boolean | null = null;
 	private readonly resizeObserver: ResizeObserver | null = null;
 
 	private constructor(
@@ -241,9 +265,10 @@ export class Renderer {
 		private readonly context: GPUCanvasContext,
 		private readonly tracer: PathTracer,
 		private readonly bvh: TinyBVH,
-		compiler: PipelineCompiler,
+		private readonly compiler: PipelineCompiler,
 	) {
 		this.sky = new AtmosphereBaker(device, compiler);
+		this.taa = new TemporalAA(device, compiler);
 		if (typeof ResizeObserver !== 'undefined') {
 			this.resizeObserver = new ResizeObserver(() => this.resize());
 			this.resizeObserver.observe(canvas);
@@ -290,12 +315,13 @@ export class Renderer {
 			const compiler = new PipelineCompiler(device);
 			const tracer = new PathTracer(device, format, bsdfTables, compiler);
 			const renderer = new Renderer(device, canvas, context, tracer, bvh, compiler);
+			renderer.onSceneProgress = options.onSceneProgress;
 			const SHADERS_START = 0.1;
 			const SHADERS_END = 0.95;
 			await compiler.wait((fraction, pending) =>
 				report('shaders', SHADERS_START + (SHADERS_END - SHADERS_START) * fraction, pending.length ? `Compiling shaders: ${pendingPipelines(pending)}` : 'Shaders compiled'),
 			);
-			await Promise.all([tracer.compiled, renderer.sky.compiled]);
+			await Promise.all([tracer.compiled, renderer.sky.compiled, renderer.taa.compiled]);
 			report('scene', SHADERS_END, 'Preparing the scene');
 			await renderer.setScene({ meshes: [], materials: [], textures: [], instances: [], cameras: [] }, { frameCamera: false });
 			// Model loading runs alongside tracing. Failure is exposed in renderer.denoising,
@@ -340,6 +366,24 @@ export class Renderer {
 	}
 
 	get integrator(): 'megakernel' | 'wavefront' { return this.tracer.integrator; }
+
+	/** Sparse full-length update paths train the cache; other paths may terminate early. */
+	async setSharc(enabled: boolean, options: Partial<SharcSettings> = {}): Promise<void> {
+		if (this.destroyed) throw new Error('Renderer has been destroyed');
+		await this.tracer.setSharc(enabled, options);
+		this.resetAccumulation();
+	}
+	get sharcEnabled(): boolean { return this.tracer.sharcEnabled; }
+	get taaStats(): TaaStats { return { ...this.taa.stats }; }
+	/** Render-resolution motion data; valid only while TAA is active. See TemporalAA.md for layout/lifetime. */
+	get motionVectorBuffer(): GPUBuffer | null { return this.taa.motionVectorBuffer; }
+	resetTaa(): void { this.taa.reset(); }
+	get sharcSettings(): Readonly<SharcSettings> { return this.tracer.sharcSettings; }
+	get separateLight(): boolean { return this.tracer.separateLight; }
+	get batchedShadows(): boolean { return this.tracer.batchedShadows; }
+	get sharcStats(): SharcStats { return { ...this.tracer.sharcStats }; }
+	readSharcStats(): Promise<SharcStats> { return this.tracer.readSharcStats(); }
+	resetSharc(): void { this.tracer.resetSharc(); this.resetAccumulation(); }
 
 	/** Auto prefers raster primary visibility; unsupported cases retain ray tracing. */
 	async setPrimaryVisibility(mode: PrimaryVisibilityMode): Promise<void> {
@@ -540,10 +584,22 @@ export class Renderer {
 			textures: new HostTextureSystem(this.device, this.virtualTextureOptions), scene: null, lastUpdate: null };
 		const scene = new RenderScene(async (snapshot, changes) => {
 			let texturePlan: PreparedHostTextures | null = null, gpuPlan: PreparedHostScene | null = null;
+			const progress = state.scene ? undefined : this.onSceneProgress;
+			let fraction = 0;
+			const report = (value: number, message: string) => {
+				fraction = Math.max(fraction, value);
+				progress?.({ stage: 'scene', progress: fraction, message });
+			};
+			let stopObserving: (() => void) | undefined;
 			try {
+				report(0, 'Preparing scene textures and materials');
 				texturePlan = await state.textures.prepare(snapshot);
 				if (this.destroyed || scene.isDisposed) throw new Error('Scene was disposed during preparation');
+				report(0.1, 'Building scene geometry and visibility clusters');
 				gpuPlan = state.gpu.prepare(snapshot, changes, texturePlan.resolve, texturePlan);
+				report(0.2, 'Preparing scene rendering pipelines');
+				if (progress) stopObserving = this.compiler.observe((value, pending) => report(0.2 + value * 0.75,
+					pending.length ? `Compiling scene shaders: ${pendingPipelines(pending)}` : 'Finalizing scene pipelines'));
 				await this.tracer.prepareScene(gpuPlan.scene);
 				if (this.destroyed || scene.isDisposed) throw new Error('Scene was disposed during preparation');
 				texturePlan.publish(); gpuPlan.publish();
@@ -552,7 +608,9 @@ export class Renderer {
 					this.scene = state.scene; this.vt = state.textures;
 					this.tracer.setScene(state.scene, this.environment, state.textures);
 				}
+				report(1, 'Scene ready');
 			} catch (error) { texturePlan?.discard(); gpuPlan?.discard(); throw error; }
+			finally { stopObserving?.(); }
 		}, () => {
 			state.gpu.destroy(); state.textures.destroy(); this.hosts.delete(scene);
 			if (this.activeHost === scene) { this.activeHost = null; this.hostView = null; this.scene = null; this.vt = null; }
@@ -663,6 +721,7 @@ export class Renderer {
 	private updateStreaming(): void {
 		if (!this.vt) return;
 		const { mapped, coverage, feedbackFrames, pendingFeedback } = this.vt.update();
+		if (mapped > 0) this.tracer.resetSharc();
 		// pendingRequests is unmet demand from the last feedback batch, not queued work.
 		// With a full VT cache or a low sample limit it can stay nonzero forever.
 		this.streamingPending = pendingFeedback || this.vt.stats.uploadsLastFrame > 0;
@@ -699,7 +758,7 @@ export class Renderer {
 		}
 	}
 
-	private writeUniforms(feedbackJitter = 0): void {
+	private writeUniforms(feedbackJitter = 0, traceSample = false): void {
 		const s = this.settings;
 		const scene = this.scene;
 		const aspect = this.tracer.width / this.tracer.height;
@@ -710,8 +769,11 @@ export class Renderer {
 		if (s.environmentVisible) flags |= FRAME_FLAG_ENV_VISIBLE;
 		if (this.sun.enabled && Math.max(...sun.radiance) > 0) flags |= FRAME_FLAG_SUN;
 		const primary = this.tracer.primaryVisibilityFrame(this.hostView ? 0 : this.camera.lensRadius, s.debugMode);
-		if (primary.sharedJitter) flags |= FRAME_FLAG_SHARED_JITTER;
+		if (primary.sharedJitter || this.taaActive) flags |= FRAME_FLAG_SHARED_JITTER;
 		packFrameUniforms(this.uniformData, {
+			temporal: this.taaActive ? [this.taa.jitter[0], this.taa.jitter[1], 1, Number(s.taaMotionVectorDebug)] : [0, 0, 0, 0],
+			...this.tracer.sharcFrame(s.debugMode, s.maxBounces, s.fireflyClamp,
+				`${this.currentSkyKey()}/${this.sun.enabled}/${this.sun.angularDiameter}/${s.environmentIntensity}/${this.environment.importance}/${s.maxBounces}/${s.textureMipBias}`, traceSample),
 			primaryVisibility: primary.data,
 			cameraPosition: this.hostView?.position ?? this.camera.position,
 			lensRadius: this.hostView ? 0 : this.camera.lensRadius,
@@ -722,7 +784,7 @@ export class Renderer {
 			width: this.tracer.width,
 			height: this.tracer.height,
 			frameIndex: this.frameIndex,
-			seed: Math.imul(this.frameIndex + 1, 0x9e3779b9) ^ (this.activeHost ? Math.imul(this.hostFrameIndex + 1, 0x85ebca6b) : 0),
+			seed: Math.imul(this.frameIndex + 1, 0x9e3779b9) ^ (this.activeHost ? Math.imul(this.hostFrameIndex + 1, 0x85ebca6b) : !s.accumulation ? Math.imul(this.temporalFrame + 1, 0x85ebca6b) : 0),
 			maxBounces: s.maxBounces,
 			debugMode: s.debugMode,
 			flags,
@@ -755,7 +817,7 @@ export class Renderer {
 	}
 
 	get converged(): boolean {
-		if (this.activeHost) return false;
+		if (this.activeHost || !this.settings.accumulation) return false;
 		return this.settings.maxSamples > 0 && this.frameIndex >= this.settings.maxSamples;
 	}
 
@@ -769,16 +831,27 @@ export class Renderer {
 		if (!this.tracer.ready) {
 			return;
 		}
+		if (!this.tracer.framePipelinesReady(this.settings.debugMode)) return;
 		this.updateSky();
 		this.updateStreaming();
-		if (frame) this.frameIndex = 0;
+		const s = this.settings, progressive = !frame && s.accumulation;
+		if (this.progressiveMode !== progressive) { this.resetAccumulation(); this.taa.reset('mode-change'); this.progressiveMode = progressive; }
+		if (!progressive) { this.frameIndex = 0; this.temporalFrame++; }
+		const taaReason = !s.taaEnabled ? 'disabled' : progressive ? 'progressive-accumulation' : s.debugMode !== DebugMode.None ? 'debug-view' : !frame && this.camera.lensRadius > 0 ? 'depth-of-field' : null;
+		this.taaActive = false;
+		if (taaReason) { this.taa.suspend(taaReason); if (!progressive || !this.denoisedBuffer) this.tracer.setPresentationBuffer(null); }
+		else {
+			const basis = this.hostView ?? this.camera.basis(this.tracer.width / this.tracer.height);
+			this.taaActive = this.taa.begin({ ...basis, position: this.hostView?.position ?? this.camera.position }, this.tracer.width, this.tracer.height, this.scene, this.activeHost ?? this.scene, s.taaMaximumRadiance, frame?.cameraCut ?? false);
+			if (!this.taaActive) this.tracer.setPresentationBuffer(null);
+		}
 		if (this.frameIndex === 0) {
 			this.preExposure = this.nextPreExposure();
 		}
 		const samples = this.settings.debugMode !== DebugMode.None ? 1 : Math.max(1, frame?.samplesPerPixel ?? this.settings.samplesPerFrame);
 		if ((!this.converged || this.settings.debugMode !== DebugMode.None) && this.denoiseAttempt) this.invalidateDenoising();
 		for (let i = 0; i < samples && !this.converged; i++) {
-			this.writeUniforms(this.vt?.nextFeedbackJitter() ?? 0);
+			this.writeUniforms(this.vt?.nextFeedbackJitter() ?? 0, true);
 			const encoder = this.device.createCommandEncoder({ label: 'trace' });
 			this.tracer.encodeTrace(encoder, this.settings.maxBounces, this.settings.debugMode);
 			const feedback = this.tracer.feedback;
@@ -792,11 +865,12 @@ export class Renderer {
 		// present reads the tonemapping settings from the uniforms; frameIndex there is unused
 		this.writeUniforms();
 		const encoder = this.device.createCommandEncoder({ label: 'present' });
+		if (this.taaActive) this.tracer.setPresentationBuffer(this.taa.encode(encoder, this.tracer.uniformBuffer, this.tracer.accumulation!, this.scene, s.taaNewFrameWeight, s.taaColorClampingFactor, s.taaMaximumRadiance));
 		const now = performance.now();
 		const deltaTime = this.lastExposureTime ? Math.min((now - this.lastExposureTime) / 1000, 1) : 0;
 		this.lastExposureTime = now;
 		// debug views are not exposed; keep the adapted state for when they are left
-		const exposed = this.settings.debugMode === DebugMode.None;
+		const exposed = this.settings.debugMode === DebugMode.None && !(this.taaActive && s.taaMotionVectorDebug);
 		if (exposed) {
 			this.encodeEyeAdaptation(encoder, deltaTime);
 		}
@@ -807,7 +881,7 @@ export class Renderer {
 		if (exposed) {
 			this.tracer.autoExposure.afterSubmit();
 		}
-		if (!frame) this.maybeDenoise();
+		if (progressive) this.maybeDenoise();
 	}
 
 	private useHostFrame(frame: HostFrame): void {
@@ -979,6 +1053,7 @@ export class Renderer {
 		for (const scene of [...this.hosts.keys()]) scene.dispose();
 		this.hdrEnvironment?.destroy();
 		this.sky.destroy();
+		this.taa.destroy();
 		this.tracer.destroy();
 		this.device.destroy();
 	}

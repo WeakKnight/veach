@@ -16,6 +16,10 @@ struct FrameUniforms_std140_0
     @align(16) vtInfo_0 : vec4<u32>,
     @align(16) vtParams_0 : vec4<f32>,
     @align(16) primaryVisibility_0 : vec4<u32>,
+    @align(16) sharc_0 : vec4<u32>,
+    @align(16) sharcParams_0 : vec4<f32>,
+    @align(16) sharcControl_0 : vec4<u32>,
+    @align(16) temporal_0 : vec4<f32>,
 };
 
 @binding(0) @group(0) var<uniform> gFrame_0 : FrameUniforms_std140_0;
@@ -89,6 +93,10 @@ fn RandomSequence_Next2D_0( this_1 : ptr<function, RandomSequence_0>) -> vec2<f3
 
 fn PrimaryCameraJitter_0() -> vec2<f32>
 {
+    if((gFrame_0.temporal_0.z) != 0.0f)
+    {
+        return gFrame_0.temporal_0.xy;
+    }
     var rng_0 : RandomSequence_0 = RandomSequence_x24init_0(u32(1447646018), gFrame_0.frame_0.w);
     var _S5 : vec2<f32> = RandomSequence_Next2D_0(&(rng_0));
     return _S5;

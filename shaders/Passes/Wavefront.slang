@@ -14,6 +14,8 @@ import Materials.MaterialProgram;
 import Materials.BSDF.BSDF;
 import Materials.VirtualTexture;
 import Lights.Lights;
+import Passes.Sharc;
+import Passes.SharcCommon;
 
 struct WavefrontUniforms
 {
@@ -116,7 +118,7 @@ void StorePath<let AOV : bool = true>(uint base, WavefrontPath s)
 	if (AOV)
 	{
 		gAccum[Field(base, 5u)] = float4(s.albedo, s.path.coneSpread);
-		gAccum[Field(base, 6u)] = float4(s.normal, 0.0);
+		gAccum[Field(base, 6u)] = float4(s.normal, gAccum[Field(base, 6u)].w);
 	}
 	else gAccum[Field(base, 5u)].w = s.path.coneSpread;
 }
@@ -142,11 +144,17 @@ void Initialize(uint3 tid : SV_DispatchThreadID)
 	s.path.absorption = float3(0.0);
 	s.path.lightsSampled = false;
 	s.active = uint(all(pixel < gFrame.frame.xy));
+	if (gFrame.temporal.z != 0.0 && s.active != 0u)
+	{
+		uint output = (pixel.y * gFrame.frame.x + pixel.x) * 3u;
+		gAccum[output + 1u].w = 0.0; gAccum[output + 2u].w = 0.0;
+	}
 	s.randomSeed = rng.seed;
 	s.albedo = float3(0.0);
 	s.normal = float3(0.0);
 	uint base = WorkBase(index);
 	StorePath(base, s);
+	gAccum[Field(base, 6u)].w = asfloat(SharcEnabled() && s.active != 0u ? 1u | (SharcUpdatePath(index, gWavefront.tileStart) ? 512u : 0u) : 0u);
 	gAccum[Field(base, 11u)] = float4(0.0);
 	if ((index & 3u) == 0u) gAccum[MainQueueBase() + index / 4u] = asfloat(uint4(index, index + 1u, index + 2u, index + 3u));
 	if (index == 0u)
@@ -394,6 +402,12 @@ void ShadePath<let DEFERRED : bool, let ALPHA : bool, let PHASE : uint = 0u, let
 	{
 		s.albedo = ms.albedo;
 		s.normal = si.frontFacing ? ms.inputs.basis.n : -ms.inputs.basis.n;
+		if (gFrame.temporal.z != 0.0)
+		{
+			uint2 pixel = WorkPixel(base - WorkBase(0u));
+			uint output = (pixel.y * gFrame.frame.x + pixel.x) * 3u;
+			gAccum[output + 1u].w = hit.t; gAccum[output + 2u].w = float(hit.instanceIndex + 1u);
+		}
 	}
 	s.active = 0u;
 	if (!si.frontFacing && !ms.doubleSided && ms.inputs.transmissionWeight <= 0.0) return;
@@ -412,6 +426,24 @@ void ShadePath<let DEFERRED : bool, let ALPHA : bool, let PHASE : uint = 0u, let
 		s.path.radiance += contribution;
 	}
 	if (bounce == gFrame.settings.x) return;
+	if (SharcEnabled() && !primary && SharcSurface(ms))
+	{
+		SharcKey key; float voxelSize;
+		float3 normal = si.frontFacing ? si.faceNormal : -si.faceNormal;
+		uint index = base - WorkBase(0u);
+		if (SharcMakeKey(si.position, normal, V, si.materialIndex, si.instanceIndex, key, voxelSize))
+		{
+			if (SharcUpdatePath(index, gWavefront.tileStart)) SharcRecord(index, bounce, key, s.path.radiance, s.path.throughput);
+			else if (hit.t > voxelSize * sqrt(3.0) && hitConeWidth > voxelSize && s.path.coneSpread >= 0.05)
+			{
+				uint state = asuint(gAccum[Field(base, 6u)].w) + 65536u;
+				float3 cached;
+				bool found = SharcQuery(key, cached);
+				gAccum[Field(base, 6u)].w = asfloat(state | (found ? 256u : 0u));
+				if (found) { s.path.radiance += s.path.throughput * cached; return; }
+			}
+		}
+	}
 	RandomSequence rng = RandomSequence(0u, 0u);
 	rng.seed = s.randomSeed;
 	s.path.lightsSampled = bsdf.MaxActiveAlpha() >= NEAR_SPECULAR_ALPHA;
@@ -434,7 +466,10 @@ void ShadePath<let DEFERRED : bool, let ALPHA : bool, let PHASE : uint = 0u, let
 	float3 weight = bs.weight.diffuse + bs.weight.specular;
 	if (!bs.valid || bs.pdf <= 0.0 || all(weight <= 0.0)) return;
 	float3 throughput = s.path.throughput * weight;
-	float continuation = sqrt(saturate(MaxComponent(throughput) / max(MaxComponent(s.path.throughput), 1e-12)));
+	// As in Remix, active SHARC preserves the first continuation for both update and query paths.
+	// Invalid BSDF samples and the bounce limit still terminate normally; later bounces retain RR.
+	float continuation = SharcEnabled() && primary ? 1.0
+		: sqrt(saturate(MaxComponent(throughput) / max(MaxComponent(s.path.throughput), 1e-12)));
 	if (continuation < 1.0)
 	{
 		if (rng.Next() >= continuation) return;
@@ -450,6 +485,7 @@ void ShadePath<let DEFERRED : bool, let ALPHA : bool, let PHASE : uint = 0u, let
 	s.path.coneSpread += ScatterConeSpread(bs.type, ms.roughness);
 	s.randomSeed = rng.seed;
 	s.active = 1u;
+	if (SharcEnabled()) gAccum[Field(base, 6u)].w = asfloat(asuint(gAccum[Field(base, 6u)].w) + 1u);
 }
 
 void ShadeImpl<let DIRECT : bool, let PHASE : uint = 0u, let LATE_PATH : bool = false, let BUCKET : bool = false, let COMPACT_BUCKET : bool = false, let SEPARATE_LIGHT : bool = false>(uint3 tid)
@@ -749,11 +785,13 @@ void Finalize(uint3 tid : SV_DispatchThreadID)
 	WavefrontPath s = LoadPath(base);
 	uint2 pixel = WorkPixel(index);
 	if (any(pixel >= gFrame.frame.xy)) return;
+	if (SharcEnabled() && SharcUpdatePath(index, gWavefront.tileStart)) SharcFinishUpdate(index, s.path.radiance);
 	LoadFeedbackState(base);
 	if (IsFeedbackPixel(pixel)) gVTFeedback.Store(pixel >> gFrame.vtInfo.w, gVTRequest);
 	float3 radiance = s.path.radiance * gFrame.envParams.z;
 	if (!all(isfinite(radiance))) radiance = float3(0.0);
 	uint output = (pixel.y * gFrame.frame.x + pixel.x) * 3u;
+	float2 primaryGuide = float2(gAccum[output + 1u].w, gAccum[output + 2u].w);
 	if (gFrame.frame.z == 0u)
 	{
 		gAccum[output] = float4(radiance, 1.0);
@@ -767,4 +805,5 @@ void Finalize(uint3 tid : SV_DispatchThreadID)
 		gAccum[output + 1u] = float4(lerp(gAccum[output + 1u].xyz, s.albedo, w), 1.0);
 		gAccum[output + 2u] = float4(lerp(gAccum[output + 2u].xyz, s.normal, w), 1.0);
 	}
+	if (gFrame.temporal.z != 0.0) { gAccum[output + 1u].w = primaryGuide.x; gAccum[output + 2u].w = primaryGuide.y; }
 }

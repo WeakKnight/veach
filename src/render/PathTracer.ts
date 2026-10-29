@@ -1,5 +1,6 @@
 import { AUTO_RASTER_PRIMARY, type PrimaryVisibilityMode, type PrimaryVisibilityStats } from './PrimaryVisibility';
 import { VisibilityBuffer } from './VisibilityBuffer';
+import { SharcCache, defaultSharcSettings, sharcSettings, type SharcSettings, type SharcStats } from './SharcCache';
 // WebGPU pipelines for the megakernel path tracer (PathTracing.wgsl) and the present pass.
 import pathTracingWgsl from '../generated/shaders/PathTracing.wgsl?raw';
 import pathTracingEmptyWgsl from '../generated/shaders/PathTracingEmpty.wgsl?raw';
@@ -72,6 +73,8 @@ export class PathTracer {
 	private feedbackTexture: GPUTexture | null = null;
 	private wavefront: Wavefront | null = null;
 	private wavefrontLoading: Promise<Wavefront> | null = null;
+	private preparedWavefrontKey = '';
+	private framePreparation: { key: string; error?: unknown } | null = null;
 	private destroyed = false;
 	integrator: 'megakernel' | 'wavefront' = 'wavefront';
 	primaryVisibility: PrimaryVisibilityMode = 'auto';
@@ -81,6 +84,12 @@ export class PathTracer {
 	private gpuScene: GpuScene | null = null;
 	private rasterActive = false;
 	private rasterAllocated = false;
+	sharcEnabled = true;
+	private sharcOptions: SharcSettings = { ...defaultSharcSettings };
+	private sharc: SharcCache | null = null;
+	private sharcActive = false;
+	private sharcLightingKey = '';
+	sharcStats: SharcStats = { enabled: true, active: false, reason: 'not-rendered', bytes: 0, voxelSize: 0, epoch: 0 };
 	primaryVisibilityStats: PrimaryVisibilityStats = { requested: 'auto', actual: 'ray-traced', reason: 'not-rendered', drawCalls: 0, clusterInstances: 0, scratchBytes: 0, textureBytes: 0 };
 	width = 0;
 	height = 0;
@@ -89,7 +98,7 @@ export class PathTracer {
 		private readonly device: GPUDevice,
 		readonly presentFormat: GPUTextureFormat,
 		bsdfTables: ArrayBuffer,
-		compiler: PipelineCompiler,
+		private readonly compiler: PipelineCompiler,
 	) {
 		this.bsdfTables = createBSDFTablesTexture(device, bsdfTables);
 		this.uniformBuffer = device.createBuffer({
@@ -223,7 +232,8 @@ export class PathTracer {
 					: specializeMaterialShader(pathTracingWgsl, 'PathTracing', capacity);
 				if (this.destroyed) throw new Error('Path tracer has been destroyed');
 				const module = this.device.createShaderModule({ label: opaque ? 'PathTracingOpaque' : 'PathTracing', code });
-				return this.device.createComputePipelineAsync({ label: `pathTracing.${opaque ? 'opaque.' : ''}stack${capacity}`, layout: this.computeLayout, compute: { module, entryPoint: 'main', constants: materialPipelineConstants(capacity, opcodes, operandMode) } });
+				const descriptor: GPUComputePipelineDescriptor = { label: `pathTracing.${opaque ? 'opaque.' : ''}stack${capacity}`, layout: this.computeLayout, compute: { module, entryPoint: 'main', constants: materialPipelineConstants(capacity, opcodes, operandMode) } };
+				return this.compiler ? this.compiler.compute(descriptor) : this.device.createComputePipelineAsync(descriptor);
 			})().then(pipeline => {
 				if (this.destroyed) throw new Error('Path tracer has been destroyed');
 				this.materialPipelines.set(key, pipeline);
@@ -245,8 +255,9 @@ export class PathTracer {
 		const opcodes = this.sceneOpcodes(scene);
 		const operandMode = this.materialOperandMode;
 		const opaque = this.sceneOpaque(scene);
-		await Promise.all([this.useEmptyPipeline(scene) ? this.compiled : this.prepareMaterialPipeline(capacity, opcodes, operandMode, opaque),
-			this.integrator === 'wavefront' && scene.instanceCount > 0 ? this.prepareWavefront(capacity, opcodes, operandMode, scene.materialShadeCapacities, scene.materialSurfaceCapacity, scene.materialLightCapacity, scene.materialSurfaceCapacities, scene.materialOpacityCapacity) : Promise.resolve()]);
+		if (this.integrator === 'wavefront' && scene.instanceCount > 0)
+			await this.prepareWavefront(capacity, opcodes, operandMode, scene.materialShadeCapacities, scene.materialSurfaceCapacity, scene.materialLightCapacity, scene.materialSurfaceCapacities, scene.materialOpacityCapacity, scene.hasAlphaTested);
+		else await (this.useEmptyPipeline(scene) ? this.compiled : this.prepareMaterialPipeline(capacity, opcodes, operandMode, opaque));
 		if (this.destroyed) throw new Error('Path tracer has been destroyed');
 	}
 
@@ -255,6 +266,7 @@ export class PathTracer {
 	}
 
 	setScene(scene: GpuScene, environment: Environment, vt: SceneTextures): void {
+		this.sharc?.invalidate();
 		this.gpuScene = scene;
 		this.materialCapacity = this.sceneCapacity(scene);
 		this.materialOpcodes = this.sceneOpcodes(scene);
@@ -267,8 +279,8 @@ export class PathTracer {
 		this.boundMaterialOperandMode = this.materialOperandMode;
 		this.boundOpaqueMegakernel = this.sceneOpaque(scene);
 		const pipeline = this.useEmptyPipeline(scene) ? this.emptyPipeline : this.materialPipelines.get(`${materialPipelineKey(this.materialCapacity, this.materialOpcodes, this.boundMaterialOperandMode)}/${Number(this.boundOpaqueMegakernel)}`);
-		if (!pipeline) throw new Error('Material pipeline must be prepared before binding a scene');
-		this.computePipeline = pipeline;
+		if (!pipeline && this.integrator !== 'wavefront') throw new Error('Material pipeline must be prepared before binding a scene');
+		this.computePipeline = pipeline ?? this.emptyPipeline;
 		this.hasAlphaTested = scene.hasAlphaTested;
 		this.lightCount = scene.lightCount;
 		this.hasGeometry = scene.instanceCount > 0;
@@ -301,13 +313,20 @@ export class PathTracer {
 		height = Math.max(1, Math.floor(height));
 		this.rasterAllocated = false;
 		if (this.wavefront) {
+			this.wavefront.sharcCacheBytes = 0;
 			this.wavefront.visibilityScratchBytes = 0;
 			if (this.visibility && this.gpuScene?.visibilityCount && this.integrator === 'wavefront' && this.wantsRasterPrimary) {
 				const reserve = VisibilityBuffer.scratchBytes(this.gpuScene.visibilityCount);
 				const available = Math.min(this.device.limits.maxBufferSize, this.device.limits.maxStorageBufferBindingSize) - width * height * 48 - reserve;
 				if (available >= 8192) { this.wavefront.visibilityScratchBytes = reserve; this.rasterAllocated = true; }
 			}
+			if (this.sharcEnabled && this.sharc && this.hasGeometry && this.integrator === 'wavefront') {
+				const reserve = SharcCache.cacheBytes(this.sharcOptions.capacity);
+				const available = Math.min(this.device.limits.maxBufferSize, this.device.limits.maxStorageBufferBindingSize) - width * height * 48 - this.wavefront.visibilityScratchBytes - reserve;
+				if (available >= 8192) this.wavefront.sharcCacheBytes = reserve;
+			}
 		}
+		if (!this.wavefront?.sharcCacheBytes) this.sharc?.release();
 		if (!this.rasterAllocated) this.visibility?.release();
 		const size = width * height * ACCUM_BYTES_PER_PIXEL + (this.integrator === 'wavefront' && this.hasGeometry ? this.wavefront!.storageBytes(width * height) : 0);
 		if (width === this.width && height === this.height && this.accumBuffer?.size === size) {
@@ -400,11 +419,11 @@ export class PathTracer {
 		return this.feedbackTexture;
 	}
 
-	private async prepareWavefront(capacity: MaterialStackCapacity, opcodes: MaterialOpcodeMask, operandMode: number, shadeCapacities: readonly MaterialStackCapacity[] = [], surfaceCapacity = this.materialSurfaceCapacity, lightCapacity = this.materialLightCapacity, surfaceCapacities = this.materialSurfaceCapacities, opacityCapacity = this.materialOpacityCapacity): Promise<void> {
+	private async prepareWavefront(capacity: MaterialStackCapacity, opcodes: MaterialOpcodeMask, operandMode: number, shadeCapacities: readonly MaterialStackCapacity[] = [], surfaceCapacity = this.materialSurfaceCapacity, lightCapacity = this.materialLightCapacity, surfaceCapacities = this.materialSurfaceCapacities, opacityCapacity = this.materialOpacityCapacity, hasAlphaTested = this.hasAlphaTested): Promise<void> {
 		if (this.destroyed) throw new Error('Path tracer has been destroyed');
 		this.wavefrontLoading ??= import('./Wavefront').then(async ({ Wavefront }) => {
 			if (this.destroyed) throw new Error('Path tracer has been destroyed');
-			const wavefront = new Wavefront(this.device, this.sceneLayout, capacity, opcodes, operandMode);
+			const wavefront = new Wavefront(this.device, this.sceneLayout, capacity, opcodes, operandMode, hasAlphaTested, this.compiler);
 			try {
 				await wavefront.compiled;
 				if (this.destroyed) throw new Error('Path tracer has been destroyed');
@@ -425,13 +444,45 @@ export class PathTracer {
 			throw new Error('Path tracer has been destroyed');
 		}
 		this.wavefront = wavefront;
-		await wavefront.prepareStack(capacity, opcodes, operandMode);
+		wavefront.hasAlphaTested = hasAlphaTested;
+		wavefront.batchedShadows = this.batchedShadows;
+		wavefront.separateLight = this.separateLight;
+		const configurationKey = `${materialPipelineKey(capacity, opcodes, operandMode)}/${wavefront.configurationKey}`;
+		await Promise.all([
+			wavefront.prepareStack(capacity, opcodes, operandMode),
+			this.sharcEnabled ? this.prepareSharc() : Promise.resolve(),
+		]);
 		if (wavefront.shadeBuckets) await wavefront.prepareBuckets(shadeCapacities, capacity, opcodes, operandMode);
 		if (this.separateLight) await wavefront.prepareLightStages(surfaceCapacity, lightCapacity, opcodes, operandMode, surfaceCapacities);
 		if (this.batchedShadows) await wavefront.prepareShadowBatches(opacityCapacity, opcodes, operandMode);
 		wavefront.batchedShadows = this.batchedShadows;
 		wavefront.separateLight = this.separateLight;
 		if (this.destroyed) throw new Error('Path tracer has been destroyed');
+		this.preparedWavefrontKey = configurationKey;
+	}
+
+	/** Keep the last presented frame while a newly selected debug/experimental mode compiles. */
+	framePipelinesReady(debugMode: number): boolean {
+		if (!this.hasGeometry) return true;
+		const materialKey = materialPipelineKey(this.materialCapacity, this.materialOpcodes, this.boundMaterialOperandMode);
+		let key: string, prepare: () => Promise<unknown>;
+		if (this.integrator === 'wavefront' && debugMode === 0) {
+			key = `${materialKey}/${this.wavefront?.configurationKey}`;
+			if (key === this.preparedWavefrontKey) return true;
+			prepare = () => this.prepareWavefront(this.materialCapacity, this.materialOpcodes, this.boundMaterialOperandMode, this.materialShadeCapacities);
+		} else {
+			key = `${materialKey}/${Number(this.boundOpaqueMegakernel)}`;
+			const pipeline = this.materialPipelines.get(key);
+			if (pipeline) { this.computePipeline = pipeline; return true; }
+			prepare = () => this.prepareMaterialPipeline(this.materialCapacity, this.materialOpcodes, this.boundMaterialOperandMode, this.boundOpaqueMegakernel);
+		}
+		if (this.framePreparation?.key === key) {
+			if (this.framePreparation.error) throw this.framePreparation.error;
+			return false;
+		}
+		const pending = this.framePreparation = { key } as { key: string; error?: unknown };
+		void prepare().then(() => { if (this.framePreparation === pending) this.framePreparation = null; }, error => { pending.error = error; });
+		return false;
 	}
 
 	async setSeparateLight(enabled: boolean): Promise<void> {
@@ -460,7 +511,10 @@ export class PathTracer {
 		if (this.destroyed) throw new Error('Path tracer has been destroyed');
 		if (mode === this.integrator) return;
 		if (mode === 'wavefront' && this.hasGeometry) await this.prepareWavefront(this.materialCapacity, this.materialOpcodes, this.boundMaterialOperandMode, this.materialShadeCapacities);
+		const reference = mode === 'megakernel' && this.hasGeometry
+			? await this.prepareMaterialPipeline(this.materialCapacity, this.materialOpcodes, this.boundMaterialOperandMode, this.boundOpaqueMegakernel) : null;
 		if (this.destroyed) throw new Error('Path tracer has been destroyed');
+		if (reference) this.computePipeline = reference;
 		this.integrator = mode;
 		const width = this.width, height = this.height;
 		this.width = 0;
@@ -470,7 +524,7 @@ export class PathTracer {
 	private get wantsRasterPrimary(): boolean { return this.primaryVisibility === 'rasterized' || (this.primaryVisibility === 'auto' && AUTO_RASTER_PRIMARY); }
 
 	private async prepareRasterVisibility(): Promise<void> {
-		const visibility = this.visibility ??= new VisibilityBuffer(this.device);
+		const visibility = this.visibility ??= new VisibilityBuffer(this.device, this.compiler);
 		try { await visibility.compiled; }
 		catch (error) {
 			if (this.visibility === visibility) { visibility.destroy(); this.visibility = null; }
@@ -483,6 +537,49 @@ export class PathTracer {
 		if (this.rasterAllocated && this.visibility && this.gpuScene)
 			this.visibility.bind(this.gpuScene, this.uniformBuffer, this.accumBuffer, this.width, this.height, this.accumBuffer.size - this.wavefront.visibilityScratchBytes);
 		this.wavefront.bind(this.accumBuffer, this.feedbackTexture, this.rasterAllocated ? this.visibility!.texture : null);
+		if (this.sharc && this.wavefront.sharcCacheBytes) {
+			const capacity = this.wavefront.capacity(this.width * this.height);
+			const base = this.accumBuffer.size - this.wavefront.visibilityScratchBytes - this.wavefront.sharcCacheBytes - SharcCache.recordBytes(capacity);
+			this.sharc.bind(this.accumBuffer, this.uniformBuffer, base, this.sharcOptions.capacity, capacity);
+		}
+	}
+
+	private async prepareSharc(): Promise<void> {
+		const cache = this.sharc ??= new SharcCache(this.device, this.compiler);
+		try { await cache.compiled; }
+		catch (error) { if (this.sharc === cache) { cache.release(); this.sharc = null; } throw error; }
+	}
+
+	async setSharc(enabled: boolean, options: Partial<SharcSettings> = {}): Promise<void> {
+		if (this.destroyed) throw new Error('Path tracer has been destroyed');
+		const settings = sharcSettings(options, this.sharcOptions);
+		if (enabled) await this.prepareSharc();
+		if (this.destroyed) throw new Error('Path tracer has been destroyed');
+		this.sharcOptions = settings; this.sharcEnabled = enabled;
+		this.sharc?.invalidate(); this.resize(this.width, this.height);
+	}
+
+	resetSharc(): void { this.sharc?.invalidate(); }
+	get sharcSettings(): Readonly<SharcSettings> { return { ...this.sharcOptions }; }
+
+	sharcFrame(debug: number, maxBounces: number, clamp: number, lightingKey: string, traceSample = false): { sharc: readonly [number, number, number, number]; sharcParams: readonly [number, number, number, number]; sharcControl: readonly [number, number, number, number] } {
+		if (lightingKey !== this.sharcLightingKey) { this.sharc?.invalidate(); this.sharcLightingKey = lightingKey; }
+		const reason = !this.sharcEnabled ? 'disabled' : this.integrator !== 'wavefront' ? 'integrator' : !this.hasGeometry ? 'empty-scene'
+			: debug !== 0 ? 'debug-view' : maxBounces < 2 || maxBounces > 128 ? 'bounce-budget' : clamp > 0 ? 'firefly-clamp'
+			: !this.wavefront?.sharcCacheBytes ? 'storage-budget' : Number.isFinite(this.wavefront.tailStart) || this.wavefront.tailThreshold > 0 ? 'fused-tail' : null;
+		this.sharcActive = reason === null;
+		const scene = this.gpuScene;
+		const size = this.sharcOptions.voxelSize || (scene?.instanceCount ? Math.max(1e-4, Math.hypot(...scene.boundsMax.map((v, i) => v - scene.boundsMin[i])) / 256) : 0.1);
+		const epoch = this.sharcActive && traceSample ? this.sharc!.frame() : this.sharc?.epoch ?? 0;
+		this.sharcStats = { enabled: this.sharcEnabled, active: this.sharcActive, reason, bytes: this.wavefront?.sharcCacheBytes ? this.wavefront.sharcCacheBytes + this.sharc!.recordCount * 64 : 0, voxelSize: size, epoch };
+		return { sharc: this.sharcActive ? [this.sharc!.cacheOffset / 4, this.sharcOptions.capacity, this.sharc!.recordOffset / 4, epoch] : [0, 0, 0, 0],
+			sharcParams: [size, this.sharcOptions.roughnessThreshold, 0, 0], sharcControl: [this.sharcOptions.minSamples, this.sharcOptions.historyFrames, this.sharcOptions.maxAge, this.sharc?.recordCount ?? 0] };
+	}
+
+	async readSharcStats(): Promise<SharcStats> {
+		const stats = { ...this.sharcStats };
+		if (this.sharcActive) Object.assign(stats, await this.sharc!.readStats());
+		return stats;
 	}
 
 	async setPrimaryVisibility(mode: PrimaryVisibilityMode): Promise<void> {
@@ -523,7 +620,7 @@ export class PathTracer {
 			return;
 		}
 		if (this.integrator === 'wavefront' && this.hasGeometry && debugMode === 0) {
-			this.wavefront!.encode(encoder, this.sceneBindGroup, this.width, this.height, maxBounces, this.hasAlphaTested, this.materialCapacity, this.lightCount, this.materialOpcodes, this.boundMaterialOperandMode, this.materialShadeCapacities, this.materialCount, this.materialSurfaceCapacity, this.materialLightCapacity, this.materialSurfaceCapacities, this.materialOpacityCapacity, this.rasterActive ? this.visibility! : undefined);
+			this.wavefront!.encode(encoder, this.sceneBindGroup, this.width, this.height, maxBounces, this.hasAlphaTested, this.materialCapacity, this.lightCount, this.materialOpcodes, this.boundMaterialOperandMode, this.materialShadeCapacities, this.materialCount, this.materialSurfaceCapacity, this.materialLightCapacity, this.materialSurfaceCapacities, this.materialOpacityCapacity, this.rasterActive ? this.visibility! : undefined, this.sharcActive ? this.sharc! : undefined);
 			return;
 		}
 		const pass = encoder.beginComputePass({ label: 'pathTracing' });
@@ -555,6 +652,7 @@ export class PathTracer {
 		this.materialPipelineLoading.clear();
 		this.wavefront?.destroy();
 		this.visibility?.destroy();
+		this.sharc?.release();
 		this.uniformBuffer.destroy();
 		this.accumBuffer?.destroy();
 		this.feedbackTexture?.destroy();

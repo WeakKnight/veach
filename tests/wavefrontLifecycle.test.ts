@@ -27,6 +27,7 @@ function tracer(): PathTracer {
 		integrator: 'megakernel' as const, width: 8, height: 8, hasGeometry: true,
 		materialPipelines: new Map(), materialPipelineLoading: new Map(), materialCapacity: 16,
 		materialOperandMode: 0, boundMaterialOperandMode: 0,
+		materialOpcodes: [0xffffffff, 0xffffffff],
 		opaqueMegakernel: false, boundOpaqueMegakernel: false,
 		resize: vi.fn(),
 		uniformBuffer: { destroy: vi.fn() }, toneLUT: { destroy: vi.fn() },
@@ -72,7 +73,7 @@ describe('wavefront compilation ownership', () => {
 		expect(compilation.instances).toHaveLength(0);
 		pathTracer.materialStackOverride = null;
 		await pathTracer.prepareScene({ instanceCount: 1, materialStackSize: 3 } as GpuScene);
-		expect(device.createComputePipelineAsync).toHaveBeenCalledTimes(2);
+		expect(device.createComputePipelineAsync).toHaveBeenCalledTimes(1); // Geometry needs wavefront only.
 		expect(compilation.instances).toHaveLength(1);
 		expect(Reflect.get(pathTracer, 'hasGeometry')).toBe(false);
 	});
@@ -129,6 +130,21 @@ describe('wavefront compilation ownership', () => {
 
 describe('material pipeline preparation', () => {
 	const scene = { instanceCount: 1, materialStackSize: 3 } as GpuScene;
+	it('defers the debug reference kernel, preserves the active frame, and reuses it for megakernel switching', async () => {
+		const pathTracer = tracer(), gate = pending(), active = {}, reference = {};
+		const device = { createShaderModule: vi.fn(() => ({})), createComputePipelineAsync: vi.fn(() => gate.promise.then(() => reference)) };
+		Object.assign(pathTracer, { integrator: 'wavefront', device, computePipeline: active });
+		expect(pathTracer.framePipelinesReady(7)).toBe(false);
+		expect(pathTracer.framePipelinesReady(7)).toBe(false);
+		expect(device.createComputePipelineAsync).toHaveBeenCalledTimes(1);
+		expect(Reflect.get(pathTracer, 'computePipeline')).toBe(active);
+		gate.resolve();
+		await vi.waitFor(() => expect(pathTracer.framePipelinesReady(7)).toBe(true));
+		expect(Reflect.get(pathTracer, 'computePipeline')).toBe(reference);
+		await pathTracer.setIntegrator('megakernel');
+		expect(device.createComputePipelineAsync).toHaveBeenCalledTimes(1);
+		expect(pathTracer.integrator).toBe('megakernel');
+	});
 	it('specializes opaque traversal independently, falls back for alpha, and reuses cached pipelines', async () => {
 		const device = { createShaderModule: vi.fn(() => ({})), createComputePipelineAsync: vi.fn().mockResolvedValue({}) };
 		const pathTracer = tracer();

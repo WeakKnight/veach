@@ -10,7 +10,7 @@ export const VERTEX_BYTES = 64;
 export const TEXTURE_REF_BYTES = 32;
 export const MATERIAL_HEADER_WORDS = 2; // uint4
 export const LIGHT_BYTES = 128;
-export const FRAME_UNIFORM_BYTES = 240;
+export const FRAME_UNIFORM_BYTES = 304;
 export const ACCUM_BYTES_PER_PIXEL = 48; // radiance, albedo, normal (float4 each)
 
 export const INSTANCE_FLAG_ALPHA_TESTED = 1;
@@ -261,6 +261,11 @@ export interface FrameUniformData {
 	pixelSpreadAngle: number;
 	vtMipBias: number;
 	primaryVisibility?: readonly [number, number, number, number];
+	sharc?: readonly [number, number, number, number];
+	sharcParams?: readonly [number, number, number, number];
+	sharcControl?: readonly [number, number, number, number];
+	/** Film jitter xy, primary guides enabled, motion-vector visualization enabled. */
+	temporal?: readonly [number, number, number, number];
 }
 
 export function packFrameUniforms(buffer: ArrayBuffer, d: FrameUniformData): void {
@@ -281,4 +286,8 @@ export function packFrameUniforms(buffer: ArrayBuffer, d: FrameUniformData): voi
 	u32.set([d.vtTilesPerRow, d.vtPageTableWidth, d.vtFeedbackJitter, d.vtFeedbackShift], 48);
 	f32.set([d.vtInvPhysicalSize, d.pixelSpreadAngle, d.vtMipBias, 0], 52);
 	u32.set(d.primaryVisibility ?? [0, 0, 0, 0], 56);
+	u32.set(d.sharc ?? [0, 0, 0, 0], 60);
+	f32.set(d.sharcParams ?? [0, 0, 0, 0], 64);
+	u32.set(d.sharcControl ?? [0, 0, 0, 0], 68);
+	f32.set(d.temporal ?? [0, 0, 0, 0], 72);
 }

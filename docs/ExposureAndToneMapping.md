@@ -6,8 +6,11 @@ changing them never resets accumulation.
 Persistent host frames have no cross-frame radiance accumulation. They still use the same
 presentation/exposure passes, including exposure adaptation between frames. Each host frame
 chooses its pre-exposure once and averages only samples inside that frame. Host rendering does
-not run OIDN; TAA/NRD integration is future work. Static viewer accumulation behavior below is
-unchanged.
+not run OIDN. [TAA](TemporalAA.md) is enabled by default when cross-frame progressive
+accumulation is off. TAA history stores scene-linear radiance in PQ space, removes current
+pre-exposure on input, and reapplies it on output. Exposure/local exposure/tone mapping all
+consume the same TAA presentation buffer, while the raw current-frame image stays intact.
+Display-only changes keep temporal history. NRD remains future work.
 
 When OIDN is enabled and complete, histogram, local exposure and tone mapping read the denoised
 HDR presentation buffer at the same pre-exposure scale. Raw path-tracing accumulation stays

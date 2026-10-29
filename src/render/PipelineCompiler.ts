@@ -4,6 +4,18 @@
 export class PipelineCompiler {
 	private readonly jobs: { label: string; weight: number; done: boolean; promise: Promise<unknown> }[] = [];
 	private onChange: (() => void) | null = null;
+	private readonly observers = new Set<() => void>();
+
+	/** Observe jobs started from this point, including jobs submitted after an await. */
+	observe(onProgress: (fraction: number, pending: string[]) => void): () => void {
+		const start = this.jobs.length;
+		const report = () => {
+			const jobs = this.jobs.slice(start), pending = jobs.filter(j => !j.done);
+			onProgress(jobs.length ? (jobs.length - pending.length) / jobs.length : 0, pending.map(j => j.label));
+		};
+		this.observers.add(report);
+		return () => { this.observers.delete(report); };
+	}
 
 	constructor(private readonly device: GPUDevice) {}
 
@@ -19,10 +31,12 @@ export class PipelineCompiler {
 	private track<T>(label: string, weight: number, promise: Promise<T>): Promise<T> {
 		const job = { label, weight, done: false, promise };
 		this.jobs.push(job);
+		for (const report of this.observers) report();
 		promise.then(
 			() => {
 				job.done = true;
 				this.onChange?.();
+				for (const report of this.observers) report();
 			},
 			() => {},
 		);

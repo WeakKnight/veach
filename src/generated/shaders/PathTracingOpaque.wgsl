@@ -16,6 +16,10 @@ struct FrameUniforms_std140_0
     @align(16) vtInfo_0 : vec4<u32>,
     @align(16) vtParams_0 : vec4<f32>,
     @align(16) primaryVisibility_0 : vec4<u32>,
+    @align(16) sharc_0 : vec4<u32>,
+    @align(16) sharcParams_0 : vec4<f32>,
+    @align(16) sharcControl_0 : vec4<u32>,
+    @align(16) temporal_0 : vec4<f32>,
 };
 
 @binding(0) @group(0) var<uniform> gFrame_0 : FrameUniforms_std140_0;
@@ -11771,6 +11775,10 @@ fn RandomSequence_x24init_1( positionSeed_0 : u32,  timeSeed_1 : u32) -> RandomS
 
 fn PrimaryCameraJitter_0() -> vec2<f32>
 {
+    if((gFrame_0.temporal_0.z) != 0.0f)
+    {
+        return gFrame_0.temporal_0.xy;
+    }
     var rng_5 : RandomSequence_0 = RandomSequence_x24init_1(u32(1447646018), gFrame_0.frame_0.w);
     var _S358 : vec2<f32> = RandomSequence_Next2D_1(&(rng_5));
     return _S358;
@@ -13405,6 +13413,8 @@ fn main(@builtin(global_invocation_id) tid_0 : vec3<u32>)
 {
     var radiance_3 : vec3<f32>;
     var debugOut_0 : vec3<f32>;
+    var primaryDistance_0 : f32;
+    var primaryInstance_0 : f32;
     gVTRequest_0 = u32(0);
     gVTRequestCount_0 = u32(0);
     gVTRandom_0 = u32(0);
@@ -13449,6 +13459,8 @@ fn main(@builtin(global_invocation_id) tid_0 : vec3<u32>)
     var _S485 : f32 = gFrame_0.envParams_0.w * rcp_1(preExposure_0);
     var albedoOut_0 : vec3<f32> = _S484;
     var normalOut_0 : vec3<f32> = _S484;
+    var primaryDistance_1 : f32 = 0.0f;
+    var primaryInstance_1 : f32 = 0.0f;
     var bounce_0 : u32 = u32(0);
     loop
     {
@@ -13458,6 +13470,8 @@ fn main(@builtin(global_invocation_id) tid_0 : vec3<u32>)
         else
         {
             debugOut_0 = _S484;
+            primaryDistance_0 = primaryDistance_1;
+            primaryInstance_0 = primaryInstance_1;
             break;
         }
         var ray_4 : Ray_0 = Ray_x24init_0(path_0.origin_7, path_0.direction_1, 1.00000001504746622e+30f);
@@ -13475,29 +13489,29 @@ fn main(@builtin(global_invocation_id) tid_0 : vec3<u32>)
         if(_S482)
         {
             debugOut_0 = HeatMap_0(f32(gTraversalCost_0) / 256.0f);
+            primaryDistance_0 = primaryDistance_1;
+            primaryInstance_0 = primaryInstance_1;
             break;
         }
         var _S487 : bool;
         var _S488 : bool;
-        var mis_1 : f32;
         if(((AnalyticLightCount_0()) > u32(0)))
         {
             var lightRadiance_0 : vec3<f32>;
             var lightPdf_0 : f32;
-            var _S489 : f32;
             if(HitRecord_IsHit_0(hit_5))
             {
-                _S489 = hit_5.t_2;
+                primaryDistance_0 = hit_5.t_2;
             }
             else
             {
-                _S489 = 1.00000001504746622e+30f;
+                primaryDistance_0 = 1.00000001504746622e+30f;
             }
-            var _S490 : bool = IntersectAnalyticLights_0(ray_4.origin_0, ray_4.direction_0, _S489, _S486, &(lightRadiance_0), &(lightPdf_0));
-            if(_S490)
+            var _S489 : bool = IntersectAnalyticLights_0(ray_4.origin_0, ray_4.direction_0, primaryDistance_0, _S486, &(lightRadiance_0), &(lightPdf_0));
+            if(_S489)
             {
-                var _S491 : bool = (bounce_0 > u32(0));
-                if(_S491)
+                var _S490 : bool = (bounce_0 > u32(0));
+                if(_S490)
                 {
                     _S487 = path_0.lightsSampled_0;
                 }
@@ -13507,16 +13521,16 @@ fn main(@builtin(global_invocation_id) tid_0 : vec3<u32>)
                 }
                 if(_S487)
                 {
-                    mis_1 = EvalMISRobust_0(path_0.scatterPdf_0, lightPdf_0);
+                    primaryInstance_0 = EvalMISRobust_0(path_0.scatterPdf_0, lightPdf_0);
                 }
                 else
                 {
-                    mis_1 = 1.0f;
+                    primaryInstance_0 = 1.0f;
                 }
-                var contribution_0 : vec3<f32> = path_0.throughput_21 * vec3<f32>(mis_1) * lightRadiance_0;
+                var contribution_0 : vec3<f32> = path_0.throughput_21 * vec3<f32>(primaryInstance_0) * lightRadiance_0;
                 if((_S485 > 0.0f))
                 {
-                    _S488 = _S491;
+                    _S488 = _S490;
                 }
                 else
                 {
@@ -13564,13 +13578,13 @@ fn main(@builtin(global_invocation_id) tid_0 : vec3<u32>)
             {
                 if(path_0.lightsSampled_0)
                 {
-                    mis_1 = EvalMISRobust_0(path_0.scatterPdf_0, EnvironmentPdf_0(ray_4.direction_0));
+                    primaryInstance_0 = EvalMISRobust_0(path_0.scatterPdf_0, EnvironmentPdf_0(ray_4.direction_0));
                 }
                 else
                 {
-                    mis_1 = 1.0f;
+                    primaryInstance_0 = 1.0f;
                 }
-                var contribution_1 : vec3<f32> = path_0.throughput_21 * vec3<f32>(mis_1) * EvalEnvironment_0(ray_4.direction_0);
+                var contribution_1 : vec3<f32> = path_0.throughput_21 * vec3<f32>(primaryInstance_0) * EvalEnvironment_0(ray_4.direction_0);
                 if(!path_0.lightsSampled_0)
                 {
                     _S482 = SunEnabled_0();
@@ -13602,10 +13616,12 @@ fn main(@builtin(global_invocation_id) tid_0 : vec3<u32>)
                 path_0.radiance_2 = path_0.radiance_2 + radiance_3;
             }
             debugOut_0 = _S484;
+            primaryDistance_0 = primaryDistance_1;
+            primaryInstance_0 = primaryInstance_1;
             break;
         }
-        var _S492 : vec3<f32> = vec3<f32>(0.0f);
-        if((any((((path_0.absorption_3) > _S492)))))
+        var _S491 : vec3<f32> = vec3<f32>(0.0f);
+        if((any((((path_0.absorption_3) > _S491)))))
         {
             path_0.throughput_21 = path_0.throughput_21 * exp(path_0.absorption_3 * vec3<f32>(- hit_5.t_2));
         }
@@ -13627,6 +13643,17 @@ fn main(@builtin(global_invocation_id) tid_0 : vec3<u32>)
         var normalOut_1 : vec3<f32>;
         if(_S486)
         {
+            if((gFrame_0.temporal_0.z) != 0.0f)
+            {
+                var _S492 : f32 = f32(hit_5.instanceIndex_0 + u32(1));
+                primaryDistance_0 = hit_5.t_2;
+                primaryInstance_0 = _S492;
+            }
+            else
+            {
+                primaryDistance_0 = primaryDistance_1;
+                primaryInstance_0 = primaryInstance_1;
+            }
             if(debugMode_0 != u32(0))
             {
                 switch(debugMode_0)
@@ -13700,6 +13727,8 @@ fn main(@builtin(global_invocation_id) tid_0 : vec3<u32>)
         {
             debugOut_0 = albedoOut_0;
             normalOut_1 = normalOut_0;
+            primaryDistance_0 = primaryDistance_1;
+            primaryInstance_0 = primaryInstance_1;
         }
         if(!si_4.frontFacing_0)
         {
@@ -13728,7 +13757,7 @@ fn main(@builtin(global_invocation_id) tid_0 : vec3<u32>)
         var _S497 : bool;
         var _S498 : bool;
         var newThroughput_0 : vec3<f32>;
-        if((any((((bsdf_1.emission_0) > _S492)))))
+        if((any((((bsdf_1.emission_0) > _S491)))))
         {
             var _S499 : bool = (bounce_0 > u32(0));
             if(_S499)
@@ -13739,6 +13768,7 @@ fn main(@builtin(global_invocation_id) tid_0 : vec3<u32>)
             {
                 _S497 = false;
             }
+            var mis_1 : f32;
             if(_S497)
             {
                 mis_1 = EvalMISRobust_0(path_0.scatterPdf_0, EmissiveHitPdf_0(si_4.instanceIndex_3, si_4.primitiveIndex_3, ray_4.origin_0, si_4.position_0));
@@ -13816,7 +13846,7 @@ fn main(@builtin(global_invocation_id) tid_0 : vec3<u32>)
         }
         else
         {
-            _S498 = (all(((weight_4 <= _S492))));
+            _S498 = (all(((weight_4 <= _S491))));
         }
         if(_S498)
         {
@@ -13878,6 +13908,8 @@ fn main(@builtin(global_invocation_id) tid_0 : vec3<u32>)
         var _S509 : u32 = bounce_0 + u32(1);
         albedoOut_0 = debugOut_0;
         normalOut_0 = normalOut_1;
+        primaryDistance_1 = primaryDistance_0;
+        primaryInstance_1 = primaryInstance_0;
         bounce_0 = _S509;
     }
     if(IsFeedbackPixel_0(pixel_4))
@@ -13911,6 +13943,11 @@ fn main(@builtin(global_invocation_id) tid_0 : vec3<u32>)
         gAccum_0[_S511] = vec4<f32>(mix(gAccum_0[_S511].xyz, albedoOut_0, _S510), 1.0f);
         var _S512 : u32 = base_8 + u32(2);
         gAccum_0[_S512] = vec4<f32>(mix(gAccum_0[_S512].xyz, normalOut_0, _S510), 1.0f);
+    }
+    if((gFrame_0.temporal_0.z) != 0.0f)
+    {
+        gAccum_0[base_8 + u32(1)][i32(3)] = primaryDistance_0;
+        gAccum_0[base_8 + u32(2)][i32(3)] = primaryInstance_0;
     }
     return;
 }

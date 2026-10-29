@@ -16,6 +16,10 @@ struct FrameUniforms_std140_0
     @align(16) vtInfo_0 : vec4<u32>,
     @align(16) vtParams_0 : vec4<f32>,
     @align(16) primaryVisibility_0 : vec4<u32>,
+    @align(16) sharc_0 : vec4<u32>,
+    @align(16) sharcParams_0 : vec4<f32>,
+    @align(16) sharcControl_0 : vec4<u32>,
+    @align(16) temporal_0 : vec4<f32>,
 };
 
 @binding(0) @group(0) var<uniform> gFrame_0 : FrameUniforms_std140_0;
@@ -181,6 +185,10 @@ fn RandomSequence_x24init_1( positionSeed_0 : u32,  timeSeed_1 : u32) -> RandomS
 
 fn PrimaryCameraJitter_0() -> vec2<f32>
 {
+    if((gFrame_0.temporal_0.z) != 0.0f)
+    {
+        return gFrame_0.temporal_0.xy;
+    }
     var rng_0 : RandomSequence_0 = RandomSequence_x24init_1(u32(1447646018), gFrame_0.frame_0.w);
     var _S14 : vec2<f32> = RandomSequence_Next2D_0(&(rng_0));
     return _S14;
@@ -691,6 +699,11 @@ fn main(@builtin(global_invocation_id) tid_0 : vec3<u32>)
         gAccum_0[_S50] = vec4<f32>(mix(gAccum_0[_S50].xyz, _S45, _S49), 1.0f);
         var _S51 : u32 = base_0 + u32(2);
         gAccum_0[_S51] = vec4<f32>(mix(gAccum_0[_S51].xyz, _S45, _S49), 1.0f);
+    }
+    if((gFrame_0.temporal_0.z) != 0.0f)
+    {
+        gAccum_0[base_0 + u32(1)][i32(3)] = 0.0f;
+        gAccum_0[base_0 + u32(2)][i32(3)] = 0.0f;
     }
     return;
 }

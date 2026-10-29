@@ -135,7 +135,12 @@ and alpha-mode changes that prepare different pipeline variants before scene pub
 The frame ID varies the random sequence; samplesPerPixel (1–64) averages inside this frame.
 No host-frame OIDN runs. Keep frame IDs increasing across commits. Exposure adaptation retains
 presentation history, not path-traced radiance. Noise at low sample counts is expected.
-TAA, NRD, motion vectors and previous-position buffers are future work.
+[TAA](TemporalAA.md) now runs by default before presentation. It reconstructs camera and
+rigid-instance motion from primary hit guides and a GPU snapshot of previous instance
+transforms. Ordinary commits (including object add/remove, topology, material, texture and
+light edits) preserve history and rely on reprojection and neighborhood clipping.
+`cameraCut: true` on a host frame explicitly resets it.
+NRD and deforming/skinned-vertex motion remain future work.
 
 The legacy `setScene` / `start` viewer remains progressive for static assets and OIDN. Stop
 its loop before using host frames. `start()` cannot run while a host scene is active. `onStats`

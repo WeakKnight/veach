@@ -414,3 +414,11 @@ resolves opaque hits and misses without SVM; alpha candidates trigger one full r
 of the original interval, preserving BVH encounter order and VT state. These entries never evaluate
 surface BSDFs. Opaque scenes retain their existing specialized shadow entry. Both options
 are independent and disabled by default; see `Wavefront.md` for measured costs and limits.
+
+Optional [SHARC radiance caching](Sharc.md) runs after surface SVM evaluation and local
+emission MIS, before NEE and BSDF sampling. Cache entries contain the reflected suffix
+including that vertex's direct lighting, excluding its emission. A hit ends the path;
+it does not enqueue another NEE task. Update paths retain the normal SVM/BSDF/shadow
+sequence and back-propagate completed radiance after all deferred lighting has finished.
+Only rough nonmetal surfaces without transmission, subsurface or coat qualify; this
+does not eliminate primary material evaluation or change SVM capacity.

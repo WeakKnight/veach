@@ -22,6 +22,8 @@ const exe = isWindows ? 'slangc.exe' : 'slangc';
 
 // Each program becomes one WGSL module containing all of its entry points.
 const programs = [
+	{ name: 'TemporalAA', source: 'Passes/TemporalAA.slang', entries: [['GenerateMotion', 'compute'], ['Resolve', 'compute']] },
+	{ name: 'SharcMaintenance', source: 'Passes/SharcMaintenance.slang', entries: ['Accumulate', 'Publish', 'Resolve', 'Statistics'].map(e => [e, 'compute']) },
 	{ name: 'PrimaryVisibilityCheck', source: 'Tests/PrimaryVisibility.slang', entries: [['InspectPrimarySurface', 'compute']] },
 	{ name: 'VisibilityCull', source: 'Passes/VisibilityCull.slang', entries: [['Cull', 'compute'], ['DrawArguments', 'compute'], ['CheckNear', 'compute']] },
 	{ name: 'VisibilityRaster', source: 'Passes/VisibilityRaster.slang', entries: [['vsMain', 'vertex'], ['fsMain', 'fragment']] },

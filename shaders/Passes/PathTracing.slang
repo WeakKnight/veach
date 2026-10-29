@@ -210,6 +210,8 @@ void main(uint3 tid: SV_DispatchThreadID)
 
 	float3 albedoOut = float3(0.0);
 	float3 normalOut = float3(0.0);
+	float primaryDistance = 0.0;
+	float primaryInstance = 0.0; // Numeric slot + 1; zero denotes background.
 	float3 debugOut = float3(0.0);
 	// the clamp is in pre-exposed units, so it follows the exposure
 	float preExposure = gFrame.envParams.z;
@@ -305,6 +307,7 @@ void main(uint3 tid: SV_DispatchThreadID)
 		{
 			albedoOut = ms.albedo;
 			normalOut = facingNormal;
+			if (gFrame.temporal.z != 0.0) { primaryDistance = hit.t; primaryInstance = float(hit.instanceIndex + 1u); }
 			if (debugMode != DEBUG_NONE)
 			{
 				switch (debugMode)
@@ -458,4 +461,5 @@ void main(uint3 tid: SV_DispatchThreadID)
 		gAccum[base + 1u] = float4(lerp(gAccum[base + 1u].rgb, albedoOut, w), 1.0);
 		gAccum[base + 2u] = float4(lerp(gAccum[base + 2u].rgb, normalOut, w), 1.0);
 	}
+	if (gFrame.temporal.z != 0.0) { gAccum[base + 1u].w = primaryDistance; gAccum[base + 2u].w = primaryInstance; }
 }

@@ -48,9 +48,14 @@ npm run dev:games
 
 Open `http://127.0.0.1:5176/?game=aim` for a 45-second mouse aim drill or
 `http://127.0.0.1:5176/?game=race` for a three-lap keyboard racing game (W/S, A/D, R reset).
-Both use procedural geometry, Three.js simulation and Veach rendering. Performance/Balanced/
-Quality select resolution and samples within the current frame; there is no temporal
-accumulation or denoising in these examples. `npm run smoke:games` verifies GPU updates and
+Both use procedural geometry, Three.js simulation and Veach rendering.
+Press `~` for the [rendering console](docs/Console.md): `r.SHARC.Enabled 0`,
+`r.PathTracing.MaxBounces 4`, `r.Exposure.Bias 1`, `help`; Tab completes commands.
+The console pauses game time while leaving the rendered view live.
+Performance/Balanced/Quality select resolution and samples within the current frame. The games
+default to TAA without progressive cross-frame accumulation; OIDN is disabled. Use
+`r.TAA.Enabled 0` / `1` to compare, or `r.TAA.Stats` for history status.
+`npm run smoke:games` verifies GPU updates and
 game interactions. See [host integration](docs/HostIntegration.md) for the supported subset.
 
 ### Install

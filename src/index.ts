@@ -20,6 +20,10 @@ export { RenderScene, SceneUpdate, type GeometryHandle, type TextureHandle, type
 	type InstanceHandle, type LightHandle, type GeometryResource, type TextureResource,
 	type ResourceTextureBinding, type PbrMaterial, type RenderInstance } from './scene/RenderScene';
 export type { HostGpuUpdateStats } from './render/HostGpuScene';
+export { defaultSharcSettings, type SharcSettings, type SharcStats } from './render/SharcCache';
+export type { TaaStats } from './render/TemporalAA';
+export { ConsoleRegistry, type ConsoleEntry, type ConsoleResult, type ConsoleExecutor } from './debug/ConsoleRegistry';
+export { createRendererConsole, type RendererConsoleOptions } from './debug/RendererConsole';
 export { AutoExposureMethod, LuminanceMethod, exponentialAdaptationM, histogramLogMin, luminanceWeights, type ExposureStats } from './render/AutoExposure';
 export type { OIDNDenoiserOptions, DenoisingState } from './render/denoise/OIDNDenoiser';
 export type { DenoisingInputs } from './render/denoise/OIDNGuides';

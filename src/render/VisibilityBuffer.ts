@@ -1,6 +1,7 @@
 import cullCode from '../generated/shaders/VisibilityCull.wgsl?raw';
 import rasterCode from '../generated/shaders/VisibilityRaster.wgsl?raw';
 import type { GpuScene } from './GpuScene';
+import type { PipelineCompiler } from './PipelineCompiler';
 
 /** One geometry draw per sample; all persistent geometry stays in existing scene buffers. */
 export class VisibilityBuffer {
@@ -25,7 +26,9 @@ export class VisibilityBuffer {
 
 	static scratchBytes(clusters: number): number { return 64 + Math.ceil(clusters * 2 / 4) * 16; }
 
-	constructor(private readonly device: GPUDevice) {
+	constructor(private readonly device: GPUDevice, compiler?: PipelineCompiler) {
+		const compute = compiler?.compute.bind(compiler) ?? device.createComputePipelineAsync.bind(device);
+		const render = compiler?.render.bind(compiler) ?? device.createRenderPipelineAsync.bind(device);
 		const CV = GPUShaderStage.COMPUTE | GPUShaderStage.VERTEX;
 		this.sceneLayout = device.createBindGroupLayout({ label: 'visibilityScene', entries: [
 			{ binding: 0, visibility: CV, buffer: { type: 'uniform' } },
@@ -37,10 +40,10 @@ export class VisibilityBuffer {
 		const module = device.createShaderModule({ label: 'VisibilityCull', code: cullCode });
 		const drawModule = device.createShaderModule({ label: 'VisibilityRaster', code: rasterCode });
 		this.compiled = Promise.all([
-			device.createComputePipelineAsync({ label: 'visibility.cull', layout: computeLayout, compute: { module, entryPoint: 'Cull' } }),
-			device.createComputePipelineAsync({ label: 'visibility.arguments', layout: computeLayout, compute: { module, entryPoint: 'DrawArguments' } }),
-			device.createComputePipelineAsync({ label: 'visibility.near', layout: computeLayout, compute: { module, entryPoint: 'CheckNear' } }),
-			device.createRenderPipelineAsync({ label: 'visibility.raster', layout: device.createPipelineLayout({ bindGroupLayouts: [this.sceneLayout, this.drawLayout] }),
+			compute({ label: 'visibility.cull', layout: computeLayout, compute: { module, entryPoint: 'Cull' } }),
+			compute({ label: 'visibility.arguments', layout: computeLayout, compute: { module, entryPoint: 'DrawArguments' } }),
+			compute({ label: 'visibility.near', layout: computeLayout, compute: { module, entryPoint: 'CheckNear' } }),
+			render({ label: 'visibility.raster', layout: device.createPipelineLayout({ bindGroupLayouts: [this.sceneLayout, this.drawLayout] }),
 				vertex: { module: drawModule, entryPoint: 'vsMain' }, fragment: { module: drawModule, entryPoint: 'fsMain', targets: [{ format: 'rg32uint' }] },
 				primitive: { topology: 'triangle-list', cullMode: 'none' }, depthStencil: { format: 'depth32float', depthWriteEnabled: true, depthCompare: 'greater' } }),
 		]).then(([cull, args, near, raster]) => { this.cull = cull; this.args = args; this.near = near; this.raster = raster; });

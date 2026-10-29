@@ -1,0 +1,66 @@
+// One focused production-page check; no full game run or performance sweep.
+import puppeteer from 'puppeteer-core';
+import assert from 'node:assert/strict';
+import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+const out = resolve('.tools/console'); mkdirSync(out, { recursive: true });
+const executablePath = [process.env.CHROME_PATH, 'C:/Program Files/Google/Chrome/Application/chrome.exe'].find(p => p && existsSync(p));
+const browser = await puppeteer.launch({ executablePath, headless: true, protocolTimeout: 180000, args: ['--enable-unsafe-webgpu', '--ignore-gpu-blocklist', '--no-sandbox'] });
+const errors = [];
+try {
+	const page = await browser.newPage(); await page.setViewport({ width: 1100, height: 760, deviceScaleFactor: 1 });
+	page.on('pageerror', e => errors.push(String(e)));
+	page.on('console', m => { if (m.type() === 'error') errors.push(m.text()); });
+	await page.goto(process.env.CONSOLE_TEST_URL ?? 'http://127.0.0.1:4177/?game=aim');
+	await page.waitForFunction(() => window.__games?.ready && window.__games.frame > 1, { timeout: 180000 });
+	await page.click('#start');
+	await page.waitForFunction(() => window.__games.state.elapsed > 0);
+	await page.keyboard.press('Backquote');
+	assert(await page.evaluate(() => window.__games.debugConsole.isOpen));
+	const before = await page.evaluate(() => ({ ...window.__games.state, frame: window.__games.frame }));
+	await page.waitForFunction(f => window.__games.frame > f + 2, {}, before.frame);
+	assert.equal(await page.evaluate(() => window.__games.state.elapsed), before.elapsed, 'Console pauses simulation while rendering continues');
+	const command = async text => {
+		await page.keyboard.down('Control'); await page.keyboard.press('KeyA'); await page.keyboard.up('Control');
+		await page.keyboard.type(text); await page.keyboard.press('Enter');
+		await page.waitForFunction(() => !document.querySelector('[data-veach-console]').shadowRoot.querySelector('input').readOnly);
+	};
+	await command('r.PathTracing.MaxBounces 4');
+	assert.equal(await page.evaluate(() => window.__games.renderer.settings.maxBounces), 4);
+	await command('r.Exposure.Bias 1');
+	assert.equal(await page.evaluate(() => window.__games.renderer.settings.autoExposureBias), 1);
+	await command('r.Camera.FOV 70');
+	assert.equal(await page.evaluate(() => window.__games.camera.fov), 70);
+	await command('r.SHARC.Enabled 0');
+	assert.equal(await page.evaluate(() => window.__games.renderer.sharcEnabled), false);
+	await command('r.SHARC.Enabled 1');
+	await command('r.PrimaryVisibility.Mode ray-traced');
+	assert.equal(await page.evaluate(() => window.__games.renderer.primaryVisibility), 'ray-traced');
+	await command('r.PrimaryVisibility.Mode auto');
+	await command('r.PathTracing.MaxBounces NaN');
+	assert.equal(await page.evaluate(() => window.__games.renderer.settings.maxBounces), 4);
+	await command('r.SHARC.Stats');
+	await page.keyboard.press('ArrowUp');
+	assert.equal(await page.evaluate(() => document.querySelector('[data-veach-console]').shadowRoot.querySelector('input').value), 'r.SHARC.Stats');
+	await page.keyboard.down('Control'); await page.keyboard.press('KeyA'); await page.keyboard.up('Control');
+	await page.keyboard.type('r.SHARC.En'); await page.keyboard.press('Tab');
+	assert.equal(await page.evaluate(() => document.querySelector('[data-veach-console]').shadowRoot.querySelector('input').value), 'r.SHARC.Enabled');
+	assert.equal(await page.evaluate(() => window.__games.state.elapsed), before.elapsed, 'Typing never restarts the session');
+	await page.keyboard.press('Backquote');
+	assert(await page.evaluate(() => document.querySelector('[data-veach-console]').hasAttribute('data-expanded')));
+	await page.screenshot({ path: resolve(out, 'console.png') });
+	await page.keyboard.press('Escape');
+	assert.equal(await page.evaluate(() => window.__games.debugConsole.isOpen), false);
+	await page.waitForFunction(t => window.__games.state.elapsed > t, {}, before.elapsed);
+	// Pause target motion for a deterministic click, then resume and use a real pointer event.
+	await page.click('#pause');
+	const target = await page.evaluate(() => window.__games.targets()[0]);
+	await page.click('#start'); await page.mouse.click(target.x, target.y);
+	await page.waitForFunction(() => window.__games.state.hits > 0);
+	await page.click('#pause');
+	await page.screenshot({ path: resolve(out, 'aim.png') });
+	const report = await page.evaluate(() => ({ commands: window.__games.debugConsole.registry.list().length, state: window.__games.state, sharc: window.__games.renderer.sharcStats }));
+	assert.deepEqual(errors, [], 'No GPU or browser errors');
+	writeFileSync(resolve(out, 'report.json'), JSON.stringify(report, null, 2));
+	console.log(JSON.stringify(report, null, 2));
+} finally { await browser.close(); }

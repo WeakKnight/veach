@@ -1,4 +1,5 @@
 import type { VisibilityBuffer } from './VisibilityBuffer';
+import { SharcCache } from './SharcCache';
 // Bounded tile work storage shares accumulation binding 0. Only a dynamic uniform is added.
 import wavefrontWgsl from '../generated/shaders/Wavefront.wgsl?raw';
 import compactWgsl from '../generated/shaders/WavefrontCompact.wgsl?raw';
@@ -14,6 +15,7 @@ import sort256Wgsl from '../generated/shaders/WavefrontSort256.wgsl?raw';
 import shadowWgsl from '../generated/shaders/WavefrontShadow.wgsl?raw';
 import { specializeMaterialShader, type MaterialStackCapacity } from './MaterialShaderVariants';
 import { ALL_MATERIAL_OPCODES, materialPipelineKey, materialPipelineConstants, type MaterialOpcodeMask } from './MaterialProgramFeatures';
+import type { PipelineCompiler } from './PipelineCompiler';
 
 const RECORD_BYTES = 21 * 16; // WAVEFRONT_STRIDE in Wavefront.slang
 const TILE_CAPACITY = 262144;
@@ -73,6 +75,14 @@ export class Wavefront {
 	readonly compiled: Promise<void>;
 	private readonly pipelines = new Map<string, Map<Entry, GPUComputePipeline>>();
 	private readonly compiling = new Map<string, Promise<void>>();
+	private readonly entryCompiling = new Map<string, Promise<GPUComputePipeline>>();
+	hasAlphaTested = true;
+	/** Changes to internal experiment controls must be prepared before the next dispatch. */
+	get configurationKey(): string {
+		return JSON.stringify([this.hasAlphaTested, this.compaction, this.directStages, this.spatialQueues,
+			this.tailStart, this.sort, this.sortSize, this.raySortSize, this.shadowMode, this.shadeMode,
+			this.shadeBuckets, this.shadeBucketMode, this.separateLight, this.batchedShadows]);
+	}
 	private readonly pipelineLayout: GPUPipelineLayout;
 	private readonly compactModule: GPUShaderModule;
 	private readonly compactDenseModule: GPUShaderModule;
@@ -92,10 +102,12 @@ export class Wavefront {
 	private readonly alignment: number;
 	private readonly indirect: GPUBuffer;
 	visibilityScratchBytes = 0;
+	sharcCacheBytes = 0;
 	private primaryTexture: GPUTexture | null = null;
 	private readonly dummyPrimaryTexture: GPUTexture;
 
-	constructor(private readonly device: GPUDevice, sceneLayout: GPUBindGroupLayout, capacity: MaterialStackCapacity = 16, opcodes: MaterialOpcodeMask = ALL_MATERIAL_OPCODES, operandMode = 0) {
+	constructor(private readonly device: GPUDevice, sceneLayout: GPUBindGroupLayout, capacity: MaterialStackCapacity = 16, opcodes: MaterialOpcodeMask = ALL_MATERIAL_OPCODES, operandMode = 0, hasAlphaTested = true, private readonly compiler?: PipelineCompiler) {
+		this.hasAlphaTested = hasAlphaTested;
 		this.alignment = device.limits.minUniformBufferOffsetAlignment;
 		this.dummyPrimaryTexture = device.createTexture({ label: 'unusedPrimaryVisibility', size: [1, 1], format: 'rg32uint', usage: GPUTextureUsage.TEXTURE_BINDING });
 		this.indirect = device.createBuffer({ label: 'wavefrontDispatch', size: 176, usage: GPUBufferUsage.INDIRECT | GPUBufferUsage.COPY_DST, mappedAtCreation: true });
@@ -161,10 +173,32 @@ export class Wavefront {
 			this.prepareStageGroup('shadow-alpha', opacityCapacity, opcodes, operandMode)]);
 	}
 
+	private needsUnifiedEntry(entry: Entry): boolean {
+		const direct = this.compaction === 'none' ? 7 : this.directStages;
+		if (entry.startsWith('Tail')) return Number.isFinite(this.tailStart) && entry === (this.hasAlphaTested ? 'Tail' : 'TailOpaque');
+		if (entry.startsWith('SortDirection')) return this.raySortSize !== 0 && entry === `SortDirection${this.raySortSize}`;
+		if (entry.startsWith('Sort')) return this.sort !== 'none' && entry === `Sort${this.sort === 'material' ? 'Material' : 'Program'}${this.sortSize}`;
+		if (entry.startsWith('CompactIntersect') || entry.startsWith('CompactShade')) {
+			if (direct === 7) return false;
+			const suffix = { dense: 'Dense', queued: '', subgroup: 'Subgroup', adaptive: 'Adaptive', packet: 'Packet', none: '' }[this.compaction];
+			return entry === `CompactIntersect${suffix}` || entry === (this.spatialQueues ? 'CompactShadeSpatial' : `CompactShade${suffix}`);
+		}
+		if (entry.startsWith('PrimaryTraceFallback')) return entry.endsWith('Opaque') !== this.hasAlphaTested;
+		if (entry.startsWith('Intersect')) return entry === `Intersect${this.hasAlphaTested ? '' : 'Opaque'}${direct & 1 ? 'Direct' : ''}`;
+		if (entry.startsWith('Shadow')) {
+			const suffix = direct & 4 ? 'Direct' : '';
+			if (this.hasAlphaTested) return entry === `Shadow${suffix}`;
+			if (this.shadowMode === 'serial') return entry === `ShadowOpaque${suffix}`;
+			return entry === `ShadowOpaqueParallel${suffix}` || (this.shadowMode === 'parallel-auto' && entry === `ShadowOpaqueParallelSky${suffix}`);
+		}
+		if (entry === 'Shade' || entry === 'ShadeDirect') return entry === (direct & 2 ? 'ShadeDirect' : 'Shade');
+		return true;
+	}
+
 	private async prepareStageGroup(mode: ShadeMode | 'shadow-classify' | 'shadow-alpha' | 'surface' | 'light' | 'bucket' | 'bucket-compact' | 'partition' | 'material-partition', capacity: MaterialStackCapacity, opcodes: MaterialOpcodeMask, operandMode: number): Promise<void> {
 		if (this.destroyed) throw new Error('Wavefront has been destroyed');
 		const key = materialPipelineKey(capacity, opcodes, operandMode);
-		const compilationKey = `${key}/${mode}`;
+		const compilationKey = `${key}/${mode}/${this.configurationKey}`;
 		let pending = this.compiling.get(compilationKey);
 		if (!pending) {
 			const module = this.device.createShaderModule({ label: mode === 'material-partition' ? 'WavefrontMaterialBuckets' : mode === 'partition' ? 'WavefrontBuckets' : 'Wavefront',
@@ -181,7 +215,7 @@ export class Wavefront {
 				if (PARTITION_ENTRIES.includes(entry)) return false;
 				const phase = entry.replace(/Direct$/, '');
 				const experimental = phase.startsWith('Shade') && phase !== 'Shade';
-				if (mode === 'unified') return !experimental && (!entry.endsWith('Subgroup') || this.compactSubgroupModule);
+				if (mode === 'unified') return !experimental && this.needsUnifiedEntry(entry) && (!entry.endsWith('Subgroup') || this.compactSubgroupModule);
 				if (mode === 'bucket') return phase === 'ShadeBucket';
 				if (mode === 'bucket-compact') return phase === 'ShadeBucketCompact';
 				if (mode === 'late') return phase === 'ShadeLate';
@@ -189,6 +223,11 @@ export class Wavefront {
 				return phase === `ShadePrimary${suffix}` || phase === `ShadeSecondary${suffix}`;
 			});
 			pending = Promise.all(selected.map(async entryPoint => {
+				const cached = this.pipelines.get(key)?.get(entryPoint);
+				if (cached) return [entryPoint, cached] as const;
+				const entryKey = `${key}/${entryPoint}`;
+				const existing = this.entryCompiling.get(entryKey);
+				if (existing) return [entryPoint, await existing] as const;
 				const compact = entryPoint.startsWith('Compact') || entryPoint === 'PrimaryFallbackArguments';
 				const sort = entryPoint.startsWith('Sort');
 				const shader = entryPoint.startsWith('ShadowOpaqueParallel') ? this.shadowModule
@@ -199,9 +238,13 @@ export class Wavefront {
 					: entryPoint.endsWith('Spatial') ? this.compactSpatialModule
 					: entryPoint.endsWith('Subgroup') ? this.compactSubgroupModule! : compact ? this.compactModule : module;
 				const usesMaterial = entryPoint === 'PrimaryTraceFallback' || entryPoint === 'PrimaryTraceFallbackSparse' || entryPoint === 'ShadowAlpha' || entryPoint.startsWith('Shade') || ['Tail', 'TailOpaque', 'Intersect', 'IntersectDirect', 'Shadow', 'ShadowDirect'].includes(entryPoint);
-				const pipeline = await this.device.createComputePipelineAsync({ label: `wavefront.${entryPoint}.stack${capacity}`, layout: this.pipelineLayout,
+				const descriptor: GPUComputePipelineDescriptor = { label: `wavefront.${entryPoint}.stack${capacity}`, layout: this.pipelineLayout,
 					compute: { module: shader, entryPoint: sort ? entryPoint.replace(/64|256/g, '') : compact ? entryPoint.replace(/Dense|Subgroup|Adaptive|Packet|Spatial/g, '') : entryPoint,
-						constants: usesMaterial ? materialPipelineConstants(capacity, opcodes, operandMode) : undefined } });
+						constants: usesMaterial ? materialPipelineConstants(capacity, opcodes, operandMode) : undefined } };
+				const loading = (this.compiler ? this.compiler.compute(descriptor) : this.device.createComputePipelineAsync(descriptor))
+					.catch(error => { this.entryCompiling.delete(entryKey); throw error; });
+				this.entryCompiling.set(entryKey, loading);
+				const pipeline = await loading;
 				return [entryPoint, pipeline] as const;
 			})).then(entries => {
 				if (this.destroyed) throw new Error('Wavefront has been destroyed');
@@ -218,15 +261,16 @@ export class Wavefront {
 	}
 
 	capacity(pixels: number): number {
-		const available = Math.min(this.device.limits.maxStorageBufferBindingSize, this.device.limits.maxBufferSize) - pixels * 48 - 96 - METADATA_BYTES - this.visibilityScratchBytes;
-		const capacity = Math.min(TILE_CAPACITY, pixels, Math.floor(available / (this.recordBytes + 12)));
+		const sharc = this.sharcCacheBytes || 0;
+		const available = Math.min(this.device.limits.maxStorageBufferBindingSize, this.device.limits.maxBufferSize) - pixels * 48 - 96 - METADATA_BYTES - this.visibilityScratchBytes - sharc - (sharc ? 256 : 0);
+		const capacity = Math.min(TILE_CAPACITY, pixels, Math.floor(available / (this.recordBytes + 12 + (sharc ? 16 : 0))));
 		if (capacity < 1) throw new Error('Image dimensions leave no room for wavefront work storage');
 		return capacity;
 	}
 
 	storageBytes(pixels: number): number {
 		const capacity = this.capacity(pixels);
-		return 48 + capacity * this.recordBytes + Math.ceil(capacity / 4) * 48 + METADATA_BYTES + this.visibilityScratchBytes;
+		return 48 + capacity * this.recordBytes + Math.ceil(capacity / 4) * 48 + METADATA_BYTES + this.visibilityScratchBytes + (this.sharcCacheBytes ? this.sharcCacheBytes + SharcCache.recordBytes(capacity) : 0);
 	}
 
 	private get recordBytes(): number {
@@ -241,8 +285,9 @@ export class Wavefront {
 		this.group = null;
 	}
 
-	encode(encoder: GPUCommandEncoder, scene: GPUBindGroup, width: number, height: number, maxBounces: number, hasAlphaTested: boolean, materialCapacity: MaterialStackCapacity, lightCount: number, opcodes: MaterialOpcodeMask, operandMode = 0, shadeCapacities: readonly MaterialStackCapacity[] = [], materialCount = 0, surfaceCapacity: MaterialStackCapacity = materialCapacity, lightCapacity: MaterialStackCapacity = materialCapacity, surfaceCapacities: readonly MaterialStackCapacity[] = shadeCapacities, opacityCapacity: MaterialStackCapacity = materialCapacity, visibility?: VisibilityBuffer): void {
+	encode(encoder: GPUCommandEncoder, scene: GPUBindGroup, width: number, height: number, maxBounces: number, hasAlphaTested: boolean, materialCapacity: MaterialStackCapacity, lightCount: number, opcodes: MaterialOpcodeMask, operandMode = 0, shadeCapacities: readonly MaterialStackCapacity[] = [], materialCount = 0, surfaceCapacity: MaterialStackCapacity = materialCapacity, lightCapacity: MaterialStackCapacity = materialCapacity, surfaceCapacities: readonly MaterialStackCapacity[] = shadeCapacities, opacityCapacity: MaterialStackCapacity = materialCapacity, visibility?: VisibilityBuffer, sharc?: SharcCache): void {
 		if (!this.accumulation || !this.feedback) return;
+		sharc?.beginSample(encoder);
 		visibility?.encode(encoder, this.indirect);
 		const directStages = this.compaction === 'none' ? 7 : this.directStages;
 		if (!Number.isInteger(directStages) || directStages < 0 || directStages > 7) throw new Error('Invalid direct stage mask');
@@ -359,6 +404,7 @@ export class Wavefront {
 				else pass.dispatchWorkgroups(Math.ceil(count / size));
 				pass.end();
 			};
+			sharc?.beginTile(encoder);
 			dispatch('Initialize', 0);
 			if (!direct) copyArguments();
 			for (let bounce = 0; bounce <= bounces; bounce++) {
@@ -410,7 +456,9 @@ export class Wavefront {
 				}
 			}
 			dispatch('Finalize', bounces);
+			sharc?.finishTile(encoder, this.parameters!, tile * (bounces + 1) * this.alignment, count);
 		}
+		sharc?.resolve(encoder, (this.sharcCacheBytes - 64) / 64);
 	}
 
 	destroy(): void {
@@ -418,6 +466,7 @@ export class Wavefront {
 		this.destroyed = true;
 		this.pipelines.clear();
 		this.compiling.clear();
+		this.entryCompiling.clear();
 		this.indirect.destroy();
 		this.dummyPrimaryTexture.destroy();
 		this.parameters?.destroy();

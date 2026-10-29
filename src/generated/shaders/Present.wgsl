@@ -16,6 +16,10 @@ struct FrameUniforms_std140_0
     @align(16) vtInfo_0 : vec4<u32>,
     @align(16) vtParams_0 : vec4<f32>,
     @align(16) primaryVisibility_0 : vec4<u32>,
+    @align(16) sharc_0 : vec4<u32>,
+    @align(16) sharcParams_0 : vec4<f32>,
+    @align(16) sharcControl_0 : vec4<u32>,
+    @align(16) temporal_0 : vec4<f32>,
 };
 
 @binding(0) @group(0) var<uniform> gFrame_0 : FrameUniforms_std140_0;
@@ -345,11 +349,24 @@ fn fsMain(@builtin(position) position_3 : vec4<f32>) -> pixelOutput_0
 {
     var _S59 : vec2<u32> = min(vec2<u32>(position_3.xy), gFrame_0.frame_0.xy - vec2<u32>(u32(1)));
     var color_3 : vec3<f32> = gAccum_0[(_S59.y * gFrame_0.frame_0.x + _S59.x) * u32(3)].xyz;
+    var _S60 : bool;
+    if((gFrame_0.temporal_0.z) != 0.0f)
+    {
+        _S60 = (gFrame_0.temporal_0.w) != 0.0f;
+    }
+    else
+    {
+        _S60 = false;
+    }
+    if(_S60)
+    {
+        var _S61 : pixelOutput_0 = pixelOutput_0( vec4<f32>(color_3, 1.0f) );
+        return _S61;
+    }
     var color_4 : vec3<f32>;
     if((gFrame_0.settings_0.y) == u32(0))
     {
         var color_5 : vec3<f32> = color_3 * vec3<f32>((gExposure_0[i32(0)].x * rcp_0(gFrame_0.envParams_0.z)));
-        var _S60 : bool;
         if((gLocalExposure_0.info_0.x) != u32(0))
         {
             _S60 = (gDisplayTransform_0.info_1.x) == 0.0f;
@@ -361,15 +378,15 @@ fn fsMain(@builtin(position) position_3 : vec4<f32>) -> pixelOutput_0
         if(_S60)
         {
             var uv_2 : vec2<f32> = (vec2<f32>(_S59) + vec2<f32>(0.5f)) / vec2<f32>(gFrame_0.frame_0.xy);
-            var _S61 : LocalExposureParams_std140_0 = gLocalExposure_0;
-            var _S62 : f32 = EyeAdaptationLuminance_0(&(_S61), color_5);
-            var _S63 : f32 = FusionLocalExposure_0(&(_S61), gLocalExposureForwardLut_0, gLocalExposureInverseLut_0, _S62, SampleBilinear_0(gLocalExposureResidual_0, uv_2), SampleBilinear_1(gLocalExposurePyramid_0, uv_2).xy);
+            var _S62 : LocalExposureParams_std140_0 = gLocalExposure_0;
+            var _S63 : f32 = EyeAdaptationLuminance_0(&(_S62), color_5);
+            var _S64 : f32 = FusionLocalExposure_0(&(_S62), gLocalExposureForwardLut_0, gLocalExposureInverseLut_0, _S63, SampleBilinear_0(gLocalExposureResidual_0, uv_2), SampleBilinear_1(gLocalExposurePyramid_0, uv_2).xy);
             if((gLocalExposure_0.info_0.y) != u32(0))
             {
-                var _S64 : pixelOutput_0 = pixelOutput_0( vec4<f32>(vec3<f32>(saturate(log2(_S63) / 12.0f + 0.5f)), 1.0f) );
-                return _S64;
+                var _S65 : pixelOutput_0 = pixelOutput_0( vec4<f32>(vec3<f32>(saturate(log2(_S64) / 12.0f + 0.5f)), 1.0f) );
+                return _S65;
             }
-            color_4 = color_5 * vec3<f32>(_S63);
+            color_4 = color_5 * vec3<f32>(_S64);
         }
         else
         {
@@ -377,13 +394,13 @@ fn fsMain(@builtin(position) position_3 : vec4<f32>) -> pixelOutput_0
         }
         if((gDisplayTransform_0.info_1.x) != 0.0f)
         {
-            var _S65 : pixelOutput_0 = pixelOutput_0( vec4<f32>(LinearToSrgb_0(saturate(ApplyUserDisplayTransform_0(color_4))), 1.0f) );
-            return _S65;
+            var _S66 : pixelOutput_0 = pixelOutput_0( vec4<f32>(LinearToSrgb_0(saturate(ApplyUserDisplayTransform_0(color_4))), 1.0f) );
+            return _S66;
         }
         if((gFrame_0.settings_0.w) == u32(2))
         {
-            var _S66 : pixelOutput_0 = pixelOutput_0( vec4<f32>(saturate(ACES2_0(color_4)), 1.0f) );
-            return _S66;
+            var _S67 : pixelOutput_0 = pixelOutput_0( vec4<f32>(saturate(ACES2_0(color_4)), 1.0f) );
+            return _S67;
         }
         if((gFrame_0.settings_0.w) == u32(1))
         {
@@ -394,7 +411,7 @@ fn fsMain(@builtin(position) position_3 : vec4<f32>) -> pixelOutput_0
     {
         color_4 = color_3;
     }
-    var _S67 : pixelOutput_0 = pixelOutput_0( vec4<f32>(LinearToSrgb_0(saturate(color_4)), 1.0f) );
-    return _S67;
+    var _S68 : pixelOutput_0 = pixelOutput_0( vec4<f32>(LinearToSrgb_0(saturate(color_4)), 1.0f) );
+    return _S68;
 }
 

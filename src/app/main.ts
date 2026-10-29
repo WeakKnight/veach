@@ -9,6 +9,8 @@ import { AutoExposureMethod } from '../render/AutoExposure';
 import { LocalExposureMethod, Renderer, type InitProgress } from '../render/Renderer';
 import type { BlendScene } from '../loaders/blend/BlendLoader';
 import type { SceneDesc } from '../scene/Scene';
+import { createRendererConsole } from '../debug/RendererConsole';
+import { DebugConsole } from '../view/DebugConsole';
 
 const canvas = document.getElementById('viewport') as HTMLCanvasElement;
 const overlay = document.getElementById('overlay')!;
@@ -37,6 +39,7 @@ function showError(e: unknown): void {
 
 help.textContent = [
 	'drag: orbit   shift/right drag: pan   wheel: zoom   F: frame scene',
+	'~: rendering console   Tab: complete   name ?: help',
 	'0-9: debug view (0 beauty, 1 albedo, 2 shading N, 3 geometry N, 4 uv, 5 instance, 6 material, 7 traversal, 8 emission, 9 virtual texture mip)',
 	'[ / ]: exposure (compensation)   A: auto exposure   L: local exposure   V: local exposure EV view   B / N: max bounces   T: tonemap   E: env visible   S: sun   arrows: sun elevation / azimuth   H: hide help',
 	'drop .glb/.gltf (with its files) or .hdr; URL: ?model=<url>&env=<url>&sunElevation=<deg>&sunAzimuth=<deg>&exposure=<EV>&autoExposure=0&localExposure=0&highlightContrast=<0..1>&shadowContrast=<0..1>',
@@ -76,6 +79,7 @@ async function main(): Promise<void> {
 	if (integrator === 'wavefront' || integrator === 'megakernel') await renderer.setIntegrator(integrator);
 	const primaryVisibility = params.get('primaryVisibility');
 	if (primaryVisibility === 'auto' || primaryVisibility === 'ray-traced' || primaryVisibility === 'rasterized') await renderer.setPrimaryVisibility(primaryVisibility);
+	if (params.get('sharc') === '0') await renderer.setSharc(false);
 	new OrbitController(renderer.camera, canvas, () => renderer.resetAccumulation());
 
 	const reset = () => renderer.resetAccumulation();
@@ -236,6 +240,11 @@ async function main(): Promise<void> {
 	});
 
 	renderer.start();
+	const debugConsole = new DebugConsole(createRendererConsole(renderer, { execute: async action => {
+		renderer.stop();
+		try { return await action(); } finally { renderer.start(); }
+	} }));
+	window.addEventListener('pagehide', () => debugConsole.dispose(), { once: true });
 }
 
 main().catch(showError);

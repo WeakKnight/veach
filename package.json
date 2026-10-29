@@ -71,6 +71,7 @@
     "prepack": "npm run build:lib",
     "dev:games": "vite --config examples/games/vite.config.ts",
     "build:games": "tsc --noEmit && vite build --config examples/games/vite.config.ts",
+    "preview:games": "vite preview --config examples/games/vite.config.ts",
     "smoke:games": "node scripts/games-smoke.mjs"
   },
   "devDependencies": {

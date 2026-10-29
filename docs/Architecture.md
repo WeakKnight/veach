@@ -2,12 +2,17 @@
 
 ## Source layout
 
+Runtime debug commands live in `src/debug/ConsoleRegistry.ts` and `RendererConsole.ts`.
+They expose typed `r.*` bindings without DOM side effects. The explicitly mounted
+`src/view/DebugConsole.ts` owns the console overlay and input capture; the viewer and
+game examples attach it. See [Console.md](Console.md) for lifecycle and settings semantics.
+
 Persistent host integration lives in `src/scene/RenderScene.ts`, `src/render/HostGpuScene.ts`,
 `StorageArena.ts`, `src/material/HostMaterial.ts`, and `src/render/vt/HostTextureSystem.ts`.
 `src/three/` is a separate optional package entry; the core has no Three.js imports.
 Transactions prepare before publishing dirty GPU regions. BLAS are shared per geometry group;
 the TLAS uses sparse instance slots and its node base is `FrameUniforms.envInfo.z` (the former
-reserved word). Frame uniforms are 240 bytes (including primary visibility metadata) and the eight-storage-buffer limit is unchanged.
+reserved word). Frame uniforms are 304 bytes (including primary visibility, SHARC and TAA metadata) and the eight-storage-buffer limit is unchanged.
 Host material IDs are 32-byte header addresses rather than dense indices. Host rendering resets
 the current frame sample counter each call, while changing the seed using the host frame ID.
 The static viewer remains progressive. See [HostIntegration.md](HostIntegration.md).
@@ -18,9 +23,27 @@ accumulation. Full material/traversal pipelines are prepared on scene loading, w
 capacity selected from compiled materials. Capacity zero omits the SVM stack/opcode
 implementations when every compiled surface/opacity/emission program is constant-only;
 other capacities remain 1/2/4/8/16. Wavefront selection before geometry arrives is deferred;
-scene loading prepares its stages alongside the reference kernel. Geometry-free
+scene loading prepares only the active wavefront dispatch choices. The reference kernel
+is compiled on demand when selecting megakernel or a debug view. Internal wavefront mode
+changes likewise prepare missing entries before dispatch, preserving the last presented
+frame during compilation. Tail, Direct, sorting and alternative compaction pipelines are
+not part of default warmup; compiled entries are reused across configurations. Geometry-free
 scenes allocate only the accumulation image prefix, without wavefront scratch.
+`RendererCreateOptions.onSceneProgress` reports the first commit of each host scene, including
+texture/material preparation, geometry and actual scene pipeline compilation. The game maps
+base renderer creation to 0–25% and scene preparation to 25–100%; the empty-scene `create()`
+completion no longer makes its loading bar appear finished while real shaders compile.
 The default integrator is wavefront with adaptive compaction and unified shading.
+Optional [SHARC-style radiance caching](Sharc.md) uses the same wavefront path slots.
+The shared accumulation buffer tail contains cache cells and sparse update records before
+the visibility scratch region; both reservations reduce tile capacity. Frame offsets
+240/256/272 contain SHARC addresses, voxel parameters and history controls. Maintenance
+passes bind the same buffer as atomic uints, without adding a ninth storage binding.
+When progressive accumulation is off, [TAA](TemporalAA.md) runs before exposure. Primary
+hit distance and numeric instance slot + 1 occupy the accumulation albedo/normal w words
+while TAA is active. Its separate motion/resolve layout uses seven storage buffers, including
+previous instance transforms and explicit motion vectors, and adds no storage binding to the path shading stages.
+The final frame-uniform group at byte 288 stores TAA jitter, guide enablement and motion visualization.
 A scene-derived opcode mask specializes the material interpreter by default using
 two pipeline constants. Pipeline caches include the mask as well as stack capacity;
 the zero-stack module omits these constants. The scene mask includes all three programs,
@@ -118,7 +141,7 @@ types and documentation; preserve existing exports unless making an intentional 
 
 `shaders/Scene/SceneTypes.slang` and `src/render/GpuLayout.ts` must match byte for byte. Every
 struct is built from 16-byte groups, so std430 and std140 agree. Sizes: Instance 128, Vertex 64,
-EmissiveTriangle 128, FrameUniforms 240. Materials are bytecode in `gMaterialData`, not a struct
+EmissiveTriangle 128, FrameUniforms 304. Materials are bytecode in `gMaterialData`, not a struct
 (see [MaterialSystem.md](MaterialSystem.md)).
 
 ## Bindings

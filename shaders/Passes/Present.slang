@@ -130,6 +130,7 @@ float4 fsMain(VSOutput input) : SV_Target
 {
 	uint2 pixel = min(uint2(input.position.xy), gFrame.frame.xy - 1u);
 	float3 color = gAccum[(pixel.y * gFrame.frame.x + pixel.x) * 3u].rgb;
+	if (gFrame.temporal.z != 0.0 && gFrame.temporal.w != 0.0) return float4(color, 1.0);
 	if (gFrame.settings.y == DEBUG_NONE)
 	{
 		// the accumulation holds radiance * pre-exposure

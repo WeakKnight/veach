@@ -29,9 +29,11 @@ full pair-count capacity.
 Wavefront capacity calculations subtract this reservation before choosing tile capacity.
 Insufficient scratch budget disables raster visibility. No ninth storage binding is added.
 
-Frame uniforms are 240 bytes. The last uint4 is the scratch word offset, pair-list word
+Frame uniforms are 304 bytes. The uint4 at byte 224 is the scratch word offset, pair-list word
 offset, pair count and instance slot bound (not the active instance count). Flag 16
-selects the shared camera jitter. Wavefront group 1 binding 3 samples the `rg32uint`
+selects the shared camera jitter. With TAA active, the frame's Halton jitter overrides the random shared
+jitter in both raster projection and camera rays; samples within that frame share this jitter.
+Wavefront group 1 binding 3 samples the `rg32uint`
 visibility texture; inactive modes bind a 1x1 dummy. Independent cull/raster layouts use
 the existing frame, instance, vertex, index and accumulation buffers. The existing
 indirect buffer grows from 144 to 176 bytes; the last two records hold raster draw and
