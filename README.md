@@ -52,6 +52,8 @@ Both use procedural geometry, Three.js simulation and Veach rendering.
 Press `~` for the [rendering console](docs/Console.md): `r.SHARC.Enabled 0`,
 `r.PathTracing.MaxBounces 4`, `r.Exposure.Bias 1`, `help`; Tab completes commands.
 The console pauses game time while leaving the rendered view live.
+Press **Ctrl + Shift + ,** for a single-frame [GPU timing breakdown](docs/GPUProfiling.md),
+including per-bounce costs and a hotspot list (requires optional WebGPU timestamp queries).
 Performance/Balanced/Quality select resolution and samples within the current frame. The games
 default to TAA without progressive cross-frame accumulation; OIDN is disabled. Use
 `r.TAA.Enabled 0` / `1` to compare, or `r.TAA.Stats` for history status.

@@ -107,6 +107,10 @@ export function createRendererConsole(renderer: Renderer, options: RendererConso
 	command('r.Accumulation.Reset', 'Restart image sampling.', () => { renderer.resetAccumulation(); return 'Accumulation reset'; });
 	command('r.TAA.Reset', 'Discard temporal history, for example after a camera cut.', () => { renderer.resetTaa(); return 'TAA history reset'; });
 	command('r.TAA.Stats', 'Actual TAA mode, history frames, reset reason and memory.', () => renderer.taaStats);
+	command('r.ProfileGPU.Capture', 'Capture GPU pass timings on the next rendered frame. Ctrl+Shift+, opens the panel.', () => {
+		renderer.gpuProfiler.capture(); return renderer.gpuProfiler.status;
+	});
+	command('r.ProfileGPU.Stats', 'Last GPU timing capture and capture status.', () => ({ status: renderer.gpuProfiler.status, error: renderer.gpuProfiler.error, report: renderer.gpuProfiler.report }));
 	command('r.Renderer.Stats', 'Renderer, scene, streaming and denoising status.', () => ({ samples: renderer.samples, scene: renderer.sceneStats, textures: renderer.virtualTextureStats, exposure: renderer.exposureStats, denoising: renderer.denoising, sharc: renderer.sharcStats }));
 	return registry;
 }

@@ -22,6 +22,7 @@ export { RenderScene, SceneUpdate, type GeometryHandle, type TextureHandle, type
 export type { HostGpuUpdateStats } from './render/HostGpuScene';
 export { defaultSharcSettings, type SharcSettings, type SharcStats } from './render/SharcCache';
 export type { TaaStats } from './render/TemporalAA';
+export { GpuProfiler, type GpuProfileReport, type GpuProfileNode, type GpuProfileStatus } from './render/GpuProfiler';
 export { ConsoleRegistry, type ConsoleEntry, type ConsoleResult, type ConsoleExecutor } from './debug/ConsoleRegistry';
 export { createRendererConsole, type RendererConsoleOptions } from './debug/RendererConsole';
 export { AutoExposureMethod, LuminanceMethod, exponentialAdaptationM, histogramLogMin, luminanceWeights, type ExposureStats } from './render/AutoExposure';

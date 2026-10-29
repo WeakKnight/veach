@@ -27,6 +27,7 @@ export class AtmosphereBaker {
 	constructor(
 		private readonly device: GPUDevice,
 		compiler: PipelineCompiler,
+		private readonly profiler?: import('./GpuProfiler').GpuProfiler,
 	) {
 		const [envW, envH] = SKY_ENVIRONMENT_SIZE;
 		this.environment = Environment.createStorage(device, envW, envH);
@@ -102,7 +103,7 @@ export class AtmosphereBaker {
 	}
 
 	private submit(passes: Pass[], label: string): void {
-		const encoder = this.device.createCommandEncoder({ label });
+		const encoder = this.profiler ? this.profiler.createCommandEncoder({ label }) : this.device.createCommandEncoder({ label });
 		const pass = encoder.beginComputePass({ label });
 		for (const p of passes) {
 			pass.setPipeline(p.pipeline!);

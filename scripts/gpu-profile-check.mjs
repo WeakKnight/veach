@@ -1,0 +1,40 @@
+// One production scene, two scoped captures, real keyboard input and timestamp readback.
+import puppeteer from 'puppeteer-core';
+import assert from 'node:assert/strict';
+import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
+const out = '.tools/gpu-profiler'; mkdirSync(out, { recursive: true });
+const executablePath = [process.env.CHROME_PATH, 'C:/Program Files/Google/Chrome/Application/chrome.exe'].find(p => p && existsSync(p));
+const browser = await puppeteer.launch({ executablePath, headless: true, protocolTimeout: 180000, args: ['--enable-unsafe-webgpu', '--ignore-gpu-blocklist', '--no-sandbox'] });
+const errors = [];
+try {
+	const page = await browser.newPage(); await page.setViewport({ width: 1200, height: 800 });
+	page.on('pageerror', e => errors.push(String(e))); page.on('console', m => { if (m.type() === 'error') errors.push(m.text()); });
+	await page.goto('http://127.0.0.1:4177/?game=aim');
+	await page.waitForFunction(() => window.__games?.ready && window.__games.frame >= 6, { timeout: 180000 });
+	await page.click('#start');
+	const before = await page.evaluate(() => ({ history: window.__games.renderer.taaStats.historyFrames, supported: window.__games.renderer.gpuProfiler.supported, report: window.__games.renderer.gpuProfiler.report }));
+	assert(before.supported, 'Test machine must expose timestamp-query'); assert.equal(before.report, null);
+	await page.keyboard.down('Control'); await page.keyboard.down('Shift'); await page.keyboard.press('Comma'); await page.keyboard.up('Shift'); await page.keyboard.up('Control');
+	await page.waitForFunction(() => ['ready', 'error'].includes(window.__games.renderer.gpuProfiler.status), { timeout: 30000 });
+	const read = () => page.evaluate(() => ({ status: window.__games.renderer.gpuProfiler.status, error: window.__games.renderer.gpuProfiler.error, report: window.__games.renderer.gpuProfiler.report, open: window.__games.gpuProfilerPanel.isOpen, history: window.__games.renderer.taaStats.historyFrames }));
+	const first = await read(); assert.equal(first.status, 'ready', first.error); assert(first.open && first.history > before.history);
+	assert(first.report.totalMs > 0 && first.report.spanMs > 0 && first.report.passes.length > 10);
+	assert.equal(first.report.dropped, 0); assert.equal(first.report.invalid, 0);
+	assert(first.report.passes.some(p => p.path.includes('Wavefront')));
+	assert(first.report.passes.some(p => p.path.includes('taa') && p.path.includes('motion')));
+	assert(first.report.passes.some(p => p.path.includes('sharc')));
+	const sum = first.report.passes.reduce((s, p) => s + p.ms, 0); assert(Math.abs(sum - first.report.totalMs) < 1e-6);
+	await page.screenshot({ path: `${out}/panel.png` });
+	await page.keyboard.press('Escape');
+	const at = await page.evaluate(() => { window.__games.renderer.settings.samplesPerFrame = 2; return window.__games.frame; });
+	await page.waitForFunction(f => window.__games.frame > f + 3, {}, at);
+	assert.equal((await read()).report.id, first.report.id, 'Closed panel must not capture continuously');
+	const result = await page.evaluate(() => window.__games.debugConsole.registry.execute('r.ProfileGPU.Capture'));
+	assert(result.ok);
+	await page.waitForFunction(id => window.__games.renderer.gpuProfiler.report?.id > id, { timeout: 30000 }, first.report.id);
+	const second = await read(); assert.equal(second.report.samples, 2); assert.equal(second.report.invalid, 0);
+	assert(second.report.passes.some(p => p.path[0] === 'Sample 2')); assert(second.history > first.history);
+	assert.deepEqual(errors, []);
+	writeFileSync(`${out}/report.json`, JSON.stringify({ first, second, errors }, null, 2));
+	console.log(JSON.stringify({ passes: [first.report.passes.length, second.report.passes.length], totalMs: [first.report.totalMs, second.report.totalMs], errors }));
+} finally { await browser.close(); }

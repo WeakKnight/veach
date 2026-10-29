@@ -11,6 +11,7 @@ import type { BlendScene } from '../loaders/blend/BlendLoader';
 import type { SceneDesc } from '../scene/Scene';
 import { createRendererConsole } from '../debug/RendererConsole';
 import { DebugConsole } from '../view/DebugConsole';
+import { GpuProfilerPanel } from '../view/GpuProfilerPanel';
 
 const canvas = document.getElementById('viewport') as HTMLCanvasElement;
 const overlay = document.getElementById('overlay')!;
@@ -240,11 +241,12 @@ async function main(): Promise<void> {
 	});
 
 	renderer.start();
+	const gpuProfiler = new GpuProfilerPanel(renderer.gpuProfiler);
 	const debugConsole = new DebugConsole(createRendererConsole(renderer, { execute: async action => {
 		renderer.stop();
 		try { return await action(); } finally { renderer.start(); }
 	} }));
-	window.addEventListener('pagehide', () => debugConsole.dispose(), { once: true });
+	window.addEventListener('pagehide', () => { gpuProfiler.dispose(); debugConsole.dispose(); }, { once: true });
 }
 
 main().catch(showError);

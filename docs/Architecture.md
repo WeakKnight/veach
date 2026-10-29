@@ -6,6 +6,9 @@ Runtime debug commands live in `src/debug/ConsoleRegistry.ts` and `RendererConso
 They expose typed `r.*` bindings without DOM side effects. The explicitly mounted
 `src/view/DebugConsole.ts` owns the console overlay and input capture; the viewer and
 game examples attach it. See [Console.md](Console.md) for lifecycle and settings semantics.
+`src/render/GpuProfiler.ts` adds on-demand GPU timestamp captures around existing passes;
+`src/view/GpuProfilerPanel.ts` displays scoped totals and hotspots on Ctrl+Shift+Comma.
+See [GPUProfiling.md](GPUProfiling.md) for accounting, limits and Unreal references.
 
 Persistent host integration lives in `src/scene/RenderScene.ts`, `src/render/HostGpuScene.ts`,
 `StorageArena.ts`, `src/material/HostMaterial.ts`, and `src/render/vt/HostTextureSystem.ts`.

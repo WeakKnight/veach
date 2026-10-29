@@ -1,6 +1,7 @@
 import type { PrimaryVisibilityMode, PrimaryVisibilityStats } from './PrimaryVisibility';
 import type { SharcSettings, SharcStats } from './SharcCache';
 import { TemporalAA, type TaaStats } from './TemporalAA';
+import { GpuProfiler } from './GpuProfiler';
 // Public entry point: owns the WebGPU device, the scene and the progressive render loop.
 import { BuildQuality, TinyBVH } from '../accel/TinyBVH';
 import type { HDRImage } from '../loaders/HDRLoader';
@@ -253,6 +254,7 @@ export class Renderer {
 	private frameMs = 0;
 	private readonly uniformData = new ArrayBuffer(FRAME_UNIFORM_BYTES);
 	private readonly taa: TemporalAA;
+	readonly gpuProfiler: GpuProfiler;
 	private onSceneProgress?: (progress: InitProgress) => void;
 	private taaActive = false;
 	private temporalFrame = 0;
@@ -267,7 +269,8 @@ export class Renderer {
 		private readonly bvh: TinyBVH,
 		private readonly compiler: PipelineCompiler,
 	) {
-		this.sky = new AtmosphereBaker(device, compiler);
+		this.gpuProfiler = new GpuProfiler(device);
+		this.sky = new AtmosphereBaker(device, compiler, this.gpuProfiler);
 		this.taa = new TemporalAA(device, compiler);
 		if (typeof ResizeObserver !== 'undefined') {
 			this.resizeObserver = new ResizeObserver(() => this.resize());
@@ -290,7 +293,7 @@ export class Renderer {
 		}
 		const device = await adapter.requestDevice({
 			label: 'Veach',
-			requiredFeatures: (['shader-f16', 'subgroups'] as GPUFeatureName[]).filter(feature => adapter.features.has(feature)),
+			requiredFeatures: (['shader-f16', 'subgroups', 'timestamp-query'] as GPUFeatureName[]).filter(feature => adapter.features.has(feature)),
 			requiredLimits: {
 				maxStorageBufferBindingSize: adapter.limits.maxStorageBufferBindingSize,
 				maxBufferSize: adapter.limits.maxBufferSize,
@@ -823,6 +826,11 @@ export class Renderer {
 
 	// Traces samplesPerFrame samples (unless converged) and presents the accumulation.
 	renderFrame(frame?: HostFrame): void {
+		try { this.renderFrameImpl(frame); }
+		catch (error) { this.gpuProfiler.abort(error); throw error; }
+	}
+
+	private renderFrameImpl(frame?: HostFrame): void {
 		if (this.destroyed) return;
 		if (frame) this.useHostFrame(frame);
 		else if (this.activeHost) throw new Error('Host rendering requires renderFrame({ scene, view, frameIndex })');
@@ -832,7 +840,8 @@ export class Renderer {
 			return;
 		}
 		if (!this.tracer.framePipelinesReady(this.settings.debugMode)) return;
-		this.updateSky();
+		this.gpuProfiler.beginFrame({ width: this.tracer.width, height: this.tracer.height, samples: 0, integrator: this.integrator });
+		this.gpuProfiler.scope('Sky', () => this.updateSky());
 		this.updateStreaming();
 		const s = this.settings, progressive = !frame && s.accumulation;
 		if (this.progressiveMode !== progressive) { this.resetAccumulation(); this.taa.reset('mode-change'); this.progressiveMode = progressive; }
@@ -850,34 +859,37 @@ export class Renderer {
 		}
 		const samples = this.settings.debugMode !== DebugMode.None ? 1 : Math.max(1, frame?.samplesPerPixel ?? this.settings.samplesPerFrame);
 		if ((!this.converged || this.settings.debugMode !== DebugMode.None) && this.denoiseAttempt) this.invalidateDenoising();
+		let tracedSamples = 0;
 		for (let i = 0; i < samples && !this.converged; i++) {
 			this.writeUniforms(this.vt?.nextFeedbackJitter() ?? 0, true);
-			const encoder = this.device.createCommandEncoder({ label: 'trace' });
-			this.tracer.encodeTrace(encoder, this.settings.maxBounces, this.settings.debugMode);
+			const encoder = this.gpuProfiler.createCommandEncoder({ label: 'trace' });
+			this.gpuProfiler.scope(`Sample ${i + 1}`, () => this.tracer.encodeTrace(encoder, this.settings.maxBounces, this.settings.debugMode));
 			const feedback = this.tracer.feedback;
 			if (this.vt && feedback && (i === samples - 1 || (this.settings.maxSamples > 0 && this.frameIndex + 1 >= this.settings.maxSamples))) {
 				this.vt.recordFeedbackReadback(encoder, feedback);
 			}
 			this.device.queue.submit([encoder.finish()]);
 			this.frameIndex++;
+			tracedSamples++;
 		}
 		this.vt?.afterSubmit();
 		// present reads the tonemapping settings from the uniforms; frameIndex there is unused
 		this.writeUniforms();
-		const encoder = this.device.createCommandEncoder({ label: 'present' });
-		if (this.taaActive) this.tracer.setPresentationBuffer(this.taa.encode(encoder, this.tracer.uniformBuffer, this.tracer.accumulation!, this.scene, s.taaNewFrameWeight, s.taaColorClampingFactor, s.taaMaximumRadiance));
+		const encoder = this.gpuProfiler.createCommandEncoder({ label: 'present' });
+		if (this.taaActive) this.gpuProfiler.scope('Temporal AA', () => this.tracer.setPresentationBuffer(this.taa.encode(encoder, this.tracer.uniformBuffer, this.tracer.accumulation!, this.scene!, s.taaNewFrameWeight, s.taaColorClampingFactor, s.taaMaximumRadiance)));
 		const now = performance.now();
 		const deltaTime = this.lastExposureTime ? Math.min((now - this.lastExposureTime) / 1000, 1) : 0;
 		this.lastExposureTime = now;
 		// debug views are not exposed; keep the adapted state for when they are left
 		const exposed = this.settings.debugMode === DebugMode.None && !(this.taaActive && s.taaMotionVectorDebug);
 		if (exposed) {
-			this.encodeEyeAdaptation(encoder, deltaTime);
+			this.gpuProfiler.scope('Exposure', () => this.encodeEyeAdaptation(encoder, deltaTime));
 		}
 		// after eye adaptation, which provides its base exposure (Unreal's AddLocalExposureFusionPass)
-		this.encodeLocalExposure(encoder, exposed);
-		this.tracer.encodePresent(encoder, this.context.getCurrentTexture().createView());
+		this.gpuProfiler.scope('Local exposure', () => this.encodeLocalExposure(encoder, exposed));
+		this.gpuProfiler.scope('Presentation', () => this.tracer.encodePresent(encoder, this.context.getCurrentTexture().createView()));
 		this.device.queue.submit([encoder.finish()]);
+		this.gpuProfiler.endFrame(tracedSamples);
 		if (exposed) {
 			this.tracer.autoExposure.afterSubmit();
 		}
@@ -1054,6 +1066,7 @@ export class Renderer {
 		this.hdrEnvironment?.destroy();
 		this.sky.destroy();
 		this.taa.destroy();
+		this.gpuProfiler.destroy();
 		this.tracer.destroy();
 		this.device.destroy();
 	}

@@ -31,6 +31,8 @@ r.TAA.Enabled 1
 r.TAA.NewFrameWeight 0.1
 r.TAA.ColorClampingFactor 2
 r.TAA.Stats
+r.ProfileGPU.Capture
+r.ProfileGPU.Stats
 r.TAA.MotionVectors 1
 r.TAA.MotionVectors 0
 r.Exposure.Method Manual
@@ -45,6 +47,9 @@ r.Wavefront.BatchedShadows 1
 list SHARC
 r.SHARC.Capacity ?
 ```
+
+Ctrl+Shift+Comma opens the [GPU profiler](GPUProfiling.md) and captures a single frame.
+It displays real GPU timestamp timings when supported; it does not reset rendering history.
 
 All `RenderSettings` fields have an explicit binding in `src/debug/RendererConsole.ts`;
 the descriptor table is checked against `keyof RenderSettings`. Groups include PathTracing,

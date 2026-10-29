@@ -6,5 +6,6 @@ import { defineVeachView } from './VeachViewElement';
 export { VeachViewElement, defineVeachView, type VeachViewEventMap, type VeachViewProgress } from './VeachViewElement';
 export { attachFileDrop, loadDroppedFiles, type DroppedFiles, type FileDropHandlers } from './fileDrop';
 export { DebugConsole, type DebugConsoleOptions } from './DebugConsole';
+export { GpuProfilerPanel } from './GpuProfilerPanel';
 
 defineVeachView();

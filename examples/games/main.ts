@@ -3,6 +3,7 @@ import { Renderer, LocalExposureMethod } from '../../src/render/Renderer';
 import { ThreeAdapter } from '../../src/three';
 import { createRendererConsole } from '../../src/debug/RendererConsole';
 import { DebugConsole } from '../../src/view/DebugConsole';
+import { GpuProfilerPanel } from '../../src/view/GpuProfilerPanel';
 import './style.css';
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
@@ -41,6 +42,7 @@ paintTexture(0);
 const striped = pbr(0xffffff); striped.map = texture;
 let renderer: Renderer, adapter: ThreeAdapter;
 let debugConsole: DebugConsole | undefined, consoleBusy = false;
+let gpuProfilerPanel: GpuProfilerPanel | undefined;
 let sceneSync: Promise<unknown> = Promise.resolve();
 let frame = 0, ready = false, playing = false, finished = false, closed = false, lastTime = performance.now(), toastUntil = 0;
 const keys = new Set<string>();
@@ -125,7 +127,7 @@ function showCard(tag: string, title: string, copy: string, button: string) {
 	$('overlay').classList.remove('hidden'); $('card-tag').textContent = tag; $('card-title').textContent = title; $('card-copy').textContent = copy; $('start').textContent = button;
 }
 function begin() {
-	if (!ready || debugConsole?.isOpen) return;
+	if (!ready || debugConsole?.isOpen || gpuProfilerPanel?.isOpen) return;
 	if (finished) restart();
 	playing = true; lastTime = performance.now(); $('overlay').classList.add('hidden'); document.body.classList.add('playing'); $('pause').textContent = 'PAUSE';
 }
@@ -154,7 +156,7 @@ function finish() {
 $('start').onclick = begin; $('pause').onclick = pause; $('reset').onclick = restart;
 $<HTMLSelectElement>('quality').onchange = event => { if (renderer) { renderer.settings.resolutionScale = Number((event.target as HTMLSelectElement).value); renderer.settings.samplesPerFrame = renderer.settings.resolutionScale === 1 ? 4 : renderer.settings.resolutionScale === 0.75 ? 2 : 1; } };
 window.addEventListener('keydown', e => {
-	if (debugConsole?.isOpen || consoleBusy || (e.target instanceof HTMLElement && e.target.matches('input,textarea,select,[contenteditable]'))) return;
+	if (debugConsole?.isOpen || gpuProfilerPanel?.isOpen || consoleBusy || (e.target instanceof HTMLElement && e.target.matches('input,textarea,select,[contenteditable]'))) return;
 	if (['Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.code)) e.preventDefault();
 	if (e.code === 'Space' && !e.repeat) pause();
 	if (e.code === 'KeyR' && !e.repeat && ready) { if (mode === 'race' && playing) { resetCar(); checkpoint = 0; lapStart = elapsed; checkpointMarkers.forEach((m, i) => { m.material = i === 0 ? green : orange; }); toast('BACK ON TRACK'); } else restart(); }
@@ -167,7 +169,7 @@ canvas.addEventListener('pointermove', e => {
 	$('crosshair').style.left = `${e.clientX}px`; $('crosshair').style.top = `${e.clientY}px`;
 });
 canvas.addEventListener('pointerdown', e => {
-	if (mode !== 'aim' || !playing || debugConsole?.isOpen || consoleBusy || e.button !== 0) return;
+	if (mode !== 'aim' || !playing || debugConsole?.isOpen || gpuProfilerPanel?.isOpen || consoleBusy || e.button !== 0) return;
 	const rect = canvas.getBoundingClientRect(); pointer.set((e.clientX - rect.left) / rect.width * 2 - 1, 1 - (e.clientY - rect.top) / rect.height * 2);
 	camera.updateMatrixWorld(); scene.updateMatrixWorld(); raycaster.setFromCamera(pointer, camera);
 	shots++; const hit = raycaster.intersectObjects(targets.map(t => t.mesh), false)[0];
@@ -251,6 +253,7 @@ async function init() {
 	renderer.settings.accumulation = false;
 	renderer.sun.elevation = 55; renderer.sun.azimuth = 20;
 	adapter = new ThreeAdapter(renderer); await adapter.sync(scene, camera);
+	gpuProfilerPanel = new GpuProfilerPanel(renderer.gpuProfiler, { onOpenChange: () => keys.clear() });
 	debugConsole = new DebugConsole(createRendererConsole(renderer, {
 		cameraFov: { get: () => camera.fov, set: degrees => { camera.fov = degrees; camera.updateProjectionMatrix(); } },
 		execute: async action => {
@@ -267,10 +270,10 @@ async function init() {
 		get stats() { return { resources: adapter.scene.stats, gpu: renderer.hostSceneStats(adapter.scene), revision: adapter.scene.revision }; },
 		targets: () => targets.map(t => { const p = t.mesh.position.clone().project(camera); return { x: (p.x + 1) / 2 * canvas.clientWidth, y: (1 - p.y) / 2 * canvas.clientHeight }; }),
 		// Explicit test surface: real host objects, no alternate rendering path.
-		scene, camera, renderer, adapter, texture, car, debugConsole,
+		scene, camera, renderer, adapter, texture, car, debugConsole, gpuProfilerPanel,
 	} });
 	lastTime = performance.now(); requestAnimationFrame(loop);
 }
-window.addEventListener('pagehide', () => { closed = true; debugConsole?.dispose(); adapter?.dispose(); renderer?.destroy(); for (const g of geometries) g.dispose(); for (const m of materials) m.dispose(); texture.dispose(); });
+window.addEventListener('pagehide', () => { closed = true; gpuProfilerPanel?.dispose(); debugConsole?.dispose(); adapter?.dispose(); renderer?.destroy(); for (const g of geometries) g.dispose(); for (const m of materials) m.dispose(); texture.dispose(); });
 window.addEventListener('pageshow', event => { if (event.persisted) location.reload(); });
 init().catch(showError);

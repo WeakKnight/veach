@@ -22,6 +22,13 @@ The viewer and games expose rendering settings through a `~` console. Embedders 
 `renderer.sharcSettings`, `separateLight` and `batchedShadows` expose current configurations
 for queries. See [Console.md](Console.md) for command names and host integration.
 
+## GPU profiling
+
+GPU timing is available through `renderer.gpuProfiler`: `capture()` queues a single frame,
+`report` returns the latest hierarchical GPU pass timings, and `status` reports asynchronous
+progress or unsupported hardware. The viewer/game UI binds Ctrl+Shift+Comma. See
+[GPUProfiling.md](GPUProfiling.md) for scoped instrumentation, timing definitions and limits.
+
 ## Temporal anti-aliasing
 
 `settings.taaEnabled` defaults to true. TAA runs for host frames, and for the static viewer
