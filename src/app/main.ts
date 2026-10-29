@@ -74,6 +74,8 @@ async function main(): Promise<void> {
 	// Empty-scene selection is cheap; scene loading prepares the required pipelines together.
 	const integrator = params.get('integrator');
 	if (integrator === 'wavefront' || integrator === 'megakernel') await renderer.setIntegrator(integrator);
+	const primaryVisibility = params.get('primaryVisibility');
+	if (primaryVisibility === 'auto' || primaryVisibility === 'ray-traced' || primaryVisibility === 'rasterized') await renderer.setPrimaryVisibility(primaryVisibility);
 	new OrbitController(renderer.camera, canvas, () => renderer.resetAccumulation());
 
 	const reset = () => renderer.resetAccumulation();

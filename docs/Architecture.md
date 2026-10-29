@@ -7,7 +7,7 @@ Persistent host integration lives in `src/scene/RenderScene.ts`, `src/render/Hos
 `src/three/` is a separate optional package entry; the core has no Three.js imports.
 Transactions prepare before publishing dirty GPU regions. BLAS are shared per geometry group;
 the TLAS uses sparse instance slots and its node base is `FrameUniforms.envInfo.z` (the former
-reserved word). Frame uniforms remain 224 bytes and the eight-storage-buffer limit is unchanged.
+reserved word). Frame uniforms are 240 bytes (including primary visibility metadata) and the eight-storage-buffer limit is unchanged.
 Host material IDs are 32-byte header addresses rather than dense indices. Host rendering resets
 the current frame sample counter each call, while changing the seed using the host frame ID.
 The static viewer remains progressive. See [HostIntegration.md](HostIntegration.md).
@@ -118,10 +118,14 @@ types and documentation; preserve existing exports unless making an intentional 
 
 `shaders/Scene/SceneTypes.slang` and `src/render/GpuLayout.ts` must match byte for byte. Every
 struct is built from 16-byte groups, so std430 and std140 agree. Sizes: Instance 128, Vertex 64,
-EmissiveTriangle 128, FrameUniforms 224. Materials are bytecode in `gMaterialData`, not a struct
+EmissiveTriangle 128, FrameUniforms 240. Materials are bytecode in `gMaterialData`, not a struct
 (see [MaterialSystem.md](MaterialSystem.md)).
 
 ## Bindings
+
+Optional GPU-driven raster camera visibility is documented in [PrimaryVisibility.md](PrimaryVisibility.md).
+Its cluster metadata shares `gIndices`, scratch shares the reserved `gAccum` tail, and
+wavefront group 1 binding 3 is a sampled visibility texture. Storage buffer count remains eight.
 
 The experimental wavefront integrator is described in [Wavefront.md](Wavefront.md).
 It appends bounded tile work storage to the accumulation buffer (group 1 binding 0),

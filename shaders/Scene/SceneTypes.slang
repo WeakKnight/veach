@@ -104,6 +104,7 @@ static const uint FRAME_FLAG_ENVIRONMENT = 1u;
 static const uint FRAME_FLAG_SUN = 2u;
 static const uint FRAME_FLAG_ENV_IMPORTANCE = 4u;
 static const uint FRAME_FLAG_ENV_VISIBLE = 8u;
+static const uint FRAME_FLAG_SHARED_JITTER = 16u;
 
 static const uint DEBUG_NONE = 0u;
 static const uint DEBUG_ALBEDO = 1u;
@@ -139,4 +140,5 @@ struct FrameUniforms
 
 	uint4 vtInfo;	 // physical pages per row, page table width, feedback jitter (x | y << 16), feedback shift
 	float4 vtParams; // 1 / physical size, pixel spread angle (radians), mip bias, unused
+	uint4 primaryVisibility; // scratch word offset, cluster-instance pairs offset/count, instance slot bound
 };

@@ -1,0 +1,635 @@
+{
+  "stoppedAtUserRequest": true,
+  "rolloutGateAssessed": false,
+  "completedScenes": [
+    "classroom",
+    "breakfast"
+  ],
+  "rows": [
+    {
+      "scene": "classroom",
+      "width": 640,
+      "height": 360,
+      "variants": {
+        "default": {
+          "gpuMs": 10.356736,
+          "primaryMs": 0.2304,
+          "primaryKernelMs": 0.2304,
+          "cpuMs": 0.3999999761581421,
+          "bufferBytes": 109992208,
+          "stageMsPerInvocation": {
+            "wavefront.Initialize": 0.024576,
+            "wavefront.Intersect": 0.478208,
+            "wavefront.CompactIntersect": 0.017408,
+            "wavefront.Shade": 0.137056,
+            "wavefront.CompactShade": 0.045056,
+            "wavefront.Shadow": 0.355072,
+            "wavefront.Finalize": 0.03072
+          },
+          "lastSampleStats": {
+            "requested": "ray-traced",
+            "actual": "ray-traced",
+            "reason": "requested-ray-tracing",
+            "drawCalls": 0,
+            "clusterInstances": 1653,
+            "scratchBytes": 0,
+            "textureBytes": 0
+          }
+        },
+        "shared-reference": {
+          "gpuMs": 10.034176,
+          "primaryMs": 0.2272,
+          "primaryKernelMs": 0.2272,
+          "cpuMs": 0.30000001192092896,
+          "bufferBytes": 109992208,
+          "stageMsPerInvocation": {
+            "wavefront.Initialize": 0.024576,
+            "wavefront.Intersect": 0.480256,
+            "wavefront.CompactIntersect": 0.017408,
+            "wavefront.Shade": 0.137216,
+            "wavefront.CompactShade": 0.045056,
+            "wavefront.Shadow": 0.35328,
+            "wavefront.Finalize": 0.03072
+          },
+          "lastSampleStats": {
+            "requested": "ray-traced",
+            "actual": "ray-traced",
+            "reason": "requested-ray-tracing",
+            "drawCalls": 0,
+            "clusterInstances": 1653,
+            "scratchBytes": 0,
+            "textureBytes": 0
+          }
+        },
+        "rasterized": {
+          "gpuMs": 9.938944,
+          "primaryMs": 0.152096,
+          "primaryKernelMs": 0.14287999999999998,
+          "cpuMs": 0.4000000059604645,
+          "bufferBytes": 110005504,
+          "stageMsPerInvocation": {
+            "visibility.cull": 0.004096,
+            "visibility.arguments": 0.001024,
+            "visibility.near": 0.059072,
+            "visibility.raster": 0.01536,
+            "wavefront.Initialize": 0.0256,
+            "wavefront.ResolvePrimaryVisibility": 0.011136,
+            "wavefront.CompactPrimaryFallback": 0.00512,
+            "wavefront.PrimaryFallbackArguments": 0.001024,
+            "wavefront.PrimaryTraceFallback": 0.002464,
+            "wavefront.PrimaryTraceFallbackSparse": 0.043008,
+            "wavefront.CompactIntersect": 0.017408,
+            "wavefront.Shade": 0.137216,
+            "wavefront.CompactShade": 0.043008,
+            "wavefront.Shadow": 0.356352,
+            "wavefront.Intersect": 0.515072,
+            "wavefront.Finalize": 0.03072
+          },
+          "lastSampleStats": {
+            "requested": "rasterized",
+            "actual": "rasterized",
+            "reason": null,
+            "drawCalls": 1,
+            "clusterInstances": 1653,
+            "scratchBytes": 13296,
+            "textureBytes": 2764800,
+            "sparseFallbackPixels": 115,
+            "usefulVertexSlots": 284424,
+            "paddingVertexSlots": 4920,
+            "numericalFallbackPixels": 115,
+            "visibleClusters": 1507,
+            "vertexSlots": 289344,
+            "nearClipFallback": false,
+            "fallbackPixels": 115,
+            "alphaFallbackPixels": 0
+          }
+        }
+      }
+    },
+    {
+      "scene": "classroom",
+      "width": 1280,
+      "height": 720,
+      "variants": {
+        "default": {
+          "gpuMs": 34.67776,
+          "primaryMs": 0.8819520000000001,
+          "primaryKernelMs": 0.8819520000000001,
+          "cpuMs": 0.699999988079071,
+          "bufferBytes": 154216720,
+          "stageMsPerInvocation": {
+            "wavefront.Initialize": 0.021504,
+            "wavefront.Intersect": 0.388096,
+            "wavefront.CompactIntersect": 0.018432,
+            "wavefront.Shade": 0.130976,
+            "wavefront.CompactShade": 0.036864,
+            "wavefront.Shadow": 0.283648,
+            "wavefront.Finalize": 0.029696
+          },
+          "lastSampleStats": {
+            "requested": "ray-traced",
+            "actual": "ray-traced",
+            "reason": "requested-ray-tracing",
+            "drawCalls": 0,
+            "clusterInstances": 1653,
+            "scratchBytes": 0,
+            "textureBytes": 0
+          }
+        },
+        "shared-reference": {
+          "gpuMs": 34.661376,
+          "primaryMs": 0.8784959999999999,
+          "primaryKernelMs": 0.8784959999999999,
+          "cpuMs": 0.7000000178813934,
+          "bufferBytes": 154216720,
+          "stageMsPerInvocation": {
+            "wavefront.Initialize": 0.021504,
+            "wavefront.Intersect": 0.379904,
+            "wavefront.CompactIntersect": 0.018432,
+            "wavefront.Shade": 0.130816,
+            "wavefront.CompactShade": 0.036864,
+            "wavefront.Shadow": 0.283168,
+            "wavefront.Finalize": 0.029696
+          },
+          "lastSampleStats": {
+            "requested": "ray-traced",
+            "actual": "ray-traced",
+            "reason": "requested-ray-tracing",
+            "drawCalls": 0,
+            "clusterInstances": 1653,
+            "scratchBytes": 0,
+            "textureBytes": 0
+          }
+        },
+        "rasterized": {
+          "gpuMs": 33.82272,
+          "primaryMs": 0.32201599999999997,
+          "primaryKernelMs": 0.30268799999999996,
+          "cpuMs": 0.7999999821186066,
+          "bufferBytes": 154230016,
+          "stageMsPerInvocation": {
+            "visibility.cull": 0.004096,
+            "visibility.arguments": 0.001024,
+            "visibility.near": 0.058368,
+            "visibility.raster": 0.024576,
+            "wavefront.Initialize": 0.02048,
+            "wavefront.ResolvePrimaryVisibility": 0.012192,
+            "wavefront.CompactPrimaryFallback": 0.00512,
+            "wavefront.PrimaryFallbackArguments": 0.001024,
+            "wavefront.PrimaryTraceFallback": 0.004096,
+            "wavefront.PrimaryTraceFallbackSparse": 0.031744,
+            "wavefront.CompactIntersect": 0.01536,
+            "wavefront.Shade": 0.129472,
+            "wavefront.CompactShade": 0.034816,
+            "wavefront.Shadow": 0.282112,
+            "wavefront.Intersect": 0.433152,
+            "wavefront.Finalize": 0.029696
+          },
+          "lastSampleStats": {
+            "requested": "rasterized",
+            "actual": "rasterized",
+            "reason": null,
+            "drawCalls": 1,
+            "clusterInstances": 1653,
+            "scratchBytes": 13296,
+            "textureBytes": 11059200,
+            "sparseFallbackPixels": 193,
+            "usefulVertexSlots": 284424,
+            "paddingVertexSlots": 4920,
+            "numericalFallbackPixels": 193,
+            "visibleClusters": 1507,
+            "vertexSlots": 289344,
+            "nearClipFallback": false,
+            "fallbackPixels": 193,
+            "alphaFallbackPixels": 0
+          }
+        }
+      }
+    },
+    {
+      "scene": "classroom",
+      "width": 1920,
+      "height": 1080,
+      "variants": {
+        "default": {
+          "gpuMs": 73.595904,
+          "primaryMs": 1.8688960000000001,
+          "primaryKernelMs": 1.8688960000000001,
+          "cpuMs": 1,
+          "bufferBytes": 209512720,
+          "stageMsPerInvocation": {
+            "wavefront.Initialize": 0.021504,
+            "wavefront.Intersect": 0.446464,
+            "wavefront.CompactIntersect": 0.019456,
+            "wavefront.Shade": 0.152576,
+            "wavefront.CompactShade": 0.0512,
+            "wavefront.Shadow": 0.3448,
+            "wavefront.Finalize": 0.03072
+          },
+          "lastSampleStats": {
+            "requested": "ray-traced",
+            "actual": "ray-traced",
+            "reason": "requested-ray-tracing",
+            "drawCalls": 0,
+            "clusterInstances": 1653,
+            "scratchBytes": 0,
+            "textureBytes": 0
+          }
+        },
+        "shared-reference": {
+          "gpuMs": 74.09664,
+          "primaryMs": 1.858656,
+          "primaryKernelMs": 1.858656,
+          "cpuMs": 0.5999999940395355,
+          "bufferBytes": 209512720,
+          "stageMsPerInvocation": {
+            "wavefront.Initialize": 0.021504,
+            "wavefront.Intersect": 0.447488,
+            "wavefront.CompactIntersect": 0.019456,
+            "wavefront.Shade": 0.152576,
+            "wavefront.CompactShade": 0.050176,
+            "wavefront.Shadow": 0.345568,
+            "wavefront.Finalize": 0.03072
+          },
+          "lastSampleStats": {
+            "requested": "ray-traced",
+            "actual": "ray-traced",
+            "reason": "requested-ray-tracing",
+            "drawCalls": 0,
+            "clusterInstances": 1653,
+            "scratchBytes": 0,
+            "textureBytes": 0
+          }
+        },
+        "rasterized": {
+          "gpuMs": 72.481792,
+          "primaryMs": 0.5784320000000001,
+          "primaryKernelMs": 0.5433600000000002,
+          "cpuMs": 0.7999999821186066,
+          "bufferBytes": 209526016,
+          "stageMsPerInvocation": {
+            "visibility.cull": 0.004096,
+            "visibility.arguments": 0.001024,
+            "visibility.near": 0.058368,
+            "visibility.raster": 0.041984,
+            "wavefront.Initialize": 0.021504,
+            "wavefront.ResolvePrimaryVisibility": 0.012896,
+            "wavefront.CompactPrimaryFallback": 0.00512,
+            "wavefront.PrimaryFallbackArguments": 0.002048,
+            "wavefront.PrimaryTraceFallback": 0.004096,
+            "wavefront.PrimaryTraceFallbackSparse": 0.03072,
+            "wavefront.CompactIntersect": 0.018432,
+            "wavefront.Shade": 0.149952,
+            "wavefront.CompactShade": 0.047104,
+            "wavefront.Shadow": 0.346112,
+            "wavefront.Intersect": 0.512,
+            "wavefront.Finalize": 0.029696
+          },
+          "lastSampleStats": {
+            "requested": "rasterized",
+            "actual": "rasterized",
+            "reason": null,
+            "drawCalls": 1,
+            "clusterInstances": 1653,
+            "scratchBytes": 13296,
+            "textureBytes": 24883200,
+            "sparseFallbackPixels": 281,
+            "usefulVertexSlots": 284424,
+            "paddingVertexSlots": 4920,
+            "numericalFallbackPixels": 281,
+            "visibleClusters": 1507,
+            "vertexSlots": 289344,
+            "nearClipFallback": false,
+            "fallbackPixels": 281,
+            "alphaFallbackPixels": 0
+          }
+        }
+      }
+    },
+    {
+      "scene": "breakfast",
+      "width": 640,
+      "height": 360,
+      "variants": {
+        "default": {
+          "gpuMs": 6.139904,
+          "primaryMs": 0.524064,
+          "primaryKernelMs": 0.524064,
+          "cpuMs": 0.29999998211860657,
+          "bufferBytes": 132217504,
+          "stageMsPerInvocation": {
+            "wavefront.Initialize": 0.02048,
+            "wavefront.Intersect": 0.407552,
+            "wavefront.CompactIntersect": 0.00512,
+            "wavefront.Shade": 0.032352,
+            "wavefront.CompactShade": 0.009216,
+            "wavefront.Shadow": 0.08944,
+            "wavefront.Finalize": 0.027648
+          },
+          "lastSampleStats": {
+            "requested": "ray-traced",
+            "actual": "ray-traced",
+            "reason": "requested-ray-tracing",
+            "drawCalls": 0,
+            "clusterInstances": 4236,
+            "scratchBytes": 0,
+            "textureBytes": 0
+          }
+        },
+        "shared-reference": {
+          "gpuMs": 6.146048,
+          "primaryMs": 0.515488,
+          "primaryKernelMs": 0.515488,
+          "cpuMs": 0.30000001192092896,
+          "bufferBytes": 132217504,
+          "stageMsPerInvocation": {
+            "wavefront.Initialize": 0.02048,
+            "wavefront.Intersect": 0.403456,
+            "wavefront.CompactIntersect": 0.00512,
+            "wavefront.Shade": 0.032384,
+            "wavefront.CompactShade": 0.009216,
+            "wavefront.Shadow": 0.093056,
+            "wavefront.Finalize": 0.027648
+          },
+          "lastSampleStats": {
+            "requested": "ray-traced",
+            "actual": "ray-traced",
+            "reason": "requested-ray-tracing",
+            "drawCalls": 0,
+            "clusterInstances": 4236,
+            "scratchBytes": 0,
+            "textureBytes": 0
+          }
+        },
+        "rasterized": {
+          "gpuMs": 5.817344,
+          "primaryMs": 0.197248,
+          "primaryKernelMs": 0.18828799999999998,
+          "cpuMs": 0.30000001192092896,
+          "bufferBytes": 132251456,
+          "stageMsPerInvocation": {
+            "visibility.cull": 0.003072,
+            "visibility.arguments": 0.001024,
+            "visibility.near": 0.014336,
+            "visibility.raster": 0.03072,
+            "wavefront.Initialize": 0.02048,
+            "wavefront.ResolvePrimaryVisibility": 0.01072,
+            "wavefront.CompactPrimaryFallback": 0.00512,
+            "wavefront.PrimaryFallbackArguments": 0.001024,
+            "wavefront.PrimaryTraceFallback": 0.002368,
+            "wavefront.PrimaryTraceFallbackSparse": 0.118784,
+            "wavefront.CompactIntersect": 0.00512,
+            "wavefront.Shade": 0.032096,
+            "wavefront.CompactShade": 0.009216,
+            "wavefront.Shadow": 0.091584,
+            "wavefront.Intersect": 0.388096,
+            "wavefront.Finalize": 0.027648
+          },
+          "lastSampleStats": {
+            "requested": "rasterized",
+            "actual": "rasterized",
+            "reason": null,
+            "drawCalls": 1,
+            "clusterInstances": 4236,
+            "scratchBytes": 33952,
+            "textureBytes": 2764800,
+            "sparseFallbackPixels": 108,
+            "usefulVertexSlots": 789702,
+            "paddingVertexSlots": 4410,
+            "numericalFallbackPixels": 108,
+            "visibleClusters": 4136,
+            "vertexSlots": 794112,
+            "nearClipFallback": false,
+            "fallbackPixels": 108,
+            "alphaFallbackPixels": 0
+          }
+        }
+      }
+    },
+    {
+      "scene": "breakfast",
+      "width": 1280,
+      "height": 720,
+      "variants": {
+        "default": {
+          "gpuMs": 20.99712,
+          "primaryMs": 1.1982400000000002,
+          "primaryKernelMs": 1.1982400000000002,
+          "cpuMs": 0.4000000059604645,
+          "bufferBytes": 176442016,
+          "stageMsPerInvocation": {
+            "wavefront.Initialize": 0.026624,
+            "wavefront.Intersect": 0.345088,
+            "wavefront.CompactIntersect": 0.00512,
+            "wavefront.Shade": 0.031744,
+            "wavefront.CompactShade": 0.008192,
+            "wavefront.Shadow": 0.08848,
+            "wavefront.Finalize": 0.03072
+          },
+          "lastSampleStats": {
+            "requested": "ray-traced",
+            "actual": "ray-traced",
+            "reason": "requested-ray-tracing",
+            "drawCalls": 0,
+            "clusterInstances": 4236,
+            "scratchBytes": 0,
+            "textureBytes": 0
+          }
+        },
+        "shared-reference": {
+          "gpuMs": 20.927488,
+          "primaryMs": 1.1752319999999998,
+          "primaryKernelMs": 1.1752319999999998,
+          "cpuMs": 0.4000000059604645,
+          "bufferBytes": 176442016,
+          "stageMsPerInvocation": {
+            "wavefront.Initialize": 0.026624,
+            "wavefront.Intersect": 0.344064,
+            "wavefront.CompactIntersect": 0.00512,
+            "wavefront.Shade": 0.031744,
+            "wavefront.CompactShade": 0.008192,
+            "wavefront.Shadow": 0.087328,
+            "wavefront.Finalize": 0.03072
+          },
+          "lastSampleStats": {
+            "requested": "ray-traced",
+            "actual": "ray-traced",
+            "reason": "requested-ray-tracing",
+            "drawCalls": 0,
+            "clusterInstances": 4236,
+            "scratchBytes": 0,
+            "textureBytes": 0
+          }
+        },
+        "rasterized": {
+          "gpuMs": 20.07552,
+          "primaryMs": 0.40448,
+          "primaryKernelMs": 0.38473599999999997,
+          "cpuMs": 0.4000000059604645,
+          "bufferBytes": 176475968,
+          "stageMsPerInvocation": {
+            "visibility.cull": 0.004096,
+            "visibility.arguments": 0.001024,
+            "visibility.near": 0.017856,
+            "visibility.raster": 0.032768,
+            "wavefront.Initialize": 0.026624,
+            "wavefront.ResolvePrimaryVisibility": 0.012288,
+            "wavefront.CompactPrimaryFallback": 0.00512,
+            "wavefront.PrimaryFallbackArguments": 0.001024,
+            "wavefront.PrimaryTraceFallback": 0.004096,
+            "wavefront.PrimaryTraceFallbackSparse": 0.062464,
+            "wavefront.CompactIntersect": 0.00512,
+            "wavefront.Shade": 0.031744,
+            "wavefront.CompactShade": 0.009216,
+            "wavefront.Shadow": 0.086816,
+            "wavefront.Intersect": 0.340992,
+            "wavefront.Finalize": 0.03072
+          },
+          "lastSampleStats": {
+            "requested": "rasterized",
+            "actual": "rasterized",
+            "reason": null,
+            "drawCalls": 1,
+            "clusterInstances": 4236,
+            "scratchBytes": 33952,
+            "textureBytes": 11059200,
+            "sparseFallbackPixels": 245,
+            "usefulVertexSlots": 789702,
+            "paddingVertexSlots": 4410,
+            "numericalFallbackPixels": 245,
+            "visibleClusters": 4136,
+            "vertexSlots": 794112,
+            "nearClipFallback": false,
+            "fallbackPixels": 245,
+            "alphaFallbackPixels": 0
+          }
+        }
+      }
+    },
+    {
+      "scene": "breakfast",
+      "width": 1920,
+      "height": 1080,
+      "variants": {
+        "default": {
+          "gpuMs": 41.218048,
+          "primaryMs": 1.8321280000000002,
+          "primaryKernelMs": 1.8321280000000002,
+          "cpuMs": 0.5999999940395355,
+          "bufferBytes": 231738016,
+          "stageMsPerInvocation": {
+            "wavefront.Initialize": 0.028672,
+            "wavefront.Intersect": 0.31744,
+            "wavefront.CompactIntersect": 0.00512,
+            "wavefront.Shade": 0.035392,
+            "wavefront.CompactShade": 0.009216,
+            "wavefront.Shadow": 0.089088,
+            "wavefront.Finalize": 0.027648
+          },
+          "lastSampleStats": {
+            "requested": "ray-traced",
+            "actual": "ray-traced",
+            "reason": "requested-ray-tracing",
+            "drawCalls": 0,
+            "clusterInstances": 4236,
+            "scratchBytes": 0,
+            "textureBytes": 0
+          }
+        },
+        "shared-reference": {
+          "gpuMs": 41.217024,
+          "primaryMs": 1.8163520000000002,
+          "primaryKernelMs": 1.8163520000000002,
+          "cpuMs": 0.5999999940395355,
+          "bufferBytes": 231738016,
+          "stageMsPerInvocation": {
+            "wavefront.Initialize": 0.028672,
+            "wavefront.Intersect": 0.315392,
+            "wavefront.CompactIntersect": 0.00512,
+            "wavefront.Shade": 0.03536,
+            "wavefront.CompactShade": 0.009216,
+            "wavefront.Shadow": 0.088576,
+            "wavefront.Finalize": 0.027648
+          },
+          "lastSampleStats": {
+            "requested": "ray-traced",
+            "actual": "ray-traced",
+            "reason": "requested-ray-tracing",
+            "drawCalls": 0,
+            "clusterInstances": 4236,
+            "scratchBytes": 0,
+            "textureBytes": 0
+          }
+        },
+        "rasterized": {
+          "gpuMs": 39.816192,
+          "primaryMs": 0.631584,
+          "primaryKernelMs": 0.595968,
+          "cpuMs": 0.5999999940395355,
+          "bufferBytes": 231771968,
+          "stageMsPerInvocation": {
+            "visibility.cull": 0.004096,
+            "visibility.arguments": 0.001024,
+            "visibility.near": 0.018432,
+            "visibility.raster": 0.045056,
+            "wavefront.Initialize": 0.028672,
+            "wavefront.ResolvePrimaryVisibility": 0.012288,
+            "wavefront.CompactPrimaryFallback": 0.00512,
+            "wavefront.PrimaryFallbackArguments": 0.001024,
+            "wavefront.PrimaryTraceFallback": 0.004096,
+            "wavefront.PrimaryTraceFallbackSparse": 0.027648,
+            "wavefront.CompactIntersect": 0.00512,
+            "wavefront.Shade": 0.035136,
+            "wavefront.CompactShade": 0.009216,
+            "wavefront.Shadow": 0.088608,
+            "wavefront.Intersect": 0.323584,
+            "wavefront.Finalize": 0.027648
+          },
+          "lastSampleStats": {
+            "requested": "rasterized",
+            "actual": "rasterized",
+            "reason": null,
+            "drawCalls": 1,
+            "clusterInstances": 4236,
+            "scratchBytes": 33952,
+            "textureBytes": 24883200,
+            "sparseFallbackPixels": 410,
+            "usefulVertexSlots": 789702,
+            "paddingVertexSlots": 4410,
+            "numericalFallbackPixels": 410,
+            "visibleClusters": 4136,
+            "vertexSlots": 794112,
+            "nearClipFallback": false,
+            "fallbackPixels": 410,
+            "alphaFallbackPixels": 0
+          }
+        }
+      }
+    }
+  ],
+  "metadata": {
+    "config": {
+      "rounds": 5,
+      "warmup": 64,
+      "samples": 128,
+      "resolutions": [
+        [
+          640,
+          360
+        ],
+        [
+          1280,
+          720
+        ],
+        [
+          1920,
+          1080
+        ]
+      ]
+    },
+    "startedAt": "2026-10-29T17:23:08.783Z",
+    "browser": "Chrome/156.0.8078.73",
+    "sourceFingerprint": "98ff444e98a2410c7f970e646ba8ea2fc1f8e13727ff724aea463584ffc5f16f"
+  },
+  "gpu": "NVIDIA GeForce RTX 4090, driver 595.97"
+}

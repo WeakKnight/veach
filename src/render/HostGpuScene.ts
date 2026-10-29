@@ -1,3 +1,4 @@
+import { buildVisibilityClusters, relocateVisibilityClusters, type VisibilityClusters } from './VisibilityClusters';
 import { BuildQuality, BVH_NODE_BYTES, BVH_TRI_FLOATS, type BLASData, type TinyBVH } from '../accel/TinyBVH';
 import { compileMaterial, type CompiledMaterial } from '../material/Compile';
 import { hostMaterialGraph, type HostTextureResolver } from '../material/HostMaterial';
@@ -13,7 +14,7 @@ import { StorageArena, type PreparedStorage } from './StorageArena';
 import type { CpuTexture } from './vt/TileSource';
 import type { VirtualTextureDescriptor } from './vt/VirtualTextureSystem';
 
-interface GeometryPart { key: string; materialSlot: number; firstIndex: number; indices: Uint32Array; blas: BLASData }
+interface GeometryPart { key: string; materialSlot: number; firstIndex: number; indices: Uint32Array; blas: BLASData; clusters: VisibilityClusters }
 interface GeometryState { desc: GeometryResource; parts: GeometryPart[] }
 interface Draw {
 	key: string; geometry: GeometryResource; part: GeometryPart; world: Float32Array;
@@ -59,18 +60,20 @@ export class HostGpuScene {
 	private analyticCount = 0;
 	private emissiveCount = 0;
 	private tlasNodes = 0;
+	private visibilityTriangleCounts = new Uint32Array();
 	private previous: SceneSnapshot | null = null;
 	private destroyed = false;
 
-	constructor(device: GPUDevice, private readonly bvh: TinyBVH, private readonly quality = BuildQuality.Fast) {
+	constructor(private readonly device: GPUDevice, private readonly bvh: TinyBVH, private readonly quality = BuildQuality.Fast) {
 		this.arenas = Object.fromEntries(names.map(name => [name, new StorageArena(device, `host:${name}`,
 			name === 'nodes' ? BVH_NODE_BYTES : name === 'instances' ? INSTANCE_BYTES : name === 'vertices' ? VERTEX_BYTES : name === 'materials' ? 32 : name === 'tris' ? BVH_TRI_FLOATS * 4 : 16)])) as Record<ArenaName, StorageArena>;
 	}
 
-	prepare(snapshot: SceneSnapshot, changes: SceneChanges, resolveTexture: HostTextureResolver, textures: HostTextureAccess): PreparedHostScene {
+	prepare(snapshot: SceneSnapshot, changes: SceneChanges, resolveTexture: HostTextureResolver, textures: HostTextureAccess, visibility = true): PreparedHostScene {
 		if (this.destroyed) throw new Error('GPU scene is destroyed');
 		const start = performance.now();
 		const plans = Object.fromEntries(names.map(name => [name, this.arenas[name].plan()])) as Record<ArenaName, ReturnType<StorageArena['plan']>>;
+		if (!visibility) for (const key of plans.indices.blocks.keys()) if (key.startsWith('visibility:')) plans.indices.delete(key);
 		const geometries = new Map(this.geometries), materials = new Map(this.materials);
 		const stats: HostGpuUpdateStats = { blasBuilds: 0, tlasBuilds: 0, materialCompiles: 0, uploadedBytes: {}, bufferGrowths: 0 };
 
@@ -78,7 +81,7 @@ export class HostGpuScene {
 			const old = geometries.get(id), desc = snapshot.geometries.get(id), key = String(id);
 			if (!desc) {
 				plans.vertices.delete(key); plans.indices.delete(key);
-				for (const part of old?.parts ?? []) { plans.nodes.delete(part.key); plans.tris.delete(part.key); }
+				for (const part of old?.parts ?? []) { plans.nodes.delete(part.key); plans.tris.delete(part.key); plans.indices.delete(`visibility:${part.key}`); }
 				geometries.delete(id); continue;
 			}
 			const vertices = new Float32Array(desc.positions.length / 3 * VERTEX_BYTES / 4);
@@ -92,9 +95,9 @@ export class HostGpuScene {
 					const indices = desc.indices.subarray(g.firstIndex, g.firstIndex + g.indexCount);
 					const blas = this.bvh.buildBLAS(desc.positions, indices, this.quality); stats.blasBuilds++;
 					plans.nodes.set(partKey, blas.nodes); plans.tris.set(partKey, blas.tris);
-					return { key: partKey, materialSlot: g.materialSlot, firstIndex: g.firstIndex, indices, blas };
+					return { key: partKey, materialSlot: g.materialSlot, firstIndex: g.firstIndex, indices, blas, clusters: buildVisibilityClusters(desc.positions, indices) };
 				});
-				for (const part of old?.parts ?? []) if (!parts.some(p => p.key === part.key)) { plans.nodes.delete(part.key); plans.tris.delete(part.key); }
+				for (const part of old?.parts ?? []) if (!parts.some(p => p.key === part.key)) { plans.nodes.delete(part.key); plans.tris.delete(part.key); plans.indices.delete(`visibility:${part.key}`); }
 				geometries.set(id, { desc, parts });
 			} else geometries.set(id, { desc, parts: old.parts });
 		}
@@ -184,7 +187,37 @@ export class HostGpuScene {
 			if (!equal(previous.bytes, new Uint8Array(data))) plans.instances.set(d.key, data);
 		}
 
+		// Metadata shares the index arena; unchanged geometry blocks are neither rebuilt nor uploaded.
+		if (visibility) for (const [geometryId, g] of geometries) for (const part of g.parts) {
+			const key = `visibility:${part.key}`, previous = plans.indices.get(key);
+			const changed = !previous || changes.geometryBounds.has(geometryId);
+			if (changed) {
+				const block = plans.indices.set(key, part.clusters.words);
+				plans.indices.set(key, relocateVisibilityClusters(part.clusters, block.offset / 4));
+			}
+		}
+		const previousPairs = plans.indices.get('visibility:pairs');
+		const pairsUnchanged = previousPairs && draws.length === this.draws.length
+			&& draws.every((d, i) => d.slot === this.draws[i].slot && d.part.clusters === this.draws[i].part.clusters);
+		let pairCount = 0, triangleCounts = this.visibilityTriangleCounts;
+		if (visibility) {
+			pairCount = draws.reduce((count, d) => count + d.part.clusters.count, 0);
+			if (!pairsUnchanged) {
+				const pairs = new Uint32Array(pairCount * 2); triangleCounts = new Uint32Array(pairCount); let at = 0;
+				for (const d of draws) {
+					const offset = plans.indices.get(`visibility:${d.part.key}`)!.offset / 4;
+					for (let c = 0; c < d.part.clusters.count; c++) { triangleCounts[at / 2] = d.part.clusters.words[c * 8 + 7]; pairs[at++] = d.slot; pairs[at++] = offset + c * 8; }
+				}
+				plans.indices.set('visibility:pairs', pairs);
+			}
+		}
+		if (visibility && plans.indices.byteLength > Math.min(this.device.limits.maxBufferSize, this.device.limits.maxStorageBufferBindingSize))
+			return this.prepare(snapshot, changes, resolveTexture, textures, false);
 		const scene = new GpuScene();
+		scene.visibilityOffset = (plans.indices.get('visibility:pairs')?.offset ?? 0) / 4;
+		scene.visibilityCount = pairCount;
+		scene.visibilityTriangleCounts = visibility ? triangleCounts : new Uint32Array();
+		scene.instanceSlots = plans.instances.byteLength / INSTANCE_BYTES;
 		scene.instanceCount = draws.length;
 		scene.lightCount = lightCount; scene.analyticLightCount = analyticCount;
 		scene.tlasPrimOffset = (plans.indices.get('tlas')?.offset ?? 0) / 4;
@@ -217,6 +250,7 @@ export class HostGpuScene {
 				for (const p of prepared) p.publish();
 				this.geometries = geometries; this.materials = materials; this.draws = draws; this.emitters = emitters;
 				this.lightOffsets = lightOffsets; this.lightCount = lightCount; this.analyticCount = analyticCount; this.emissiveCount = emissiveCount;
+				this.visibilityTriangleCounts = scene.visibilityTriangleCounts;
 				this.tlasNodes = tlasNodes; this.previous = snapshot; done = true;
 			},
 			discard: () => { if (!done) { for (const p of prepared) p.discard(); done = true; } },

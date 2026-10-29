@@ -54,3 +54,7 @@ To reproduce cache-pressure accumulation with a local asset, run
 `npm run smoke -- custom-model --model "path/to/model.glb"`. This renders at 1793x1100
 and checks that accumulation passes 128 spp even if streaming continues; its screenshot
 is saved to `.tools/smoke/custom-model.png`. Omit `custom-model` to also run the standard suite.
+
+Raster primary visibility preserves surface ray-cone/mip evaluation but can skip traversal-time
+opacity reads behind an opaque hit. Its feedback RNG/request sequence can therefore differ;
+resident-image and cold-streaming validation are separate. See [PrimaryVisibility.md](PrimaryVisibility.md).

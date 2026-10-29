@@ -1,5 +1,14 @@
 # Wavefront implementation and performance experiment
 
+The default GPU-driven [raster primary visibility path](PrimaryVisibility.md) replaces
+only bounce-zero intersection. Its cull/one-draw prepass runs once before all tiles;
+opaque hits reconstruct the existing record and alpha/numerical candidates reuse queue B.
+Subsequent compaction, shading, SVM, shadows and bounces use this document's wavefront
+pipeline. Auto mode prefers raster visibility for eligible views; explicit ray tracing
+and correctness fallbacks remain available. This default was enabled by user choice
+during iteration, before completing the original performance matrix.
+See the [recorded validation and performance results](PrimaryVisibilityResults.md).
+
 ## Current production defaults (2026-10-29)
 
 Wavefront is now the default integrator, using adaptive compaction, scene-derived opcode

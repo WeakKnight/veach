@@ -46,3 +46,7 @@ order and VT state; resolved sources are not traced again. The three surviving c
 are summed in original order before throughput/clamping. There are no fixed rounds, prefix
 skips, candidate arrays or transparency-depth limits. Pure opaque scenes use the original
 shadow kernel and allocation. The pending queue reuses shading queue B after CompactShade.
+
+Raster primary visibility retains original instance/primitive IDs, including emissive MIS indexing.
+Both primary visibility sources share the analytic-light and miss/environment completion path,
+so camera-visible analytic lights are still tested against the resolved mesh distance exactly once.

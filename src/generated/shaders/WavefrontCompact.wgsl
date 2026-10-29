@@ -1,18 +1,4 @@
 // Generated from shaders/Passes/WavefrontCompact.slang by scripts/build-shaders.mjs. Do not edit.
-@binding(0) @group(1) var<storage, read_write> gWork_0 : array<atomic<u32>>;
-
-struct WavefrontUniforms_std140_0
-{
-    @align(16) tileStart_0 : u32,
-    @align(4) pathCount_0 : u32,
-    @align(8) bounce_0 : u32,
-    @align(4) capacity_0 : u32,
-    @align(16) tailThreshold_0 : u32,
-    @align(4) packetStages_0 : u32,
-    @align(8) sortGroupSize_0 : u32,
-};
-
-@binding(2) @group(1) var<uniform> gWavefront_0 : WavefrontUniforms_std140_0;
 struct FrameUniforms_std140_0
 {
     @align(16) cameraPosition_0 : vec4<f32>,
@@ -29,9 +15,24 @@ struct FrameUniforms_std140_0
     @align(16) background_0 : vec4<f32>,
     @align(16) vtInfo_0 : vec4<u32>,
     @align(16) vtParams_0 : vec4<f32>,
+    @align(16) primaryVisibility_0 : vec4<u32>,
 };
 
 @binding(0) @group(0) var<uniform> gFrame_0 : FrameUniforms_std140_0;
+@binding(0) @group(1) var<storage, read_write> gWork_0 : array<atomic<u32>>;
+
+struct WavefrontUniforms_std140_0
+{
+    @align(16) tileStart_0 : u32,
+    @align(4) pathCount_0 : u32,
+    @align(8) bounce_0 : u32,
+    @align(4) capacity_0 : u32,
+    @align(16) tailThreshold_0 : u32,
+    @align(4) packetStages_0 : u32,
+    @align(8) sortGroupSize_0 : u32,
+};
+
+@binding(2) @group(1) var<uniform> gWavefront_0 : WavefrontUniforms_std140_0;
 fn ReserveQueues_0( header_0 : u32,  count_0 : vec2<u32>) -> vec2<u32>
 {
     var offset_0 : vec2<u32> = vec2<u32>(u32(0));
@@ -394,34 +395,157 @@ fn CompactImpl_1( tid_3 : vec3<u32>,  local_3 : vec3<u32>)
 }
 
 @compute
-@workgroup_size(64, 1, 1)
-fn CompactIntersect(@builtin(global_invocation_id) tid_4 : vec3<u32>, @builtin(local_invocation_id) local_4 : vec3<u32>)
+@workgroup_size(1, 1, 1)
+fn PrimaryFallbackArguments(@builtin(global_invocation_id) tid_4 : vec3<u32>)
 {
-    CompactImpl_1(tid_4, local_4);
+    var header_6 : u32 = gFrame_0.frame_0.x * gFrame_0.frame_0.y * u32(12);
+    var count_2 : u32 = atomicLoad(&(gWork_0[header_6 + u32(1)]));
+    var sparse_0 : bool = (count_2 <= u32(256));
+    var _S48 : u32;
+    if(sparse_0)
+    {
+        _S48 = u32(0);
+    }
+    else
+    {
+        _S48 = (count_2 + u32(63)) / u32(64);
+    }
+    atomicStore(&(gWork_0[header_6 + u32(8)]), _S48);
+    var base_1 : u32 = gFrame_0.primaryVisibility_0.x;
+    if(sparse_0)
+    {
+        _S48 = count_2;
+    }
+    else
+    {
+        _S48 = u32(0);
+    }
+    atomicStore(&(gWork_0[base_1 + u32(4)]), _S48);
+    atomicStore(&(gWork_0[base_1 + u32(5)]), u32(1));
+    atomicStore(&(gWork_0[base_1 + u32(6)]), u32(1));
+    atomicStore(&(gWork_0[base_1 + u32(7)]), u32(0));
+    if(sparse_0)
+    {
+        var _S49 : u32 = atomicAdd(&(gWork_0[base_1 + u32(3)]), count_2);
+    }
     return;
 }
 
 @compute
 @workgroup_size(64, 1, 1)
-fn CompactShade(@builtin(global_invocation_id) tid_5 : vec3<u32>, @builtin(local_invocation_id) local_5 : vec3<u32>)
+fn CompactPrimaryFallback(@builtin(global_invocation_id) tid_5 : vec3<u32>, @builtin(local_invocation_id) local_4 : vec3<u32>)
 {
-    CompactImpl_0(tid_5, local_5);
+    var lane_4 : u32 = local_4.x;
+    var header_7 : u32 = gFrame_0.frame_0.x * gFrame_0.frame_0.y * u32(12);
+    var _S50 : u32 = tid_5.x;
+    var reason_0 : u32;
+    if((_S50 < (gWavefront_0.pathCount_0)))
+    {
+        var _S51 : u32 = atomicLoad(&(gWork_0[header_7 + u32(12) + _S50 * u32(4) + u32(36) * gWavefront_0.capacity_0 + u32(1)]));
+        reason_0 = _S51;
+    }
+    else
+    {
+        reason_0 = u32(0);
+    }
+    var _S52 : bool = reason_0 != u32(0);
+    var offset_6 : u32;
+    if(_S52)
+    {
+        offset_6 = u32(1);
+    }
+    else
+    {
+        offset_6 = u32(0);
+    }
+    if(reason_0 == u32(1))
+    {
+        reason_0 = u32(1);
+    }
+    else
+    {
+        reason_0 = u32(0);
+    }
+    gPrefix_0[lane_4] = vec2<u32>(offset_6, reason_0);
+    workgroupBarrier();
+    offset_6 = u32(1);
+    loop
+    {
+        if((offset_6 < u32(64)))
+        {
+        }
+        else
+        {
+            break;
+        }
+        var value_4 : vec2<u32>;
+        if((lane_4 >= offset_6))
+        {
+            value_4 = gPrefix_0[lane_4 - offset_6];
+        }
+        else
+        {
+            value_4 = vec2<u32>(u32(0));
+        }
+        workgroupBarrier();
+        gPrefix_0[lane_4] = gPrefix_0[lane_4] + value_4;
+        workgroupBarrier();
+        offset_6 = offset_6 * u32(2);
+    }
+    var _S53 : bool;
+    if(lane_4 == u32(0))
+    {
+        _S53 = ((gPrefix_0[u32(63)].x) > u32(0));
+    }
+    else
+    {
+        _S53 = false;
+    }
+    if(_S53)
+    {
+        var _S54 : u32 = atomicAdd(&(gWork_0[header_7 + u32(1)]), gPrefix_0[u32(63)].x);
+        gOffsets_0[i32(0)] = _S54;
+        var _S55 : u32 = atomicMax(&(gWork_0[header_7 + u32(8)]), (gOffsets_0.x + gPrefix_0[u32(63)].x + u32(63)) / u32(64));
+        var _S56 : u32 = atomicAdd(&(gWork_0[gFrame_0.primaryVisibility_0.x + u32(8)]), gPrefix_0[u32(63)].x);
+        var _S57 : u32 = atomicAdd(&(gWork_0[gFrame_0.primaryVisibility_0.x + u32(9)]), gPrefix_0[u32(63)].y);
+    }
+    workgroupBarrier();
+    if(_S52)
+    {
+        atomicStore(&(gWork_0[header_7 + u32(12) + gWavefront_0.capacity_0 * u32(84) + (gWavefront_0.capacity_0 + u32(3)) / u32(4) * u32(4) + gOffsets_0.x + gPrefix_0[lane_4].x - u32(1)]), _S50);
+    }
     return;
 }
 
 @compute
 @workgroup_size(64, 1, 1)
-fn CompactShadowAlpha(@builtin(global_invocation_id) tid_6 : vec3<u32>, @builtin(local_invocation_id) local_6 : vec3<u32>)
+fn CompactIntersect(@builtin(global_invocation_id) tid_6 : vec3<u32>, @builtin(local_invocation_id) local_5 : vec3<u32>)
 {
-    CompactShadowAlphaImpl_1(tid_6, local_6);
+    CompactImpl_1(tid_6, local_5);
     return;
 }
 
 @compute
 @workgroup_size(64, 1, 1)
-fn CompactShadowAlphaDirect(@builtin(global_invocation_id) tid_7 : vec3<u32>, @builtin(local_invocation_id) local_7 : vec3<u32>)
+fn CompactShade(@builtin(global_invocation_id) tid_7 : vec3<u32>, @builtin(local_invocation_id) local_6 : vec3<u32>)
 {
-    CompactShadowAlphaImpl_0(tid_7, local_7);
+    CompactImpl_0(tid_7, local_6);
+    return;
+}
+
+@compute
+@workgroup_size(64, 1, 1)
+fn CompactShadowAlpha(@builtin(global_invocation_id) tid_8 : vec3<u32>, @builtin(local_invocation_id) local_7 : vec3<u32>)
+{
+    CompactShadowAlphaImpl_1(tid_8, local_7);
+    return;
+}
+
+@compute
+@workgroup_size(64, 1, 1)
+fn CompactShadowAlphaDirect(@builtin(global_invocation_id) tid_9 : vec3<u32>, @builtin(local_invocation_id) local_8 : vec3<u32>)
+{
+    CompactShadowAlphaImpl_0(tid_9, local_8);
     return;
 }
 

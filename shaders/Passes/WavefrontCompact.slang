@@ -218,3 +218,50 @@ void CompactShadowAlpha(uint3 tid : SV_DispatchThreadID, uint3 local : SV_GroupT
 [numthreads(64, 1, 1)]
 void CompactShadowAlphaDirect(uint3 tid : SV_DispatchThreadID, uint3 local : SV_GroupThreadID)
 { CompactShadowAlphaImpl<true>(tid, local); }
+
+// B is unused before the first CompactIntersect. Preserve A while collecting fallbacks.
+[shader("compute")]
+[numthreads(64, 1, 1)]
+void CompactPrimaryFallback(uint3 tid : SV_DispatchThreadID, uint3 local : SV_GroupThreadID)
+{
+	uint lane = local.x, header = gFrame.frame.x * gFrame.frame.y * 12u;
+	uint reason = tid.x < gWavefront.pathCount ? gWork[header + 12u + tid.x * 4u + 36u * gWavefront.capacity + 1u].load() : 0u;
+	gPrefix[lane] = uint2(reason != 0u ? 1u : 0u, reason == 1u ? 1u : 0u);
+	GroupMemoryBarrierWithGroupSync();
+	[unroll]
+	for (uint offset = 1u; offset < 64u; offset *= 2u)
+	{
+		uint2 value = lane >= offset ? gPrefix[lane - offset] : uint2(0u);
+		GroupMemoryBarrierWithGroupSync();
+		gPrefix[lane] += value;
+		GroupMemoryBarrierWithGroupSync();
+	}
+	if (lane == 0u && gPrefix[63u].x > 0u)
+	{
+		gOffsets.x = gWork[header + 1u].add(gPrefix[63u].x);
+		gWork[header + 8u].max((gOffsets.x + gPrefix[63u].x + 63u) / 64u);
+		gWork[gFrame.primaryVisibility.x + 8u].add(gPrefix[63u].x);
+		gWork[gFrame.primaryVisibility.x + 9u].add(gPrefix[63u].y);
+	}
+	GroupMemoryBarrierWithGroupSync();
+	if (reason != 0u)
+	{
+		uint queue = header + 12u + gWavefront.capacity * 84u + ((gWavefront.capacity + 3u) / 4u) * 4u;
+		gWork[queue + gOffsets.x + gPrefix[lane].x - 1u].store(tid.x);
+	}
+}
+
+[shader("compute")]
+[numthreads(1, 1, 1)]
+void PrimaryFallbackArguments(uint3 tid : SV_DispatchThreadID)
+{
+	uint header = gFrame.frame.x * gFrame.frame.y * 12u;
+	uint count = gWork[header + 1u].load();
+	bool sparse = count <= 256u;
+	gWork[header + 8u].store(sparse ? 0u : (count + 63u) / 64u);
+	// Raster has already consumed this record; reuse it for the sparse dispatch.
+	uint base = gFrame.primaryVisibility.x;
+	gWork[base + 4u].store(sparse ? count : 0u);
+	gWork[base + 5u].store(1u); gWork[base + 6u].store(1u); gWork[base + 7u].store(0u);
+	if (sparse) gWork[base + 3u].add(count);
+}

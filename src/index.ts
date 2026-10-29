@@ -57,3 +57,5 @@ export { BUILTIN_LUTS, loadBuiltinLUT, type BuiltinLUTId, type BuiltinLUTInfo,
 	type DisplayTransform, type BuiltinDisplayTransform, type DisplayTransformState, type DisplayTransformResult } from './render/color/BuiltinLUTs';
 export { TinyBVH, BuildQuality } from './accel/TinyBVH';
 export { mat4, vec3, type Mat4, type Vec3 } from './math/Math';
+
+export type { PrimaryVisibilityMode, PrimaryVisibilityStats } from './render/PrimaryVisibility';

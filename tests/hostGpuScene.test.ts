@@ -35,6 +35,27 @@ function fixture() {
 function memory(buffer: GPUBuffer): Uint8Array { return (buffer as GPUBuffer & { memory: Uint8Array }).memory; }
 
 describe('host GPU publication with real tinybvh', () => {
+	it('shares raster clusters and follows sparse instance slots through updates and removal', async () => {
+		const f = fixture(); await f.u.commit();
+		const pairs = () => {
+			const s = f.last().scene, words = new Uint32Array(memory(s.indices).buffer);
+			return words.slice(s.visibilityOffset, s.visibilityOffset + s.visibilityCount * 2);
+		};
+		const before = pairs(); expect(before.length).toBe(4); expect(before[1]).toBe(before[3]);
+		const moved = f.scene.beginUpdate(), matrix = mat4.identity(); matrix[12] = 2;
+		moved.setInstanceTransform(f.first, matrix); await moved.commit();
+		expect(pairs()).toEqual(before); expect(f.last().stats.blasBuilds).toBe(0);
+		const remove = f.scene.beginUpdate(); remove.removeInstance(f.first); await remove.commit();
+		expect(Array.from(pairs())).toEqual(Array.from(before.slice(2))); expect(f.last().scene.instanceSlots).toBeGreaterThan(before[2]);
+		const replace = f.scene.beginUpdate(), geometry = f.triangle(); geometry.positions[0] = -3;
+		replace.setGeometry(f.geometry, geometry); await replace.commit();
+		const words = pairs(), floats = new Float32Array(memory(f.last().scene.indices).buffer);
+		expect(floats[words[1]]).toBe(-3);
+		const material = f.scene.beginUpdate(); material.setMaterial(f.material, { opacity: 0.5, alphaMode: 'mask' }); await material.commit();
+		expect(f.last().scene.hasAlphaTested).toBe(true); expect(pairs()).toEqual(words);
+		f.scene.dispose();
+	});
+
 	it('does not recompile or upload unrelated materials when an unused texture changes', async () => {
 		const f = fixture(); await f.u.commit();
 		const update = f.scene.beginUpdate();

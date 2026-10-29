@@ -22,17 +22,20 @@ const exe = isWindows ? 'slangc.exe' : 'slangc';
 
 // Each program becomes one WGSL module containing all of its entry points.
 const programs = [
+	{ name: 'PrimaryVisibilityCheck', source: 'Tests/PrimaryVisibility.slang', entries: [['InspectPrimarySurface', 'compute']] },
+	{ name: 'VisibilityCull', source: 'Passes/VisibilityCull.slang', entries: [['Cull', 'compute'], ['DrawArguments', 'compute'], ['CheckNear', 'compute']] },
+	{ name: 'VisibilityRaster', source: 'Passes/VisibilityRaster.slang', entries: [['vsMain', 'vertex'], ['fsMain', 'fragment']] },
 	{ name: 'OIDNGuides', source: 'Passes/OIDNGuides.slang', entries: [['Prepare', 'compute'], ['Compose', 'compute']] },
 	{ name: 'PathTracing', source: 'Passes/PathTracing.slang', entries: [['main', 'compute']] },
 	{ name: 'PathTracingOpaque', source: 'Passes/PathTracing.slang', defines: ['VEACH_OPAQUE_SCENE=1'], entries: [['main', 'compute']] },
 	{ name: 'PathTracingEmpty', source: 'Passes/PathTracing.slang', defines: ['VEACH_EMPTY_SCENE=1'], entries: [['main', 'compute']] },
-	{ name: 'Wavefront', source: 'Passes/Wavefront.slang', entries: ['Initialize', 'Intersect', 'IntersectOpaque', 'Shade', 'Shadow', 'ShadowOpaque', 'Tail', 'TailOpaque', 'Finalize',
+	{ name: 'Wavefront', source: 'Passes/Wavefront.slang', entries: ['ResolvePrimaryVisibility', 'PrimaryTraceFallback', 'PrimaryTraceFallbackOpaque', 'PrimaryTraceFallbackSparse', 'PrimaryTraceFallbackSparseOpaque', 'Initialize', 'Intersect', 'IntersectOpaque', 'Shade', 'Shadow', 'ShadowOpaque', 'Tail', 'TailOpaque', 'Finalize',
 		'IntersectDirect', 'IntersectOpaqueDirect', 'ShadeDirect', 'ShadeBucket', 'ShadeBucketDirect', 'ShadeBucketCompact', 'ShadowDirect', 'ShadowOpaqueDirect',
 		'ShadowClassify', 'ShadowClassifyDirect', 'ShadowAlpha',
 		'ShadeSurface', 'ShadeSurfaceDirect', 'ShadeSurfaceBucket', 'ShadeSurfaceCompact', 'ShadeLight', 'ShadeLightDirect',
 		'ShadePrimary', 'ShadeSecondary', 'ShadeLate', 'ShadePrimaryLate', 'ShadeSecondaryLate',
 		'ShadePrimaryDirect', 'ShadeSecondaryDirect', 'ShadeLateDirect', 'ShadePrimaryLateDirect', 'ShadeSecondaryLateDirect'].map(e => [e, 'compute']) },
-	{ name: 'WavefrontCompact', source: 'Passes/WavefrontCompact.slang', entries: ['CompactIntersect', 'CompactShade', 'CompactShadowAlpha', 'CompactShadowAlphaDirect'].map(e => [e, 'compute']) },
+	{ name: 'WavefrontCompact', source: 'Passes/WavefrontCompact.slang', entries: ['PrimaryFallbackArguments', 'CompactPrimaryFallback', 'CompactIntersect', 'CompactShade', 'CompactShadowAlpha', 'CompactShadowAlphaDirect'].map(e => [e, 'compute']) },
 	{ name: 'WavefrontBuckets', source: 'Passes/WavefrontBuckets.slang', entries: ['CountBuckets', 'PrefixBuckets', 'ScatterBuckets'].map(e => [e, 'compute']) },
 	{ name: 'WavefrontMaterialBuckets', source: 'Passes/WavefrontMaterialBuckets.slang', entries: ['CountMaterials', 'PrefixMaterials', 'ScatterMaterials'].map(e => [e, 'compute']) },
 	{ name: 'WavefrontSort64', source: 'Passes/WavefrontSort.slang', defines: ['VEACH_SORT_SIZE=64'], entries: [['SortMaterial', 'compute'], ['SortProgram', 'compute'], ['SortDirection', 'compute']] },
@@ -115,7 +118,8 @@ function compile(program, capacity, directory) {
 	for (const [entry, stage] of program.entries) {
 		args.push('-entry', entry, '-stage', stage);
 	}
-	args.push('-o', output);
+	const temporaryOutput = output + '.tmp';
+	args.push('-o', temporaryOutput);
 
 	const result = spawnSync(slangc, args, { encoding: 'utf8' });
 	if (result.stdout) process.stdout.write(result.stdout);
@@ -126,9 +130,11 @@ function compile(program, capacity, directory) {
 		return null;
 	}
 
-	const wgsl = readFileSync(output, 'utf8').replaceAll('\r\n', '\n');
+	const wgsl = readFileSync(temporaryOutput, 'utf8').replaceAll('\r\n', '\n');
 	const source = `// Generated from shaders/${program.source} by scripts/build-shaders.mjs. Do not edit.\n${wgsl}`;
-	writeFileSync(output, source);
+	// Do not rewrite unchanged modules that a running dev server may have open.
+	if (!existsSync(output) || readFileSync(output, 'utf8').replaceAll('\r\n', '\n') !== source) writeFileSync(output, source);
+	rmSync(temporaryOutput, { force: true });
 	console.log(`[build-shaders] ${program.name}${capacity === null ? '' : ` stack ${capacity}`}.wgsl (${(wgsl.length / 1024).toFixed(1)} KiB)`);
 	return source;
 }

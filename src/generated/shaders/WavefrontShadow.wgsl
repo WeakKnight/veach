@@ -27,6 +27,7 @@ struct FrameUniforms_std140_0
     @align(16) background_0 : vec4<f32>,
     @align(16) vtInfo_0 : vec4<u32>,
     @align(16) vtParams_0 : vec4<f32>,
+    @align(16) primaryVisibility_0 : vec4<u32>,
 };
 
 @binding(0) @group(0) var<uniform> gFrame_0 : FrameUniforms_std140_0;

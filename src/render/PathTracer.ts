@@ -1,3 +1,5 @@
+import { AUTO_RASTER_PRIMARY, type PrimaryVisibilityMode, type PrimaryVisibilityStats } from './PrimaryVisibility';
+import { VisibilityBuffer } from './VisibilityBuffer';
 // WebGPU pipelines for the megakernel path tracer (PathTracing.wgsl) and the present pass.
 import pathTracingWgsl from '../generated/shaders/PathTracing.wgsl?raw';
 import pathTracingEmptyWgsl from '../generated/shaders/PathTracingEmpty.wgsl?raw';
@@ -72,6 +74,14 @@ export class PathTracer {
 	private wavefrontLoading: Promise<Wavefront> | null = null;
 	private destroyed = false;
 	integrator: 'megakernel' | 'wavefront' = 'wavefront';
+	primaryVisibility: PrimaryVisibilityMode = 'auto';
+	/** Diagnostic reference camera; keeps the original public ray-traced mode unchanged. */
+	sharedPrimaryJitter = false;
+	private visibility: VisibilityBuffer | null = null;
+	private gpuScene: GpuScene | null = null;
+	private rasterActive = false;
+	private rasterAllocated = false;
+	primaryVisibilityStats: PrimaryVisibilityStats = { requested: 'auto', actual: 'ray-traced', reason: 'not-rendered', drawCalls: 0, clusterInstances: 0, scratchBytes: 0, textureBytes: 0 };
 	width = 0;
 	height = 0;
 
@@ -230,6 +240,7 @@ export class PathTracer {
 	// Prepare without changing the currently bound scene/pipeline while compilation is pending.
 	async prepareScene(scene: GpuScene): Promise<void> {
 		if (this.destroyed) throw new Error('Path tracer has been destroyed');
+		if (this.wantsRasterPrimary && scene.instanceCount > 0) await this.prepareRasterVisibility();
 		const capacity = this.sceneCapacity(scene);
 		const opcodes = this.sceneOpcodes(scene);
 		const operandMode = this.materialOperandMode;
@@ -244,6 +255,7 @@ export class PathTracer {
 	}
 
 	setScene(scene: GpuScene, environment: Environment, vt: SceneTextures): void {
+		this.gpuScene = scene;
 		this.materialCapacity = this.sceneCapacity(scene);
 		this.materialOpcodes = this.sceneOpcodes(scene);
 		this.materialShadeCapacities = scene.materialShadeCapacities;
@@ -287,8 +299,19 @@ export class PathTracer {
 	resize(width: number, height: number): void {
 		width = Math.max(1, Math.floor(width));
 		height = Math.max(1, Math.floor(height));
+		this.rasterAllocated = false;
+		if (this.wavefront) {
+			this.wavefront.visibilityScratchBytes = 0;
+			if (this.visibility && this.gpuScene?.visibilityCount && this.integrator === 'wavefront' && this.wantsRasterPrimary) {
+				const reserve = VisibilityBuffer.scratchBytes(this.gpuScene.visibilityCount);
+				const available = Math.min(this.device.limits.maxBufferSize, this.device.limits.maxStorageBufferBindingSize) - width * height * 48 - reserve;
+				if (available >= 8192) { this.wavefront.visibilityScratchBytes = reserve; this.rasterAllocated = true; }
+			}
+		}
+		if (!this.rasterAllocated) this.visibility?.release();
 		const size = width * height * ACCUM_BYTES_PER_PIXEL + (this.integrator === 'wavefront' && this.hasGeometry ? this.wavefront!.storageBytes(width * height) : 0);
 		if (width === this.width && height === this.height && this.accumBuffer?.size === size) {
+			this.bindPrimaryVisibility();
 			return;
 		}
 		this.width = width;
@@ -316,6 +339,7 @@ export class PathTracer {
 			],
 		});
 		this.wavefront?.bind(this.accumBuffer, this.feedbackTexture);
+		this.bindPrimaryVisibility();
 		this.localExposure.resize(this.uniformBuffer, this.accumBuffer, this.autoExposure.exposureBuffer, width, height);
 		this.rebuildPresentBindGroup();
 		this.autoExposure.bind(this.uniformBuffer, this.accumBuffer);
@@ -443,12 +467,63 @@ export class PathTracer {
 		this.resize(width, height);
 	}
 
+	private get wantsRasterPrimary(): boolean { return this.primaryVisibility === 'rasterized' || (this.primaryVisibility === 'auto' && AUTO_RASTER_PRIMARY); }
+
+	private async prepareRasterVisibility(): Promise<void> {
+		const visibility = this.visibility ??= new VisibilityBuffer(this.device);
+		try { await visibility.compiled; }
+		catch (error) {
+			if (this.visibility === visibility) { visibility.destroy(); this.visibility = null; }
+			throw error;
+		}
+	}
+
+	private bindPrimaryVisibility(): void {
+		if (!this.accumBuffer || !this.feedbackTexture || !this.wavefront) return;
+		if (this.rasterAllocated && this.visibility && this.gpuScene)
+			this.visibility.bind(this.gpuScene, this.uniformBuffer, this.accumBuffer, this.width, this.height, this.accumBuffer.size - this.wavefront.visibilityScratchBytes);
+		this.wavefront.bind(this.accumBuffer, this.feedbackTexture, this.rasterAllocated ? this.visibility!.texture : null);
+	}
+
+	async setPrimaryVisibility(mode: PrimaryVisibilityMode): Promise<void> {
+		if (!['auto', 'ray-traced', 'rasterized'].includes(mode)) throw new Error('Invalid primary visibility mode');
+		if (this.destroyed) throw new Error('Path tracer has been destroyed');
+		if (mode === 'rasterized' || (mode === 'auto' && AUTO_RASTER_PRIMARY)) {
+			await this.prepareRasterVisibility();
+		}
+		if (this.destroyed) throw new Error('Path tracer has been destroyed');
+		this.primaryVisibility = mode;
+		this.resize(this.width, this.height);
+	}
+
+	primaryVisibilityFrame(lensRadius: number, debugMode: number): { sharedJitter: boolean; data: readonly [number, number, number, number] } {
+		const reason = this.integrator !== 'wavefront' ? 'integrator' : debugMode !== 0 ? 'debug-view' : !this.hasGeometry ? 'empty-scene'
+			: lensRadius > 0 ? 'depth-of-field' : !this.wantsRasterPrimary ? (this.primaryVisibility === 'auto' ? 'performance-gate' : 'requested-ray-tracing')
+			: !this.gpuScene?.visibilityCount ? 'geometry-budget' : !this.rasterAllocated ? 'scratch-budget'
+			: this.wavefront!.tailStart === 0 ? 'primary-tail' : null;
+		this.rasterActive = reason === null;
+		this.primaryVisibilityStats = { requested: this.primaryVisibility, actual: this.rasterActive ? 'rasterized' : 'ray-traced', reason,
+			drawCalls: this.rasterActive ? 1 : 0, clusterInstances: this.gpuScene?.visibilityCount ?? 0,
+			scratchBytes: this.wavefront?.visibilityScratchBytes ?? 0, textureBytes: this.rasterAllocated ? this.width * this.height * 12 : 0 };
+		return { sharedJitter: this.rasterActive || (this.sharedPrimaryJitter && lensRadius === 0), data: this.rasterActive
+			? [this.visibility!.scratchOffset / 4, this.gpuScene!.visibilityOffset, this.gpuScene!.visibilityCount, this.gpuScene!.instanceSlots] : [0, 0, 0, 0] };
+	}
+
+	async readPrimaryVisibilityStats(): Promise<PrimaryVisibilityStats> {
+		const stats = { ...this.primaryVisibilityStats };
+		if (this.rasterActive && this.visibility) {
+			Object.assign(stats, await this.visibility.readCounters());
+			if (stats.nearClipFallback) { stats.actual = 'ray-traced'; stats.reason = 'near-clip'; }
+		}
+		return stats;
+	}
+
 	encodeTrace(encoder: GPUCommandEncoder, maxBounces = 8, debugMode = 0): void {
 		if (!this.sceneBindGroup || !this.accumBindGroup) {
 			return;
 		}
 		if (this.integrator === 'wavefront' && this.hasGeometry && debugMode === 0) {
-			this.wavefront!.encode(encoder, this.sceneBindGroup, this.width, this.height, maxBounces, this.hasAlphaTested, this.materialCapacity, this.lightCount, this.materialOpcodes, this.boundMaterialOperandMode, this.materialShadeCapacities, this.materialCount, this.materialSurfaceCapacity, this.materialLightCapacity, this.materialSurfaceCapacities, this.materialOpacityCapacity);
+			this.wavefront!.encode(encoder, this.sceneBindGroup, this.width, this.height, maxBounces, this.hasAlphaTested, this.materialCapacity, this.lightCount, this.materialOpcodes, this.boundMaterialOperandMode, this.materialShadeCapacities, this.materialCount, this.materialSurfaceCapacity, this.materialLightCapacity, this.materialSurfaceCapacities, this.materialOpacityCapacity, this.rasterActive ? this.visibility! : undefined);
 			return;
 		}
 		const pass = encoder.beginComputePass({ label: 'pathTracing' });
@@ -479,6 +554,7 @@ export class PathTracer {
 		this.materialPipelines.clear();
 		this.materialPipelineLoading.clear();
 		this.wavefront?.destroy();
+		this.visibility?.destroy();
 		this.uniformBuffer.destroy();
 		this.accumBuffer?.destroy();
 		this.feedbackTexture?.destroy();

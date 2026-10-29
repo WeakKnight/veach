@@ -46,6 +46,10 @@ const cases = [
 	{ name: 'iridescence', query: 'model=/samples/IridescentDishWithOlives.glb&env=/samples/studio_small_09_1k.hdr&spp=64' },
 ];
 const only = process.argv.slice(2);
+const primaryFlag = only.indexOf('--primary-visibility');
+const primaryVisibility = primaryFlag < 0 ? 'auto' : only[primaryFlag + 1];
+if (!['auto', 'ray-traced', 'rasterized'].includes(primaryVisibility)) throw new Error('Invalid primary visibility mode');
+if (primaryFlag >= 0) only.splice(primaryFlag, 2);
 const integratorFlag = only.indexOf('--integrator');
 let integrator = 'wavefront';
 if (integratorFlag >= 0) {
@@ -217,7 +221,7 @@ try {
 		page.on('pageerror', (e) => errors.push(String(e)));
 		const target = c.target ?? Number(new URLSearchParams(c.query).get('spp') ?? 16);
 		const start = Date.now();
-		await page.goto(`${base}?${c.query}${integratorFlag >= 0 ? `&integrator=${integrator}` : ''}`, { waitUntil: 'load' });
+		await page.goto(`${base}?${c.query}${integratorFlag >= 0 ? `&integrator=${integrator}` : ''}${primaryFlag >= 0 ? `&primaryVisibility=${primaryVisibility}` : ''}`, { waitUntil: 'load' });
 		try {
 			if (opcodeMode !== null || operandMode !== null || opaqueMegakernel) {
 				await page.waitForFunction(() => globalThis.veach?.samples > 0, { timeout: 120000 });
@@ -267,12 +271,14 @@ try {
 		const stats = await page.evaluate(() => {
 			const m = globalThis.veach;
 			return m ? { samples: m.samples, scene: m.sceneStats, vt: m.virtualTextureStats, integrator: m.integrator,
-				compaction: m.tracer.wavefront?.compaction, sceneOpcodes: m.tracer.materialOpcodeSpecialization } : null;
+				compaction: m.tracer.wavefront?.compaction, sceneOpcodes: m.tracer.materialOpcodeSpecialization, primaryVisibility: m.primaryVisibility, primaryStats: m.primaryVisibilityStats } : null;
 		});
 		await page.screenshot({ path: join(outDir, `${c.name}.png`) });
 		const ms = Date.now() - start;
 		const tris = stats?.scene?.triangles ?? 0;
 		if (stats?.integrator !== integrator) errors.push('Wrong integrator selected');
+		if (stats?.primaryVisibility !== primaryVisibility) errors.push('Wrong primary visibility mode selected');
+		if (primaryVisibility === 'rasterized' && integrator === 'wavefront' && tris > 0 && !new URLSearchParams(c.query).has('debug') && stats?.primaryStats.actual !== 'rasterized') errors.push('Raster visibility did not execute');
 		if (integratorFlag < 0 && Object.keys(wavefrontTuning).length === 0 && opcodeMode === null && tris > 0
 			&& (stats?.compaction !== 'adaptive' || !stats?.sceneOpcodes)) errors.push('Wrong default wavefront profile');
 		if (c.name === 'custom-model' && tris === 0) errors.push('custom model did not load any triangles');

@@ -10,7 +10,7 @@ export const VERTEX_BYTES = 64;
 export const TEXTURE_REF_BYTES = 32;
 export const MATERIAL_HEADER_WORDS = 2; // uint4
 export const LIGHT_BYTES = 128;
-export const FRAME_UNIFORM_BYTES = 224;
+export const FRAME_UNIFORM_BYTES = 240;
 export const ACCUM_BYTES_PER_PIXEL = 48; // radiance, albedo, normal (float4 each)
 
 export const INSTANCE_FLAG_ALPHA_TESTED = 1;
@@ -58,6 +58,7 @@ export const FRAME_FLAG_ENVIRONMENT = 1;
 export const FRAME_FLAG_SUN = 2;
 export const FRAME_FLAG_ENV_IMPORTANCE = 4;
 export const FRAME_FLAG_ENV_VISIBLE = 8;
+export const FRAME_FLAG_SHARED_JITTER = 16;
 
 export enum DebugMode {
 	None = 0,
@@ -259,6 +260,7 @@ export interface FrameUniformData {
 	vtInvPhysicalSize: number;
 	pixelSpreadAngle: number;
 	vtMipBias: number;
+	primaryVisibility?: readonly [number, number, number, number];
 }
 
 export function packFrameUniforms(buffer: ArrayBuffer, d: FrameUniformData): void {
@@ -278,4 +280,5 @@ export function packFrameUniforms(buffer: ArrayBuffer, d: FrameUniformData): voi
 	f32.set([...d.background, 0], 44);
 	u32.set([d.vtTilesPerRow, d.vtPageTableWidth, d.vtFeedbackJitter, d.vtFeedbackShift], 48);
 	f32.set([d.vtInvPhysicalSize, d.pixelSpreadAngle, d.vtMipBias, 0], 52);
+	u32.set(d.primaryVisibility ?? [0, 0, 0, 0], 56);
 }

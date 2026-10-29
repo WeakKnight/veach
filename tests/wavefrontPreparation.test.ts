@@ -3,9 +3,11 @@ import { Wavefront } from '../src/render/Wavefront';
 
 function fixture() {
 	vi.stubGlobal('GPUBufferUsage', { INDIRECT: 1, COPY_DST: 2, UNIFORM: 4 });
+	vi.stubGlobal('GPUTextureUsage', { TEXTURE_BINDING: 4 });
 	vi.stubGlobal('GPUShaderStage', { COMPUTE: 1 });
 	const device = {
 		limits: { minUniformBufferOffsetAlignment: 256 }, features: new Set(),
+		createTexture: vi.fn(() => ({ createView: () => ({}), destroy() {} })),
 		createBuffer: vi.fn(() => ({ getMappedRange: () => new ArrayBuffer(48), unmap() {}, destroy() {} })),
 		createBindGroupLayout: vi.fn(() => ({})), createPipelineLayout: vi.fn(() => ({})),
 		createShaderModule: vi.fn(() => ({})),

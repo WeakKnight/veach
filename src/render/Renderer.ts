@@ -1,3 +1,4 @@
+import type { PrimaryVisibilityMode, PrimaryVisibilityStats } from './PrimaryVisibility';
 // Public entry point: owns the WebGPU device, the scene and the progressive render loop.
 import { BuildQuality, TinyBVH } from '../accel/TinyBVH';
 import type { HDRImage } from '../loaders/HDRLoader';
@@ -16,6 +17,7 @@ import {
 	FRAME_FLAG_ENV_IMPORTANCE,
 	FRAME_FLAG_ENV_VISIBLE,
 	FRAME_FLAG_SUN,
+	FRAME_FLAG_SHARED_JITTER,
 	FRAME_UNIFORM_BYTES,
 	Tonemapper,
 	packFrameUniforms,
@@ -338,6 +340,17 @@ export class Renderer {
 	}
 
 	get integrator(): 'megakernel' | 'wavefront' { return this.tracer.integrator; }
+
+	/** Auto prefers raster primary visibility; unsupported cases retain ray tracing. */
+	async setPrimaryVisibility(mode: PrimaryVisibilityMode): Promise<void> {
+		if (this.destroyed) throw new Error('Renderer has been destroyed');
+		if (mode === this.tracer.primaryVisibility) return;
+		await this.tracer.setPrimaryVisibility(mode);
+		this.resetAccumulation();
+	}
+	get primaryVisibility(): PrimaryVisibilityMode { return this.tracer.primaryVisibility; }
+	get primaryVisibilityStats(): PrimaryVisibilityStats { return { ...this.tracer.primaryVisibilityStats }; }
+	readPrimaryVisibilityStats(): Promise<PrimaryVisibilityStats> { return this.tracer.readPrimaryVisibilityStats(); }
 
 	/** Experimental independent NEE emitter evaluation; switching resets accumulation. */
 	async setSeparateLight(enabled: boolean): Promise<void> {
@@ -696,7 +709,10 @@ export class Renderer {
 		if (this.environment.importance) flags |= FRAME_FLAG_ENV_IMPORTANCE;
 		if (s.environmentVisible) flags |= FRAME_FLAG_ENV_VISIBLE;
 		if (this.sun.enabled && Math.max(...sun.radiance) > 0) flags |= FRAME_FLAG_SUN;
+		const primary = this.tracer.primaryVisibilityFrame(this.hostView ? 0 : this.camera.lensRadius, s.debugMode);
+		if (primary.sharedJitter) flags |= FRAME_FLAG_SHARED_JITTER;
 		packFrameUniforms(this.uniformData, {
+			primaryVisibility: primary.data,
 			cameraPosition: this.hostView?.position ?? this.camera.position,
 			lensRadius: this.hostView ? 0 : this.camera.lensRadius,
 			cameraRight: basis.right,

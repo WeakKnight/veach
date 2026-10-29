@@ -4,6 +4,7 @@
 //   gIndices   [mesh indices...][TLAS prim indices]
 //   gVertices, gInstances, gLights
 //   gMaterialData  material headers, texture tables, constants, bytecode (GpuLayout.packMaterialData)
+import { buildVisibilityClusters, relocateVisibilityClusters } from './VisibilityClusters';
 import { BVH_NODE_BYTES, BVH_TRI_FLOATS, BuildQuality, type BLASData, type TinyBVH } from '../accel/TinyBVH';
 import type { CompiledMaterial } from '../material/Compile';
 import { luminance, mat4, vec3, type Mat4, type Vec3 } from '../math/Math';
@@ -47,6 +48,10 @@ export class GpuScene {
 	materials!: GPUBuffer;
 	lights!: GPUBuffer;
 
+	visibilityOffset = 0;
+	visibilityCount = 0;
+	visibilityTriangleCounts = new Uint32Array();
+	instanceSlots = 0;
 	instanceCount = 0;
 	hasAlphaTested = false;
 	materialStackSize = 0;
@@ -281,7 +286,28 @@ export class GpuScene {
 		out.tris = createBuffer(device, 'bvhTris', tris);
 		out.instances = createBuffer(device, 'instances', instanceBuffer, INSTANCE_BYTES);
 		out.vertices = createBuffer(device, 'vertices', vertices, VERTEX_BYTES);
-		out.indices = createBuffer(device, 'indices', indices);
+		const blocks = new Map<number, { offset: number; count: number; words: Uint32Array }>();
+		let wordCount = indices.length;
+		for (const meshIndex of used) {
+			const mesh = scene.meshes[meshIndex], clusters = buildVisibilityClusters(mesh.positions, mesh.indices);
+			blocks.set(meshIndex, { offset: wordCount, count: clusters.count, words: relocateVisibilityClusters(clusters, wordCount) });
+			wordCount += clusters.words.length;
+		}
+		const pairs = new Uint32Array(scene.instances.reduce((count, inst) => count + blocks.get(inst.mesh)!.count * 2, 0));
+		const triangleCounts = new Uint32Array(pairs.length / 2);
+		let pairWord = 0;
+		for (let slot = 0; slot < scene.instances.length; slot++) {
+			const block = blocks.get(scene.instances[slot].mesh)!;
+			for (let c = 0; c < block.count; c++) { triangleCounts[pairWord / 2] = block.words[c * 8 + 7]; pairs[pairWord++] = slot; pairs[pairWord++] = block.offset + c * 8; }
+		}
+		const limit = Math.min(device.limits.maxStorageBufferBindingSize, device.limits.maxBufferSize);
+		if ((wordCount + pairs.length) * 4 <= limit) {
+			const packed = new Uint32Array(wordCount + pairs.length); packed.set(indices);
+			for (const block of blocks.values()) packed.set(block.words, block.offset);
+			packed.set(pairs, wordCount); out.visibilityOffset = wordCount; out.visibilityCount = pairs.length / 2; out.visibilityTriangleCounts = triangleCounts;
+			out.indices = createBuffer(device, 'indices', packed);
+		} else out.indices = createBuffer(device, 'indices', indices);
+		out.instanceSlots = instanceCount;
 		out.materials = createBuffer(device, 'materialData', materialData);
 		out.lights = createBuffer(device, 'lights', lightBuffer, LIGHT_BYTES);
 		out.instanceCount = instanceCount;

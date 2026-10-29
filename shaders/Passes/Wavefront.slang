@@ -26,6 +26,7 @@ struct WavefrontUniforms
 	uint sortGroupSize;
 };
 [[vk::binding(2, 1)]] ConstantBuffer<WavefrontUniforms> gWavefront;
+[[vk::binding(3, 1)]] Texture2D<uint2> gPrimaryVisibility;
 
 // float4 field arrays (SoA): path 0..7, hit 8..9, shadow metadata 10..11,
 // three shadows 12..20. Every field has gWavefront.capacity entries.
@@ -159,11 +160,9 @@ void Initialize(uint3 tid : SV_DispatchThreadID)
 	StoreFeedbackState(base);
 }
 
-HitRecord IntersectPath<let ALPHA : bool>(inout WavefrontPath s, uint bounce)
+HitRecord CompleteIntersection(inout WavefrontPath s, uint bounce, HitRecord hit)
 {
-	gRayCone = float2(s.path.coneWidth, s.path.coneSpread);
 	Ray ray = Ray(s.path.origin, s.path.direction);
-	HitRecord hit = TraceClosest<ALPHA>(ray);
 	float clampValue = gFrame.envParams.w / gFrame.envParams.z;
 	if (AnalyticLightCount() > 0u)
 	{
@@ -196,6 +195,86 @@ HitRecord IntersectPath<let ALPHA : bool>(inout WavefrontPath s, uint bounce)
 	}
 	return hit;
 }
+
+HitRecord IntersectPath<let ALPHA : bool>(inout WavefrontPath s, uint bounce)
+{
+	gRayCone = float2(s.path.coneWidth, s.path.coneSpread);
+	return CompleteIntersection(s, bounce, TraceClosest<ALPHA>(Ray(s.path.origin, s.path.direction)));
+}
+
+void StorePrimaryHit(uint base, inout WavefrontPath s, HitRecord hit)
+{
+	hit = CompleteIntersection(s, 0u, hit);
+	gAccum[Field(base, 8u)] = float4(hit.t, hit.barycentrics, asfloat(hit.instanceIndex));
+	gAccum[Field(base, 9u)] = asfloat(uint4(hit.primitiveIndex, 0u, 0u, 0u));
+	gAccum[base] = float4(s.path.radiance, asfloat(s.active));
+}
+
+[shader("compute")]
+[numthreads(64, 1, 1)]
+void ResolvePrimaryVisibility(uint3 tid : SV_DispatchThreadID)
+{
+	if (tid.x >= gWavefront.pathCount) return;
+	uint base = WorkBase(tid.x);
+	gAccum[Field(base, 9u)] = float4(0.0);
+	WavefrontPath s = LoadPath(base);
+	if (s.active == 0u) return;
+	uint2 ids = gPrimaryVisibility.Load(int3(WorkPixel(tid.x), 0));
+	uint pending = asuint(gAccum[gFrame.primaryVisibility.x / 4u].y) != 0u ? 3u : 0u;
+	HitRecord hit;
+	hit.t = FLT_LARGE; hit.barycentrics = float2(0.0);
+	hit.instanceIndex = INVALID_INDEX; hit.primitiveIndex = INVALID_INDEX;
+	if (pending == 0u && ids.x == INVALID_INDEX && ids.y != INVALID_INDEX) pending = 2u;
+	if (pending == 0u && ids.x != INVALID_INDEX)
+	{
+		if (ids.x >= gFrame.primaryVisibility.w) pending = 2u;
+		else
+		{
+			Instance inst = gInstances[ids.x];
+			if (ids.y >= inst.triCount) pending = 2u;
+			else if ((inst.flags & INSTANCE_FLAG_ALPHA_TESTED) != 0u) pending = 1u;
+			else
+			{
+				uint3 tri = LoadTriangleIndices(inst, ids.y);
+				float3 p = gVertices[tri.x].positionU.xyz;
+				float3 e1 = gVertices[tri.y].positionU.xyz - p, e2 = gVertices[tri.z].positionU.xyz - p;
+				bool valid = IntersectTriangle(InverseTransformPoint(inst, s.path.origin), InverseTransformVector(inst, s.path.direction),
+					p, e1, e2, 0.0, FLT_LARGE, hit.t, hit.barycentrics);
+				if (!valid || !isfinite(hit.t) || !all(isfinite(hit.barycentrics))) pending = 2u;
+				else { hit.instanceIndex = ids.x; hit.primitiveIndex = ids.y; }
+			}
+		}
+	}
+	if (pending != 0u) gAccum[Field(base, 9u)] = asfloat(uint4(0u, pending, 0u, 0u));
+	else StorePrimaryHit(base, s, hit);
+}
+
+void PrimaryTraceFallbackImpl<let ALPHA : bool>(uint3 tid)
+{
+	if (tid.x >= asuint(gAccum[HeaderBase()].y)) return;
+	uint index = QueueIndex(ShadeQueueBase(), tid.x), base = WorkBase(index);
+	WavefrontPath s = LoadPath(base);
+	if (ALPHA) LoadFeedbackState(base);
+	gRayCone = float2(s.path.coneWidth, s.path.coneSpread);
+	HitRecord hit = TraceClosest<ALPHA>(Ray(s.path.origin, s.path.direction));
+	StorePrimaryHit(base, s, hit);
+	if (ALPHA) StoreFeedbackState(base);
+}
+
+[shader("compute")]
+[numthreads(64, 1, 1)]
+void PrimaryTraceFallback(uint3 tid : SV_DispatchThreadID) { PrimaryTraceFallbackImpl<true>(tid); }
+[shader("compute")]
+[numthreads(64, 1, 1)]
+void PrimaryTraceFallbackOpaque(uint3 tid : SV_DispatchThreadID) { PrimaryTraceFallbackImpl<false>(tid); }
+
+// Tiny fallback queues need work on more SMs, not a single divergent 64-ray group.
+[shader("compute")]
+[numthreads(1, 1, 1)]
+void PrimaryTraceFallbackSparse(uint3 tid : SV_DispatchThreadID) { PrimaryTraceFallbackImpl<true>(tid); }
+[shader("compute")]
+[numthreads(1, 1, 1)]
+void PrimaryTraceFallbackSparseOpaque(uint3 tid : SV_DispatchThreadID) { PrimaryTraceFallbackImpl<false>(tid); }
 
 void IntersectImpl<let ALPHA : bool, let DIRECT : bool>(uint3 tid)
 {

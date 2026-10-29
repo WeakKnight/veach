@@ -6,6 +6,7 @@
 // Output is accumulated progressively.
 import Common.Math;
 import Common.Random;
+import Passes.PrimaryCamera;
 import Scene.SceneTypes;
 import Scene.SceneBindings;
 import RayTracing.Traversal;
@@ -158,7 +159,9 @@ float3 HeatMap(float t)
 Ray GenerateCameraRay(uint2 pixel, inout RandomSequence rng)
 {
 	float2 resolution = float2(gFrame.frame.xy);
-	float2 film = (float2(pixel) + rng.Next2D()) / resolution;
+	float2 jitter = rng.Next2D(); // Preserve subsequent path RNG dimensions in both camera modes.
+	if ((gFrame.settings.z & FRAME_FLAG_SHARED_JITTER) != 0u) jitter = PrimaryCameraJitter();
+	float2 film = (float2(pixel) + jitter) / resolution;
 	float2 ndc = float2(film.x * 2.0 - 1.0, 1.0 - film.y * 2.0);
 	float3 forward = gFrame.cameraForward.xyz;
 	float3 dir = normalize(forward + gFrame.cameraRight.xyz * ndc.x + gFrame.cameraUp.xyz * ndc.y);

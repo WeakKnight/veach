@@ -160,6 +160,20 @@ Selecting wavefront before loading geometry defers compilation until `setScene`,
 required pipelines to compile together at the scene's material stack capacity. Geometry-free
 scenes use the lightweight camera/environment/analytic-light kernel in either mode.
 
+`await renderer.setPrimaryVisibility('rasterized')` selects GPU-driven visibility for
+pinhole wavefront primary rays. `ray-traced` selects the original traversal and camera
+sampling; `auto` is the default and prefers raster visibility for eligible views.
+The exported type is `PrimaryVisibilityMode`. Mode changes reset accumulation.
+Raster mode shares one subpixel camera jitter across the image per sample. It issues one
+geometry draw per sample, then reuses the existing SVM and path shading. Alpha candidates
+and near-plane risks retain correctness fallbacks; depth of field, debug views and
+megakernel rendering use ray tracing. Await mode changes before scene/integrator changes.
+`renderer.primaryVisibility` reports the selection; `primaryVisibilityStats` reports the
+selected execution path and allocations. `await renderer.readPrimaryVisibilityStats()`
+adds GPU cluster/vertex-slot counts, alpha/numerical fallback counts and near-plane
+fallback reason. This explicit diagnostic readback waits for the GPU; ordinary rendering
+does not. See [PrimaryVisibility.md](PrimaryVisibility.md) for sampling and coverage limits.
+
 Two additional experimental switches apply to wavefront and reset accumulation:
 `await renderer.setSeparateLight(true)` separates nonconstant NEE emission evaluation;
 `await renderer.setBatchedShadows(true)` enables no-SVM opaque/miss classification and

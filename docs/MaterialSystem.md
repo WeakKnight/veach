@@ -10,6 +10,12 @@ selection (same expectation, visible only at 1 spp), and `clearcoatNormalTexture
 
 ## Current implementation
 
+Optional [raster primary visibility](PrimaryVisibility.md) supplies the existing hit record
+to surface reconstruction and SVM. Visibility fragments never evaluate opacity or material
+bytecode. Only pixels whose nearest geometric candidate needs alpha, or whose reconstruction
+fails, enter the primary traversal queue; this preserves the existing Mask/Blend rules.
+Opaque transmission still shades normally and launches the existing continuation rays.
+
 Persistent host scenes accept the smaller `PbrMaterial` descriptor. `HostMaterial.ts` lowers
 it through the same graph/compiler, including independent metallic/roughness channels, masked
 opacity and two-component normal scale. MeshBasicMaterial uses emission. The descriptor does
