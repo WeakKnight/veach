@@ -22,7 +22,7 @@ async function run() {
 		let frame = 0;
 		const render = async () => {
 			await adapter.sync(root, camera);
-			renderer.renderFrame({ scene: adapter.scene, view: adapter.view(camera), frameIndex: frame++, samplesPerPixel: 1 });
+			renderer.renderFrame({ scene: adapter.scene, view: adapter.view(camera), frameIndex: frame++ });
 			return renderer.readRadiance();
 		};
 		const center = (r: Awaited<ReturnType<typeof render>>) => [...r.data.slice(((r.height >> 1) * r.width + (r.width >> 1)) * 3, ((r.height >> 1) * r.width + (r.width >> 1)) * 3 + 3)];

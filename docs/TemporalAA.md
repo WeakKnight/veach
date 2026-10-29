@@ -2,9 +2,9 @@
 
 TAA defaults on for host frames, including the aim/racing examples, and for the viewer when
 `settings.accumulation = false`. It is bypassed while progressive cross-frame accumulation
-is enabled. Samples within a frame still average normally; the raw current-frame HDR and
+is enabled. Real-time rendering always traces exactly 1 spp; the raw current-frame HDR and
 material guides remain available separately from TAA's presentation result. This renderer
-does not have a standalone progressive accumulation pass: sample averaging lives in the
+does not have a standalone progressive accumulation pass: static cross-frame averaging lives in the
 path finalization shaders. TAA adds `taa.motion` followed by `taa.resolve` compute passes.
 
 ## Remix reference
@@ -32,8 +32,8 @@ primary-hit data and does not require a ninth path-stage storage binding.
 
 `FrameUniforms` is 304 bytes. The final float4 at byte 288 holds the current film jitter
 (xy in [0,1]), a guide-enable flag and padding. A 32-frame Halton (bases 2 and 3) sequence
-is shared by raster visibility and generated primary rays. Every sample within a TAA frame
-uses the same jitter; subsequent path RNG dimensions remain unchanged. Without TAA, the
+is shared by raster visibility and the single primary ray per pixel in each TAA frame.
+Subsequent path RNG dimensions remain unchanged. Without TAA, the
 existing per-sample camera jitter behavior is retained.
 
 Primary shading stores ray distance in the albedo float4's w component and numeric instance

@@ -48,11 +48,12 @@ and be submitted inside that interval on the same queue. Scope callbacks must be
 An encoder-local wrapper attaches timestamp writes to existing passes; global WebGPU
 prototypes and shader math are unchanged. Inactive encoders are returned unwrapped.
 
-Captures include every sample/tile's submitted visibility, wavefront traversal, shade,
+Captures include each tile's submitted visibility, wavefront traversal, shade,
 shadow, compaction and SHARC passes, plus TAA motion/resolve, exposure, local exposure,
 presentation, and any sky bake triggered in that frame. Wavefront labels form a hierarchy
-by sample and bounce; repeated tiles aggregate counts. The hotspot list merges identical
-module/pass names across samples/bounces, preserving e.g. `sharc.Resolve` versus `taa.resolve`.
+under Path tracing and bounce; repeated tiles aggregate counts. Rendering is fixed at 1 spp.
+The hotspot list merges identical module/pass names across bounces, preserving e.g.
+`sharc.Resolve` versus `taa.resolve`.
 Scene loading, pipeline compilation, texture uploads,
 copy/clear operations and asynchronous OIDN jobs are not measured as timed passes.
 
@@ -87,9 +88,9 @@ unmount, or consume `GpuProfiler` from the DOM-free core entry.
 
 The production game build/typecheck and eight profiler/console tests passed. A single aim
 scene exercised the real Ctrl+Shift+Comma shortcut, Escape, repeat capture, console capture,
-asynchronous buffer reuse and two samples per frame. Captures contained 36 and 68 passes,
-with no dropped or invalid timestamps and no GPU/browser errors. TAA history continued
-growing. Closing the panel left its capture ID unchanged until the next explicit request.
+asynchronous buffer reuse and switching from Performance to Quality. Both captures retain
+1 spp; Quality only changes resolution. No dropped or invalid timestamps or GPU/browser
+errors were observed. Closing the panel left its capture ID unchanged until the next explicit request.
 The panel screenshot was inspected. This is a functionality check, not a performance sweep.
 Run `node scripts/gpu-profile-check.mjs` with the game preview on port 4177;
 local results are written to `.tools/gpu-profiler/`.

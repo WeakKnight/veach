@@ -131,8 +131,9 @@ Host scenes use the renderer's default adaptive wavefront integrator and scene o
 specialization. The host GPU validation checks this default explicitly, including material
 and alpha-mode changes that prepare different pipeline variants before scene publication.
 
-`renderFrame({ scene, view, frameIndex, samplesPerPixel })` replaces prior radiance every call.
-The frame ID varies the random sequence; samplesPerPixel (1–64) averages inside this frame.
+`renderFrame({ scene, view, frameIndex })` traces exactly one sample per pixel and replaces
+prior raw radiance every call. The frame ID varies the random sequence. Real-time rendering
+is fixed at 1 spp; there is no per-frame sample-count parameter or intra-frame averaging.
 No host-frame OIDN runs. Keep frame IDs increasing across commits. Exposure adaptation retains
 presentation history, not path-traced radiance. Noise at low sample counts is expected.
 [TAA](TemporalAA.md) now runs by default before presentation. It reconstructs camera and

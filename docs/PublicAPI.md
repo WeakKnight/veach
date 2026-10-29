@@ -93,7 +93,7 @@ await update.commit();
 const next = scene.beginUpdate();
 next.setInstanceTransform(instance, worldMatrix);
 await next.commit();
-renderer.renderFrame({ scene, view: { worldFromCamera, clipFromView }, frameIndex: 0, samplesPerPixel: 1 });
+renderer.renderFrame({ scene, view: { worldFromCamera, clipFromView }, frameIndex: 0 });
 
 // Final-reference validation permits these operations in any order in the batch.
 const release = scene.beginUpdate();
@@ -123,9 +123,10 @@ An initial empty commit creates a renderable empty scene. `scene.stats` reports 
 `renderer.hostSceneStats(scene)` reports latest commit BLAS/TLAS builds, material compiles,
 uploaded bytes by buffer and buffer growths.
 
-Host frames never accumulate radiance across calls. Use increasing `frameIndex` values for
-random seeds and optionally 1–64 samples within a frame. This path has no temporal denoiser;
-TAA/NRD will be separate integrations. The static viewer API below remains progressive.
+Host frames replace raw radiance every call and always trace 1 spp. Use increasing
+`frameIndex` values for random seeds; TAA reuses history across frames. There is no
+per-frame sample-count setting. The static viewer API below remains progressive,
+adding one sample per render call until `maxSamples` is reached.
 
 ## Three.js host
 

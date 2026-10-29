@@ -19,11 +19,11 @@ function fixture(supported = true) {
 }
 
 it('aggregates nested scopes and repeated passes without double-counting', () => {
-	const result = aggregateGpuPasses([{ path: ['Sample 1', 'Bounce 0', 'Shade'], ms: 2 }, { path: ['Sample 1', 'Bounce 0', 'Shade'], ms: 3 }, { path: ['Sample 2', 'Bounce 1', 'Shade'], ms: 1 }]);
+	const result = aggregateGpuPasses([{ path: ['Wavefront', 'Bounce 0', 'Shade'], ms: 2 }, { path: ['Wavefront', 'Bounce 0', 'Shade'], ms: 3 }, { path: ['Wavefront', 'Bounce 1', 'Shade'], ms: 1 }]);
 	expect(result.totalMs).toBe(6);
-	expect(result.roots[0].ms).toBe(5);
+	expect(result.roots[0].ms).toBe(6);
 	expect(result.roots[0].children[0].children[0].count).toBe(2);
-	expect(result.hotspots).toEqual([{ name: 'Shade', ms: 6, count: 3 }]);
+	expect(result.hotspots).toEqual([{ name: 'Wavefront.Shade', ms: 6, count: 3 }]);
 });
 
 it('does not allocate or substitute CPU timing on unsupported devices', () => {
@@ -40,14 +40,14 @@ it('captures pass boundaries asynchronously and stops querying after one frame',
 	profiler.capture(); profiler.beginFrame({ width: 128, height: 96, samples: 0, integrator: 'wavefront' });
 	const wrapped = profiler.createCommandEncoder({ label: 'test' });
 	expect(() => profiler.scope('Unwound', () => { throw new Error('scope'); })).toThrow('scope');
-	profiler.scope('Sample 1', () => wrapped.beginComputePass({ label: 'wavefront.Shade.b0' }));
+	profiler.scope('Path tracing', () => wrapped.beginComputePass({ label: 'wavefront.Shade.b0' }));
 	profiler.scope('Presentation', () => wrapped.beginRenderPass({ label: 'present', colorAttachments: [] }));
 	expect(compute.mock.calls[0]).toEqual([expect.objectContaining({ timestampWrites: expect.objectContaining({ beginningOfPassWriteIndex: 0, endOfPassWriteIndex: 1 }) })]);
 	expect(render.mock.calls[0]).toEqual([expect.objectContaining({ timestampWrites: expect.objectContaining({ beginningOfPassWriteIndex: 2, endOfPassWriteIndex: 3 }) })]);
 	profiler.endFrame(1); expect(profiler.status).toBe('reading');
 	await vi.waitFor(() => expect(profiler.status).toBe('ready'));
 	expect(profiler.report).toMatchObject({ totalMs: 3, spanMs: 4, samples: 1, dropped: 0, invalid: 0 });
-	expect(profiler.report!.passes[0].path).toEqual(['Sample 1', 'Wavefront', 'Bounce 0', 'Shade']);
+	expect(profiler.report!.passes[0].path).toEqual(['Path tracing', 'Wavefront', 'Bounce 0', 'Shade']);
 	expect(profiler.createCommandEncoder({})).toBe(encoder);
 	profiler.capture(); profiler.cancelPending(); expect(profiler.status).toBe('ready');
 	profiler.destroy();

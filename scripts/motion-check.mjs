@@ -22,7 +22,7 @@ try {
 			let frame = g.frame;
 			const draw = async () => {
 				await g.adapter.sync(g.scene, g.camera);
-				r.renderFrame({ scene: g.adapter.scene, view: g.adapter.view(g.camera), frameIndex: frame++, samplesPerPixel: 1 });
+				r.renderFrame({ scene: g.adapter.scene, view: g.adapter.view(g.camera), frameIndex: frame++ });
 				const motion = r.motionVectorBuffer, history = taa.history[taa.ping], output = r.tracer.presentation;
 				const b = r.device.createBuffer({ size: motion.size + history.size + output.size, usage: GPUBufferUsage.MAP_READ | GPUBufferUsage.COPY_DST });
 				const e = r.device.createCommandEncoder();

@@ -1,6 +1,6 @@
 export interface GpuProfileNode { name: string; ms: number; count: number; children: GpuProfileNode[] }
 export interface GpuProfilePass { path: string[]; ms: number }
-export interface GpuProfileMetadata { width: number; height: number; samples: number; integrator: string }
+export interface GpuProfileMetadata { width: number; height: number; samples: 0 | 1; integrator: string }
 export interface GpuProfileReport extends GpuProfileMetadata {
 	id: number; totalMs: number; spanMs: number; passes: GpuProfilePass[]; roots: GpuProfileNode[];
 	hotspots: { name: string; ms: number; count: number }[]; dropped: number; invalid: number;
@@ -19,7 +19,7 @@ export function aggregateGpuPasses(passes: readonly GpuProfilePass[]): Pick<GpuP
 			if (!node) { node = { name, ms: 0, count: 0, children: [] }; children.push(node); }
 			node.ms += pass.ms; node.count++; children = node.children;
 		}
-		const name = pass.path.filter(part => !/^(Sample|Bounce) \d+$/.test(part)).slice(-2).join('.') || 'Unnamed';
+		const name = pass.path.filter(part => !/^Bounce \d+$/.test(part)).slice(-2).join('.') || 'Unnamed';
 		const hot = hotspots.get(name) ?? { name, ms: 0, count: 0 };
 		hot.ms += pass.ms; hot.count++; hotspots.set(name, hot);
 	}
@@ -99,7 +99,7 @@ export class GpuProfiler {
 		return { ...descriptor, timestampWrites: { querySet: this.queries!, beginningOfPassWriteIndex: index, endOfPassWriteIndex: index + 1 } };
 	}
 	/** Call after all captured command buffers have been submitted to the same queue. */
-	endFrame(samples: number): void {
+	endFrame(samples: 0 | 1): void {
 		if (this.status !== 'recording') return;
 		if (!this.paths.length) { this.abort('No GPU passes were submitted'); return; }
 		this.metadata.samples = samples;

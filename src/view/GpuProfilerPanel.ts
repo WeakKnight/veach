@@ -60,7 +60,7 @@ summary,.leaf{padding:5px 8px;border-bottom:1px solid #ffffff12;cursor:pointer;f
 		stats.replaceChildren(); tree.replaceChildren(); table.replaceChildren();
 		if (!report) return;
 		const total = document.createElement('strong'); total.textContent = `${report.totalMs.toFixed(3)} ms`;
-		stats.append(total, ` Pass 合计 · 跨度 ${report.spanMs.toFixed(3)} ms · ${report.width}×${report.height} · ${report.samples} samples · ${report.passes.length} passes · ${report.integrator} · #${report.id}`);
+		stats.append(total, ` Pass 合计 · 跨度 ${report.spanMs.toFixed(3)} ms · ${report.width}×${report.height} · ${report.samples ? '1 spp' : '仅呈现'} · ${report.passes.length} passes · ${report.integrator} · #${report.id}`);
 		if (report.dropped || report.invalid || !report.samples) {
 			const warning = document.createElement('div'); warning.className = 'warning';
 			warning.textContent = `${report.dropped ? `查询容量不足或已有计时，遗漏 ${report.dropped} 个 Pass。` : ''}${report.invalid ? `${report.invalid} 个时间戳无效。` : ''}${!report.samples ? '本帧没有路径采样，仅包含呈现工作。' : ''}`;

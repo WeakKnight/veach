@@ -154,7 +154,7 @@ function finish() {
 		: `Three laps complete. Best lap ${bestLap.toFixed(2)}s · ${collisions} barrier contacts.`, 'PLAY AGAIN');
 }
 $('start').onclick = begin; $('pause').onclick = pause; $('reset').onclick = restart;
-$<HTMLSelectElement>('quality').onchange = event => { if (renderer) { renderer.settings.resolutionScale = Number((event.target as HTMLSelectElement).value); renderer.settings.samplesPerFrame = renderer.settings.resolutionScale === 1 ? 4 : renderer.settings.resolutionScale === 0.75 ? 2 : 1; } };
+$<HTMLSelectElement>('quality').onchange = event => { if (renderer) renderer.settings.resolutionScale = Number((event.target as HTMLSelectElement).value); };
 window.addEventListener('keydown', e => {
 	if (debugConsole?.isOpen || gpuProfilerPanel?.isOpen || consoleBusy || (e.target instanceof HTMLElement && e.target.matches('input,textarea,select,[contenteditable]'))) return;
 	if (['Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.code)) e.preventDefault();
@@ -232,7 +232,7 @@ async function loop(now: number) {
 		await sceneSync;
 		if (closed) return;
 		if (consoleBusy) { requestAnimationFrame(loop); return; }
-		renderer.renderFrame({ scene: adapter.scene, view: adapter.view(camera), frameIndex: frame++, samplesPerPixel: renderer.settings.samplesPerFrame });
+		renderer.renderFrame({ scene: adapter.scene, view: adapter.view(camera), frameIndex: frame++ });
 		requestAnimationFrame(loop);
 	} catch (error) { showError(error); }
 }

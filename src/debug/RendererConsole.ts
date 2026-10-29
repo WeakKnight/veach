@@ -23,7 +23,6 @@ export const renderConsoleSettings = {
 	taaMotionVectorDebug: { name: 'r.TAA.MotionVectors', help: 'Visualize active TAA motion: gray=zero, R/G=signed X/Y (+/-32 pixels), magenta=unavailable. Keeps history.', type: consoleBoolean },
 	maxBounces: { name: 'r.PathTracing.MaxBounces', help: 'Maximum continuation bounces. Resets accumulation.', type: consoleNumber(0, 128, true) },
 	maxSamples: { name: 'r.PathTracing.MaxSamples', help: 'Progressive sample limit; 0 unlimited. Host games use samples per frame.', type: consoleNumber(0, 1000000, true) },
-	samplesPerFrame: { name: 'r.PathTracing.SamplesPerFrame', help: 'Samples per rendered frame.', type: consoleNumber(1, 64, true) },
 	resolutionScale: { name: 'r.Resolution.Scale', help: 'Internal resolution scale; 0.5 is half width and height.', type: consoleNumber(0.1, 2) },
 	debugMode: { name: 'r.Debug.Mode', help: 'Render debug view; SHARC and raster primary fall back when needed.', type: consoleEnum({ None: 0, Albedo: 1, ShadingNormal: 2, GeometryNormal: 3, UV: 4, Instance: 5, Material: 6, Traversal: 7, Emission: 8, VirtualTexture: 9 }) },
 	tonemapper: { name: 'r.Tonemapper.Mode', help: 'Tone mapping; overridden while a display LUT is active.', type: consoleEnum({ None: 0, ACESFilmic: 1, ACES2: 2 }) },
@@ -75,7 +74,7 @@ export function createRendererConsole(renderer: Renderer, options: RendererConso
 			if (s.autoExposureMinBrightness > s.autoExposureMaxBrightness) throw new Error('MinBrightness must be <= MaxBrightness');
 			if (s.histogramLogMin >= s.histogramLogMax) throw new Error('HistogramLogMin must be below HistogramLogMax');
 			Object.assign(renderer.settings, { [key]: value });
-			if (!isPresentationSetting(key) && !['maxSamples', 'samplesPerFrame', 'bvhQuality', 'streamingResetCoverage'].includes(key)) renderer.resetAccumulation();
+			if (!isPresentationSetting(key) && !['maxSamples', 'bvhQuality', 'streamingResetCoverage'].includes(key)) renderer.resetAccumulation();
 		});
 	}
 	bind('r.Renderer.Integrator', 'Integrator selection; waits for pipeline preparation.', consoleEnum({ wavefront: 'wavefront', megakernel: 'megakernel' } as const), () => renderer.integrator, v => renderer.setIntegrator(v));

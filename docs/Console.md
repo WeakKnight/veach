@@ -17,7 +17,6 @@ No JavaScript, shell execution or automatic execution of saved history is suppor
 ```text
 r.PathTracing.MaxBounces
 r.PathTracing.MaxBounces 4
-r.PathTracing.SamplesPerFrame 1
 r.Resolution.Scale 0.5
 r.Renderer.Integrator wavefront
 r.PrimaryVisibility.Mode ray-traced
@@ -59,6 +58,9 @@ reset/statistics commands, separate light evaluation, batched shadows, OIDN, dis
 sun controls, camera projection, the accumulation switch and TAA enable/weight/clamping/
 radiance/reset/statistics.
 TAA defaults on when progressive accumulation is off; host games always use independent frames.
+Rendering is fixed at one new sample per pixel per frame; there is no samples-per-frame
+command. Game quality presets change resolution only. Static progressive rendering still
+accumulates samples across frames, controlled by `r.PathTracing.MaxSamples`.
 `r.TAA.MotionVectors` visualizes active TAA's motion without resetting history: gray is zero,
 red/green encode signed X/Y (positive right/down, saturation at ±32 render pixels), and magenta
 means no previous projection. It bypasses exposure/tone mapping; disable it to restore color.

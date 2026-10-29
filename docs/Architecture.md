@@ -18,7 +18,10 @@ the TLAS uses sparse instance slots and its node base is `FrameUniforms.envInfo.
 reserved word). Frame uniforms are 304 bytes (including primary visibility, SHARC and TAA metadata) and the eight-storage-buffer limit is unchanged.
 Host material IDs are 32-byte header addresses rather than dense indices. Host rendering resets
 the current frame sample counter each call, while changing the seed using the host frame ID.
-The static viewer remains progressive. See [HostIntegration.md](HostIntegration.md).
+Each render call traces one new sample per pixel; the frame loop has no intra-frame sample
+batching. Host/real-time frames use TAA history; the static viewer remains progressive and
+accumulates one sample per call. There is no per-frame sample-count setting.
+See [HostIntegration.md](HostIntegration.md).
 
 Renderer initialization compiles `PathTracingEmpty.wgsl`, an empty-scene specialization of
 `PathTracing.slang` that retains camera rays, analytic-light visibility, background, and

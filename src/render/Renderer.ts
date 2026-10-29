@@ -61,7 +61,6 @@ export interface RenderSettings {
 	taaMotionVectorDebug: boolean;
 	maxBounces: number;
 	maxSamples: number; // 0 = unlimited
-	samplesPerFrame: number;
 	resolutionScale: number;
 	debugMode: DebugMode;
 	tonemapper: Tonemapper;
@@ -112,7 +111,6 @@ export function defaultRenderSettings(): RenderSettings {
 		taaMotionVectorDebug: false,
 		maxBounces: 8,
 		maxSamples: 128,
-		samplesPerFrame: 1,
 		resolutionScale: 1,
 		debugMode: DebugMode.None,
 		tonemapper: Tonemapper.ACES2,
@@ -182,7 +180,6 @@ export interface HostFrame {
 	scene: RenderScene;
 	view: HostView;
 	frameIndex: number;
-	samplesPerPixel?: number;
 }
 
 interface HostState {
@@ -824,7 +821,7 @@ export class Renderer {
 		return this.settings.maxSamples > 0 && this.frameIndex >= this.settings.maxSamples;
 	}
 
-	// Traces samplesPerFrame samples (unless converged) and presents the accumulation.
+	// Traces one sample (unless converged), then presents. Progressive rendering accumulates across calls.
 	renderFrame(frame?: HostFrame): void {
 		try { this.renderFrameImpl(frame); }
 		catch (error) { this.gpuProfiler.abort(error); throw error; }
@@ -857,20 +854,18 @@ export class Renderer {
 		if (this.frameIndex === 0) {
 			this.preExposure = this.nextPreExposure();
 		}
-		const samples = this.settings.debugMode !== DebugMode.None ? 1 : Math.max(1, frame?.samplesPerPixel ?? this.settings.samplesPerFrame);
 		if ((!this.converged || this.settings.debugMode !== DebugMode.None) && this.denoiseAttempt) this.invalidateDenoising();
-		let tracedSamples = 0;
-		for (let i = 0; i < samples && !this.converged; i++) {
+		const trace = !this.converged;
+		if (trace) {
 			this.writeUniforms(this.vt?.nextFeedbackJitter() ?? 0, true);
 			const encoder = this.gpuProfiler.createCommandEncoder({ label: 'trace' });
-			this.gpuProfiler.scope(`Sample ${i + 1}`, () => this.tracer.encodeTrace(encoder, this.settings.maxBounces, this.settings.debugMode));
+			this.gpuProfiler.scope('Path tracing', () => this.tracer.encodeTrace(encoder, this.settings.maxBounces, this.settings.debugMode));
 			const feedback = this.tracer.feedback;
-			if (this.vt && feedback && (i === samples - 1 || (this.settings.maxSamples > 0 && this.frameIndex + 1 >= this.settings.maxSamples))) {
+			if (this.vt && feedback) {
 				this.vt.recordFeedbackReadback(encoder, feedback);
 			}
 			this.device.queue.submit([encoder.finish()]);
 			this.frameIndex++;
-			tracedSamples++;
 		}
 		this.vt?.afterSubmit();
 		// present reads the tonemapping settings from the uniforms; frameIndex there is unused
@@ -889,7 +884,7 @@ export class Renderer {
 		this.gpuProfiler.scope('Local exposure', () => this.encodeLocalExposure(encoder, exposed));
 		this.gpuProfiler.scope('Presentation', () => this.tracer.encodePresent(encoder, this.context.getCurrentTexture().createView()));
 		this.device.queue.submit([encoder.finish()]);
-		this.gpuProfiler.endFrame(tracedSamples);
+		this.gpuProfiler.endFrame(trace ? 1 : 0);
 		if (exposed) {
 			this.tracer.autoExposure.afterSubmit();
 		}
@@ -899,9 +894,6 @@ export class Renderer {
 	private useHostFrame(frame: HostFrame): void {
 		if (this.running) throw new Error('Stop the renderer-owned loop before rendering host frames');
 		if (!Number.isSafeInteger(frame.frameIndex) || frame.frameIndex < 0) throw new Error('frameIndex must be a nonnegative integer');
-		if (frame.samplesPerPixel !== undefined && (!Number.isInteger(frame.samplesPerPixel) || frame.samplesPerPixel < 1 || frame.samplesPerPixel > 64)) {
-			throw new Error('samplesPerPixel must be an integer in [1, 64]');
-		}
 		const state = this.hosts.get(frame.scene);
 		if (!state || frame.scene.isDisposed) throw new Error('Scene does not belong to this renderer or was disposed');
 		if (!state.scene) throw new Error('Commit scene resources before rendering');

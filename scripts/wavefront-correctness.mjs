@@ -117,7 +117,7 @@ try {
 		check(r.device.limits.maxStorageBuffersPerShaderStage === 8, 'Storage binding budget was not enforced');
 		check(!disableSubgroups || !r.device.features.has('subgroups'), 'Subgroups were not disabled');
 		check(compaction !== 'subgroup' || r.device.features.has('subgroups'), 'Subgroup compaction is unavailable');
-		Object.assign(r.settings, { maxSamples: 0, samplesPerFrame: 1, autoExposureMethod: api.AutoExposureMethod.Manual,
+		Object.assign(r.settings, { maxSamples: 0, autoExposureMethod: api.AutoExposureMethod.Manual,
 			autoExposureBias: 0, localExposureMethod: api.LocalExposureMethod.None, textureMipBias: -16 });
 		const originalUpdate = r.updateStreaming;
 		const results = [];

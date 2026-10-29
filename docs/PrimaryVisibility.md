@@ -32,7 +32,7 @@ Insufficient scratch budget disables raster visibility. No ninth storage binding
 Frame uniforms are 304 bytes. The uint4 at byte 224 is the scratch word offset, pair-list word
 offset, pair count and instance slot bound (not the active instance count). Flag 16
 selects the shared camera jitter. With TAA active, the frame's Halton jitter overrides the random shared
-jitter in both raster projection and camera rays; samples within that frame share this jitter.
+jitter in both raster projection and camera rays. Real-time frames trace exactly 1 spp.
 Wavefront group 1 binding 3 samples the `rg32uint`
 visibility texture; inactive modes bind a 1x1 dummy. Independent cull/raster layouts use
 the existing frame, instance, vertex, index and accumulation buffers. The existing

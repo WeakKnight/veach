@@ -32,7 +32,7 @@ try {
 		const r = await api.Renderer.create(canvas, { denoiser: null });
 		GPUAdapter.prototype.requestDevice = requestDevice;
 		const check = (ok, message) => { if (!ok) throw new Error(message); };
-		Object.assign(r.settings, { maxSamples: 0, maxBounces: 3, samplesPerFrame: 1, autoExposureMethod: api.AutoExposureMethod.Manual, autoExposureBias: 0, localExposureMethod: api.LocalExposureMethod.None });
+		Object.assign(r.settings, { maxSamples: 0, maxBounces: 3, autoExposureMethod: api.AutoExposureMethod.Manual, autoExposureBias: 0, localExposureMethod: api.LocalExposureMethod.None });
 		r.tracer.sharedPrimaryJitter = true;
 		const writeUniforms = r.writeUniforms.bind(r);
 		if (seed) r.writeUniforms = (...args) => { writeUniforms(...args); new Uint32Array(r.uniformData)[19] ^= seed; r.device.queue.writeBuffer(r.tracer.uniformBuffer, 0, r.uniformData); };

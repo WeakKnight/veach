@@ -355,7 +355,7 @@ try {
 			renderer.tracer.materialOpcodeSpecialization = config.opcodeMode === 'scene';
 			renderer.tracer.materialOperandMode = config.operandMode;
 			renderer.tracer.opaqueMegakernel = config.opaqueMegakernel;
-			Object.assign(renderer.settings, { maxSamples: 0, samplesPerFrame: 1, maxBounces: config.bounces,
+			Object.assign(renderer.settings, { maxSamples: 0, maxBounces: config.bounces,
 				autoExposureMethod: AutoExposureMethod.Manual, autoExposureBias: 0, localExposureMethod: LocalExposureMethod.None,
 				environmentIntensity: c.environment, fireflyClamp: config.clamp });
 			renderer.sun.enabled = c.environment > 0;

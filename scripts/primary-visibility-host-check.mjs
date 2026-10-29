@@ -24,7 +24,7 @@ try {
 		const second = tx.addInstance({ geometry, materials: [material], worldMatrix: back }); await tx.commit();
 		const world = mat4.identity(); world[14] = 5;
 		const projection = new Float32Array(16); projection[0] = 2; projection[5] = 2.5; projection[8] = 0.23; projection[9] = -0.17; projection[10] = -1; projection[11] = -1; projection[14] = -0.02;
-		const frame = { scene, frameIndex: 31, samplesPerPixel: 4, view: { worldFromCamera: world, clipFromView: projection } }, results = [];
+		const frame = { scene, frameIndex: 31, view: { worldFromCamera: world, clipFromView: projection } }, results = [];
 		async function render(mode) {
 			await r.setPrimaryVisibility(mode); r.renderFrame(frame);
 			const bytes = r.tracer.width*r.tracer.height*48, buffer=r.device.createBuffer({size:bytes,usage:GPUBufferUsage.MAP_READ|GPUBufferUsage.COPY_DST});
@@ -54,7 +54,6 @@ try {
 			update=scene.beginUpdate();for(let i=0;i<1024;i++){const q=mat4.identity();q[12]=100+i;update.addInstance({geometry,materials:[material],worldMatrix:q});}await update.commit();await compare('buffer-growth-offscreen-culling');
 			if(results.at(-1).stats.visibleClusters>=results.at(-1).stats.clusterInstances)throw new Error('Frustum culling did not reject offscreen instances');
 			canvas.style.cssText='width:513px;height:513px';r.resize();await compare('resize-multiple-tiles');
-			frame.samplesPerPixel=1;await compare('one-sample');
 			await r.setIntegrator('megakernel');const fallback=await render('rasterized');if(fallback.stats.reason!=='integrator')throw new Error('Megakernel fallback failed');
 			await r.setIntegrator('wavefront');r.settings.debugMode=7;const debug=await render('rasterized');if(debug.stats.reason!=='debug-view')throw new Error('Debug fallback failed');
 			results.push({name:'fallback-modes',integrator:fallback.stats.reason,debug:debug.stats.reason});
