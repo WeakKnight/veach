@@ -131,7 +131,7 @@ struct FrameUniforms
 	uint4 frame;	// width, height, frameIndex, seed
 	uint4 settings; // maxBounces, debugMode, flags, tonemapper
 	uint4 counts;	// instanceCount, lightCount, tlasPrimOffset, analytic light count
-	uint4 envInfo;	// cdf width, cdf height, TLAS node base, unused
+	uint4 envInfo;	// cdf width, cdf height, TLAS node base, NRD region float4 offset (0 = off)
 
 	float4 sunDirection; // toward the sun, w = cos(angular radius)
 	float4 sunRadiance;	 // rgb radiance, w = solid angle

@@ -21,6 +21,10 @@ export const renderConsoleSettings = {
 	taaColorClampingFactor: { name: 'r.TAA.ColorClampingFactor', help: 'PQ neighborhood standard-deviation multiplier; lower rejects history more strongly.', type: consoleNumber(0.01, 10) },
 	taaMaximumRadiance: { name: 'r.TAA.MaximumRadiance', help: 'Scene-linear PQ range, independent of presentation exposure.', type: consoleNumber(1, 1e8) },
 	taaMotionVectorDebug: { name: 'r.TAA.MotionVectors', help: 'Visualize active TAA motion: gray=zero, R/G=signed X/Y (+/-32 pixels), magenta=unavailable. Keeps history.', type: consoleBoolean },
+	nrdEnabled: { name: 'r.NRD.Enabled', help: 'NVIDIA NRD REBLUR before TAA for real-time wavefront frames; loads on first use. r.NRD.Stats reports fallbacks.', type: consoleBoolean },
+	nrdMode: { name: 'r.NRD.Mode', help: 'sh: REBLUR diffuse/specular SH with SG resolve and re-jittering; radiance: REBLUR_DIFFUSE_SPECULAR. Loads on first use.', type: consoleEnum({ sh: 'sh', radiance: 'radiance' } as const) },
+	nrdReJitter: { name: 'r.NRD.ReJitter', help: 'SH mode: restore per-pixel micro detail and film jitter after denoising (NRD_SG_ReJitter).', type: consoleBoolean },
+	nrdDebug: { name: 'r.NRD.Debug', help: 'NRD view: 0 denoised, 1 noisy split, 2 diffuse, 3 specular, 4 guides (hit distance/viewZ, roughness, surface), 5 re-jitter scale (SH: R diffuse, G specular, 0.5 = 1x).', type: consoleNumber(0, 5, true) },
 	maxBounces: { name: 'r.PathTracing.MaxBounces', help: 'Maximum continuation bounces. Resets accumulation.', type: consoleNumber(0, 128, true) },
 	maxSamples: { name: 'r.PathTracing.MaxSamples', help: 'Progressive sample limit; 0 unlimited. Host games use samples per frame.', type: consoleNumber(0, 1000000, true) },
 	resolutionScale: { name: 'r.Resolution.Scale', help: 'Internal resolution scale; 0.5 is half width and height.', type: consoleNumber(0.1, 2) },
@@ -68,7 +72,9 @@ export function createRendererConsole(renderer: Renderer, options: RendererConso
 	}
 	for (const key of Object.keys(renderConsoleSettings) as (keyof RenderSettings)[]) {
 		const d = renderConsoleSettings[key];
-		bind(d.name, d.help, d.type, () => renderer.settings[key], value => {
+		if (key === 'nrdEnabled') { bind(d.name, d.help, consoleBoolean, () => renderer.settings.nrdEnabled, v => renderer.setNrd(v)); continue; }
+		if (key === 'nrdMode') { bind(d.name, d.help, renderConsoleSettings.nrdMode.type, () => renderer.settings.nrdMode, v => renderer.setNrd(true, v)); continue; }
+		bind(d.name, d.help, d.type as ConsoleValueType<unknown>, () => renderer.settings[key], value => {
 			const s = { ...renderer.settings, [key]: value };
 			if (s.autoExposureLowPercent >= s.autoExposureHighPercent) throw new Error('LowPercent must be below HighPercent');
 			if (s.autoExposureMinBrightness > s.autoExposureMaxBrightness) throw new Error('MinBrightness must be <= MaxBrightness');
@@ -105,6 +111,7 @@ export function createRendererConsole(renderer: Renderer, options: RendererConso
 	command('r.PrimaryVisibility.Stats', 'Read actual primary visibility and fallback counters.', () => renderer.readPrimaryVisibilityStats());
 	command('r.Accumulation.Reset', 'Restart image sampling.', () => { renderer.resetAccumulation(); return 'Accumulation reset'; });
 	command('r.TAA.Reset', 'Discard temporal history, for example after a camera cut.', () => { renderer.resetTaa(); return 'TAA history reset'; });
+	command('r.NRD.Stats', 'Actual NRD state, fallback reason, dispatches per frame and texture memory.', () => renderer.nrdStats);
 	command('r.TAA.Stats', 'Actual TAA mode, history frames, reset reason and memory.', () => renderer.taaStats);
 	command('r.ProfileGPU.Capture', 'Capture GPU pass timings on the next rendered frame. Ctrl+Shift+, opens the panel.', () => {
 		renderer.gpuProfiler.capture(); return renderer.gpuProfiler.status;

@@ -451,96 +451,234 @@ fn TraceOcclusion_0( ray_1 : Ray_0) -> bool
 
 var<workgroup> gContributions_0 : array<vec3<f32>, i32(192)>;
 
+fn NrdUnpackFraction_0( v_1 : u32) -> vec3<f32>
+{
+    return vec3<f32>(f32((v_1 & (u32(511)))), f32((((v_1 >> (u32(9)))) & (u32(511)))), f32((((v_1 >> (u32(18)))) & (u32(511))))) / vec3<f32>(511.0f);
+}
+
+fn NrdSplitDirect_0( flags_1 : u32,  contribution_0 : vec3<f32>,  diffuse_0 : ptr<function, vec3<f32>>,  specular_0 : ptr<function, vec3<f32>>,  bypass_0 : ptr<function, vec3<f32>>)
+{
+    var skip_0 : bool = ((flags_1 & (u32(4)))) != u32(0);
+    var _S30 : vec3<f32>;
+    if(skip_0)
+    {
+        _S30 = vec3<f32>(0.0f);
+    }
+    else
+    {
+        _S30 = contribution_0 * NrdUnpackFraction_0((flags_1 >> (u32(3))));
+    }
+    (*diffuse_0) = _S30;
+    if(skip_0)
+    {
+        _S30 = vec3<f32>(0.0f);
+    }
+    else
+    {
+        _S30 = contribution_0 - (*diffuse_0);
+    }
+    (*specular_0) = _S30;
+    if(skip_0)
+    {
+        _S30 = contribution_0;
+    }
+    else
+    {
+        _S30 = vec3<f32>(0.0f);
+    }
+    (*bypass_0) = _S30;
+    return;
+}
+
+var<workgroup> gNrdDiffuse_0 : array<vec4<f32>, i32(192)>;
+
+var<workgroup> gNrdBypass_0 : array<vec3<f32>, i32(192)>;
+
+var<workgroup> gNrdDiffuseDirection_0 : array<vec3<f32>, i32(192)>;
+
+fn Luminance_0( color_0 : vec3<f32>) -> f32
+{
+    return dot(color_0, vec3<f32>(0.2125999927520752f, 0.71520000696182251f, 0.072200000286102295f));
+}
+
+var<workgroup> gNrdSpecularDirection_0 : array<vec3<f32>, i32(192)>;
+
+fn WorkPixel_0( index_1 : u32) -> vec2<u32>
+{
+    var work_0 : u32 = gWavefront_0.tileStart_0 + index_1;
+    var block_0 : u32 = work_0 / u32(64);
+    var lane_0 : u32 = (work_0 & (u32(63)));
+    var blocksX_0 : u32 = (gFrame_0.frame_0.x + u32(7)) / u32(8);
+    var _S31 : u32 = block_0 % blocksX_0;
+    var _S32 : u32 = _S31 * u32(8) + ((lane_0 & (u32(7))));
+    var _S33 : u32 = block_0 / blocksX_0;
+    return vec2<u32>(_S32, _S33 * u32(8) + lane_0 / u32(8));
+}
+
+fn NrdBase_0( base_2 : u32) -> u32
+{
+    var pixel_0 : vec2<u32> = WorkPixel_0(base_2 - WorkBase_0(u32(0)));
+    return gFrame_0.envInfo_0.w + (pixel_0.y * gFrame_0.frame_0.x + pixel_0.x) * u32(5);
+}
+
 fn ShadowParallelImpl_0( tid_0 : vec3<u32>,  local_0 : vec3<u32>)
 {
-    var _S30 : u32 = local_0.y;
-    var _S31 : u32 = _S30 * u32(2);
-    var _S32 : vec3<f32> = vec3<f32>(0.0f);
-    var _S33 : u32 = tid_0.x;
-    var _S34 : bool = (_S33 < (gWavefront_0.pathCount_0));
-    var _S35 : bool;
+    var _S34 : vec3<f32> = vec3<f32>(0.0f);
+    var _S35 : u32 = local_0.y;
+    var _S36 : u32 = _S35 * u32(2);
+    var _S37 : u32 = tid_0.x;
+    var _S38 : bool = (_S37 < (gWavefront_0.pathCount_0));
+    var _S39 : bool;
     var value_0 : vec3<f32>;
+    var lightDirection_0 : vec3<f32>;
+    var flags_2 : u32;
     var mask_0 : u32;
-    var base_2 : u32;
-    if(_S34)
+    var base_3 : u32;
+    if(_S38)
     {
-        var base_3 : u32 = WorkBase_0(_S33);
-        var mask_1 : u32 = (bitcast<u32>((gAccum_0[Field_0(base_3, u32(11))].z)));
-        if(((mask_1 & (((u32(1) << (_S31)))))) != u32(0))
+        var base_4 : u32 = WorkBase_0(_S37);
+        var mask_1 : u32 = (bitcast<u32>((gAccum_0[Field_0(base_4, u32(11))].z)));
+        if(((mask_1 & (((u32(1) << (_S36)))))) != u32(0))
         {
-            var offset_0 : u32 = u32(12) + _S31 * u32(3);
-            var origin_1 : vec4<f32> = gAccum_0[Field_0(base_3, offset_0)];
-            var direction_1 : vec4<f32> = gAccum_0[Field_0(base_3, offset_0 + u32(1))];
-            if((bitcast<u32>((gAccum_0[Field_0(base_3, offset_0 + u32(1))].w))) == u32(0))
+            var offset_0 : u32 = u32(12) + _S36 * u32(3);
+            var origin_1 : vec4<f32> = gAccum_0[Field_0(base_4, offset_0)];
+            var flags_3 : u32 = (bitcast<u32>((gAccum_0[Field_0(base_4, offset_0 + u32(1))].w)));
+            var _S40 : vec3<f32> = gAccum_0[Field_0(base_4, offset_0 + u32(1))].xyz;
+            if(((flags_3 & (u32(1)))) == u32(0))
             {
-                _S35 = true;
+                _S39 = true;
             }
             else
             {
-                var _S36 : bool = TraceOcclusion_0(Ray_x24init_0(origin_1.xyz, direction_1.xyz, origin_1.w));
-                _S35 = !_S36;
+                var _S41 : bool = TraceOcclusion_0(Ray_x24init_0(origin_1.xyz, _S40, origin_1.w));
+                _S39 = !_S41;
             }
-            if(_S35)
+            if(_S39)
             {
-                value_0 = gAccum_0[Field_0(base_3, offset_0 + u32(2))].xyz;
+                value_0 = gAccum_0[Field_0(base_4, offset_0 + u32(2))].xyz;
             }
             else
             {
-                value_0 = _S32;
+                value_0 = _S34;
             }
+            flags_2 = flags_3;
+            lightDirection_0 = _S40;
         }
         else
         {
-            value_0 = _S32;
+            value_0 = _S34;
+            flags_2 = u32(0);
+            lightDirection_0 = _S34;
         }
         mask_0 = mask_1;
-        base_2 = base_3;
+        base_3 = base_4;
     }
     else
     {
-        value_0 = _S32;
+        value_0 = _S34;
+        flags_2 = u32(0);
+        lightDirection_0 = _S34;
         mask_0 = u32(0);
-        base_2 = u32(0);
+        base_3 = u32(0);
     }
-    var _S37 : u32 = local_0.x;
-    gContributions_0[_S30 * u32(64) + _S37] = value_0;
+    var _S42 : u32 = local_0.x;
+    var _S43 : u32 = _S35 * u32(64) + _S42;
+    gContributions_0[_S43] = value_0;
+    var laneDiffuse_0 : vec3<f32> = _S34;
+    var laneSpecular_0 : vec3<f32>;
+    var laneBypass_0 : vec3<f32> = _S34;
+    var _S44 : bool = ((flags_2 & (u32(2)))) != u32(0);
+    if(_S44)
+    {
+        NrdSplitDirect_0(flags_2, value_0, &(laneDiffuse_0), &(laneSpecular_0), &(laneBypass_0));
+    }
+    gNrdDiffuse_0[_S43] = vec4<f32>(laneDiffuse_0, f32(_S44));
+    gNrdBypass_0[_S43] = laneBypass_0;
+    gNrdDiffuseDirection_0[_S43] = vec3<f32>(Luminance_0(laneDiffuse_0)) * lightDirection_0;
+    if(_S44)
+    {
+        value_0 = vec3<f32>(Luminance_0(laneSpecular_0)) * lightDirection_0;
+    }
+    else
+    {
+        value_0 = _S34;
+    }
+    gNrdSpecularDirection_0[_S43] = value_0;
     workgroupBarrier();
-    if(_S31 == u32(0))
+    if(_S36 == u32(0))
     {
-        _S35 = _S34;
+        _S39 = _S38;
     }
     else
     {
-        _S35 = false;
+        _S39 = false;
     }
-    if(_S35)
+    if(_S39)
     {
-        _S35 = mask_0 != u32(0);
+        _S39 = mask_0 != u32(0);
     }
     else
     {
-        _S35 = false;
+        _S39 = false;
     }
-    if(_S35)
+    if(_S39)
     {
-        var contribution_0 : vec3<f32> = gAccum_0[Field_0(base_2, u32(10))].xyz * (gContributions_0[_S37] + gContributions_0[u32(64) + _S37]);
-        var _S38 : f32 = gAccum_0[Field_0(base_2, u32(10))].w;
-        var contribution_1 : vec3<f32>;
-        if((_S38 > 0.0f))
+        var _S45 : u32 = u32(64) + _S42;
+        var sum_0 : vec3<f32> = gContributions_0[_S42] + gContributions_0[_S45];
+        var throughput_0 : vec4<f32> = gAccum_0[Field_0(base_3, u32(10))];
+        var diffuse_1 : vec4<f32> = gNrdDiffuse_0[_S42] + gNrdDiffuse_0[_S45];
+        var bypass_1 : vec3<f32> = gNrdBypass_0[_S42] + gNrdBypass_0[_S45];
+        var diffuseDirection_0 : vec3<f32> = gNrdDiffuseDirection_0[_S42] + gNrdDiffuseDirection_0[_S45];
+        var specularDirection_0 : vec3<f32> = gNrdSpecularDirection_0[_S42] + gNrdSpecularDirection_0[_S45];
+        if(((diffuse_1.w) > 0.0f))
         {
-            contribution_1 = min(contribution_0, vec3<f32>(_S38));
+            var r_0 : u32 = NrdBase_0(base_3);
+            var _S46 : vec3<f32> = throughput_0.xyz;
+            var _S47 : vec3<f32> = gAccum_0[r_0].xyz + _S46 * bypass_1;
+            gAccum_0[r_0].x = _S47.x;
+            gAccum_0[r_0].y = _S47.y;
+            gAccum_0[r_0].z = _S47.z;
+            var _S48 : u32 = r_0 + u32(1);
+            var _S49 : vec3<f32> = diffuse_1.xyz;
+            var _S50 : vec3<f32> = gAccum_0[_S48].xyz + _S46 * _S49;
+            gAccum_0[_S48].x = _S50.x;
+            gAccum_0[_S48].y = _S50.y;
+            gAccum_0[_S48].z = _S50.z;
+            var _S51 : u32 = r_0 + u32(2);
+            var _S52 : vec3<f32> = gAccum_0[_S51].xyz + _S46 * (sum_0 - _S49 - bypass_1);
+            gAccum_0[_S51].x = _S52.x;
+            gAccum_0[_S51].y = _S52.y;
+            gAccum_0[_S51].z = _S52.z;
+            var _S53 : u32 = r_0 + u32(3);
+            var _S54 : vec3<f32> = vec3<f32>(Luminance_0(_S46));
+            var _S55 : vec3<f32> = gAccum_0[_S53].xyz + _S54 * diffuseDirection_0;
+            gAccum_0[_S53].x = _S55.x;
+            gAccum_0[_S53].y = _S55.y;
+            gAccum_0[_S53].z = _S55.z;
+            var _S56 : u32 = r_0 + u32(4);
+            var _S57 : vec3<f32> = gAccum_0[_S56].xyz + _S54 * specularDirection_0;
+            gAccum_0[_S56].x = _S57.x;
+            gAccum_0[_S56].y = _S57.y;
+            gAccum_0[_S56].z = _S57.z;
+        }
+        var contribution_1 : vec3<f32> = throughput_0.xyz * sum_0;
+        var _S58 : f32 = throughput_0.w;
+        var contribution_2 : vec3<f32>;
+        if((_S58 > 0.0f))
+        {
+            contribution_2 = min(contribution_1, vec3<f32>(_S58));
         }
         else
         {
-            contribution_1 = contribution_0;
+            contribution_2 = contribution_1;
         }
-        var path_0 : vec4<f32> = gAccum_0[base_2];
-        var _S39 : vec3<f32> = gAccum_0[base_2].xyz + contribution_1;
-        path_0.x = _S39.x;
-        path_0.y = _S39.y;
-        path_0.z = _S39.z;
-        gAccum_0[base_2] = path_0;
-        gAccum_0[Field_0(base_2, u32(11))] = vec4<f32>(0.0f);
+        var path_0 : vec4<f32> = gAccum_0[base_3];
+        var _S59 : vec3<f32> = gAccum_0[base_3].xyz + contribution_2;
+        path_0.x = _S59.x;
+        path_0.y = _S59.y;
+        path_0.z = _S59.z;
+        gAccum_0[base_3] = path_0;
+        gAccum_0[Field_0(base_3, u32(11))] = vec4<f32>(0.0f);
     }
     return;
 }
@@ -560,287 +698,493 @@ fn ShadowQueueBase_0() -> u32
     return MainQueueBase_0() + u32(2) * ((gWavefront_0.capacity_0 + u32(3)) / u32(4));
 }
 
-fn QueueIndex_0( base_4 : u32,  index_1 : u32) -> u32
+fn QueueIndex_0( base_5 : u32,  index_2 : u32) -> u32
 {
-    return (bitcast<u32>((gAccum_0[base_4 + index_1 / u32(4)][(index_1 & (u32(3)))])));
+    return (bitcast<u32>((gAccum_0[base_5 + index_2 / u32(4)][(index_2 & (u32(3)))])));
 }
 
 fn ShadowParallelImpl_1( tid_1 : vec3<u32>,  local_1 : vec3<u32>)
 {
-    var _S40 : u32 = local_1.y;
-    var _S41 : u32 = _S40 * u32(2);
-    var _S42 : vec3<f32> = vec3<f32>(0.0f);
-    var _S43 : u32 = tid_1.x;
-    var _S44 : bool = (_S43 < (bitcast<u32>((gAccum_0[HeaderBase_0()].y))));
-    var _S45 : bool;
+    var _S60 : vec3<f32> = vec3<f32>(0.0f);
+    var _S61 : u32 = local_1.y;
+    var _S62 : u32 = _S61 * u32(2);
+    var _S63 : u32 = tid_1.x;
+    var _S64 : bool = (_S63 < (bitcast<u32>((gAccum_0[HeaderBase_0()].y))));
+    var _S65 : bool;
     var value_1 : vec3<f32>;
+    var lightDirection_1 : vec3<f32>;
+    var flags_4 : u32;
     var mask_2 : u32;
-    var base_5 : u32;
-    if(_S44)
+    var base_6 : u32;
+    if(_S64)
     {
-        var base_6 : u32 = WorkBase_0(QueueIndex_0(ShadowQueueBase_0(), _S43));
-        var mask_3 : u32 = (bitcast<u32>((gAccum_0[Field_0(base_6, u32(11))].z)));
-        if(((mask_3 & (((u32(1) << (_S41)))))) != u32(0))
+        var base_7 : u32 = WorkBase_0(QueueIndex_0(ShadowQueueBase_0(), _S63));
+        var mask_3 : u32 = (bitcast<u32>((gAccum_0[Field_0(base_7, u32(11))].z)));
+        if(((mask_3 & (((u32(1) << (_S62)))))) != u32(0))
         {
-            var offset_1 : u32 = u32(12) + _S41 * u32(3);
-            var origin_2 : vec4<f32> = gAccum_0[Field_0(base_6, offset_1)];
-            var direction_2 : vec4<f32> = gAccum_0[Field_0(base_6, offset_1 + u32(1))];
-            if((bitcast<u32>((gAccum_0[Field_0(base_6, offset_1 + u32(1))].w))) == u32(0))
+            var offset_1 : u32 = u32(12) + _S62 * u32(3);
+            var origin_2 : vec4<f32> = gAccum_0[Field_0(base_7, offset_1)];
+            var flags_5 : u32 = (bitcast<u32>((gAccum_0[Field_0(base_7, offset_1 + u32(1))].w)));
+            var _S66 : vec3<f32> = gAccum_0[Field_0(base_7, offset_1 + u32(1))].xyz;
+            if(((flags_5 & (u32(1)))) == u32(0))
             {
-                _S45 = true;
+                _S65 = true;
             }
             else
             {
-                var _S46 : bool = TraceOcclusion_0(Ray_x24init_0(origin_2.xyz, direction_2.xyz, origin_2.w));
-                _S45 = !_S46;
+                var _S67 : bool = TraceOcclusion_0(Ray_x24init_0(origin_2.xyz, _S66, origin_2.w));
+                _S65 = !_S67;
             }
-            if(_S45)
+            if(_S65)
             {
-                value_1 = gAccum_0[Field_0(base_6, offset_1 + u32(2))].xyz;
+                value_1 = gAccum_0[Field_0(base_7, offset_1 + u32(2))].xyz;
             }
             else
             {
-                value_1 = _S42;
+                value_1 = _S60;
             }
+            flags_4 = flags_5;
+            lightDirection_1 = _S66;
         }
         else
         {
-            value_1 = _S42;
+            value_1 = _S60;
+            flags_4 = u32(0);
+            lightDirection_1 = _S60;
         }
         mask_2 = mask_3;
-        base_5 = base_6;
+        base_6 = base_7;
     }
     else
     {
-        value_1 = _S42;
+        value_1 = _S60;
+        flags_4 = u32(0);
+        lightDirection_1 = _S60;
         mask_2 = u32(0);
-        base_5 = u32(0);
+        base_6 = u32(0);
     }
-    var _S47 : u32 = local_1.x;
-    gContributions_0[_S40 * u32(64) + _S47] = value_1;
+    var _S68 : u32 = local_1.x;
+    var _S69 : u32 = _S61 * u32(64) + _S68;
+    gContributions_0[_S69] = value_1;
+    var laneDiffuse_1 : vec3<f32> = _S60;
+    var laneSpecular_1 : vec3<f32>;
+    var laneBypass_1 : vec3<f32> = _S60;
+    var _S70 : bool = ((flags_4 & (u32(2)))) != u32(0);
+    if(_S70)
+    {
+        NrdSplitDirect_0(flags_4, value_1, &(laneDiffuse_1), &(laneSpecular_1), &(laneBypass_1));
+    }
+    gNrdDiffuse_0[_S69] = vec4<f32>(laneDiffuse_1, f32(_S70));
+    gNrdBypass_0[_S69] = laneBypass_1;
+    gNrdDiffuseDirection_0[_S69] = vec3<f32>(Luminance_0(laneDiffuse_1)) * lightDirection_1;
+    if(_S70)
+    {
+        value_1 = vec3<f32>(Luminance_0(laneSpecular_1)) * lightDirection_1;
+    }
+    else
+    {
+        value_1 = _S60;
+    }
+    gNrdSpecularDirection_0[_S69] = value_1;
     workgroupBarrier();
-    if(_S41 == u32(0))
+    if(_S62 == u32(0))
     {
-        _S45 = _S44;
+        _S65 = _S64;
     }
     else
     {
-        _S45 = false;
+        _S65 = false;
     }
-    if(_S45)
+    if(_S65)
     {
-        _S45 = mask_2 != u32(0);
+        _S65 = mask_2 != u32(0);
     }
     else
     {
-        _S45 = false;
+        _S65 = false;
     }
-    if(_S45)
+    if(_S65)
     {
-        var contribution_2 : vec3<f32> = gAccum_0[Field_0(base_5, u32(10))].xyz * (gContributions_0[_S47] + gContributions_0[u32(64) + _S47]);
-        var _S48 : f32 = gAccum_0[Field_0(base_5, u32(10))].w;
-        var contribution_3 : vec3<f32>;
-        if((_S48 > 0.0f))
+        var _S71 : u32 = u32(64) + _S68;
+        var sum_1 : vec3<f32> = gContributions_0[_S68] + gContributions_0[_S71];
+        var throughput_1 : vec4<f32> = gAccum_0[Field_0(base_6, u32(10))];
+        var diffuse_2 : vec4<f32> = gNrdDiffuse_0[_S68] + gNrdDiffuse_0[_S71];
+        var bypass_2 : vec3<f32> = gNrdBypass_0[_S68] + gNrdBypass_0[_S71];
+        var diffuseDirection_1 : vec3<f32> = gNrdDiffuseDirection_0[_S68] + gNrdDiffuseDirection_0[_S71];
+        var specularDirection_1 : vec3<f32> = gNrdSpecularDirection_0[_S68] + gNrdSpecularDirection_0[_S71];
+        if(((diffuse_2.w) > 0.0f))
         {
-            contribution_3 = min(contribution_2, vec3<f32>(_S48));
+            var r_1 : u32 = NrdBase_0(base_6);
+            var _S72 : vec3<f32> = throughput_1.xyz;
+            var _S73 : vec3<f32> = gAccum_0[r_1].xyz + _S72 * bypass_2;
+            gAccum_0[r_1].x = _S73.x;
+            gAccum_0[r_1].y = _S73.y;
+            gAccum_0[r_1].z = _S73.z;
+            var _S74 : u32 = r_1 + u32(1);
+            var _S75 : vec3<f32> = diffuse_2.xyz;
+            var _S76 : vec3<f32> = gAccum_0[_S74].xyz + _S72 * _S75;
+            gAccum_0[_S74].x = _S76.x;
+            gAccum_0[_S74].y = _S76.y;
+            gAccum_0[_S74].z = _S76.z;
+            var _S77 : u32 = r_1 + u32(2);
+            var _S78 : vec3<f32> = gAccum_0[_S77].xyz + _S72 * (sum_1 - _S75 - bypass_2);
+            gAccum_0[_S77].x = _S78.x;
+            gAccum_0[_S77].y = _S78.y;
+            gAccum_0[_S77].z = _S78.z;
+            var _S79 : u32 = r_1 + u32(3);
+            var _S80 : vec3<f32> = vec3<f32>(Luminance_0(_S72));
+            var _S81 : vec3<f32> = gAccum_0[_S79].xyz + _S80 * diffuseDirection_1;
+            gAccum_0[_S79].x = _S81.x;
+            gAccum_0[_S79].y = _S81.y;
+            gAccum_0[_S79].z = _S81.z;
+            var _S82 : u32 = r_1 + u32(4);
+            var _S83 : vec3<f32> = gAccum_0[_S82].xyz + _S80 * specularDirection_1;
+            gAccum_0[_S82].x = _S83.x;
+            gAccum_0[_S82].y = _S83.y;
+            gAccum_0[_S82].z = _S83.z;
+        }
+        var contribution_3 : vec3<f32> = throughput_1.xyz * sum_1;
+        var _S84 : f32 = throughput_1.w;
+        var contribution_4 : vec3<f32>;
+        if((_S84 > 0.0f))
+        {
+            contribution_4 = min(contribution_3, vec3<f32>(_S84));
         }
         else
         {
-            contribution_3 = contribution_2;
+            contribution_4 = contribution_3;
         }
-        var path_1 : vec4<f32> = gAccum_0[base_5];
-        var _S49 : vec3<f32> = gAccum_0[base_5].xyz + contribution_3;
-        path_1.x = _S49.x;
-        path_1.y = _S49.y;
-        path_1.z = _S49.z;
-        gAccum_0[base_5] = path_1;
-        gAccum_0[Field_0(base_5, u32(11))] = vec4<f32>(0.0f);
+        var path_1 : vec4<f32> = gAccum_0[base_6];
+        var _S85 : vec3<f32> = gAccum_0[base_6].xyz + contribution_4;
+        path_1.x = _S85.x;
+        path_1.y = _S85.y;
+        path_1.z = _S85.z;
+        gAccum_0[base_6] = path_1;
+        gAccum_0[Field_0(base_6, u32(11))] = vec4<f32>(0.0f);
     }
     return;
 }
 
 fn ShadowParallelImpl_2( tid_2 : vec3<u32>,  local_2 : vec3<u32>)
 {
-    var _S50 : u32 = local_2.y;
-    var _S51 : vec3<f32> = vec3<f32>(0.0f);
-    var _S52 : u32 = tid_2.x;
-    var _S53 : bool = (_S52 < (gWavefront_0.pathCount_0));
-    var _S54 : bool;
+    var _S86 : vec3<f32> = vec3<f32>(0.0f);
+    var _S87 : u32 = local_2.y;
+    var _S88 : u32 = tid_2.x;
+    var _S89 : bool = (_S88 < (gWavefront_0.pathCount_0));
+    var _S90 : bool;
     var value_2 : vec3<f32>;
+    var lightDirection_2 : vec3<f32>;
+    var flags_6 : u32;
     var mask_4 : u32;
-    var base_7 : u32;
-    if(_S53)
+    var base_8 : u32;
+    if(_S89)
     {
-        var base_8 : u32 = WorkBase_0(_S52);
-        var mask_5 : u32 = (bitcast<u32>((gAccum_0[Field_0(base_8, u32(11))].z)));
-        if(((mask_5 & (((u32(1) << (_S50)))))) != u32(0))
+        var base_9 : u32 = WorkBase_0(_S88);
+        var mask_5 : u32 = (bitcast<u32>((gAccum_0[Field_0(base_9, u32(11))].z)));
+        if(((mask_5 & (((u32(1) << (_S87)))))) != u32(0))
         {
-            var offset_2 : u32 = u32(12) + _S50 * u32(3);
-            var origin_3 : vec4<f32> = gAccum_0[Field_0(base_8, offset_2)];
-            var direction_3 : vec4<f32> = gAccum_0[Field_0(base_8, offset_2 + u32(1))];
-            if((bitcast<u32>((gAccum_0[Field_0(base_8, offset_2 + u32(1))].w))) == u32(0))
+            var offset_2 : u32 = u32(12) + _S87 * u32(3);
+            var origin_3 : vec4<f32> = gAccum_0[Field_0(base_9, offset_2)];
+            var flags_7 : u32 = (bitcast<u32>((gAccum_0[Field_0(base_9, offset_2 + u32(1))].w)));
+            var _S91 : vec3<f32> = gAccum_0[Field_0(base_9, offset_2 + u32(1))].xyz;
+            if(((flags_7 & (u32(1)))) == u32(0))
             {
-                _S54 = true;
+                _S90 = true;
             }
             else
             {
-                var _S55 : bool = TraceOcclusion_0(Ray_x24init_0(origin_3.xyz, direction_3.xyz, origin_3.w));
-                _S54 = !_S55;
+                var _S92 : bool = TraceOcclusion_0(Ray_x24init_0(origin_3.xyz, _S91, origin_3.w));
+                _S90 = !_S92;
             }
-            if(_S54)
+            if(_S90)
             {
-                value_2 = gAccum_0[Field_0(base_8, offset_2 + u32(2))].xyz;
+                value_2 = gAccum_0[Field_0(base_9, offset_2 + u32(2))].xyz;
             }
             else
             {
-                value_2 = _S51;
+                value_2 = _S86;
             }
+            flags_6 = flags_7;
+            lightDirection_2 = _S91;
         }
         else
         {
-            value_2 = _S51;
+            value_2 = _S86;
+            flags_6 = u32(0);
+            lightDirection_2 = _S86;
         }
         mask_4 = mask_5;
-        base_7 = base_8;
+        base_8 = base_9;
     }
     else
     {
-        value_2 = _S51;
+        value_2 = _S86;
+        flags_6 = u32(0);
+        lightDirection_2 = _S86;
         mask_4 = u32(0);
-        base_7 = u32(0);
+        base_8 = u32(0);
     }
-    var _S56 : u32 = local_2.x;
-    gContributions_0[_S50 * u32(64) + _S56] = value_2;
+    var _S93 : u32 = local_2.x;
+    var _S94 : u32 = _S87 * u32(64) + _S93;
+    gContributions_0[_S94] = value_2;
+    var laneDiffuse_2 : vec3<f32> = _S86;
+    var laneSpecular_2 : vec3<f32>;
+    var laneBypass_2 : vec3<f32> = _S86;
+    var _S95 : bool = ((flags_6 & (u32(2)))) != u32(0);
+    if(_S95)
+    {
+        NrdSplitDirect_0(flags_6, value_2, &(laneDiffuse_2), &(laneSpecular_2), &(laneBypass_2));
+    }
+    gNrdDiffuse_0[_S94] = vec4<f32>(laneDiffuse_2, f32(_S95));
+    gNrdBypass_0[_S94] = laneBypass_2;
+    gNrdDiffuseDirection_0[_S94] = vec3<f32>(Luminance_0(laneDiffuse_2)) * lightDirection_2;
+    if(_S95)
+    {
+        value_2 = vec3<f32>(Luminance_0(laneSpecular_2)) * lightDirection_2;
+    }
+    else
+    {
+        value_2 = _S86;
+    }
+    gNrdSpecularDirection_0[_S94] = value_2;
     workgroupBarrier();
-    if(_S50 == u32(0))
+    if(_S87 == u32(0))
     {
-        _S54 = _S53;
+        _S90 = _S89;
     }
     else
     {
-        _S54 = false;
+        _S90 = false;
     }
-    if(_S54)
+    if(_S90)
     {
-        _S54 = mask_4 != u32(0);
+        _S90 = mask_4 != u32(0);
     }
     else
     {
-        _S54 = false;
+        _S90 = false;
     }
-    if(_S54)
+    if(_S90)
     {
-        var contribution_4 : vec3<f32> = gAccum_0[Field_0(base_7, u32(10))].xyz * (gContributions_0[_S56] + gContributions_0[u32(64) + _S56] + gContributions_0[u32(128) + _S56]);
-        var _S57 : f32 = gAccum_0[Field_0(base_7, u32(10))].w;
-        var contribution_5 : vec3<f32>;
-        if((_S57 > 0.0f))
+        var _S96 : u32 = u32(64) + _S93;
+        var _S97 : u32 = u32(128) + _S93;
+        var sum_2 : vec3<f32> = gContributions_0[_S93] + gContributions_0[_S96] + gContributions_0[_S97];
+        var throughput_2 : vec4<f32> = gAccum_0[Field_0(base_8, u32(10))];
+        var diffuse_3 : vec4<f32> = gNrdDiffuse_0[_S93] + gNrdDiffuse_0[_S96] + gNrdDiffuse_0[_S97];
+        var bypass_3 : vec3<f32> = gNrdBypass_0[_S93] + gNrdBypass_0[_S96] + gNrdBypass_0[_S97];
+        var diffuseDirection_2 : vec3<f32> = gNrdDiffuseDirection_0[_S93] + gNrdDiffuseDirection_0[_S96] + gNrdDiffuseDirection_0[_S97];
+        var specularDirection_2 : vec3<f32> = gNrdSpecularDirection_0[_S93] + gNrdSpecularDirection_0[_S96] + gNrdSpecularDirection_0[_S97];
+        if(((diffuse_3.w) > 0.0f))
         {
-            contribution_5 = min(contribution_4, vec3<f32>(_S57));
+            var r_2 : u32 = NrdBase_0(base_8);
+            var _S98 : vec3<f32> = throughput_2.xyz;
+            var _S99 : vec3<f32> = gAccum_0[r_2].xyz + _S98 * bypass_3;
+            gAccum_0[r_2].x = _S99.x;
+            gAccum_0[r_2].y = _S99.y;
+            gAccum_0[r_2].z = _S99.z;
+            var _S100 : u32 = r_2 + u32(1);
+            var _S101 : vec3<f32> = diffuse_3.xyz;
+            var _S102 : vec3<f32> = gAccum_0[_S100].xyz + _S98 * _S101;
+            gAccum_0[_S100].x = _S102.x;
+            gAccum_0[_S100].y = _S102.y;
+            gAccum_0[_S100].z = _S102.z;
+            var _S103 : u32 = r_2 + u32(2);
+            var _S104 : vec3<f32> = gAccum_0[_S103].xyz + _S98 * (sum_2 - _S101 - bypass_3);
+            gAccum_0[_S103].x = _S104.x;
+            gAccum_0[_S103].y = _S104.y;
+            gAccum_0[_S103].z = _S104.z;
+            var _S105 : u32 = r_2 + u32(3);
+            var _S106 : vec3<f32> = vec3<f32>(Luminance_0(_S98));
+            var _S107 : vec3<f32> = gAccum_0[_S105].xyz + _S106 * diffuseDirection_2;
+            gAccum_0[_S105].x = _S107.x;
+            gAccum_0[_S105].y = _S107.y;
+            gAccum_0[_S105].z = _S107.z;
+            var _S108 : u32 = r_2 + u32(4);
+            var _S109 : vec3<f32> = gAccum_0[_S108].xyz + _S106 * specularDirection_2;
+            gAccum_0[_S108].x = _S109.x;
+            gAccum_0[_S108].y = _S109.y;
+            gAccum_0[_S108].z = _S109.z;
+        }
+        var contribution_5 : vec3<f32> = throughput_2.xyz * sum_2;
+        var _S110 : f32 = throughput_2.w;
+        var contribution_6 : vec3<f32>;
+        if((_S110 > 0.0f))
+        {
+            contribution_6 = min(contribution_5, vec3<f32>(_S110));
         }
         else
         {
-            contribution_5 = contribution_4;
+            contribution_6 = contribution_5;
         }
-        var path_2 : vec4<f32> = gAccum_0[base_7];
-        var _S58 : vec3<f32> = gAccum_0[base_7].xyz + contribution_5;
-        path_2.x = _S58.x;
-        path_2.y = _S58.y;
-        path_2.z = _S58.z;
-        gAccum_0[base_7] = path_2;
-        gAccum_0[Field_0(base_7, u32(11))] = vec4<f32>(0.0f);
+        var path_2 : vec4<f32> = gAccum_0[base_8];
+        var _S111 : vec3<f32> = gAccum_0[base_8].xyz + contribution_6;
+        path_2.x = _S111.x;
+        path_2.y = _S111.y;
+        path_2.z = _S111.z;
+        gAccum_0[base_8] = path_2;
+        gAccum_0[Field_0(base_8, u32(11))] = vec4<f32>(0.0f);
     }
     return;
 }
 
 fn ShadowParallelImpl_3( tid_3 : vec3<u32>,  local_3 : vec3<u32>)
 {
-    var _S59 : u32 = local_3.y;
-    var _S60 : vec3<f32> = vec3<f32>(0.0f);
-    var _S61 : u32 = tid_3.x;
-    var _S62 : bool = (_S61 < (bitcast<u32>((gAccum_0[HeaderBase_0()].y))));
-    var _S63 : bool;
+    var _S112 : vec3<f32> = vec3<f32>(0.0f);
+    var _S113 : u32 = local_3.y;
+    var _S114 : u32 = tid_3.x;
+    var _S115 : bool = (_S114 < (bitcast<u32>((gAccum_0[HeaderBase_0()].y))));
+    var _S116 : bool;
     var value_3 : vec3<f32>;
+    var lightDirection_3 : vec3<f32>;
+    var flags_8 : u32;
     var mask_6 : u32;
-    var base_9 : u32;
-    if(_S62)
+    var base_10 : u32;
+    if(_S115)
     {
-        var base_10 : u32 = WorkBase_0(QueueIndex_0(ShadowQueueBase_0(), _S61));
-        var mask_7 : u32 = (bitcast<u32>((gAccum_0[Field_0(base_10, u32(11))].z)));
-        if(((mask_7 & (((u32(1) << (_S59)))))) != u32(0))
+        var base_11 : u32 = WorkBase_0(QueueIndex_0(ShadowQueueBase_0(), _S114));
+        var mask_7 : u32 = (bitcast<u32>((gAccum_0[Field_0(base_11, u32(11))].z)));
+        if(((mask_7 & (((u32(1) << (_S113)))))) != u32(0))
         {
-            var offset_3 : u32 = u32(12) + _S59 * u32(3);
-            var origin_4 : vec4<f32> = gAccum_0[Field_0(base_10, offset_3)];
-            var direction_4 : vec4<f32> = gAccum_0[Field_0(base_10, offset_3 + u32(1))];
-            if((bitcast<u32>((gAccum_0[Field_0(base_10, offset_3 + u32(1))].w))) == u32(0))
+            var offset_3 : u32 = u32(12) + _S113 * u32(3);
+            var origin_4 : vec4<f32> = gAccum_0[Field_0(base_11, offset_3)];
+            var flags_9 : u32 = (bitcast<u32>((gAccum_0[Field_0(base_11, offset_3 + u32(1))].w)));
+            var _S117 : vec3<f32> = gAccum_0[Field_0(base_11, offset_3 + u32(1))].xyz;
+            if(((flags_9 & (u32(1)))) == u32(0))
             {
-                _S63 = true;
+                _S116 = true;
             }
             else
             {
-                var _S64 : bool = TraceOcclusion_0(Ray_x24init_0(origin_4.xyz, direction_4.xyz, origin_4.w));
-                _S63 = !_S64;
+                var _S118 : bool = TraceOcclusion_0(Ray_x24init_0(origin_4.xyz, _S117, origin_4.w));
+                _S116 = !_S118;
             }
-            if(_S63)
+            if(_S116)
             {
-                value_3 = gAccum_0[Field_0(base_10, offset_3 + u32(2))].xyz;
+                value_3 = gAccum_0[Field_0(base_11, offset_3 + u32(2))].xyz;
             }
             else
             {
-                value_3 = _S60;
+                value_3 = _S112;
             }
+            flags_8 = flags_9;
+            lightDirection_3 = _S117;
         }
         else
         {
-            value_3 = _S60;
+            value_3 = _S112;
+            flags_8 = u32(0);
+            lightDirection_3 = _S112;
         }
         mask_6 = mask_7;
-        base_9 = base_10;
+        base_10 = base_11;
     }
     else
     {
-        value_3 = _S60;
+        value_3 = _S112;
+        flags_8 = u32(0);
+        lightDirection_3 = _S112;
         mask_6 = u32(0);
-        base_9 = u32(0);
+        base_10 = u32(0);
     }
-    var _S65 : u32 = local_3.x;
-    gContributions_0[_S59 * u32(64) + _S65] = value_3;
+    var _S119 : u32 = local_3.x;
+    var _S120 : u32 = _S113 * u32(64) + _S119;
+    gContributions_0[_S120] = value_3;
+    var laneDiffuse_3 : vec3<f32> = _S112;
+    var laneSpecular_3 : vec3<f32>;
+    var laneBypass_3 : vec3<f32> = _S112;
+    var _S121 : bool = ((flags_8 & (u32(2)))) != u32(0);
+    if(_S121)
+    {
+        NrdSplitDirect_0(flags_8, value_3, &(laneDiffuse_3), &(laneSpecular_3), &(laneBypass_3));
+    }
+    gNrdDiffuse_0[_S120] = vec4<f32>(laneDiffuse_3, f32(_S121));
+    gNrdBypass_0[_S120] = laneBypass_3;
+    gNrdDiffuseDirection_0[_S120] = vec3<f32>(Luminance_0(laneDiffuse_3)) * lightDirection_3;
+    if(_S121)
+    {
+        value_3 = vec3<f32>(Luminance_0(laneSpecular_3)) * lightDirection_3;
+    }
+    else
+    {
+        value_3 = _S112;
+    }
+    gNrdSpecularDirection_0[_S120] = value_3;
     workgroupBarrier();
-    if(_S59 == u32(0))
+    if(_S113 == u32(0))
     {
-        _S63 = _S62;
+        _S116 = _S115;
     }
     else
     {
-        _S63 = false;
+        _S116 = false;
     }
-    if(_S63)
+    if(_S116)
     {
-        _S63 = mask_6 != u32(0);
+        _S116 = mask_6 != u32(0);
     }
     else
     {
-        _S63 = false;
+        _S116 = false;
     }
-    if(_S63)
+    if(_S116)
     {
-        var contribution_6 : vec3<f32> = gAccum_0[Field_0(base_9, u32(10))].xyz * (gContributions_0[_S65] + gContributions_0[u32(64) + _S65] + gContributions_0[u32(128) + _S65]);
-        var _S66 : f32 = gAccum_0[Field_0(base_9, u32(10))].w;
-        var contribution_7 : vec3<f32>;
-        if((_S66 > 0.0f))
+        var _S122 : u32 = u32(64) + _S119;
+        var _S123 : u32 = u32(128) + _S119;
+        var sum_3 : vec3<f32> = gContributions_0[_S119] + gContributions_0[_S122] + gContributions_0[_S123];
+        var throughput_3 : vec4<f32> = gAccum_0[Field_0(base_10, u32(10))];
+        var diffuse_4 : vec4<f32> = gNrdDiffuse_0[_S119] + gNrdDiffuse_0[_S122] + gNrdDiffuse_0[_S123];
+        var bypass_4 : vec3<f32> = gNrdBypass_0[_S119] + gNrdBypass_0[_S122] + gNrdBypass_0[_S123];
+        var diffuseDirection_3 : vec3<f32> = gNrdDiffuseDirection_0[_S119] + gNrdDiffuseDirection_0[_S122] + gNrdDiffuseDirection_0[_S123];
+        var specularDirection_3 : vec3<f32> = gNrdSpecularDirection_0[_S119] + gNrdSpecularDirection_0[_S122] + gNrdSpecularDirection_0[_S123];
+        if(((diffuse_4.w) > 0.0f))
         {
-            contribution_7 = min(contribution_6, vec3<f32>(_S66));
+            var r_3 : u32 = NrdBase_0(base_10);
+            var _S124 : vec3<f32> = throughput_3.xyz;
+            var _S125 : vec3<f32> = gAccum_0[r_3].xyz + _S124 * bypass_4;
+            gAccum_0[r_3].x = _S125.x;
+            gAccum_0[r_3].y = _S125.y;
+            gAccum_0[r_3].z = _S125.z;
+            var _S126 : u32 = r_3 + u32(1);
+            var _S127 : vec3<f32> = diffuse_4.xyz;
+            var _S128 : vec3<f32> = gAccum_0[_S126].xyz + _S124 * _S127;
+            gAccum_0[_S126].x = _S128.x;
+            gAccum_0[_S126].y = _S128.y;
+            gAccum_0[_S126].z = _S128.z;
+            var _S129 : u32 = r_3 + u32(2);
+            var _S130 : vec3<f32> = gAccum_0[_S129].xyz + _S124 * (sum_3 - _S127 - bypass_4);
+            gAccum_0[_S129].x = _S130.x;
+            gAccum_0[_S129].y = _S130.y;
+            gAccum_0[_S129].z = _S130.z;
+            var _S131 : u32 = r_3 + u32(3);
+            var _S132 : vec3<f32> = vec3<f32>(Luminance_0(_S124));
+            var _S133 : vec3<f32> = gAccum_0[_S131].xyz + _S132 * diffuseDirection_3;
+            gAccum_0[_S131].x = _S133.x;
+            gAccum_0[_S131].y = _S133.y;
+            gAccum_0[_S131].z = _S133.z;
+            var _S134 : u32 = r_3 + u32(4);
+            var _S135 : vec3<f32> = gAccum_0[_S134].xyz + _S132 * specularDirection_3;
+            gAccum_0[_S134].x = _S135.x;
+            gAccum_0[_S134].y = _S135.y;
+            gAccum_0[_S134].z = _S135.z;
+        }
+        var contribution_7 : vec3<f32> = throughput_3.xyz * sum_3;
+        var _S136 : f32 = throughput_3.w;
+        var contribution_8 : vec3<f32>;
+        if((_S136 > 0.0f))
+        {
+            contribution_8 = min(contribution_7, vec3<f32>(_S136));
         }
         else
         {
-            contribution_7 = contribution_6;
+            contribution_8 = contribution_7;
         }
-        var path_3 : vec4<f32> = gAccum_0[base_9];
-        var _S67 : vec3<f32> = gAccum_0[base_9].xyz + contribution_7;
-        path_3.x = _S67.x;
-        path_3.y = _S67.y;
-        path_3.z = _S67.z;
-        gAccum_0[base_9] = path_3;
-        gAccum_0[Field_0(base_9, u32(11))] = vec4<f32>(0.0f);
+        var path_3 : vec4<f32> = gAccum_0[base_10];
+        var _S137 : vec3<f32> = gAccum_0[base_10].xyz + contribution_8;
+        path_3.x = _S137.x;
+        path_3.y = _S137.y;
+        path_3.z = _S137.z;
+        gAccum_0[base_10] = path_3;
+        gAccum_0[Field_0(base_10, u32(11))] = vec4<f32>(0.0f);
     }
     return;
 }

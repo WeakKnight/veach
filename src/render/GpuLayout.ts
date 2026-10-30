@@ -241,6 +241,7 @@ export interface FrameUniformData {
 	lightCount: number;
 	tlasPrimOffset: number;
 	tlasNodeOffset?: number; // defaults to zero for imported static scenes
+	nrdRegion?: number; // float4 offset of the wavefront NRD split in the accumulation buffer, 0 = off
 	analyticLightCount: number;
 	envCdfWidth: number;
 	envCdfHeight: number;
@@ -278,7 +279,7 @@ export function packFrameUniforms(buffer: ArrayBuffer, d: FrameUniformData): voi
 	u32.set([d.width, d.height, d.frameIndex, d.seed >>> 0], 16);
 	u32.set([d.maxBounces, d.debugMode, d.flags, d.tonemapper], 20);
 	u32.set([d.instanceCount, d.lightCount, d.tlasPrimOffset, d.analyticLightCount], 24);
-	u32.set([d.envCdfWidth, d.envCdfHeight, d.tlasNodeOffset ?? 0, 0], 28);
+	u32.set([d.envCdfWidth, d.envCdfHeight, d.tlasNodeOffset ?? 0, d.nrdRegion ?? 0], 28);
 	f32.set([...d.sunDirection, d.sunCosAngle], 32);
 	f32.set([...d.sunRadiance, d.sunSolidAngle], 36);
 	f32.set([d.envIntensity, d.envRotation, d.preExposure, d.fireflyClamp], 40);

@@ -78,7 +78,9 @@ export class TemporalAA {
 		this.stats.active = true; this.stats.reason = null; this.stats.bytes = bytes * 3 + this.motion!.size + Math.max(this.instances.size, scene.instances.size) + 112;
 		return true;
 	}
-	encode(encoder: GPUCommandEncoder, frame: GPUBuffer, source: GPUBuffer, scene: GpuScene, weight: number, clamp: number, maximum: number): GPUBuffer {
+	/** filter runs between motion generation and resolve (NRD) and may replace the resolve input, same layout. */
+	encode(encoder: GPUCommandEncoder, frame: GPUBuffer, source: GPUBuffer, scene: GpuScene, weight: number, clamp: number, maximum: number,
+		filter?: (encoder: GPUCommandEncoder, motion: GPUBuffer) => GPUBuffer): GPUBuffer {
 		const old = this.previousCamera ?? this.currentCamera!, data = new ArrayBuffer(112), f = new Float32Array(data), u = new Uint32Array(data);
 		f.set(old.position, 0);
 		temporalInverse(old).forEach((row, i) => f.set(row, 4 + i * 4));
@@ -86,10 +88,15 @@ export class TemporalAA {
 		f.set([Math.max(0.001, Math.min(1, weight)), Math.max(0.01, clamp), Math.max(1, maximum), Number(this.stats.historyFrames > 0)], 20);
 		u.set([scene.instanceSlots, this.previousSlots, 0, 0], 24);
 		this.device.queue.writeBuffer(this.uniform, 0, data);
-		const buffers = [frame, this.uniform, source, this.history[this.ping], scene.instances, this.instances!, this.history[this.ping ^ 1], this.output!, this.motion!];
-		const group = this.device.createBindGroup({ layout: this.layout, entries: buffers.map((buffer, binding) => ({ binding, resource: { buffer } })) });
+		const createGroup = (input: GPUBuffer) => {
+			const buffers = [frame, this.uniform, input, this.history[this.ping], scene.instances, this.instances!, this.history[this.ping ^ 1], this.output!, this.motion!];
+			return this.device.createBindGroup({ layout: this.layout, entries: buffers.map((buffer, binding) => ({ binding, resource: { buffer } })) });
+		};
+		let group = createGroup(source);
 		const motion = encoder.beginComputePass({ label: 'taa.motion' });
 		motion.setPipeline(this.motionPipeline); motion.setBindGroup(0, group); motion.dispatchWorkgroups(Math.ceil(this.width / 8), Math.ceil(this.height / 8)); motion.end();
+		const filtered = filter?.(encoder, this.motion!) ?? source;
+		if (filtered !== source) group = createGroup(filtered);
 		const pass = encoder.beginComputePass({ label: 'taa.resolve' });
 		pass.setPipeline(this.pipeline); pass.setBindGroup(0, group); pass.dispatchWorkgroups(Math.ceil(this.width / 8), Math.ceil(this.height / 8)); pass.end();
 		// Resolve reads the last rendered pose even when this frame grows the scene arena.

@@ -381,3 +381,4 @@ fn Statistics(@builtin(global_invocation_id) tid_3 : vec3<u32>)
     var _S55 : u32 = atomicAdd(&(gSharcWork_0[p_4 + u32(8)]), (state_1 >> (u32(16))));
     return;
 }
+

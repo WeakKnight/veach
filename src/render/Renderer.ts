@@ -2,6 +2,7 @@ import type { PrimaryVisibilityMode, PrimaryVisibilityStats } from './PrimaryVis
 import type { SharcSettings, SharcStats } from './SharcCache';
 import { TemporalAA, type TaaStats } from './TemporalAA';
 import { GpuProfiler } from './GpuProfiler';
+import type { NrdDenoiser, NrdMode, NrdStats } from './denoise/NrdDenoiser';
 // Public entry point: owns the WebGPU device, the scene and the progressive render loop.
 import { BuildQuality, TinyBVH } from '../accel/TinyBVH';
 import type { HDRImage } from '../loaders/HDRLoader';
@@ -59,6 +60,14 @@ export interface RenderSettings {
 	taaColorClampingFactor: number;
 	taaMaximumRadiance: number;
 	taaMotionVectorDebug: boolean;
+	/** NVIDIA NRD REBLUR before TAA in real-time (non-progressive) wavefront frames; see setNrd(). */
+	nrdEnabled: boolean;
+	/** 'sh': REBLUR diffuse + specular SH with SG resolve and re-jittering; 'radiance': REBLUR_DIFFUSE_SPECULAR. Select with setNrd(). */
+	nrdMode: NrdMode;
+	/** SH mode: restore per-pixel micro detail and film jitter after denoising (NRD_SG_ReJitter). Presentation only. */
+	nrdReJitter: boolean;
+	/** 0 denoised, 1 noisy split (bypasses NRD), 2 diffuse, 3 specular, 4 guides, 5 re-jitter scale (SH). Presentation only. */
+	nrdDebug: number;
 	maxBounces: number;
 	maxSamples: number; // 0 = unlimited
 	resolutionScale: number;
@@ -109,6 +118,10 @@ export function defaultRenderSettings(): RenderSettings {
 		taaColorClampingFactor: 2,
 		taaMaximumRadiance: 100,
 		taaMotionVectorDebug: false,
+		nrdEnabled: false,
+		nrdMode: 'sh',
+		nrdReJitter: true,
+		nrdDebug: 0,
 		maxBounces: 8,
 		maxSamples: 128,
 		resolutionScale: 1,
@@ -146,7 +159,7 @@ export function defaultRenderSettings(): RenderSettings {
 
 // Applied when presenting (the accumulation is pre-exposed), so changing them keeps the samples.
 export function isPresentationSetting(key: keyof RenderSettings): boolean {
-	return key === 'tonemapper' || key.startsWith('autoExposure') || key.startsWith('histogramLog') || key.startsWith('localExposure') || key === 'visualizeLocalExposure' || key === 'taaMotionVectorDebug';
+	return key === 'tonemapper' || key.startsWith('autoExposure') || key.startsWith('histogramLog') || key.startsWith('localExposure') || key === 'visualizeLocalExposure' || key === 'taaMotionVectorDebug' || key === 'nrdDebug' || key === 'nrdReJitter';
 }
 
 // Renderer.create progress. Without a browser pipeline cache (first visit, new shaders) compiling
@@ -254,6 +267,13 @@ export class Renderer {
 	readonly gpuProfiler: GpuProfiler;
 	private onSceneProgress?: (progress: InitProgress) => void;
 	private taaActive = false;
+	// One instance per loaded mode, so switching keeps textures and pipelines (each restarts its history).
+	private readonly nrds = new Map<NrdMode, NrdDenoiser>();
+	private get nrd(): NrdDenoiser | null { return this.nrds.get(this.settings.nrdMode) ?? null; }
+	private nrdRequest = 0;
+	private nrdActive = false;
+	private nrdError: string | null = null;
+	private temporalCamera: { position: Vec3; right: Vec3; up: Vec3; forward: Vec3 } | null = null;
 	private temporalFrame = 0;
 	private progressiveMode: boolean | null = null;
 	private readonly resizeObserver: ResizeObserver | null = null;
@@ -290,8 +310,10 @@ export class Renderer {
 		}
 		const device = await adapter.requestDevice({
 			label: 'Veach',
-			requiredFeatures: (['shader-f16', 'subgroups', 'timestamp-query'] as GPUFeatureName[]).filter(feature => adapter.features.has(feature)),
+			// float32-filterable and texture-formats-tier1 serve the optional NRD denoiser.
+			requiredFeatures: (['shader-f16', 'subgroups', 'timestamp-query', 'float32-filterable', 'texture-formats-tier1'] as GPUFeatureName[]).filter(feature => adapter.features.has(feature)),
 			requiredLimits: {
+				maxStorageTexturesPerShaderStage: Math.max(4, Math.min(adapter.limits.maxStorageTexturesPerShaderStage, 8)),
 				maxStorageBufferBindingSize: adapter.limits.maxStorageBufferBindingSize,
 				maxBufferSize: adapter.limits.maxBufferSize,
 				maxStorageBuffersPerShaderStage: Math.max(8, Math.min(adapter.limits.maxStorageBuffersPerShaderStage, 10)),
@@ -378,6 +400,39 @@ export class Renderer {
 	/** Render-resolution motion data; valid only while TAA is active. See TemporalAA.md for layout/lifetime. */
 	get motionVectorBuffer(): GPUBuffer | null { return this.taa.motionVectorBuffer; }
 	resetTaa(): void { this.taa.reset(); }
+	get nrdStats(): NrdStats {
+		return this.nrd ? { ...this.nrd.stats } : { active: false, reason: this.nrdError ?? (this.settings.nrdEnabled ? 'loading' : 'disabled'), mode: this.settings.nrdMode, dispatches: 0, frames: 0, bytes: 0 };
+	}
+
+	/** Load (or release every mode of) NRD. Active only for real-time wavefront frames with TAA; other frames are unchanged. */
+	async setNrd(enabled: boolean, mode: NrdMode = this.settings.nrdMode): Promise<boolean> {
+		if (this.destroyed) throw new Error('Renderer has been destroyed');
+		if (mode !== 'sh' && mode !== 'radiance') throw new Error(`Unknown NRD mode: ${mode}`);
+		const request = ++this.nrdRequest;
+		this.nrdError = null;
+		if (!enabled) {
+			this.settings.nrdEnabled = false;
+			for (const nrd of this.nrds.values()) nrd.destroy();
+			this.nrds.clear();
+			this.tracer.setNrd(false);
+			return true;
+		}
+		try {
+			const { NrdDenoiser } = await import('./denoise/NrdDenoiser');
+			const reason = NrdDenoiser.unsupportedReason(this.device);
+			if (reason) throw new Error(`NRD is unsupported on this device: ${reason}`);
+			const nrd = this.nrds.get(mode) ?? await NrdDenoiser.create(this.device, mode);
+			if (this.destroyed || request !== this.nrdRequest) { if (nrd !== this.nrds.get(mode)) nrd.destroy(); return false; }
+			this.nrds.set(mode, nrd);
+			this.settings.nrdMode = mode;
+			this.settings.nrdEnabled = true;
+			this.tracer.setNrd(true);
+			return true;
+		} catch (error) {
+			if (request === this.nrdRequest) { this.nrdError = String(error); this.settings.nrdEnabled = false; }
+			throw error;
+		}
+	}
 	get sharcSettings(): Readonly<SharcSettings> { return this.tracer.sharcSettings; }
 	get separateLight(): boolean { return this.tracer.separateLight; }
 	get batchedShadows(): boolean { return this.tracer.batchedShadows; }
@@ -775,6 +830,7 @@ export class Renderer {
 			...this.tracer.sharcFrame(s.debugMode, s.maxBounces, s.fireflyClamp,
 				`${this.currentSkyKey()}/${this.sun.enabled}/${this.sun.angularDiameter}/${s.environmentIntensity}/${this.environment.importance}/${s.maxBounces}/${s.textureMipBias}`, traceSample),
 			primaryVisibility: primary.data,
+			nrdRegion: this.nrdActive ? this.tracer.nrdRegion : 0,
 			cameraPosition: this.hostView?.position ?? this.camera.position,
 			lensRadius: this.hostView ? 0 : this.camera.lensRadius,
 			cameraRight: basis.right,
@@ -848,9 +904,15 @@ export class Renderer {
 		if (taaReason) { this.taa.suspend(taaReason); if (!progressive || !this.denoisedBuffer) this.tracer.setPresentationBuffer(null); }
 		else {
 			const basis = this.hostView ?? this.camera.basis(this.tracer.width / this.tracer.height);
-			this.taaActive = this.taa.begin({ ...basis, position: this.hostView?.position ?? this.camera.position }, this.tracer.width, this.tracer.height, this.scene, this.activeHost ?? this.scene, s.taaMaximumRadiance, frame?.cameraCut ?? false);
+			this.temporalCamera = { ...basis, position: this.hostView?.position ?? this.camera.position };
+			this.taaActive = this.taa.begin(this.temporalCamera, this.tracer.width, this.tracer.height, this.scene, this.activeHost ?? this.scene, s.taaMaximumRadiance, frame?.cameraCut ?? false);
 			if (!this.taaActive) this.tracer.setPresentationBuffer(null);
 		}
+		const nrdReason = !this.nrd ? null : !s.nrdEnabled ? 'disabled' : !this.taaActive ? `taa-${this.taa.stats.reason ?? 'inactive'}` : this.tracer.integrator !== 'wavefront' ? 'integrator' : !this.tracer.nrdRegion ? 'storage-budget' : null;
+		this.nrdActive = !!this.nrd && s.nrdEnabled && nrdReason === null;
+		// Suspending keeps NRD's textures and pipelines; toggling settings.nrdEnabled is instant.
+		if (nrdReason && this.nrd?.stats.reason !== nrdReason) this.nrd?.suspend(nrdReason);
+		for (const nrd of this.nrds.values()) if (nrd !== this.nrd && nrd.stats.active) nrd.suspend('other-mode');
 		if (this.frameIndex === 0) {
 			this.preExposure = this.nextPreExposure();
 		}
@@ -871,7 +933,12 @@ export class Renderer {
 		// present reads the tonemapping settings from the uniforms; frameIndex there is unused
 		this.writeUniforms();
 		const encoder = this.gpuProfiler.createCommandEncoder({ label: 'present' });
-		if (this.taaActive) this.gpuProfiler.scope('Temporal AA', () => this.tracer.setPresentationBuffer(this.taa.encode(encoder, this.tracer.uniformBuffer, this.tracer.accumulation!, this.scene!, s.taaNewFrameWeight, s.taaColorClampingFactor, s.taaMaximumRadiance)));
+		const nrd = this.nrdActive ? (enc: GPUCommandEncoder, motion: GPUBuffer) => this.gpuProfiler.scope('NRD', () => this.nrd!.encode(enc, {
+			frame: this.tracer.uniformBuffer, accumulation: this.tracer.accumulation!, region: this.tracer.nrdRegion, motion,
+			width: this.tracer.width, height: this.tracer.height, camera: this.temporalCamera!, jitter: this.taa.jitter,
+			reset: this.taa.stats.historyFrames === 0, debug: s.nrdDebug, reJitter: s.nrdReJitter,
+		}) ?? this.tracer.accumulation!) : undefined;
+		if (this.taaActive) this.gpuProfiler.scope('Temporal AA', () => this.tracer.setPresentationBuffer(this.taa.encode(encoder, this.tracer.uniformBuffer, this.tracer.accumulation!, this.scene!, s.taaNewFrameWeight, s.taaColorClampingFactor, s.taaMaximumRadiance, nrd)));
 		const now = performance.now();
 		const deltaTime = this.lastExposureTime ? Math.min((now - this.lastExposureTime) / 1000, 1) : 0;
 		this.lastExposureTime = now;
@@ -1058,6 +1125,7 @@ export class Renderer {
 		this.hdrEnvironment?.destroy();
 		this.sky.destroy();
 		this.taa.destroy();
+		for (const nrd of this.nrds.values()) nrd.destroy();
 		this.gpuProfiler.destroy();
 		this.tracer.destroy();
 		this.device.destroy();

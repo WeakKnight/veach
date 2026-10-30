@@ -8,6 +8,7 @@ dist/
 dist-lib/
 dist-view-demo/
 dist-games/
+dist-nrd/
 .tools/
 public/samples/
 *.log

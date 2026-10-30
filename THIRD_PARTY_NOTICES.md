@@ -28,6 +28,18 @@ runtime code or data is embedded in JavaScript or WebAssembly.
 - Use: `ThirdParty/tinybvh`, compiled through Veach's C ABI wrapper into the
   tinybvh WebAssembly module embedded in the release bundle.
 
+## NVIDIA Real-time Denoisers (NRD)
+
+- Upstream: https://github.com/NVIDIA-RTX/NRD
+- Version: 4.18.0 (NRD SDK date 9 October 2026), with NVIDIA MathLib v11.
+- Copyright (c) NVIDIA Corporation. This software contains source code provided by NVIDIA Corporation.
+- License: NVIDIA RTX SDKs License (`LICENSE.txt` in the NRD repository); not covered by Veach's MIT license.
+- Use: `scripts/build-nrd.mjs` compiles the NRD runtime into a WebAssembly module and NRD's REBLUR
+  shaders into WGSL (`src/generated/nrd`), loaded as a lazy chunk only when NRD is enabled.
+- Modifications: WGSL compatibility patches (texel-offset loads, groupshared atomics, MathLib and
+  timer platform detection) applied to a staged copy at build time; see `docs/Nrd.md`.
+- Redistribution under these terms has not been reviewed for the npm package; see `docs/Nrd.md`.
+
 ## Adobe OpenPBR BSDF
 
 - Upstream: https://github.com/adobe/openpbr-bsdf

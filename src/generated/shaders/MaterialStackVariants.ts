@@ -6933,11 +6933,11 @@ export const materialStackVariants: Record<'PathTracing' | 'Wavefront', Material
 		}
 	},
 	"Wavefront": {
-		"length": 720021,
-		"checksum": 3898614203,
+		"length": 740839,
+		"checksum": 2542371950,
 		"variants": {
 			"0": {
-				"sha256": "da38f64dd14b9b67151ba83225becbacafc41dae985d4819e8a9483d75e8cee8",
+				"sha256": "cb0ab159e0d2b9c1a0aa9fb7c8b5048f8deac13f26df2a9977a23e5b4bd2962b",
 				"edits": [
 					[
 						3019,
@@ -10120,4927 +10120,5077 @@ export const materialStackVariants: Record<'PathTracing' | 'Wavefront', Material
 						"12 : u32 = block_0 % blocksX_0;\n    var _S313 : u32 = _S312 * u32(8) + ((lane_0 & (u32(7))));\n    var _S314 : u32 = block_0 / blocksX_0;\n    return vec2<u32>(_S313, _S314"
 					],
 					[
-						462252,
-						51,
-						"315 : u32,  _S316 : u32,  _S317 : vec3<f32>,  _S318"
+						462531,
+						499,
+						"3 : vec3<f32>) -> u32\n{\n    var _S315 : vec3<u32> = vec3<u32>(round(saturate(f_13) * vec3<f32>(511.0f)));\n    return ((((_S315.x) | ((((_S315.y) << (u32(9))))))) | ((((_S315.z) << (u32(18))))));\n}\n\nfn NrdPackSurface_0( roughness_7 : f32,  metalness_0 : f32) -> f32\n{\n    return saturate(roughness_7) * 0.99000000953674316f + 2.0f * round(saturate(metalness_0) * 255.0f);\n}\n\nfn EmissiveHitPdf_0( _S316 : u32,  _S317 : u32,  _S318 : vec3<f32>,  _S319 : vec3<f32>) -> f32\n{\n    if((((gInstances_0[_S316"
 					],
 					[
-						462351,
-						3,
-						"315"
-					],
-					[
-						462493,
+						463169,
 						194,
-						"315].lightOffset_0 + _S316];\n    return light_4.p1_0.w * EmissiveSolidAnglePdf_0(light_4.p0_0.w, MaterialHeader_DoubleSided_0(LoadMaterialHeader_0((bitcast<u32>((light_4.n_0.w))))), _S317, _S318"
+						"316].lightOffset_0 + _S317];\n    return light_4.p1_0.w * EmissiveSolidAnglePdf_0(light_4.p0_0.w, MaterialHeader_DoubleSided_0(LoadMaterialHeader_0((bitcast<u32>((light_4.n_0.w))))), _S318, _S319"
 					],
 					[
-						462850,
+						463526,
 						603,
-						"319 : bool;\n    if(((ms_1.roughness_3) >= (gFrame_0.sharcParams_0.y)))\n    {\n        _S319 = ((ms_1.inputs_1.baseMetalness_0) < 0.10000000149011612f);\n    }\n    else\n    {\n        _S319 = false;\n    }\n    if(_S319)\n    {\n        _S319 = (ms_1.inputs_1.transmissionWeight_0) == 0.0f;\n    }\n    else\n    {\n        _S319 = false;\n    }\n    if(_S319)\n    {\n        _S319 = (ms_1.inputs_1.subsurfaceWeight_0) == 0.0f;\n    }\n    else\n    {\n        _S319 = false;\n    }\n    if(_S319)\n    {\n        _S319 = (ms_1.inputs_1.coatWeight_0) == 0.0f;\n    }\n    else\n    {\n        _S319 = false;\n    }\n    return _S319"
+						"320 : bool;\n    if(((ms_1.roughness_3) >= (gFrame_0.sharcParams_0.y)))\n    {\n        _S320 = ((ms_1.inputs_1.baseMetalness_0) < 0.10000000149011612f);\n    }\n    else\n    {\n        _S320 = false;\n    }\n    if(_S320)\n    {\n        _S320 = (ms_1.inputs_1.transmissionWeight_0) == 0.0f;\n    }\n    else\n    {\n        _S320 = false;\n    }\n    if(_S320)\n    {\n        _S320 = (ms_1.inputs_1.subsurfaceWeight_0) == 0.0f;\n    }\n    else\n    {\n        _S320 = false;\n    }\n    if(_S320)\n    {\n        _S320 = (ms_1.inputs_1.coatWeight_0) == 0.0f;\n    }\n    else\n    {\n        _S320 = false;\n    }\n    return _S320"
 					],
 					[
-						463571,
+						464247,
 						905,
-						"1 : f32) -> bool\n{\n    var _S320 : u32 = (bitcast<u32>((x_21)));\n    var _S321 : u32 = (_S320 & (u32(8388607)));\n    var _S322 : bool;\n    if(((((_S320 >> (u32(23)))) & (u32(255)))) == u32(255))\n    {\n        _S322 = _S321 == u32(0);\n    }\n    else\n    {\n        _S322 = false;\n    }\n    return _S322;\n}\n\nfn isnan_0( x_22 : f32) -> bool\n{\n    var _S323 : u32 = (bitcast<u32>((x_22)));\n    var _S324 : u32 = (_S323 & (u32(8388607)));\n    var _S325 : bool;\n    if(((((_S323 >> (u32(23)))) & (u32(255)))) == u32(255))\n    {\n        _S325 = _S324 != u32(0);\n    }\n    else\n    {\n        _S325 = false;\n    }\n    return _S325;\n}\n\nfn isfinite_0( x_23 : f32) -> bool\n{\n    var _S326 : bool;\n    if(isinf_0(x_23))\n    {\n        _S326 = true;\n    }\n    else\n    {\n        _S326 = isnan_0(x_23);\n    }\n    return !_S326;\n}\n\nfn isfinite_1( x_24 : vec3<f32>) -> vec3<bool>\n{\n    var result_6 : vec3<bool>;\n    var i_4"
+						"1 : f32) -> bool\n{\n    var _S321 : u32 = (bitcast<u32>((x_21)));\n    var _S322 : u32 = (_S321 & (u32(8388607)));\n    var _S323 : bool;\n    if(((((_S321 >> (u32(23)))) & (u32(255)))) == u32(255))\n    {\n        _S323 = _S322 == u32(0);\n    }\n    else\n    {\n        _S323 = false;\n    }\n    return _S323;\n}\n\nfn isnan_0( x_22 : f32) -> bool\n{\n    var _S324 : u32 = (bitcast<u32>((x_22)));\n    var _S325 : u32 = (_S324 & (u32(8388607)));\n    var _S326 : bool;\n    if(((((_S324 >> (u32(23)))) & (u32(255)))) == u32(255))\n    {\n        _S326 = _S325 != u32(0);\n    }\n    else\n    {\n        _S326 = false;\n    }\n    return _S326;\n}\n\nfn isfinite_0( x_23 : f32) -> bool\n{\n    var _S327 : bool;\n    if(isinf_0(x_23))\n    {\n        _S327 = true;\n    }\n    else\n    {\n        _S327 = isnan_0(x_23);\n    }\n    return !_S327;\n}\n\nfn isfinite_1( x_24 : vec3<f32>) -> vec3<bool>\n{\n    var result_6 : vec3<bool>;\n    var i_4"
 					],
 					[
-						464522,
+						465198,
 						1,
 						"4"
 					],
 					[
-						464622,
+						465298,
 						49,
 						"6[i_4] = isfinite_0(x_24[i_4]);\n        i_4 = i_4"
 					],
 					[
-						464706,
+						465382,
 						1,
 						"6"
 					],
 					[
-						464880,
+						465556,
 						1,
 						"0"
 					],
 					[
-						464981,
+						465657,
 						481,
-						"0 : u32 = u32(clamp(floor(log2(max(length(position_3 - gFrame_0.cameraPosition_0.xyz) / (baseSize_0 * 32.0f), 1.0f))), 0.0f, 16.0f));\n    var _S327 : f32 = baseSize_0 * exp2(f32(level_0));\n    (*size_0) = _S327;\n    var cell_0 : vec3<f32> = floor(position_3 / vec3<f32>(_S327));\n    var _S328 : vec3<f32> = vec3<f32>(0.5f);\n    var _S329 : vec3<u32> = vec3<u32>(clamp(floor((normal_22 * _S328 + _S328) * vec3<f32>(15.0f) + _S328), vec3<f32>(0.0f), vec3<f32>(15.0f)));\n    var _S330"
+						"0 : u32 = u32(clamp(floor(log2(max(length(position_3 - gFrame_0.cameraPosition_0.xyz) / (baseSize_0 * 32.0f), 1.0f))), 0.0f, 16.0f));\n    var _S328 : f32 = baseSize_0 * exp2(f32(level_0));\n    (*size_0) = _S328;\n    var cell_0 : vec3<f32> = floor(position_3 / vec3<f32>(_S328));\n    var _S329 : vec3<f32> = vec3<f32>(0.5f);\n    var _S330 : vec3<u32> = vec3<u32>(clamp(floor((normal_22 * _S329 + _S329) * vec3<f32>(15.0f) + _S329), vec3<f32>(0.0f), vec3<f32>(15.0f)));\n    var _S331"
 					],
 					[
-						465515,
-						3,
-						"330"
-					],
-					[
-						465560,
-						3,
-						"330"
-					],
-					[
-						465590,
+						466191,
 						3,
 						"331"
 					],
 					[
-						465646,
+						466236,
 						3,
 						"331"
 					],
 					[
-						465691,
+						466266,
 						3,
-						"331"
+						"332"
 					],
 					[
-						465721,
+						466322,
+						3,
+						"332"
+					],
+					[
+						466367,
+						3,
+						"332"
+					],
+					[
+						466397,
 						27,
-						"332 : u32 = (_S330 | (_S331"
-					],
-					[
-						465797,
-						3,
-						"330"
-					],
-					[
-						465842,
-						3,
-						"330"
-					],
-					[
-						466016,
-						126,
-						"329.x) | ((((_S329.y) << (u32(4))))))) | ((((_S329.z) << (u32(8))))))) | (((((_S332 | (_S330))) << (u32(12))))))) | (((level_0"
-					],
-					[
-						466248,
-						3,
-						"333"
-					],
-					[
-						466312,
-						3,
-						"333"
-					],
-					[
-						466405,
-						3,
-						"333"
-					],
-					[
-						466437,
-						3,
-						"333"
+						"333 : u32 = (_S331 | (_S332"
 					],
 					[
 						466473,
-						2,
-						"8"
+						3,
+						"331"
 					],
 					[
-						466531,
-						50,
-						"8 % u32(16)) == (((StrongIntegerHash_0(((index_8"
+						466518,
+						3,
+						"331"
 					],
 					[
-						466789,
-						2,
-						"9"
+						466692,
+						126,
+						"330.x) | ((((_S330.y) << (u32(4))))))) | ((((_S330.z) << (u32(8))))))) | (((((_S333 | (_S331))) << (u32(12))))))) | (((level_0"
 					],
 					[
-						466902,
+						466924,
 						3,
 						"334"
 					],
 					[
-						466957,
-						360,
-						"334 = true;\n    }\n    else\n    {\n        _S334 = (bounce_1 > u32(4));\n    }\n    if(_S334)\n    {\n        _S334 = true;\n    }\n    else\n    {\n        _S334 = (bounce_1 >= (gFrame_0.settings_0.x));\n    }\n    if(_S334)\n    {\n        _S334 = true;\n    }\n    else\n    {\n        _S334 = (any(((throughput_22 < vec3<f32>(9.9999997473787516e-05f)))));\n    }\n    if(_S334"
+						466988,
+						3,
+						"334"
 					],
 					[
-						467394,
+						467081,
+						3,
+						"334"
+					],
+					[
+						467113,
+						3,
+						"334"
+					],
+					[
+						467149,
+						2,
+						"8"
+					],
+					[
+						467207,
+						50,
+						"8 % u32(16)) == (((StrongIntegerHash_0(((index_8"
+					],
+					[
+						467465,
 						2,
 						"9"
 					],
 					[
-						468293,
-						1,
-						"1"
-					],
-					[
-						468358,
-						1,
-						"1"
-					],
-					[
-						468508,
+						467578,
 						3,
 						"335"
 					],
 					[
-						468737,
-						1643,
-						"335 + probe_0) & ((gFrame_0.sharc_0.y - u32(1))))) / u32(4);\n        var a_12 : vec4<u32> = (bitcast<vec4<u32>>((gAccum_0[base_9])));\n        var b_13 : vec4<u32> = (bitcast<vec4<u32>>((gAccum_0[base_9 + u32(1)])));\n        var _S336 : u32 = base_9 + u32(3);\n        var history_0 : u32 = (bitcast<u32>((gAccum_0[_S336].w)));\n        var _S337 : bool;\n        if((a_12.x) == u32(4294967295))\n        {\n            _S337 = (all(((a_12.yzw) == (key_3.spatial_0.xyz))));\n        }\n        else\n        {\n            _S337 = false;\n        }\n        var _S338 : bool;\n        if(_S337)\n        {\n            _S338 = (b_13.x) == (key_3.spatial_0.w);\n        }\n        else\n        {\n            _S338 = false;\n        }\n        var _S339 : bool;\n        if(_S338)\n        {\n            _S339 = (b_13.y) == (key_3.material_2);\n        }\n        else\n        {\n            _S339 = false;\n        }\n        var _S340 : bool;\n        if(_S339)\n        {\n            _S340 = (b_13.z) == (key_3.instance_0);\n        }\n        else\n        {\n            _S340 = false;\n        }\n        var _S341 : bool;\n        if(_S340)\n        {\n            _S341 = (((history_0 & (u32(65535)))) >= (gFrame_0.sharcControl_0.x));\n        }\n        else\n        {\n            _S341 = false;\n        }\n        var _S342 : bool;\n        if(_S341)\n        {\n            _S342 = ((gFrame_0.sharc_0.w - b_13.w) <= (gFrame_0.sharcControl_0.z));\n        }\n        else\n        {\n            _S342 = false;\n        }\n        if(_S342)\n        {\n            var _S343 : vec3<f32> = gAccum_0[_S336].xyz;\n            (*radiance_3) = _S343;\n            return (all((isfinite_1(_S343"
+						467633,
+						360,
+						"335 = true;\n    }\n    else\n    {\n        _S335 = (bounce_1 > u32(4));\n    }\n    if(_S335)\n    {\n        _S335 = true;\n    }\n    else\n    {\n        _S335 = (bounce_1 >= (gFrame_0.settings_0.x));\n    }\n    if(_S335)\n    {\n        _S335 = true;\n    }\n    else\n    {\n        _S335 = (any(((throughput_22 < vec3<f32>(9.9999997473787516e-05f)))));\n    }\n    if(_S335"
 					],
 					[
-						470561,
+						468070,
+						2,
+						"9"
+					],
+					[
+						468969,
+						1,
+						"1"
+					],
+					[
+						469034,
+						1,
+						"1"
+					],
+					[
+						469184,
+						3,
+						"336"
+					],
+					[
+						469414,
+						1646,
+						"336 + probe_0) & ((gFrame_0.sharc_0.y - u32(1))))) / u32(4);\n        var a_12 : vec4<u32> = (bitcast<vec4<u32>>((gAccum_0[base_10])));\n        var b_13 : vec4<u32> = (bitcast<vec4<u32>>((gAccum_0[base_10 + u32(1)])));\n        var _S337 : u32 = base_10 + u32(3);\n        var history_0 : u32 = (bitcast<u32>((gAccum_0[_S337].w)));\n        var _S338 : bool;\n        if((a_12.x) == u32(4294967295))\n        {\n            _S338 = (all(((a_12.yzw) == (key_3.spatial_0.xyz))));\n        }\n        else\n        {\n            _S338 = false;\n        }\n        var _S339 : bool;\n        if(_S338)\n        {\n            _S339 = (b_13.x) == (key_3.spatial_0.w);\n        }\n        else\n        {\n            _S339 = false;\n        }\n        var _S340 : bool;\n        if(_S339)\n        {\n            _S340 = (b_13.y) == (key_3.material_2);\n        }\n        else\n        {\n            _S340 = false;\n        }\n        var _S341 : bool;\n        if(_S340)\n        {\n            _S341 = (b_13.z) == (key_3.instance_0);\n        }\n        else\n        {\n            _S341 = false;\n        }\n        var _S342 : bool;\n        if(_S341)\n        {\n            _S342 = (((history_0 & (u32(65535)))) >= (gFrame_0.sharcControl_0.x));\n        }\n        else\n        {\n            _S342 = false;\n        }\n        var _S343 : bool;\n        if(_S342)\n        {\n            _S343 = ((gFrame_0.sharc_0.w - b_13.w) <= (gFrame_0.sharcControl_0.z));\n        }\n        else\n        {\n            _S343 = false;\n        }\n        if(_S343)\n        {\n            var _S344 : vec3<f32> = gAccum_0[_S337].xyz;\n            (*radiance_3) = _S344;\n            return (all((isfinite_1(_S344"
+					],
+					[
+						471241,
 						130,
-						"344 : RandomSequence_0;\n    _S344.seed_0 = StrongIntegerHash_0(positionSeed_0 + StrongIntegerHash_0(timeSeed_0));\n    return _S344"
+						"345 : RandomSequence_0;\n    _S345.seed_0 = StrongIntegerHash_0(positionSeed_0 + StrongIntegerHash_0(timeSeed_0));\n    return _S345"
 					],
 					[
-						470767,
-						3,
-						"345"
-					],
-					[
-						470840,
-						351,
-						"345 = true;\n    }\n    else\n    {\n        _S345 = BaseLobe_IsActive_0(this_89, i32(5));\n    }\n    if(_S345)\n    {\n        _S345 = true;\n    }\n    else\n    {\n        _S345 = BaseLobe_IsActive_0(this_89, i32(1));\n    }\n    if(_S345)\n    {\n        _S345 = true;\n    }\n    else\n    {\n        _S345 = BaseLobe_IsActive_0(this_89, i32(2));\n    }\n    if(_S345"
-					],
-					[
-						471287,
-						3,
-						"345"
-					],
-					[
-						471330,
-						3,
-						"345"
-					],
-					[
-						471389,
-						3,
-						"345"
-					],
-					[
-						471607,
+						471447,
 						3,
 						"346"
 					],
 					[
-						471660,
+						471520,
+						351,
+						"346 = true;\n    }\n    else\n    {\n        _S346 = BaseLobe_IsActive_0(this_89, i32(5));\n    }\n    if(_S346)\n    {\n        _S346 = true;\n    }\n    else\n    {\n        _S346 = BaseLobe_IsActive_0(this_89, i32(1));\n    }\n    if(_S346)\n    {\n        _S346 = true;\n    }\n    else\n    {\n        _S346 = BaseLobe_IsActive_0(this_89, i32(2));\n    }\n    if(_S346"
+					],
+					[
+						471967,
+						3,
+						"346"
+					],
+					[
+						472010,
+						3,
+						"346"
+					],
+					[
+						472069,
+						3,
+						"346"
+					],
+					[
+						472287,
+						3,
+						"347"
+					],
+					[
+						472340,
 						306,
-						"346 = true;\n    }\n    else\n    {\n        _S346 = !CoatLobe_HasCoat_0(this_90);\n    }\n    var _S347 : f32;\n    if(_S346)\n    {\n        _S347 = 0.0f;\n    }\n    else\n    {\n        _S347 = max(this_90.reflection_0.distribution_1.alpha_0.x, this_90.reflection_0.distribution_1.alpha_0.y);\n    }\n    return _S347"
+						"347 = true;\n    }\n    else\n    {\n        _S347 = !CoatLobe_HasCoat_0(this_90);\n    }\n    var _S348 : f32;\n    if(_S347)\n    {\n        _S348 = 0.0f;\n    }\n    else\n    {\n        _S348 = max(this_90.reflection_0.distribution_1.alpha_0.x, this_90.reflection_0.distribution_1.alpha_0.y);\n    }\n    return _S348"
 					],
 					[
-						472120,
+						472800,
 						3,
-						"348"
+						"349"
 					],
 					[
-						472191,
+						472871,
 						3,
-						"348"
+						"349"
 					],
 					[
-						472234,
+						472914,
 						3,
-						"348"
+						"349"
 					],
 					[
-						472328,
+						473008,
 						3,
-						"348"
+						"349"
 					],
 					[
-						472510,
+						473190,
 						939,
-						"8 : vec2<f32>) -> vec3<f32>\n{\n    var phi_2 : f32 = 2.0f * float_getPi_0() * u_8.x;\n    var _S349 : f32 = u_8.y;\n    var sinTheta_1 : f32 = sqrt(1.0f - _S349);\n    return vec3<f32>(sinTheta_1 * cos(phi_2), sinTheta_1 * sin(phi_2), sqrt(_S349));\n}\n\nfn SheenSampleLTC_0( ltc_2 : vec3<f32>,  u_9 : vec2<f32>) -> vec3<f32>\n{\n    var wiOriginal_1 : vec3<f32> = SampleCosineHemisphere_0(u_9);\n    var a_13 : f32 = 1.0f / ltc_2.x;\n    var _S350 : f32 = wiOriginal_1.z;\n    return normalize(vec3<f32>(wiOriginal_1.x * a_13 - _S350 * ltc_2.y * a_13, wiOriginal_1.y * a_13, _S350));\n}\n\nfn Frame_ToWorld_0( this_92 : Frame_0,  v_12 : vec3<f32>) -> vec3<f32>\n{\n    return vec3<f32>(v_12.x) * this_92.t_0 + vec3<f32>(v_12.y) * this_92.b_0 + vec3<f32>(v_12.z) * this_92.n_1;\n}\n\nfn ClampRemappedRandom_0( u_10 : f32) -> f32\n{\n    return min(u_10, 0.99999994039535522f);\n}\n\nfn SampleGGXVisibleNormal_0( alpha_20 : vec2<f32>,  wo_46 : vec3<f32>,  u_11"
+						"8 : vec2<f32>) -> vec3<f32>\n{\n    var phi_2 : f32 = 2.0f * float_getPi_0() * u_8.x;\n    var _S350 : f32 = u_8.y;\n    var sinTheta_1 : f32 = sqrt(1.0f - _S350);\n    return vec3<f32>(sinTheta_1 * cos(phi_2), sinTheta_1 * sin(phi_2), sqrt(_S350));\n}\n\nfn SheenSampleLTC_0( ltc_2 : vec3<f32>,  u_9 : vec2<f32>) -> vec3<f32>\n{\n    var wiOriginal_1 : vec3<f32> = SampleCosineHemisphere_0(u_9);\n    var a_13 : f32 = 1.0f / ltc_2.x;\n    var _S351 : f32 = wiOriginal_1.z;\n    return normalize(vec3<f32>(wiOriginal_1.x * a_13 - _S351 * ltc_2.y * a_13, wiOriginal_1.y * a_13, _S351));\n}\n\nfn Frame_ToWorld_0( this_92 : Frame_0,  v_12 : vec3<f32>) -> vec3<f32>\n{\n    return vec3<f32>(v_12.x) * this_92.t_0 + vec3<f32>(v_12.y) * this_92.b_0 + vec3<f32>(v_12.z) * this_92.n_1;\n}\n\nfn ClampRemappedRandom_0( u_10 : f32) -> f32\n{\n    return min(u_10, 0.99999994039535522f);\n}\n\nfn SampleGGXVisibleNormal_0( alpha_20 : vec2<f32>,  wo_46 : vec3<f32>,  u_11"
 					],
 					[
-						473638,
+						474318,
 						441,
-						"351 : f32 = min(woHemisphere_0.z, 1.0f);\n    var angle_2 : f32 = 2.0f * float_getPi_0() * u_11.x;\n    var onePlusCos_0 : f32 = 1.0f + _S351;\n    var _S352 : f32 = u_11.y;\n    var z_3 : f32 = (1.0f - _S352) * onePlusCos_0;\n    var radius_3 : f32 = sqrt((z_3 + (1.0f - _S351)) * (_S352 * onePlusCos_0));\n    return normalize(toHemisphere_0 * vec3<f32>(radius_3 * cos(angle_2) + woHemisphere_0.x, radius_3 * sin(angle_2) + woHemisphere_0.y, z_3"
+						"352 : f32 = min(woHemisphere_0.z, 1.0f);\n    var angle_2 : f32 = 2.0f * float_getPi_0() * u_11.x;\n    var onePlusCos_0 : f32 = 1.0f + _S352;\n    var _S353 : f32 = u_11.y;\n    var z_3 : f32 = (1.0f - _S353) * onePlusCos_0;\n    var radius_3 : f32 = sqrt((z_3 + (1.0f - _S352)) * (_S353 * onePlusCos_0));\n    return normalize(toHemisphere_0 * vec3<f32>(radius_3 * cos(angle_2) + woHemisphere_0.x, radius_3 * sin(angle_2) + woHemisphere_0.y, z_3"
 					],
 					[
-						474181,
+						474861,
 						1,
 						"2"
 					],
 					[
-						474341,
+						475021,
 						1,
 						"2"
 					],
 					[
-						474404,
+						475084,
 						188,
 						"3 : LobeSample_0;\n    s_13.wi_26 = vec3<f32>(0.0f);\n    s_13.weight_1 = DiffuseSpecular_Zero_0();\n    s_13.pdf_7 = 0.0f;\n    s_13.type_0 = u32(0);\n    s_13.valid_1 = false;\n    return s_13"
 					],
 					[
-						474836,
+						475516,
 						162,
 						"4 : LobeSample_0;\n    s_14.wi_26 = wi_27;\n    s_14.weight_1 = weight_2;\n    s_14.pdf_7 = pdf_8;\n    s_14.type_0 = type_1;\n    s_14.valid_1 = true;\n    return s_14"
 					],
 					[
-						475083,
+						475763,
 						1,
 						"3"
 					],
 					[
-						475202,
+						475882,
 						135,
 						"1 : vec3<f32> = GGXDistribution_SampleVisibleNormal_0(this_95.distribution_1, wo_48, u_13.xy);\n    var idoth_14 : f32 = dot(wo_48, h_11"
 					],
 					[
-						475483,
+						476163,
 						1,
 						"1"
 					],
 					[
-						475676,
+						476356,
 						16,
-						"1);\n    var f_13"
+						"1);\n    var f_14"
 					],
 					[
-						475867,
+						476547,
 						72,
 						"7 : f32 = GGXDistribution_D_0(this_95.distribution_1, h_11);\n    if((d_7"
 					],
 					[
-						476067,
+						476747,
 						33,
-						"3 * vec3<f32>(gShadowing_0)), d_7"
+						"4 * vec3<f32>(gShadowing_0)), d_7"
 					],
 					[
-						476356,
+						477036,
 						178,
 						"5 : SampledLobe_0;\n    s_15.layer_0 = layer_1;\n    s_15.lobe_1 = lobe_5;\n    s_15.f_0 = x2A_1(sample_0.weight_1, sample_0.pdf_7);\n    s_15.pdf_0 = sample_0.pdf_7;\n    return s_15"
 					],
 					[
-						476591,
+						477271,
 						1,
 						"4"
 					],
 					[
-						476740,
+						477420,
 						88,
-						"353 : f32 = BaseLobe_TotalWeight_0(this_96);\n    (*totalWeight_2) = _S353;\n    if((_S353"
+						"354 : f32 = BaseLobe_TotalWeight_0(this_96);\n    (*totalWeight_2) = _S354;\n    if((_S354"
 					],
 					[
-						476940,
+						477620,
 						11,
 						"4) = (*u_14"
 					],
 					[
-						477284,
+						477964,
 						1,
 						"4"
 					],
 					[
-						477362,
+						478042,
 						33,
 						"4) = ClampRemappedRandom_0((*u_14"
 					],
 					[
-						477847,
+						478527,
 						1,
 						"4"
 					],
 					[
-						477941,
+						478621,
 						34,
 						"4) = ClampRemappedRandom_0(((*u_14"
 					],
 					[
-						478460,
+						479140,
 						1,
 						"4"
 					],
 					[
-						478554,
+						479234,
 						34,
 						"4) = ClampRemappedRandom_0(((*u_14"
 					],
 					[
-						479073,
+						479753,
 						1,
 						"4"
 					],
 					[
-						479167,
+						479847,
 						34,
 						"4) = ClampRemappedRandom_0(((*u_14"
 					],
 					[
-						479686,
+						480366,
 						1,
 						"4"
 					],
 					[
-						479780,
+						480460,
 						34,
 						"4) = ClampRemappedRandom_0(((*u_14"
 					],
 					[
-						480128,
+						480808,
 						34,
 						"4) = ClampRemappedRandom_0(((*u_14"
 					],
 					[
-						480270,
+						480950,
 						1,
 						"2"
 					],
 					[
-						480669,
+						481349,
 						1,
 						"2"
 					],
 					[
-						480815,
+						481495,
 						1,
 						"5"
 					],
 					[
-						480934,
+						481614,
 						135,
 						"2 : vec3<f32> = GGXDistribution_SampleVisibleNormal_0(this_97.distribution_0, wo_49, u_15.xy);\n    var idoth_15 : f32 = dot(wo_49, h_12"
 					],
 					[
-						481159,
+						481839,
 						189,
 						"6 : ReflectionTransmission_0 = BaseReflectionTransmission_CoefficientsAndProbabilities_0(this_97.coefficient_0, this_97.throughput_0, idoth_15);\n    if((c_6.reflectionProbability_0 + c_6"
 					],
 					[
-						481446,
+						482126,
 						41,
-						"354 : f32 = u_15.z;\n    if((_S354 < (c_6"
+						"355 : f32 = u_15.z;\n    if((_S355 < (c_6"
 					],
 					[
-						481591,
+						482271,
 						1,
 						"2"
 					],
 					[
-						481804,
+						482484,
 						300,
 						"2);\n        var weight_3 : DiffuseSpecular_0 = DiffuseSpecular_Specular_0(c_6.reflection_1 * vec3<f32>((1.0f / c_6.reflectionProbability_0)) * vec3<f32>(GGXDistribution_G1_0(this_97.distribution_0, wi_30)));\n        var d_8 : f32 = GGXDistribution_D_0(this_97.distribution_0, h_12);\n        if((d_8"
 					],
 					[
-						482230,
+						482910,
 						32,
 						"6.reflectionProbability_0 * d_8"
 					],
 					[
-						482404,
+						483084,
 						42,
-						"354 - c_6.reflectionProbability_0) / c_6"
+						"355 - c_6.reflectionProbability_0) / c_6"
 					],
 					[
-						482954,
+						483634,
 						96,
-						"355 : bool = Refract_0(wo_49, h_12, idoth_15, this_97.eta_0[channel_0], &(wi_31));\n    if(!_S355"
+						"356 : bool = Refract_0(wo_49, h_12, idoth_15, this_97.eta_0[channel_0], &(wi_31));\n    if(!_S356"
 					],
 					[
-						483528,
+						484208,
 						14,
 						"4 : f32,  u_16"
 					],
 					[
-						483617,
+						484297,
 						173,
 						"4));\n    var azimuth_2 : f32 = 2.0f * float_getPi_0() * u_16;\n    return Frame_ToWorld_0(basis_3, vec3<f32>(cos(azimuth_2) * horizontal_0, sin(azimuth_2) * horizontal_0, z_4"
 					],
 					[
-						483893,
+						484573,
 						1,
 						"7"
 					],
 					[
-						484081,
+						484761,
 						17,
 						"7.x;\n    var z_5"
 					],
 					[
-						484167,
+						484847,
 						2,
 						"5"
 					],
 					[
-						484260,
+						484940,
 						2,
 						"5"
 					],
 					[
-						484465,
+						485145,
 						8,
 						"5, u_17"
 					],
 					[
-						485286,
+						485966,
 						2,
 						"18"
 					],
 					[
-						485544,
+						486224,
 						10,
 						"18.x, u_18"
 					],
 					[
-						486010,
+						486690,
 						2,
 						"19"
 					],
 					[
-						486123,
+						486803,
 						2,
 						"19"
 					],
 					[
-						486794,
+						487474,
 						1,
 						"0"
 					],
 					[
-						486914,
+						487594,
 						136,
 						"3 : vec3<f32> = GGXDistribution_SampleVisibleNormal_0(this_104.distribution_1, wo_53, u_20.xy);\n    var idoth_16 : f32 = dot(wo_53, h_13"
 					],
 					[
-						487196,
+						487876,
 						1,
 						"3"
 					],
 					[
-						487390,
+						488070,
 						16,
-						"3);\n    var f_14"
+						"3);\n    var f_15"
 					],
 					[
-						487581,
+						488261,
 						75,
 						"9 : f32 = GGXDistribution_D_0(this_104.distribution_1, h_13);\n    if((d_9"
 					],
 					[
-						487784,
+						488464,
 						34,
-						"4 * vec3<f32>(gShadowing_1)), d_9"
+						"5 * vec3<f32>(gShadowing_1)), d_9"
 					],
 					[
-						488428,
+						489108,
 						200,
 						"1 : vec3<f32>,  wo_54 : vec3<f32>) -> LobeSample_0\n{\n    var s_16 : LobeSample_0 = MicrofacetReflectionLobe_Sample_1(this_105.lobe_0, u_21, reflect(wo_54, MicrofacetReflectionLobe_GetNormal_0(this_105.lobe_0)));\n    s_16.type_0 = SwapReflectionTransmission_0(s_16.type_0);\n    return s_16;\n}\n\nfn FlippedLobe_Sample_1( this_106 : FlippedLobe_1,  u_22 : vec3<f32>,  wo_55 : vec3<f32>) -> LobeSample_0\n{\n    var s_17 : LobeSample_0 = DiffuseLobe_Sample_0(this_106.lobe_0, u_22, reflect(wo_55, DiffuseLobe_GetNormal_0(this_106"
 					],
 					[
-						488724,
+						489404,
 						463,
 						"BaseLobe_LobeSampleAt_0( this_107 : BaseLobe_0,  index_10 : i32,  u_23 : vec3<f32>,  wo_56 : vec3<f32>) -> LobeSample_0\n{\n    switch(index_10"
 					],
 					[
-						489287,
+						489967,
 						1,
 						"3"
 					],
 					[
-						489440,
+						490120,
 						1,
 						"3"
 					],
 					[
-						489583,
+						490263,
 						1,
 						"3"
 					],
 					[
-						489694,
+						490374,
 						1,
 						"3"
 					],
 					[
-						489826,
+						490506,
 						1,
 						"3"
 					],
 					[
-						489954,
+						490634,
 						1,
 						"3"
 					],
 					[
-						490037,
+						490717,
 						1,
 						"4"
 					],
 					[
-						490311,
+						490991,
 						1,
 						"4"
 					],
 					[
-						490560,
+						491240,
 						242,
 						"8 : LobeSample_0 = BaseLobe_LobeSampleAt_0(this_108, selected_0, vec3<f32>(ux_1, u_24.y, u_24.z), wo_57);\n    (*wi_35) = s_18.wi_26;\n    (*type_3) = s_18.type_0;\n    (*sampled_3) = SampledLobe_Make_0(i32(1), selected_0, s_18);\n    return s_18"
 					],
 					[
-						490868,
+						491548,
 						1,
 						"5"
 					],
 					[
-						491031,
+						491711,
 						67,
-						"356 : bool = !this_109.inside_0;\n    var _S357 : bool;\n    if(_S356"
+						"357 : bool = !this_109.inside_0;\n    var _S358 : bool;\n    if(_S357"
 					],
 					[
-						491116,
+						491796,
 						3,
-						"357"
+						"358"
 					],
 					[
-						491183,
+						491863,
 						3,
-						"357"
+						"358"
 					],
 					[
-						491244,
+						491924,
 						3,
-						"357"
+						"358"
 					],
 					[
-						491419,
+						492099,
 						17,
-						"5.x;\n    if(_S356"
+						"5.x;\n    if(_S357"
 					],
 					[
-						491454,
+						492134,
 						3,
-						"357"
+						"358"
 					],
 					[
-						491519,
+						492199,
 						3,
-						"357"
+						"358"
 					],
 					[
-						491547,
+						492227,
 						3,
-						"357"
+						"358"
 					],
 					[
-						491572,
+						492252,
 						318,
 						"19 : LobeSample_0 = MicrofacetReflectionLobe_Sample_0(this_109.reflection_0, vec3<f32>(ClampRemappedRandom_0(ux_2 * (1.0f / coatProbability_0)), u_25.y, u_25.z), wo_58);\n        (*wi_36) = s_19.wi_26;\n        (*type_4) = s_19.type_0;\n        (*sampled_4) = SampledLobe_Make_0(i32(2), i32(0), s_19);\n        return s_19"
 					],
 					[
-						491935,
+						492615,
 						3,
-						"356"
+						"357"
 					],
 					[
-						492108,
+						492788,
 						153,
-						"358 : bool = BaseLobe_SampleLobe_0(this_109.base_0, vec3<f32>(ux_3, u_25.y, u_25.z), wo_58, &((*wi_36)), &((*type_4)), &((*sampled_4)));\n    return _S358"
+						"359 : bool = BaseLobe_SampleLobe_0(this_109.base_0, vec3<f32>(ux_3, u_25.y, u_25.z), wo_58, &((*wi_36)), &((*type_4)), &((*sampled_4)));\n    return _S359"
 					],
 					[
-						492319,
+						492999,
 						1,
 						"6"
 					],
 					[
-						492793,
+						493473,
 						33,
-						"359 : f32 = u_26.x;\n    if((_S359"
+						"360 : f32 = u_26.x;\n    if((_S360"
 					],
 					[
-						492870,
+						493550,
 						51,
-						"360 : f32 = this_110.woLocal_0.z;\n        if((_S360"
+						"361 : f32 = this_110.woLocal_0.z;\n        if((_S361"
 					],
 					[
-						493103,
+						493783,
 						49,
-						"6.yz), this_110.woLocal_0.xy);\n        if(((_S360"
+						"6.yz), this_110.woLocal_0.xy);\n        if(((_S361"
 					],
 					[
-						493337,
+						494017,
 						239,
-						"361 : bool = CoatLobe_SampleLobe_0(this_110.base_1, vec3<f32>(ClampRemappedRandom_0((_S359 - sheenProbability_0) * (1.0f / (1.0f - sheenProbability_0))), u_26.y, u_26.z), wo_59, &((*wi_37)), &((*type_5)), &((*sampled_5)));\n    return _S361"
+						"362 : bool = CoatLobe_SampleLobe_0(this_110.base_1, vec3<f32>(ClampRemappedRandom_0((_S360 - sheenProbability_0) * (1.0f / (1.0f - sheenProbability_0))), u_26.y, u_26.z), wo_59, &((*wi_37)), &((*type_5)), &((*sampled_5)));\n    return _S362"
 					],
 					[
-						493639,
+						494319,
 						54,
-						"1 : i32,  wo_60 : vec3<f32>,  wi_38 : vec3<f32>,  f_15"
+						"1 : i32,  wo_60 : vec3<f32>,  wi_38 : vec3<f32>,  f_16"
 					],
 					[
-						493780,
+						494460,
 						1,
 						"1"
 					],
 					[
-						493833,
-						1,
-						"5"
-					],
-					[
-						494027,
-						1,
-						"5"
-					],
-					[
-						494301,
-						1,
-						"5"
-					],
-					[
-						494555,
-						1,
-						"5"
-					],
-					[
-						494745,
-						1,
-						"5"
-					],
-					[
-						494974,
-						1,
-						"5"
-					],
-					[
-						495299,
+						494513,
 						1,
 						"6"
 					],
 					[
-						495378,
+						494707,
+						1,
+						"6"
+					],
+					[
+						494981,
+						1,
+						"6"
+					],
+					[
+						495235,
+						1,
+						"6"
+					],
+					[
+						495425,
+						1,
+						"6"
+					],
+					[
+						495654,
+						1,
+						"6"
+					],
+					[
+						495979,
+						1,
+						"7"
+					],
+					[
+						496058,
 						72,
-						"6) = DiffuseSpecular_Zero_0();\n    var i_5 : i32 = i32(0);\n    var sum_2"
+						"7) = DiffuseSpecular_Zero_0();\n    var i_5 : i32 = i32(0);\n    var sum_2"
 					],
 					[
-						495530,
+						496210,
 						1,
 						"5"
 					],
 					[
-						495658,
+						496338,
 						1,
 						"5"
 					],
 					[
-						495730,
+						496410,
 						1,
 						"0"
 					],
 					[
-						495802,
+						496482,
 						3,
-						"362"
+						"363"
 					],
 					[
-						495892,
+						496572,
 						3,
-						"362"
+						"363"
 					],
 					[
-						495967,
+						496647,
 						31,
-						"362 = (sampled_6.lobe_1) != i_5"
+						"363 = (sampled_6.lobe_1) != i_5"
 					],
 					[
-						496031,
+						496711,
 						3,
-						"362"
+						"363"
 					],
 					[
-						496101,
+						496781,
 						1,
 						"5"
 					],
 					[
-						496176,
+						496856,
 						159,
-						"6) = x2B_0((*f_16), lobeF_1);\n            var totalWeight_5 : f32 = totalWeight_4 + this_112.weights_0[i_5];\n            sum_2 = sum_2 + this_112.weights_0[i_5"
+						"7) = x2B_0((*f_17), lobeF_1);\n            var totalWeight_5 : f32 = totalWeight_4 + this_112.weights_0[i_5];\n            sum_2 = sum_2 + this_112.weights_0[i_5"
 					],
 					[
-						496413,
+						497093,
 						7,
 						"5 = i_5"
 					],
 					[
-						496486,
+						497166,
 						9,
 						"2 = sum_2"
 					],
 					[
-						496546,
+						497226,
 						1,
 						"2"
 					],
 					[
-						496582,
+						497262,
 						1,
 						"2"
 					],
 					[
-						496718,
+						497398,
 						1,
-						"7"
+						"8"
 					],
 					[
-						496987,
+						497667,
 						1,
-						"7"
+						"8"
 					],
 					[
-						497201,
+						497881,
 						3,
-						"363"
+						"364"
 					],
 					[
-						497264,
+						497944,
 						19,
-						"363 = sampled_7.f_0"
+						"364 = sampled_7.f_0"
 					],
 					[
-						497316,
+						497996,
 						3,
-						"363"
+						"364"
 					],
 					[
-						497382,
+						498062,
 						71,
-						"7) = CoatLobe_Combine_0(this_113, _S363, baseF_2, wi_40);\n    var _S364"
+						"8) = CoatLobe_Combine_0(this_113, _S364, baseF_2, wi_40);\n    var _S365"
 					],
 					[
-						497518,
+						498198,
+						3,
+						"366"
+					],
+					[
+						498271,
 						3,
 						"365"
 					],
 					[
-						497591,
+						498341,
 						3,
-						"364"
+						"365"
 					],
 					[
-						497661,
-						3,
-						"364"
-					],
-					[
-						497756,
+						498436,
 						22,
-						"364 = mix(_S365, _S364"
+						"365 = mix(_S366, _S365"
 					],
 					[
-						497863,
+						498543,
 						3,
-						"364"
+						"365"
 					],
 					[
-						497904,
+						498584,
 						3,
-						"364"
+						"365"
 					],
 					[
-						498042,
-						1,
-						"8"
+						498721,
+						2,
+						"19"
 					],
 					[
-						498349,
-						168,
-						"8) = x2B_0(x2A_1(baseF_3, FuzzLobe_BaseLayerScaleComplete_0(this_114, wiLocal_8)), DiffuseSpecular_Specular_0(FuzzLobe_SheenEval_0(this_114, wiLocal_8)));\n    var _S366"
+						499028,
+						169,
+						"19) = x2B_0(x2A_1(baseF_3, FuzzLobe_BaseLayerScaleComplete_0(this_114, wiLocal_8)), DiffuseSpecular_Specular_0(FuzzLobe_SheenEval_0(this_114, wiLocal_8)));\n    var _S367"
 					],
 					[
-						498578,
+						499258,
 						3,
-						"366"
+						"367"
 					],
 					[
-						498719,
+						499399,
 						3,
-						"366"
+						"367"
 					],
 					[
-						498760,
+						499440,
 						3,
-						"366"
+						"367"
 					],
 					[
-						498824,
+						499504,
 						1,
 						"7"
 					],
 					[
-						498971,
+						499651,
 						106,
-						"367 : bool = FuzzLobe_SampleLobe_0(layer_2, u_27, wo_64, &(wi_42), &(type_6), &(sampled_9));\n    if(!_S367"
+						"368 : bool = FuzzLobe_SampleLobe_0(layer_2, u_27, wo_64, &(wi_42), &(type_6), &(sampled_9));\n    if(!_S368"
 					],
 					[
-						499140,
-						2,
-						"19"
-					],
-					[
-						499247,
-						2,
-						"19"
-					],
-					[
-						499384,
-						319,
-						"19, 1.0f / pdf_14), pdf_14, type_6);\n}\n\nfn FuzzLobe_Sample_0( this_115 : FuzzLobe_0,  u_28 : vec3<f32>,  wo_65 : vec3<f32>) -> LobeSample_0\n{\n    return SampleLayer_0(this_115, u_28, wo_65);\n}\n\nfn BSDF_Sample_0( this_116 : BSDF_0,  u_29 : vec3<f32>) -> LobeSample_0\n{\n    return FuzzLobe_Sample_0(this_116.lobes_0, u_29"
-					],
-					[
-						499845,
-						1,
-						"3"
-					],
-					[
-						499924,
-						1,
-						"3"
-					],
-					[
-						499983,
-						1,
-						"3"
-					],
-					[
-						500090,
-						1,
-						"3"
-					],
-					[
-						500146,
-						1,
-						"7"
-					],
-					[
-						500265,
-						15,
-						"7 * roughness_7"
-					],
-					[
-						500320,
+						499821,
 						1,
 						"0"
 					],
 					[
-						500407,
-						86,
-						"368 : vec3<f32> = vec3<f32>(0.0f);\n    if((any(((((*s_20).path_0.absorption_0) > _S368"
+						499928,
+						1,
+						"0"
 					],
 					[
-						500518,
+						500065,
+						1447,
+						"0, 1.0f / pdf_14), pdf_14, type_6);\n}\n\nfn FuzzLobe_Sample_0( this_115 : FuzzLobe_0,  u_28 : vec3<f32>,  wo_65 : vec3<f32>) -> LobeSample_0\n{\n    return SampleLayer_0(this_115, u_28, wo_65);\n}\n\nfn BSDF_Sample_0( this_116 : BSDF_0,  u_29 : vec3<f32>) -> LobeSample_0\n{\n    return FuzzLobe_Sample_0(this_116.lobes_0, u_29, this_116.wo_0);\n}\n\nfn NrdOctEncode_0( v_13 : vec3<f32>) -> vec2<f32>\n{\n    var _S369 : f32 = v_13.z;\n    var p_2 : vec2<f32> = v_13.xy / vec2<f32>((abs(v_13.x) + abs(v_13.y) + abs(_S369)));\n    var _S370 : vec2<f32>;\n    if((_S369 >= 0.0f))\n    {\n        _S370 = p_2;\n    }\n    else\n    {\n        _S370 = (vec2<f32>(1.0f) - abs(p_2.yx)) * select(vec2<f32>(-1.0f), vec2<f32>(1.0f), (p_2 >= vec2<f32>(0.0f)));\n    }\n    return _S370;\n}\n\nfn NrdDiffuseFraction_0( v_14 : DiffuseSpecular_0) -> vec3<f32>\n{\n    var total_1 : vec3<f32> = v_14.diffuse_1 + v_14.specular_1;\n    var _S371 : f32 = total_1.x;\n    var _S372 : f32;\n    if((_S371 > 0.0f))\n    {\n        _S372 = v_14.diffuse_1.x / _S371;\n    }\n    else\n    {\n        _S372 = 0.5f;\n    }\n    var _S373 : f32 = total_1.y;\n    var _S374 : f32;\n    if((_S373 > 0.0f))\n    {\n        _S374 = v_14.diffuse_1.y / _S373;\n    }\n    else\n    {\n        _S374 = 0.5f;\n    }\n    var _S375 : f32 = total_1.z;\n    var _S376 : f32;\n    if((_S375 > 0.0f))\n    {\n        _S376 = v_14.diffuse_1.z / _S375;\n    }\n    else\n    {\n        _S376 = 0.5f;\n    }\n    return vec3<f32>(_S372, _S374, _S376"
+					],
+					[
+						501639,
+						1,
+						"3"
+					],
+					[
+						501718,
+						1,
+						"3"
+					],
+					[
+						501777,
+						1,
+						"3"
+					],
+					[
+						501884,
+						1,
+						"3"
+					],
+					[
+						501940,
+						1,
+						"8"
+					],
+					[
+						502059,
+						15,
+						"8 * roughness_8"
+					],
+					[
+						502114,
+						1,
+						"0"
+					],
+					[
+						502201,
+						86,
+						"377 : vec3<f32> = vec3<f32>(0.0f);\n    if((any(((((*s_20).path_0.absorption_0) > _S377"
+					],
+					[
+						502312,
 						110,
 						"0).path_0.throughput_7 = (*s_20).path_0.throughput_7 * exp((*s_20).path_0.absorption_0 * vec3<f32>(- hit_3.t_4"
 					],
 					[
-						500674,
+						502468,
 						227,
 						"0).path_0.coneWidth_2 + (*s_20).path_0.coneSpread_0 * hit_3.t_4;\n    var si_4 : SurfaceInteraction_0 = GetSurfaceInteraction_0((*s_20).path_0.direction_1, hit_3, hitConeWidth_0);\n    var V_2 : vec3<f32> = (vec3<f32>(0) - (*s_20"
 					],
 					[
-						501051,
+						502845,
 						79,
-						"0).path_0.throughput_7, vec3<f32>(620.0f, 540.0f, 450.0f), 1.0f);\n    var _S369"
+						"0).path_0.throughput_7, vec3<f32>(620.0f, 540.0f, 450.0f), 1.0f);\n    var _S378"
 					],
 					[
-						501204,
+						502998,
 						3,
-						"369"
+						"378"
 					],
 					[
-						501228,
+						503022,
 						1,
 						"0"
 					],
 					[
-						501481,
+						503275,
 						1,
 						"0"
 					],
 					[
-						501792,
+						503586,
 						1,
 						"4"
 					],
 					[
-						501907,
+						503741,
+						306,
+						"7 : u32 = NrdBase_0(base_11);\n            gAccum_0[r_7] = vec4<f32>((*s_20).path_0.radiance_1, (bitcast<f32>((NrdPackFraction_0(vec3<f32>(0.5f))))));\n            gAccum_0[r_7 + u32(1)] = vec4<f32>(0.0f);\n            gAccum_0[r_7 + u32(2)] = vec4<f32>(0.0f, 0.0f, 0.0f, NrdPackSurface_0(ms_2.roughness_3"
+					],
+					[
+						504107,
 						35,
-						"0).active_0 = u32(0);\n    var _S370"
+						"0).active_0 = u32(0);\n    var _S379"
 					],
 					[
-						501995,
+						504195,
 						223,
-						"370 = !ms_2.doubleSided_2;\n    }\n    else\n    {\n        _S370 = false;\n    }\n    if(_S370)\n    {\n        _S370 = ((ms_2.inputs_1.transmissionWeight_0) <= 0.0f);\n    }\n    else\n    {\n        _S370 = false;\n    }\n    if(_S370"
+						"379 = !ms_2.doubleSided_2;\n    }\n    else\n    {\n        _S379 = false;\n    }\n    if(_S379)\n    {\n        _S379 = ((ms_2.inputs_1.transmissionWeight_0) <= 0.0f);\n    }\n    else\n    {\n        _S379 = false;\n    }\n    if(_S379"
 					],
 					[
-						502316,
+						504516,
 						3,
-						"368"
+						"377"
 					],
 					[
-						502345,
+						504545,
 						37,
-						"371 : bool = !_S369;\n        if(_S371"
+						"380 : bool = !_S378;\n        if(_S380"
 					],
 					[
-						502408,
+						504608,
 						12,
-						"370 = (*s_20"
+						"379 = (*s_20"
 					],
 					[
-						502493,
+						504693,
 						3,
-						"370"
+						"379"
 					],
 					[
-						502529,
+						504729,
 						3,
-						"370"
+						"379"
 					],
 					[
-						502594,
+						504794,
 						92,
 						"0).path_0.scatterPdf_0, EmissiveHitPdf_0(si_4.instanceIndex_0, si_4.primitiveIndex_0, (*s_20"
 					],
 					[
-						502848,
+						505048,
 						1,
 						"0"
 					],
 					[
-						503060,
+						505260,
 						11,
-						"370 = _S371"
+						"379 = _S380"
 					],
 					[
-						503120,
+						505320,
 						3,
-						"370"
+						"379"
 					],
 					[
-						503156,
+						505356,
 						3,
-						"370"
+						"379"
 					],
 					[
-						503345,
+						505545,
 						29,
 						"0).path_0.radiance_1 = (*s_20"
 					],
 					[
-						503499,
+						505626,
+						3,
+						"378"
+					],
+					[
+						505647,
+						3,
+						"379"
+					],
+					[
+						505700,
+						3,
+						"379"
+					],
+					[
+						505728,
+						3,
+						"379"
+					],
+					[
+						505753,
+						198,
+						"381 : u32 = NrdBase_0(base_11);\n        var _S382 : vec3<f32> = (*s_20).path_0.radiance_1;\n        gAccum_0[_S381].x = _S382.x;\n        gAccum_0[_S381].y = _S382.y;\n        gAccum_0[_S381].z = _S382"
+					],
+					[
+						506043,
 						245,
-						"372 : bool = SharcEnabled_0();\n    if(_S372)\n    {\n        _S370 = !_S369;\n    }\n    else\n    {\n        _S370 = false;\n    }\n    if(_S370)\n    {\n        _S370 = SharcSurface_0(ms_2);\n    }\n    else\n    {\n        _S370 = false;\n    }\n    if(_S370"
+						"383 : bool = SharcEnabled_0();\n    if(_S383)\n    {\n        _S379 = !_S378;\n    }\n    else\n    {\n        _S379 = false;\n    }\n    if(_S379)\n    {\n        _S379 = SharcSurface_0(ms_2);\n    }\n    else\n    {\n        _S379 = false;\n    }\n    if(_S379"
 					],
 					[
-						504029,
+						506573,
 						206,
-						"2 : u32 = base_10 - WorkBase_0(u32(0));\n        var _S373 : bool = SharcMakeKey_0(si_4.position_0, throughput_23, V_2, si_4.materialIndex_1, si_4.instanceIndex_0, &(key_4), &(voxelSize_0));\n        if(_S373"
+						"2 : u32 = base_11 - WorkBase_0(u32(0));\n        var _S384 : bool = SharcMakeKey_0(si_4.position_0, throughput_23, V_2, si_4.materialIndex_1, si_4.instanceIndex_0, &(key_4), &(voxelSize_0));\n        if(_S384"
 					],
 					[
-						504287,
+						506831,
 						1,
 						"2"
 					],
 					[
-						504368,
+						506912,
 						53,
 						"2, bounce_2, key_4, (*s_20).path_0.radiance_1, (*s_20"
 					],
 					[
-						504519,
+						507063,
 						638,
-						"4) > (voxelSize_0 * sqrt(3.0f))))\n                {\n                    _S370 = (hitConeWidth_0 > voxelSize_0);\n                }\n                else\n                {\n                    _S370 = false;\n                }\n                if(_S370)\n                {\n                    _S370 = (((*s_20).path_0.coneSpread_0) >= 0.05000000074505806f);\n                }\n                else\n                {\n                    _S370 = false;\n                }\n                if(_S370)\n                {\n                    var _S374 : u32 = Field_0(base_10, u32(6));\n                    var state_0 : u32 = (bitcast<u32>((gAccum_0[_S374"
+						"4) > (voxelSize_0 * sqrt(3.0f))))\n                {\n                    _S379 = (hitConeWidth_0 > voxelSize_0);\n                }\n                else\n                {\n                    _S379 = false;\n                }\n                if(_S379)\n                {\n                    _S379 = (((*s_20).path_0.coneSpread_0) >= 0.05000000074505806f);\n                }\n                else\n                {\n                    _S379 = false;\n                }\n                if(_S379)\n                {\n                    var _S385 : u32 = Field_0(base_11, u32(6));\n                    var state_0 : u32 = (bitcast<u32>((gAccum_0[_S385"
 					],
 					[
-						505325,
+						507869,
 						3,
-						"375"
+						"386"
 					],
 					[
-						505416,
+						507960,
 						3,
-						"375"
+						"386"
 					],
 					[
-						505527,
+						508071,
 						3,
-						"375"
+						"386"
 					],
 					[
-						505594,
+						508138,
 						47,
-						"374][i32(3)] = (bitcast<f32>(((state_0 | (_S375"
+						"385][i32(3)] = (bitcast<f32>(((state_0 | (_S386"
 					],
 					[
-						505731,
+						508275,
 						57,
 						"0).path_0.radiance_1 = (*s_20).path_0.radiance_1 + (*s_20"
 					],
 					[
-						506025,
+						508569,
 						157,
-						"0).randomSeed_0;\n    var _S376 : bool = ((BSDF_MaxActiveAlpha_0(bsdf_1)) >= 0.0010000000474974513f);\n    (*s_20).path_0.lightsSampled_0 = _S376;\n    if(_S376"
+						"0).randomSeed_0;\n    var _S387 : bool = ((BSDF_MaxActiveAlpha_0(bsdf_1)) >= 0.0010000000474974513f);\n    (*s_20).path_0.lightsSampled_0 = _S387;\n    if(_S387"
 					],
 					[
-						506204,
+						508748,
 						191,
-						"377 : vec3<f32> = NextEventEstimation_0(si_4, bsdf_1, vec2<f32>(hitConeWidth_0, (*s_20).path_0.coneSpread_0), &(rng_5));\n        var direct_0 : vec3<f32> = (*s_20).path_0.throughput_7 * _S377"
+						"388 : vec3<f32> = NextEventEstimation_0(si_4, bsdf_1, vec2<f32>(hitConeWidth_0, (*s_20).path_0.coneSpread_0), &(rng_5));\n        var direct_0 : vec3<f32> = (*s_20).path_0.throughput_7 * _S388"
 					],
 					[
-						506537,
+						509081,
 						12,
-						"370 = !_S369"
+						"379 = !_S378"
 					],
 					[
-						506598,
+						509142,
 						3,
-						"370"
+						"379"
 					],
 					[
-						506634,
+						509178,
 						3,
-						"370"
+						"379"
 					],
 					[
-						506811,
+						509355,
 						29,
 						"0).path_0.radiance_1 = (*s_20"
 					],
 					[
-						506894,
+						509438,
 						179,
-						"0 : vec2<f32> = RandomSequence_Next2D_0(&(rng_5));\n    var _S378 : f32 = RandomSequence_Next_1(&(rng_5));\n    var bs_0 : LobeSample_0 = BSDF_Sample_0(bsdf_1, vec3<f32>(u_30, _S378"
+						"0 : vec2<f32> = RandomSequence_Next2D_0(&(rng_5));\n    var _S389 : f32 = RandomSequence_Next_1(&(rng_5));\n    var bs_0 : LobeSample_0 = BSDF_Sample_0(bsdf_1, vec3<f32>(u_30, _S389"
 					],
 					[
-						507198,
+						509742,
 						206,
-						"370 = true;\n    }\n    else\n    {\n        _S370 = ((bs_0.pdf_7) <= 0.0f);\n    }\n    if(_S370)\n    {\n        _S370 = true;\n    }\n    else\n    {\n        _S370 = (all(((weight_4 <= _S368))));\n    }\n    if(_S370"
+						"379 = true;\n    }\n    else\n    {\n        _S379 = ((bs_0.pdf_7) <= 0.0f);\n    }\n    if(_S379)\n    {\n        _S379 = true;\n    }\n    else\n    {\n        _S379 = (all(((weight_4 <= _S377))));\n    }\n    if(_S379"
 					],
 					[
-						507475,
+						509987,
+						3,
+						"378"
+					],
+					[
+						510008,
+						3,
+						"379"
+					],
+					[
+						510061,
+						3,
+						"379"
+					],
+					[
+						510089,
+						3,
+						"379"
+					],
+					[
+						510114,
+						2,
+						"8"
+					],
+					[
+						510224,
+						160,
+						"8][i32(3)] = (bitcast<f32>((NrdPackFraction_0(NrdDiffuseFraction_0(bs_0.weight_1)))));\n        gAccum_0[r_8 + u32(3)][i32(3)] = oct_0.x;\n        gAccum_0[r_8"
+					],
+					[
+						510461,
 						47,
-						"0).path_0.throughput_7 * weight_4;\n    if(_S372"
+						"0).path_0.throughput_7 * weight_4;\n    if(_S383"
 					],
 					[
-						507540,
+						510526,
 						11,
-						"370 = _S369"
+						"379 = _S378"
 					],
 					[
-						507584,
+						510570,
 						3,
-						"370"
+						"379"
 					],
 					[
-						507612,
+						510598,
 						3,
-						"370"
+						"379"
 					],
 					[
-						507770,
+						510756,
 						1,
 						"0"
 					],
 					[
-						507880,
+						510866,
 						62,
-						"379 : f32 = RandomSequence_Next_1(&(rng_5));\n        if((_S379"
+						"390 : f32 = RandomSequence_Next_1(&(rng_5));\n        if((_S390"
 					],
 					[
-						508145,
+						511131,
 						95,
 						"0).path_0.throughput_7 = throughput_23;\n    (*s_20).path_0.direction_1 = bs_0.wi_26;\n    (*s_20"
 					],
 					[
-						508390,
+						511376,
 						1,
 						"0"
 					],
 					[
-						508516,
+						511502,
 						3,
-						"370"
+						"379"
 					],
 					[
-						508573,
+						511559,
 						3,
-						"370"
+						"379"
 					],
 					[
-						508601,
+						511587,
 						3,
-						"370"
+						"379"
 					],
 					[
-						508831,
+						511817,
 						1,
 						"0"
 					],
 					[
-						508886,
+						511872,
 						240,
-						"0).path_0.coneWidth_2 = hitConeWidth_0;\n    (*s_20).path_0.coneSpread_0 = (*s_20).path_0.coneSpread_0 + ScatterConeSpread_0(bs_0.type_0, ms_2.roughness_3);\n    (*s_20).randomSeed_0 = rng_5.seed_0;\n    (*s_20).active_0 = u32(1);\n    if(_S372"
+						"0).path_0.coneWidth_2 = hitConeWidth_0;\n    (*s_20).path_0.coneSpread_0 = (*s_20).path_0.coneSpread_0 + ScatterConeSpread_0(bs_0.type_0, ms_2.roughness_3);\n    (*s_20).randomSeed_0 = rng_5.seed_0;\n    (*s_20).active_0 = u32(1);\n    if(_S383"
 					],
 					[
-						509148,
+						512134,
 						116,
-						"380 : u32 = Field_0(base_10, u32(6));\n        gAccum_0[_S380][i32(3)] = (bitcast<f32>(((bitcast<u32>((gAccum_0[_S380"
+						"391 : u32 = Field_0(base_11, u32(6));\n        gAccum_0[_S391][i32(3)] = (bitcast<f32>(((bitcast<u32>((gAccum_0[_S391"
 					],
 					[
-						509332,
+						512318,
 						126,
 						"3 : vec3<f32>,  d_10 : vec3<f32>,  v0_2 : vec3<f32>,  e1_1 : vec3<f32>,  e2_1 : vec3<f32>,  tMin_3 : f32,  tMax_3 : f32,  t_9"
 					],
 					[
-						509535,
+						512521,
 						2,
 						"9"
 					],
 					[
-						509591,
+						512577,
 						2774,
-						"4 : vec3<f32> = cross(d_10, e2_1);\n    var a_14 : f32 = dot(e1_1, h_14);\n    if(a_14 == 0.0f)\n    {\n        return false;\n    }\n    var f_20 : f32 = rcp_1(a_14);\n    var s_21 : vec3<f32> = o_53 - v0_2;\n    var u_31 : f32 = f_20 * dot(s_21, h_14);\n    var _S381 : bool;\n    if((u_31 < 0.0f))\n    {\n        _S381 = true;\n    }\n    else\n    {\n        _S381 = (u_31 > 1.0f);\n    }\n    if(_S381)\n    {\n        return false;\n    }\n    var q_1 : vec3<f32> = cross(s_21, e1_1);\n    var v_13 : f32 = f_20 * dot(d_10, q_1);\n    if((v_13 < 0.0f))\n    {\n        _S381 = true;\n    }\n    else\n    {\n        _S381 = ((u_31 + v_13) > 1.0f);\n    }\n    if(_S381)\n    {\n        return false;\n    }\n    (*t_9) = f_20 * dot(e2_1, q_1);\n    (*bary_3) = vec2<f32>(u_31, v_13);\n    if(((*t_9) > tMin_3))\n    {\n        _S381 = ((*t_9) < tMax_3);\n    }\n    else\n    {\n        _S381 = false;\n    }\n    return _S381;\n}\n\nfn VertexUV0_1( v_14 : ptr<function, Vertex_std430_0>) -> vec2<f32>\n{\n    return vec2<f32>((*v_14).positionU_0.w, (*v_14).normalV_0.w);\n}\n\nfn AlphaTestRejects_0( _S382 : u32,  _S383 : u32,  _S384 : vec2<f32>,  _S385 : f32) -> bool\n{\n    var material_4 : MaterialHeader_0 = LoadMaterialHeader_0(gInstances_0[_S382].materialIndex_0);\n    var _S386 : u32 = MaterialHeader_AlphaMode_0(material_4);\n    if(_S386 == u32(0))\n    {\n        return false;\n    }\n    var _S387 : vec3<u32> = LoadTriangleIndices_0(_S382, _S383);\n    var _S388 : Vertex_std430_0 = gVertices_0[_S387.x];\n    var _S389 : Vertex_std430_0 = gVertices_0[_S387.y];\n    var _S390 : Vertex_std430_0 = gVertices_0[_S387.z];\n    var _S391 : f32 = _S384.x;\n    var _S392 : f32 = _S384.y;\n    var _S393 : f32 = 1.0f - _S391 - _S392;\n    var _S394 : vec2<f32> = VertexUV0_1(&(_S388));\n    var _S395 : vec2<f32> = VertexUV0_1(&(_S389));\n    var _S396 : vec2<f32> = VertexUV0_1(&(_S390));\n    var _S397 : vec2<f32> = vec2<f32>(_S393);\n    var _S398 : vec2<f32> = vec2<f32>(_S391);\n    var _S399 : vec2<f32> = vec2<f32>(_S392);\n    var _S400 : vec2<f32> = _S388.uv1_0.xy;\n    var _S401 : vec2<f32> = _S389.uv1_0.xy;\n    var _S402 : vec2<f32> = _S390.uv1_0.xy;\n    var _S403 : vec3<f32> = _S389.positionU_0.xyz;\n    var _S404 : vec3<f32> = _S388.positionU_0.xyz;\n    var _S405 : vec3<f32> = _S390.positionU_0.xyz;\n    var tc_7 : TextureCoords_0 = MakeTextureCoords_0(_S394 * _S397 + _S395 * _S398 + _S396 * _S399, _S400 * _S397 + _S401 * _S398 + _S402 * _S399, TransformVector_0(_S382, _S403 - _S404), TransformVector_0(_S382, _S405 - _S404), _S395 - _S394, _S396 - _S394, _S401 - _S400, _S402 - _S400, gRayCone_0.x + gRayCone_0.y * _S385, 1.0f);\n    tc_7.objectPosition_0 = _S404 * vec3<f32>(_S393) + _S403 * vec3<f32>(_S391) + _S405 * vec3<f32>(_S392);\n    var opacity_1 : f32 = EvalOpacity_0(material_4, tc_7);\n    if(_S386"
+						"4 : vec3<f32> = cross(d_10, e2_1);\n    var a_14 : f32 = dot(e1_1, h_14);\n    if(a_14 == 0.0f)\n    {\n        return false;\n    }\n    var f_21 : f32 = rcp_1(a_14);\n    var s_21 : vec3<f32> = o_53 - v0_2;\n    var u_31 : f32 = f_21 * dot(s_21, h_14);\n    var _S392 : bool;\n    if((u_31 < 0.0f))\n    {\n        _S392 = true;\n    }\n    else\n    {\n        _S392 = (u_31 > 1.0f);\n    }\n    if(_S392)\n    {\n        return false;\n    }\n    var q_1 : vec3<f32> = cross(s_21, e1_1);\n    var v_15 : f32 = f_21 * dot(d_10, q_1);\n    if((v_15 < 0.0f))\n    {\n        _S392 = true;\n    }\n    else\n    {\n        _S392 = ((u_31 + v_15) > 1.0f);\n    }\n    if(_S392)\n    {\n        return false;\n    }\n    (*t_9) = f_21 * dot(e2_1, q_1);\n    (*bary_3) = vec2<f32>(u_31, v_15);\n    if(((*t_9) > tMin_3))\n    {\n        _S392 = ((*t_9) < tMax_3);\n    }\n    else\n    {\n        _S392 = false;\n    }\n    return _S392;\n}\n\nfn VertexUV0_1( v_16 : ptr<function, Vertex_std430_0>) -> vec2<f32>\n{\n    return vec2<f32>((*v_16).positionU_0.w, (*v_16).normalV_0.w);\n}\n\nfn AlphaTestRejects_0( _S393 : u32,  _S394 : u32,  _S395 : vec2<f32>,  _S396 : f32) -> bool\n{\n    var material_4 : MaterialHeader_0 = LoadMaterialHeader_0(gInstances_0[_S393].materialIndex_0);\n    var _S397 : u32 = MaterialHeader_AlphaMode_0(material_4);\n    if(_S397 == u32(0))\n    {\n        return false;\n    }\n    var _S398 : vec3<u32> = LoadTriangleIndices_0(_S393, _S394);\n    var _S399 : Vertex_std430_0 = gVertices_0[_S398.x];\n    var _S400 : Vertex_std430_0 = gVertices_0[_S398.y];\n    var _S401 : Vertex_std430_0 = gVertices_0[_S398.z];\n    var _S402 : f32 = _S395.x;\n    var _S403 : f32 = _S395.y;\n    var _S404 : f32 = 1.0f - _S402 - _S403;\n    var _S405 : vec2<f32> = VertexUV0_1(&(_S399));\n    var _S406 : vec2<f32> = VertexUV0_1(&(_S400));\n    var _S407 : vec2<f32> = VertexUV0_1(&(_S401));\n    var _S408 : vec2<f32> = vec2<f32>(_S404);\n    var _S409 : vec2<f32> = vec2<f32>(_S402);\n    var _S410 : vec2<f32> = vec2<f32>(_S403);\n    var _S411 : vec2<f32> = _S399.uv1_0.xy;\n    var _S412 : vec2<f32> = _S400.uv1_0.xy;\n    var _S413 : vec2<f32> = _S401.uv1_0.xy;\n    var _S414 : vec3<f32> = _S400.positionU_0.xyz;\n    var _S415 : vec3<f32> = _S399.positionU_0.xyz;\n    var _S416 : vec3<f32> = _S401.positionU_0.xyz;\n    var tc_7 : TextureCoords_0 = MakeTextureCoords_0(_S405 * _S408 + _S406 * _S409 + _S407 * _S410, _S411 * _S408 + _S412 * _S409 + _S413 * _S410, TransformVector_0(_S393, _S414 - _S415), TransformVector_0(_S393, _S416 - _S415), _S406 - _S405, _S407 - _S405, _S412 - _S411, _S413 - _S411, gRayCone_0.x + gRayCone_0.y * _S396, 1.0f);\n    tc_7.objectPosition_0 = _S415 * vec3<f32>(_S404) + _S414 * vec3<f32>(_S402) + _S416 * vec3<f32>(_S403);\n    var opacity_1 : f32 = EvalOpacity_0(material_4, tc_7);\n    if(_S397"
 					],
 					[
-						512500,
+						515486,
 						49,
-						"383 ^ ((StrongIntegerHash_0(((bitcast<u32>((_S385"
+						"394 ^ ((StrongIntegerHash_0(((bitcast<u32>((_S396"
 					],
 					[
-						512659,
-						99,
-						"06 : u32,  _S407 : u32,  _S408 : vec3<f32>,  _S409 : vec3<f32>,  _S410 : f32,  _S411 : bool,  _S412"
+						515644,
+						100,
+						"417 : u32,  _S418 : u32,  _S419 : vec3<f32>,  _S420 : vec3<f32>,  _S421 : f32,  _S422 : bool,  _S423"
 					],
 					[
-						512833,
+						515819,
 						130,
-						"413 : vec3<f32> = SafeRcp_0(_S409);\n    var _S414 : bool = (((gInstances_0[_S407].flags_0) & (u32(1)))) != u32(0);\n    var stack_2"
+						"424 : vec3<f32> = SafeRcp_0(_S420);\n    var _S425 : bool = (((gInstances_0[_S418].flags_0) & (u32(1)))) != u32(0);\n    var stack_2"
 					],
 					[
-						513117,
+						516103,
 						1,
 						"6"
 					],
 					[
-						513210,
+						516196,
 						76,
-						"415 : u32 = (((nodeRef_2 >> (u32(24)))) & (u32(127)));\n            var _S416"
+						"426 : u32 = (((nodeRef_2 >> (u32(24)))) & (u32(127)));\n            var _S427"
 					],
 					[
-						513371,
+						516357,
 						1,
 						"6"
 					],
 					[
-						513436,
+						516422,
 						9,
-						"6 < _S415"
+						"6 < _S426"
 					],
 					[
-						513683,
-						33,
-						"07].blasTriOffset_0 + _S416 + i_6"
+						516668,
+						34,
+						"418].blasTriOffset_0 + _S427 + i_6"
 					],
 					[
-						513808,
+						516794,
 						1,
 						"0"
 					],
 					[
-						513879,
+						516865,
 						186,
-						"417 : bool = IntersectTriangle_1(_S408, _S409, v0_3.xyz, gTris_0[base_11 + u32(1)].xyz, gTris_0[base_11 + u32(2)].xyz, _S410, (*_S412).t_4, &(t_10), &(bary_4));\n                if(!_S417"
+						"428 : bool = IntersectTriangle_1(_S419, _S420, v0_3.xyz, gTris_0[base_12 + u32(1)].xyz, gTris_0[base_12 + u32(2)].xyz, _S421, (*_S423).t_4, &(t_10), &(bary_4));\n                if(!_S428"
 					],
 					[
-						514107,
+						517093,
 						7,
 						"6 = i_6"
 					],
 					[
-						514266,
+						517252,
 						36,
-						"418 : bool;\n                if(_S414"
+						"429 : bool;\n                if(_S425"
 					],
 					[
-						514342,
+						517328,
 						111,
-						"_S418 = AlphaTestRejects_0(_S407, primitiveIndex_3, bary_4, t_10)"
+						"_S429 = AlphaTestRejects_0(_S418, primitiveIndex_3, bary_4, t_10)"
 					],
 					[
-						514534,
+						517520,
 						3,
-						"418"
+						"429"
 					],
 					[
-						514586,
+						517572,
 						3,
-						"418"
+						"429"
 					],
 					[
-						514631,
+						517617,
 						7,
 						"6 = i_6"
 					],
 					[
-						514718,
-						202,
-						"12).t_4 = t_10;\n                (*_S412).barycentrics_0 = bary_4;\n                (*_S412).instanceIndex_2 = _S406;\n                (*_S412).primitiveIndex_1 = primitiveIndex_3;\n                if(_S411"
+						517703,
+						203,
+						"423).t_4 = t_10;\n                (*_S423).barycentrics_0 = bary_4;\n                (*_S423).instanceIndex_2 = _S417;\n                (*_S423).primitiveIndex_1 = primitiveIndex_3;\n                if(_S422"
 					],
 					[
-						515041,
+						518027,
 						7,
 						"6 = i_6"
 					],
 					[
-						515247,
+						518233,
 						1,
 						"2"
 					],
 					[
-						515481,
-						250,
-						"07].blasNodeOffset_0 + nodeRef_2];\n        var dist1_4 : f32 = IntersectBox_0(node_2.lmin_0, node_2.lmax_0, _S408, _S413, _S410, (*_S412).t_4);\n        var dist2_4 : f32 = IntersectBox_0(node_2.rmin_0, node_2.rmax_0, _S408, _S413, _S410, (*_S412).t_4"
+						518466,
+						251,
+						"418].blasNodeOffset_0 + nodeRef_2];\n        var dist1_4 : f32 = IntersectBox_0(node_2.lmin_0, node_2.lmax_0, _S419, _S424, _S421, (*_S423).t_4);\n        var dist2_4 : f32 = IntersectBox_0(node_2.rmin_0, node_2.rmax_0, _S419, _S424, _S421, (*_S423).t_4"
 					],
 					[
-						515900,
+						518886,
 						1,
 						"6"
 					],
 					[
-						516064,
+						519050,
 						1,
 						"6"
 					],
 					[
-						516428,
+						519414,
 						1,
 						"2"
 					],
 					[
-						516818,
+						519804,
 						113,
-						"419 : u32 = stackPtr_8 + u32(1);\n                stack_2[stackPtr_8] = far_2;\n                stackPtr_11 = _S419"
+						"430 : u32 = stackPtr_8 + u32(1);\n                stack_2[stackPtr_8] = far_2;\n                stackPtr_11 = _S430"
 					],
 					[
-						517060,
+						520046,
 						1,
 						"6"
 					],
 					[
-						517276,
+						520262,
 						1,
 						"4"
 					],
 					[
-						517522,
+						520508,
 						106,
-						"420 : u32 = gFrame_0.counts_0.z;\n    var _S421 : vec3<f32> = SafeRcp_0(ray_2.direction_0);\n    var stack_3"
+						"431 : u32 = gFrame_0.counts_0.z;\n    var _S432 : vec3<f32> = SafeRcp_0(ray_2.direction_0);\n    var stack_3"
 					],
 					[
-						517783,
+						520769,
 						2,
 						"7"
 					],
 					[
-						517877,
+						520863,
 						76,
-						"422 : u32 = (((nodeRef_3 >> (u32(24)))) & (u32(127)));\n            var _S423"
+						"433 : u32 = (((nodeRef_3 >> (u32(24)))) & (u32(127)));\n            var _S434"
 					],
 					[
-						518038,
+						521024,
 						2,
 						"7"
 					],
 					[
-						518104,
+						521090,
 						10,
-						"7 < _S422"
+						"7 < _S433"
 					],
 					[
-						518294,
+						521280,
 						287,
-						"420 + _S423 + i_7];\n                var _S424 : bool = TraverseBLAS_1(instanceIndex_4, instanceIndex_4, InverseTransformPoint_0(instanceIndex_4, ray_2.origin_0), InverseTransformVector_0(instanceIndex_4, ray_2.direction_0), ray_2.tMin_0, anyHit_1, &((*hit_4)));\n                if(_S424"
+						"431 + _S434 + i_7];\n                var _S435 : bool = TraverseBLAS_1(instanceIndex_4, instanceIndex_4, InverseTransformPoint_0(instanceIndex_4, ray_2.origin_0), InverseTransformVector_0(instanceIndex_4, ray_2.direction_0), ray_2.tMin_0, anyHit_1, &((*hit_4)));\n                if(_S435"
 					],
 					[
-						518787,
+						521773,
 						9,
 						"7 = i_7"
 					],
 					[
-						518998,
+						521984,
 						1,
 						"3"
 					],
 					[
-						519345,
+						522331,
 						156,
-						"421, ray_2.tMin_0, (*hit_4).t_4);\n        var dist2_6 : f32 = IntersectBox_0(node_3.rmin_0, node_3.rmax_0, ray_2.origin_0, _S421, ray_2.tMin_0, (*hit_4).t_4"
+						"432, ray_2.tMin_0, (*hit_4).t_4);\n        var dist2_6 : f32 = IntersectBox_0(node_3.rmin_0, node_3.rmax_0, ray_2.origin_0, _S432, ray_2.tMin_0, (*hit_4).t_4"
 					],
 					[
-						519670,
+						522656,
 						2,
 						"7"
 					],
 					[
-						519835,
+						522821,
 						2,
 						"7"
 					],
 					[
-						520202,
+						523188,
 						1,
 						"3"
 					],
 					[
-						520594,
+						523580,
 						115,
-						"425 : u32 = stackPtr_12 + u32(1);\n                stack_3[stackPtr_12] = far_3;\n                stackPtr_15 = _S425"
+						"436 : u32 = stackPtr_12 + u32(1);\n                stack_3[stackPtr_12] = far_3;\n                stackPtr_15 = _S436"
 					],
 					[
-						520839,
+						523825,
 						2,
 						"7"
 					],
 					[
-						521006,
+						523992,
 						66,
-						"426 : bool = TraceScene_1(ray_3, true, &(hit_5));\n    return _S426"
+						"437 : bool = TraceScene_1(ray_3, true, &(hit_5));\n    return _S437"
 					],
 					[
-						521238,
+						524224,
 						3,
-						"427"
+						"438"
 					],
 					[
-						521346,
+						524332,
 						21,
-						"7 : vec3<f32> = _S427"
+						"7 : vec3<f32> = _S438"
 					],
 					[
-						522373,
+						525359,
 						3,
-						"428"
+						"439"
 					],
 					[
-						522475,
+						525461,
 						3,
-						"428"
+						"439"
 					],
 					[
-						523781,
+						526767,
 						3,
-						"429"
+						"440"
 					],
 					[
-						523961,
+						526947,
 						3,
-						"429"
+						"440"
 					],
 					[
-						524389,
+						527375,
 						3,
-						"430"
+						"441"
 					],
 					[
-						524499,
+						527485,
 						3,
-						"430"
+						"441"
 					],
 					[
-						524828,
+						527814,
 						102,
-						"1 : vec3<f32> = eval_1.diffuse_1 + eval_1.specular_1;\n        var _S431 : bool;\n        if((any(((f_21"
+						"2 : vec3<f32> = eval_1.diffuse_1 + eval_1.specular_1;\n        var _S442 : bool;\n        if((any(((f_22"
 					],
 					[
-						525022,
+						528008,
 						3,
-						"431"
+						"442"
 					],
 					[
-						525101,
+						528087,
 						109,
-						"432 : bool = TraceOcclusion_1(Ray_x24init_0(origin_4, dir_12, maxDistance_2));\n                _S431 = !_S432"
+						"443 : bool = TraceOcclusion_1(Ray_x24init_0(origin_4, dir_12, maxDistance_2));\n                _S442 = !_S443"
 					],
 					[
-						525273,
+						528259,
 						3,
-						"431"
+						"442"
 					],
 					[
-						525315,
+						528301,
 						31,
-						"8 : vec3<f32>;\n        if(_S431"
+						"8 : vec3<f32>;\n        if(_S442"
 					],
 					[
-						525614,
+						528600,
 						59,
-						"8 = result_7 + vec3<f32>(weight_5) * ls_4.radiance_0 * f_21"
+						"8 = result_7 + vec3<f32>(weight_5) * ls_4.radiance_0 * f_22"
 					],
 					[
-						525761,
+						528747,
 						12,
 						"8 = result_7"
 					],
 					[
-						525800,
+						528786,
 						12,
 						"7 = result_8"
 					],
 					[
-						525876,
+						528862,
 						1,
 						"7"
 					],
 					[
-						525917,
+						528903,
 						1,
 						"2"
 					],
 					[
-						526004,
+						528990,
 						86,
-						"433 : vec3<f32> = vec3<f32>(0.0f);\n    if((any(((((*s_22).path_0.absorption_0) > _S433"
+						"444 : vec3<f32> = vec3<f32>(0.0f);\n    if((any(((((*s_22).path_0.absorption_0) > _S444"
 					],
 					[
-						526115,
+						529101,
 						110,
 						"2).path_0.throughput_7 = (*s_22).path_0.throughput_7 * exp((*s_22).path_0.absorption_0 * vec3<f32>(- hit_6.t_4"
 					],
 					[
-						526271,
+						529257,
 						227,
 						"2).path_0.coneWidth_2 + (*s_22).path_0.coneSpread_0 * hit_6.t_4;\n    var si_6 : SurfaceInteraction_0 = GetSurfaceInteraction_0((*s_22).path_0.direction_1, hit_6, hitConeWidth_1);\n    var V_3 : vec3<f32> = (vec3<f32>(0) - (*s_22"
 					],
 					[
-						526648,
+						529634,
 						79,
-						"2).path_0.throughput_7, vec3<f32>(620.0f, 540.0f, 450.0f), 1.0f);\n    var _S434"
+						"2).path_0.throughput_7, vec3<f32>(620.0f, 540.0f, 450.0f), 1.0f);\n    var _S445"
 					],
 					[
-						526801,
+						529787,
 						3,
-						"434"
+						"445"
 					],
 					[
-						526825,
+						529811,
 						1,
 						"2"
 					],
 					[
-						527078,
+						530064,
 						1,
 						"2"
 					],
 					[
-						527389,
+						530375,
 						1,
 						"4"
 					],
 					[
-						527504,
+						530530,
+						306,
+						"9 : u32 = NrdBase_0(base_13);\n            gAccum_0[r_9] = vec4<f32>((*s_22).path_0.radiance_1, (bitcast<f32>((NrdPackFraction_0(vec3<f32>(0.5f))))));\n            gAccum_0[r_9 + u32(1)] = vec4<f32>(0.0f);\n            gAccum_0[r_9 + u32(2)] = vec4<f32>(0.0f, 0.0f, 0.0f, NrdPackSurface_0(ms_3.roughness_3"
+					],
+					[
+						530896,
 						35,
-						"2).active_0 = u32(0);\n    var _S435"
+						"2).active_0 = u32(0);\n    var _S446"
 					],
 					[
-						527592,
+						530984,
 						223,
-						"435 = !ms_3.doubleSided_2;\n    }\n    else\n    {\n        _S435 = false;\n    }\n    if(_S435)\n    {\n        _S435 = ((ms_3.inputs_1.transmissionWeight_0) <= 0.0f);\n    }\n    else\n    {\n        _S435 = false;\n    }\n    if(_S435"
+						"446 = !ms_3.doubleSided_2;\n    }\n    else\n    {\n        _S446 = false;\n    }\n    if(_S446)\n    {\n        _S446 = ((ms_3.inputs_1.transmissionWeight_0) <= 0.0f);\n    }\n    else\n    {\n        _S446 = false;\n    }\n    if(_S446"
 					],
 					[
-						527913,
+						531305,
 						3,
-						"433"
+						"444"
 					],
 					[
-						527942,
+						531334,
 						37,
-						"436 : bool = !_S434;\n        if(_S436"
+						"447 : bool = !_S445;\n        if(_S447"
 					],
 					[
-						528005,
+						531397,
 						12,
-						"435 = (*s_22"
+						"446 = (*s_22"
 					],
 					[
-						528090,
+						531482,
 						3,
-						"435"
+						"446"
 					],
 					[
-						528126,
+						531518,
 						3,
-						"435"
+						"446"
 					],
 					[
-						528191,
+						531583,
 						92,
 						"2).path_0.scatterPdf_0, EmissiveHitPdf_0(si_6.instanceIndex_0, si_6.primitiveIndex_0, (*s_22"
 					],
 					[
-						528445,
+						531837,
 						1,
 						"2"
 					],
 					[
-						528657,
+						532049,
 						11,
-						"435 = _S436"
+						"446 = _S447"
 					],
 					[
-						528717,
+						532109,
 						3,
-						"435"
+						"446"
 					],
 					[
-						528753,
+						532145,
 						3,
-						"435"
+						"446"
 					],
 					[
-						528942,
+						532334,
 						29,
 						"2).path_0.radiance_1 = (*s_22"
 					],
 					[
-						529096,
+						532415,
+						3,
+						"445"
+					],
+					[
+						532436,
+						3,
+						"446"
+					],
+					[
+						532489,
+						3,
+						"446"
+					],
+					[
+						532517,
+						3,
+						"446"
+					],
+					[
+						532542,
+						198,
+						"448 : u32 = NrdBase_0(base_13);\n        var _S449 : vec3<f32> = (*s_22).path_0.radiance_1;\n        gAccum_0[_S448].x = _S449.x;\n        gAccum_0[_S448].y = _S449.y;\n        gAccum_0[_S448].z = _S449"
+					],
+					[
+						532832,
 						245,
-						"437 : bool = SharcEnabled_0();\n    if(_S437)\n    {\n        _S435 = !_S434;\n    }\n    else\n    {\n        _S435 = false;\n    }\n    if(_S435)\n    {\n        _S435 = SharcSurface_0(ms_3);\n    }\n    else\n    {\n        _S435 = false;\n    }\n    if(_S435"
+						"450 : bool = SharcEnabled_0();\n    if(_S450)\n    {\n        _S446 = !_S445;\n    }\n    else\n    {\n        _S446 = false;\n    }\n    if(_S446)\n    {\n        _S446 = SharcSurface_0(ms_3);\n    }\n    else\n    {\n        _S446 = false;\n    }\n    if(_S446"
 					],
 					[
-						529626,
+						533362,
 						206,
-						"3 : u32 = base_12 - WorkBase_0(u32(0));\n        var _S438 : bool = SharcMakeKey_0(si_6.position_0, throughput_25, V_3, si_6.materialIndex_1, si_6.instanceIndex_0, &(key_5), &(voxelSize_1));\n        if(_S438"
+						"3 : u32 = base_13 - WorkBase_0(u32(0));\n        var _S451 : bool = SharcMakeKey_0(si_6.position_0, throughput_25, V_3, si_6.materialIndex_1, si_6.instanceIndex_0, &(key_5), &(voxelSize_1));\n        if(_S451"
 					],
 					[
-						529884,
+						533620,
 						1,
 						"3"
 					],
 					[
-						529965,
+						533701,
 						53,
 						"3, bounce_3, key_5, (*s_22).path_0.radiance_1, (*s_22"
 					],
 					[
-						530116,
+						533852,
 						638,
-						"4) > (voxelSize_1 * sqrt(3.0f))))\n                {\n                    _S435 = (hitConeWidth_1 > voxelSize_1);\n                }\n                else\n                {\n                    _S435 = false;\n                }\n                if(_S435)\n                {\n                    _S435 = (((*s_22).path_0.coneSpread_0) >= 0.05000000074505806f);\n                }\n                else\n                {\n                    _S435 = false;\n                }\n                if(_S435)\n                {\n                    var _S439 : u32 = Field_0(base_12, u32(6));\n                    var state_1 : u32 = (bitcast<u32>((gAccum_0[_S439"
+						"4) > (voxelSize_1 * sqrt(3.0f))))\n                {\n                    _S446 = (hitConeWidth_1 > voxelSize_1);\n                }\n                else\n                {\n                    _S446 = false;\n                }\n                if(_S446)\n                {\n                    _S446 = (((*s_22).path_0.coneSpread_0) >= 0.05000000074505806f);\n                }\n                else\n                {\n                    _S446 = false;\n                }\n                if(_S446)\n                {\n                    var _S452 : u32 = Field_0(base_13, u32(6));\n                    var state_1 : u32 = (bitcast<u32>((gAccum_0[_S452"
 					],
 					[
-						530922,
+						534658,
 						3,
-						"440"
+						"453"
 					],
 					[
-						531013,
+						534749,
 						3,
-						"440"
+						"453"
 					],
 					[
-						531124,
+						534860,
 						3,
-						"440"
+						"453"
 					],
 					[
-						531191,
+						534927,
 						47,
-						"439][i32(3)] = (bitcast<f32>(((state_1 | (_S440"
+						"452][i32(3)] = (bitcast<f32>(((state_1 | (_S453"
 					],
 					[
-						531328,
+						535064,
 						57,
 						"2).path_0.radiance_1 = (*s_22).path_0.radiance_1 + (*s_22"
 					],
 					[
-						531622,
+						535358,
 						157,
-						"2).randomSeed_0;\n    var _S441 : bool = ((BSDF_MaxActiveAlpha_0(bsdf_3)) >= 0.0010000000474974513f);\n    (*s_22).path_0.lightsSampled_0 = _S441;\n    if(_S441"
+						"2).randomSeed_0;\n    var _S454 : bool = ((BSDF_MaxActiveAlpha_0(bsdf_3)) >= 0.0010000000474974513f);\n    (*s_22).path_0.lightsSampled_0 = _S454;\n    if(_S454"
 					],
 					[
-						531801,
+						535537,
 						191,
-						"442 : vec3<f32> = NextEventEstimation_1(si_6, bsdf_3, vec2<f32>(hitConeWidth_1, (*s_22).path_0.coneSpread_0), &(rng_7));\n        var direct_1 : vec3<f32> = (*s_22).path_0.throughput_7 * _S442"
+						"455 : vec3<f32> = NextEventEstimation_1(si_6, bsdf_3, vec2<f32>(hitConeWidth_1, (*s_22).path_0.coneSpread_0), &(rng_7));\n        var direct_1 : vec3<f32> = (*s_22).path_0.throughput_7 * _S455"
 					],
 					[
-						532134,
+						535870,
 						12,
-						"435 = !_S434"
+						"446 = !_S445"
 					],
 					[
-						532195,
+						535931,
 						3,
-						"435"
+						"446"
 					],
 					[
-						532231,
+						535967,
 						3,
-						"435"
+						"446"
 					],
 					[
-						532408,
+						536144,
 						29,
 						"2).path_0.radiance_1 = (*s_22"
 					],
 					[
-						532491,
+						536227,
 						179,
-						"2 : vec2<f32> = RandomSequence_Next2D_0(&(rng_7));\n    var _S443 : f32 = RandomSequence_Next_1(&(rng_7));\n    var bs_1 : LobeSample_0 = BSDF_Sample_0(bsdf_3, vec3<f32>(u_32, _S443"
+						"2 : vec2<f32> = RandomSequence_Next2D_0(&(rng_7));\n    var _S456 : f32 = RandomSequence_Next_1(&(rng_7));\n    var bs_1 : LobeSample_0 = BSDF_Sample_0(bsdf_3, vec3<f32>(u_32, _S456"
 					],
 					[
-						532795,
+						536531,
 						206,
-						"435 = true;\n    }\n    else\n    {\n        _S435 = ((bs_1.pdf_7) <= 0.0f);\n    }\n    if(_S435)\n    {\n        _S435 = true;\n    }\n    else\n    {\n        _S435 = (all(((weight_6 <= _S433))));\n    }\n    if(_S435"
+						"446 = true;\n    }\n    else\n    {\n        _S446 = ((bs_1.pdf_7) <= 0.0f);\n    }\n    if(_S446)\n    {\n        _S446 = true;\n    }\n    else\n    {\n        _S446 = (all(((weight_6 <= _S444))));\n    }\n    if(_S446"
 					],
 					[
-						533072,
+						536776,
+						3,
+						"445"
+					],
+					[
+						536797,
+						3,
+						"446"
+					],
+					[
+						536850,
+						3,
+						"446"
+					],
+					[
+						536878,
+						3,
+						"446"
+					],
+					[
+						536904,
+						1,
+						"0"
+					],
+					[
+						537014,
+						159,
+						"0][i32(3)] = (bitcast<f32>((NrdPackFraction_0(NrdDiffuseFraction_0(bs_1.weight_1)))));\n        gAccum_0[r_10 + u32(3)][i32(3)] = oct_1.x;\n        gAccum_0[r_10"
+					],
+					[
+						537250,
 						47,
-						"2).path_0.throughput_7 * weight_6;\n    if(_S437"
+						"2).path_0.throughput_7 * weight_6;\n    if(_S450"
 					],
 					[
-						533137,
+						537315,
 						11,
-						"435 = _S434"
+						"446 = _S445"
 					],
 					[
-						533181,
+						537359,
 						3,
-						"435"
+						"446"
 					],
 					[
-						533209,
+						537387,
 						3,
-						"435"
+						"446"
 					],
 					[
-						533367,
+						537545,
 						1,
 						"2"
 					],
 					[
-						533477,
+						537655,
 						62,
-						"444 : f32 = RandomSequence_Next_1(&(rng_7));\n        if((_S444"
+						"457 : f32 = RandomSequence_Next_1(&(rng_7));\n        if((_S457"
 					],
 					[
-						533742,
+						537920,
 						95,
 						"2).path_0.throughput_7 = throughput_25;\n    (*s_22).path_0.direction_1 = bs_1.wi_26;\n    (*s_22"
 					],
 					[
-						533987,
+						538165,
 						1,
 						"2"
 					],
 					[
-						534113,
+						538291,
 						3,
-						"435"
+						"446"
 					],
 					[
-						534170,
+						538348,
 						3,
-						"435"
+						"446"
 					],
 					[
-						534198,
+						538376,
 						3,
-						"435"
+						"446"
 					],
 					[
-						534428,
+						538606,
 						1,
 						"2"
 					],
 					[
-						534483,
+						538661,
 						240,
-						"2).path_0.coneWidth_2 = hitConeWidth_1;\n    (*s_22).path_0.coneSpread_0 = (*s_22).path_0.coneSpread_0 + ScatterConeSpread_0(bs_1.type_0, ms_3.roughness_3);\n    (*s_22).randomSeed_0 = rng_7.seed_0;\n    (*s_22).active_0 = u32(1);\n    if(_S437"
+						"2).path_0.coneWidth_2 = hitConeWidth_1;\n    (*s_22).path_0.coneSpread_0 = (*s_22).path_0.coneSpread_0 + ScatterConeSpread_0(bs_1.type_0, ms_3.roughness_3);\n    (*s_22).randomSeed_0 = rng_7.seed_0;\n    (*s_22).active_0 = u32(1);\n    if(_S450"
 					],
 					[
-						534745,
+						538923,
 						116,
-						"445 : u32 = Field_0(base_12, u32(6));\n        gAccum_0[_S445][i32(3)] = (bitcast<f32>(((bitcast<u32>((gAccum_0[_S445"
+						"458 : u32 = Field_0(base_13, u32(6));\n        gAccum_0[_S458][i32(3)] = (bitcast<f32>(((bitcast<u32>((gAccum_0[_S458"
 					],
 					[
-						534964,
+						539142,
 						945,
-						"3 : WavefrontPath_0;\n    s_23.path_0.radiance_1 = gAccum_0[base_13].xyz;\n    s_23.active_0 = (bitcast<u32>((gAccum_0[base_13].w)));\n    s_23.path_0.throughput_7 = gAccum_0[Field_0(base_13, u32(1))].xyz;\n    s_23.randomSeed_0 = (bitcast<u32>((gAccum_0[Field_0(base_13, u32(1))].w)));\n    s_23.path_0.origin_3 = gAccum_0[Field_0(base_13, u32(2))].xyz;\n    s_23.path_0.scatterPdf_0 = gAccum_0[Field_0(base_13, u32(2))].w;\n    s_23.path_0.direction_1 = gAccum_0[Field_0(base_13, u32(3))].xyz;\n    s_23.path_0.lightsSampled_0 = (bitcast<u32>((gAccum_0[Field_0(base_13, u32(3))].w))) != u32(0);\n    s_23.path_0.absorption_0 = gAccum_0[Field_0(base_13, u32(4))].xyz;\n    s_23.path_0.coneWidth_2 = gAccum_0[Field_0(base_13, u32(4))].w;\n    var _S446 : vec3<f32> = vec3<f32>(0.0f);\n    s_23.albedo_2 = _S446;\n    s_23.path_0.coneSpread_0 = gAccum_0[Field_0(base_13, u32(5))].w;\n    s_23.normal_11 = _S446;\n    s_23.path_0.lobe_2 = u32(0);\n    return s_23"
+						"3 : WavefrontPath_0;\n    s_23.path_0.radiance_1 = gAccum_0[base_14].xyz;\n    s_23.active_0 = (bitcast<u32>((gAccum_0[base_14].w)));\n    s_23.path_0.throughput_7 = gAccum_0[Field_0(base_14, u32(1))].xyz;\n    s_23.randomSeed_0 = (bitcast<u32>((gAccum_0[Field_0(base_14, u32(1))].w)));\n    s_23.path_0.origin_3 = gAccum_0[Field_0(base_14, u32(2))].xyz;\n    s_23.path_0.scatterPdf_0 = gAccum_0[Field_0(base_14, u32(2))].w;\n    s_23.path_0.direction_1 = gAccum_0[Field_0(base_14, u32(3))].xyz;\n    s_23.path_0.lightsSampled_0 = (bitcast<u32>((gAccum_0[Field_0(base_14, u32(3))].w))) != u32(0);\n    s_23.path_0.absorption_0 = gAccum_0[Field_0(base_14, u32(4))].xyz;\n    s_23.path_0.coneWidth_2 = gAccum_0[Field_0(base_14, u32(4))].w;\n    var _S459 : vec3<f32> = vec3<f32>(0.0f);\n    s_23.albedo_2 = _S459;\n    s_23.path_0.coneSpread_0 = gAccum_0[Field_0(base_14, u32(5))].w;\n    s_23.normal_11 = _S459;\n    s_23.path_0.lobe_2 = u32(0);\n    return s_23"
 					],
 					[
-						537195,
+						540212,
+						59,
+						"460 : u32 = select(u32(0), u32(1), shadow_3);\n    var _S461"
+					],
+					[
+						540314,
 						3,
-						"447"
+						"461"
 					],
 					[
-						537319,
+						540367,
 						3,
-						"447"
+						"461"
 					],
 					[
-						537703,
-						110,
-						"448 : LightSample_0 = SampleEmissive_0(si_7.position_0, cone_3, &((*rng_8)));\n                if((any((((_S448"
+						540396,
+						23,
+						"462 : u32;\n    if(_S461"
 					],
 					[
-						537899,
-						3,
-						"448"
-					],
-					[
-						538251,
-						21,
-						"448.position_1, _S448"
-					],
-					[
-						538604,
-						41,
-						"448.delta_0;\n                ls_8 = _S448"
-					],
-					[
-						538760,
-						3,
-						"448"
-					],
-					[
-						539170,
-						3,
-						"449"
-					],
-					[
-						539308,
-						3,
-						"449"
-					],
-					[
-						539604,
-						1,
-						"2"
-					],
-					[
-						539705,
-						1,
-						"2"
-					],
-					[
-						539997,
-						371,
-						"0 : u32 = u32(12) + source_2 * u32(3);\n            gAccum_0[Field_0(base_14, offset_0)] = vec4<f32>(origin_6, maxDistance_4);\n            gAccum_0[Field_0(base_14, offset_0 + u32(1))] = vec4<f32>(dir_17, (bitcast<f32>((select(u32(0), u32(1), shadow_3)))));\n            gAccum_0[Field_0(base_14, offset_0 + u32(2))] = vec4<f32>(vec3<f32>(weight_7) * ls_8.radiance_0 * f_22"
-					],
-					[
-						540992,
-						1,
-						"4"
-					],
-					[
-						541105,
-						227,
-						"4).path_0.coneWidth_2 + (*s_24).path_0.coneSpread_0 * hit_7.t_4;\n    var si_8 : SurfaceInteraction_0 = GetSurfaceInteraction_0((*s_24).path_0.direction_1, hit_7, hitConeWidth_2);\n    var V_4 : vec3<f32> = (vec3<f32>(0) - (*s_24"
-					],
-					[
-						541425,
-						122,
-						"4) = LoadPath_0(base_15);\n    var _S450 : vec3<f32> = vec3<f32>(0.0f);\n    if((any(((((*s_24).path_0.absorption_0) > _S450"
-					],
-					[
-						541572,
-						110,
-						"4).path_0.throughput_7 = (*s_24).path_0.throughput_7 * exp((*s_24).path_0.absorption_0 * vec3<f32>(- hit_7.t_4"
-					],
-					[
-						541758,
-						110,
-						"4).path_0.throughput_7, vec3<f32>(620.0f, 540.0f, 450.0f), 1.0f);\n    (*s_24).active_0 = u32(0);\n    var _S451"
-					],
-					[
-						541921,
-						223,
-						"451 = !ms_4.doubleSided_2;\n    }\n    else\n    {\n        _S451 = false;\n    }\n    if(_S451)\n    {\n        _S451 = ((ms_4.inputs_1.transmissionWeight_0) <= 0.0f);\n    }\n    else\n    {\n        _S451 = false;\n    }\n    if(_S451"
-					],
-					[
-						542247,
-						3,
-						"450"
-					],
-					[
-						542303,
-						1,
-						"4"
-					],
-					[
-						542381,
-						92,
-						"4).path_0.scatterPdf_0, EmissiveHitPdf_0(si_8.instanceIndex_0, si_8.primitiveIndex_0, (*s_24"
-					],
-					[
-						542626,
-						1,
-						"4"
-					],
-					[
-						542785,
-						52,
-						"452 : bool = (clampValue_4 > 0.0f);\n        if(_S452"
-					],
-					[
-						543023,
-						29,
-						"4).path_0.radiance_1 = (*s_24"
-					],
-					[
-						543177,
-						43,
-						"453 : bool = SharcEnabled_0();\n    if(_S453"
-					],
-					[
-						543238,
-						3,
-						"451"
-					],
-					[
-						543297,
-						3,
-						"451"
-					],
-					[
-						543325,
-						3,
-						"451"
-					],
-					[
-						543613,
-						206,
-						"4 : u32 = base_15 - WorkBase_0(u32(0));\n        var _S454 : bool = SharcMakeKey_0(si_8.position_0, throughput_28, V_4, si_8.materialIndex_1, si_8.instanceIndex_0, &(key_6), &(voxelSize_2));\n        if(_S454"
-					],
-					[
-						543871,
-						1,
-						"4"
-					],
-					[
-						543952,
-						53,
-						"4, bounce_4, key_6, (*s_24).path_0.radiance_1, (*s_24"
-					],
-					[
-						544103,
-						638,
-						"4) > (voxelSize_2 * sqrt(3.0f))))\n                {\n                    _S451 = (hitConeWidth_2 > voxelSize_2);\n                }\n                else\n                {\n                    _S451 = false;\n                }\n                if(_S451)\n                {\n                    _S451 = (((*s_24).path_0.coneSpread_0) >= 0.05000000074505806f);\n                }\n                else\n                {\n                    _S451 = false;\n                }\n                if(_S451)\n                {\n                    var _S455 : u32 = Field_0(base_15, u32(6));\n                    var state_2 : u32 = (bitcast<u32>((gAccum_0[_S455"
-					],
-					[
-						544910,
-						3,
-						"456"
-					],
-					[
-						545002,
-						3,
-						"456"
-					],
-					[
-						545113,
-						3,
-						"456"
-					],
-					[
-						545180,
-						47,
-						"455][i32(3)] = (bitcast<f32>(((state_2 | (_S456"
-					],
-					[
-						545318,
-						57,
-						"4).path_0.radiance_1 = (*s_24).path_0.radiance_1 + (*s_24"
-					],
-					[
-						545612,
-						157,
-						"4).randomSeed_0;\n    var _S457 : bool = ((BSDF_MaxActiveAlpha_0(bsdf_5)) >= 0.0010000000474974513f);\n    (*s_24).path_0.lightsSampled_0 = _S457;\n    if(_S457"
-					],
-					[
-						545861,
-						31,
-						"4).path_0.coneSpread_0), (*s_24"
-					],
-					[
-						545950,
-						179,
-						"3 : vec2<f32> = RandomSequence_Next2D_0(&(rng_9));\n    var _S458 : f32 = RandomSequence_Next_1(&(rng_9));\n    var bs_2 : LobeSample_0 = BSDF_Sample_0(bsdf_5, vec3<f32>(u_33, _S458"
-					],
-					[
-						546254,
-						206,
-						"451 = true;\n    }\n    else\n    {\n        _S451 = ((bs_2.pdf_7) <= 0.0f);\n    }\n    if(_S451)\n    {\n        _S451 = true;\n    }\n    else\n    {\n        _S451 = (all(((weight_8 <= _S450))));\n    }\n    if(_S451"
-					],
-					[
-						546531,
-						192,
-						"4).path_0.throughput_7 * weight_8;\n    var _S459 : f32 = sqrt(saturate(MaxComponent_0(throughput_29) / max(MaxComponent_0((*s_24).path_0.throughput_7), 9.999999960041972e-13f)));\n    if((_S459"
-					],
-					[
-						546753,
-						71,
-						"460 : f32 = RandomSequence_Next_1(&(rng_9));\n        if((_S460 >= _S459"
-					],
-					[
-						546919,
-						3,
-						"459"
-					],
-					[
-						547000,
-						95,
-						"4).path_0.throughput_7 = throughput_28;\n    (*s_24).path_0.direction_1 = bs_2.wi_26;\n    (*s_24"
-					],
-					[
-						547245,
-						1,
-						"4"
-					],
-					[
-						547371,
-						3,
-						"451"
-					],
-					[
-						547428,
-						3,
-						"451"
-					],
-					[
-						547456,
-						3,
-						"451"
-					],
-					[
-						547686,
-						1,
-						"4"
-					],
-					[
-						547741,
-						240,
-						"4).path_0.coneWidth_2 = hitConeWidth_2;\n    (*s_24).path_0.coneSpread_0 = (*s_24).path_0.coneSpread_0 + ScatterConeSpread_0(bs_2.type_0, ms_4.roughness_3);\n    (*s_24).randomSeed_0 = rng_9.seed_0;\n    (*s_24).active_0 = u32(1);\n    if(_S453"
-					],
-					[
-						548003,
-						116,
-						"461 : u32 = Field_0(base_15, u32(6));\n        gAccum_0[_S461][i32(3)] = (bitcast<f32>(((bitcast<u32>((gAccum_0[_S461"
-					],
-					[
-						548222,
-						966,
-						"5 : WavefrontPath_0;\n    s_25.path_0.radiance_1 = gAccum_0[base_16].xyz;\n    s_25.active_0 = (bitcast<u32>((gAccum_0[base_16].w)));\n    s_25.path_0.throughput_7 = gAccum_0[Field_0(base_16, u32(1))].xyz;\n    s_25.randomSeed_0 = (bitcast<u32>((gAccum_0[Field_0(base_16, u32(1))].w)));\n    s_25.path_0.origin_3 = gAccum_0[Field_0(base_16, u32(2))].xyz;\n    s_25.path_0.scatterPdf_0 = gAccum_0[Field_0(base_16, u32(2))].w;\n    s_25.path_0.direction_1 = gAccum_0[Field_0(base_16, u32(3))].xyz;\n    s_25.path_0.lightsSampled_0 = (bitcast<u32>((gAccum_0[Field_0(base_16, u32(3))].w))) != u32(0);\n    s_25.path_0.absorption_0 = gAccum_0[Field_0(base_16, u32(4))].xyz;\n    s_25.path_0.coneWidth_2 = gAccum_0[Field_0(base_16, u32(4))].w;\n    s_25.albedo_2 = gAccum_0[Field_0(base_16, u32(5))].xyz;\n    s_25.path_0.coneSpread_0 = gAccum_0[Field_0(base_16, u32(5))].w;\n    s_25.normal_11 = gAccum_0[Field_0(base_16, u32(6))].xyz;\n    s_25.path_0.lobe_2 = u32(0);\n    return s_25"
-					],
-					[
-						549228,
-						1,
-						"6"
-					],
-					[
-						549341,
-						227,
-						"6).path_0.coneWidth_2 + (*s_26).path_0.coneSpread_0 * hit_8.t_4;\n    var si_9 : SurfaceInteraction_0 = GetSurfaceInteraction_0((*s_26).path_0.direction_1, hit_8, hitConeWidth_3);\n    var V_5 : vec3<f32> = (vec3<f32>(0) - (*s_26"
-					],
-					[
-						549661,
-						122,
-						"6) = LoadPath_1(base_17);\n    var _S462 : vec3<f32> = vec3<f32>(0.0f);\n    if((any(((((*s_26).path_0.absorption_0) > _S462"
-					],
-					[
-						549808,
-						110,
-						"6).path_0.throughput_7 = (*s_26).path_0.throughput_7 * exp((*s_26).path_0.absorption_0 * vec3<f32>(- hit_8.t_4"
-					],
-					[
-						549994,
-						76,
-						"6).path_0.throughput_7, vec3<f32>(620.0f, 540.0f, 450.0f), 1.0f);\n    (*s_26"
-					],
-					[
-						550321,
-						1,
-						"6"
-					],
-					[
-						550612,
-						1,
-						"4"
-					],
-					[
-						550713,
-						35,
-						"6).active_0 = u32(0);\n    var _S463"
-					],
-					[
-						550801,
-						223,
-						"463 = !ms_5.doubleSided_2;\n    }\n    else\n    {\n        _S463 = false;\n    }\n    if(_S463)\n    {\n        _S463 = ((ms_5.inputs_1.transmissionWeight_0) <= 0.0f);\n    }\n    else\n    {\n        _S463 = false;\n    }\n    if(_S463"
-					],
-					[
-						551092,
+						540472,
 						3,
 						"462"
 					],
 					[
-						551120,
+						540533,
+						3,
+						"462"
+					],
+					[
+						540567,
+						24,
+						"462 = (((u32(2) | (_S462"
+					],
+					[
+						540698,
+						3,
+						"462"
+					],
+					[
+						540732,
+						12,
+						"460 | (_S462"
+					],
+					[
+						542032,
+						3,
+						"463"
+					],
+					[
+						542156,
+						3,
+						"463"
+					],
+					[
+						542540,
+						110,
+						"464 : LightSample_0 = SampleEmissive_0(si_7.position_0, cone_3, &((*rng_8)));\n                if((any((((_S464"
+					],
+					[
+						542736,
+						3,
+						"464"
+					],
+					[
+						543088,
+						21,
+						"464.position_1, _S464"
+					],
+					[
+						543441,
+						41,
+						"464.delta_0;\n                ls_8 = _S464"
+					],
+					[
+						543597,
+						3,
+						"464"
+					],
+					[
+						544007,
+						3,
+						"465"
+					],
+					[
+						544145,
+						3,
+						"465"
+					],
+					[
+						544441,
+						1,
+						"3"
+					],
+					[
+						544542,
+						1,
+						"3"
+					],
+					[
+						544834,
+						401,
+						"0 : u32 = u32(12) + source_2 * u32(3);\n            gAccum_0[Field_0(base_15, offset_0)] = vec4<f32>(origin_6, maxDistance_4);\n            gAccum_0[Field_0(base_15, offset_0 + u32(1))] = vec4<f32>(dir_17, (bitcast<f32>((ShadowFlags_0(shadow_4, primary_1, source_2 == u32(2), eval_3)))));\n            gAccum_0[Field_0(base_15, offset_0 + u32(2))] = vec4<f32>(vec3<f32>(weight_7) * ls_8.radiance_0 * f_23"
+					],
+					[
+						545859,
+						1,
+						"4"
+					],
+					[
+						545972,
+						227,
+						"4).path_0.coneWidth_2 + (*s_24).path_0.coneSpread_0 * hit_7.t_4;\n    var si_8 : SurfaceInteraction_0 = GetSurfaceInteraction_0((*s_24).path_0.direction_1, hit_7, hitConeWidth_2);\n    var V_4 : vec3<f32> = (vec3<f32>(0) - (*s_24"
+					],
+					[
+						546292,
+						122,
+						"4) = LoadPath_0(base_16);\n    var _S466 : vec3<f32> = vec3<f32>(0.0f);\n    if((any(((((*s_24).path_0.absorption_0) > _S466"
+					],
+					[
+						546439,
+						110,
+						"4).path_0.throughput_7 = (*s_24).path_0.throughput_7 * exp((*s_24).path_0.absorption_0 * vec3<f32>(- hit_7.t_4"
+					],
+					[
+						546625,
+						110,
+						"4).path_0.throughput_7, vec3<f32>(620.0f, 540.0f, 450.0f), 1.0f);\n    (*s_24).active_0 = u32(0);\n    var _S467"
+					],
+					[
+						546788,
+						223,
+						"467 = !ms_4.doubleSided_2;\n    }\n    else\n    {\n        _S467 = false;\n    }\n    if(_S467)\n    {\n        _S467 = ((ms_4.inputs_1.transmissionWeight_0) <= 0.0f);\n    }\n    else\n    {\n        _S467 = false;\n    }\n    if(_S467"
+					],
+					[
+						547114,
+						3,
+						"466"
+					],
+					[
+						547170,
+						1,
+						"4"
+					],
+					[
+						547248,
+						92,
+						"4).path_0.scatterPdf_0, EmissiveHitPdf_0(si_8.instanceIndex_0, si_8.primitiveIndex_0, (*s_24"
+					],
+					[
+						547493,
+						1,
+						"4"
+					],
+					[
+						547652,
+						52,
+						"468 : bool = (clampValue_4 > 0.0f);\n        if(_S468"
+					],
+					[
+						547890,
+						29,
+						"4).path_0.radiance_1 = (*s_24"
+					],
+					[
+						548044,
+						43,
+						"469 : bool = SharcEnabled_0();\n    if(_S469"
+					],
+					[
+						548105,
+						3,
+						"467"
+					],
+					[
+						548164,
+						3,
+						"467"
+					],
+					[
+						548192,
+						3,
+						"467"
+					],
+					[
+						548480,
+						206,
+						"4 : u32 = base_16 - WorkBase_0(u32(0));\n        var _S470 : bool = SharcMakeKey_0(si_8.position_0, throughput_28, V_4, si_8.materialIndex_1, si_8.instanceIndex_0, &(key_6), &(voxelSize_2));\n        if(_S470"
+					],
+					[
+						548738,
+						1,
+						"4"
+					],
+					[
+						548819,
+						53,
+						"4, bounce_4, key_6, (*s_24).path_0.radiance_1, (*s_24"
+					],
+					[
+						548970,
+						638,
+						"4) > (voxelSize_2 * sqrt(3.0f))))\n                {\n                    _S467 = (hitConeWidth_2 > voxelSize_2);\n                }\n                else\n                {\n                    _S467 = false;\n                }\n                if(_S467)\n                {\n                    _S467 = (((*s_24).path_0.coneSpread_0) >= 0.05000000074505806f);\n                }\n                else\n                {\n                    _S467 = false;\n                }\n                if(_S467)\n                {\n                    var _S471 : u32 = Field_0(base_16, u32(6));\n                    var state_2 : u32 = (bitcast<u32>((gAccum_0[_S471"
+					],
+					[
+						549777,
+						3,
+						"472"
+					],
+					[
+						549869,
+						3,
+						"472"
+					],
+					[
+						549980,
+						3,
+						"472"
+					],
+					[
+						550047,
+						47,
+						"471][i32(3)] = (bitcast<f32>(((state_2 | (_S472"
+					],
+					[
+						550185,
+						57,
+						"4).path_0.radiance_1 = (*s_24).path_0.radiance_1 + (*s_24"
+					],
+					[
+						550479,
+						157,
+						"4).randomSeed_0;\n    var _S473 : bool = ((BSDF_MaxActiveAlpha_0(bsdf_5)) >= 0.0010000000474974513f);\n    (*s_24).path_0.lightsSampled_0 = _S473;\n    if(_S473"
+					],
+					[
+						550728,
+						31,
+						"4).path_0.coneSpread_0), (*s_24"
+					],
+					[
+						550817,
+						179,
+						"3 : vec2<f32> = RandomSequence_Next2D_0(&(rng_9));\n    var _S474 : f32 = RandomSequence_Next_1(&(rng_9));\n    var bs_2 : LobeSample_0 = BSDF_Sample_0(bsdf_5, vec3<f32>(u_33, _S474"
+					],
+					[
+						551121,
+						206,
+						"467 = true;\n    }\n    else\n    {\n        _S467 = ((bs_2.pdf_7) <= 0.0f);\n    }\n    if(_S467)\n    {\n        _S467 = true;\n    }\n    else\n    {\n        _S467 = (all(((weight_8 <= _S466))));\n    }\n    if(_S467"
+					],
+					[
+						551398,
+						192,
+						"4).path_0.throughput_7 * weight_8;\n    var _S475 : f32 = sqrt(saturate(MaxComponent_0(throughput_29) / max(MaxComponent_0((*s_24).path_0.throughput_7), 9.999999960041972e-13f)));\n    if((_S475"
+					],
+					[
+						551620,
+						71,
+						"476 : f32 = RandomSequence_Next_1(&(rng_9));\n        if((_S476 >= _S475"
+					],
+					[
+						551786,
+						3,
+						"475"
+					],
+					[
+						551867,
+						95,
+						"4).path_0.throughput_7 = throughput_28;\n    (*s_24).path_0.direction_1 = bs_2.wi_26;\n    (*s_24"
+					],
+					[
+						552112,
+						1,
+						"4"
+					],
+					[
+						552238,
+						3,
+						"467"
+					],
+					[
+						552295,
+						3,
+						"467"
+					],
+					[
+						552323,
+						3,
+						"467"
+					],
+					[
+						552553,
+						1,
+						"4"
+					],
+					[
+						552608,
+						240,
+						"4).path_0.coneWidth_2 = hitConeWidth_2;\n    (*s_24).path_0.coneSpread_0 = (*s_24).path_0.coneSpread_0 + ScatterConeSpread_0(bs_2.type_0, ms_4.roughness_3);\n    (*s_24).randomSeed_0 = rng_9.seed_0;\n    (*s_24).active_0 = u32(1);\n    if(_S469"
+					],
+					[
+						552870,
+						116,
+						"477 : u32 = Field_0(base_16, u32(6));\n        gAccum_0[_S477][i32(3)] = (bitcast<f32>(((bitcast<u32>((gAccum_0[_S477"
+					],
+					[
+						553089,
+						966,
+						"5 : WavefrontPath_0;\n    s_25.path_0.radiance_1 = gAccum_0[base_17].xyz;\n    s_25.active_0 = (bitcast<u32>((gAccum_0[base_17].w)));\n    s_25.path_0.throughput_7 = gAccum_0[Field_0(base_17, u32(1))].xyz;\n    s_25.randomSeed_0 = (bitcast<u32>((gAccum_0[Field_0(base_17, u32(1))].w)));\n    s_25.path_0.origin_3 = gAccum_0[Field_0(base_17, u32(2))].xyz;\n    s_25.path_0.scatterPdf_0 = gAccum_0[Field_0(base_17, u32(2))].w;\n    s_25.path_0.direction_1 = gAccum_0[Field_0(base_17, u32(3))].xyz;\n    s_25.path_0.lightsSampled_0 = (bitcast<u32>((gAccum_0[Field_0(base_17, u32(3))].w))) != u32(0);\n    s_25.path_0.absorption_0 = gAccum_0[Field_0(base_17, u32(4))].xyz;\n    s_25.path_0.coneWidth_2 = gAccum_0[Field_0(base_17, u32(4))].w;\n    s_25.albedo_2 = gAccum_0[Field_0(base_17, u32(5))].xyz;\n    s_25.path_0.coneSpread_0 = gAccum_0[Field_0(base_17, u32(5))].w;\n    s_25.normal_11 = gAccum_0[Field_0(base_17, u32(6))].xyz;\n    s_25.path_0.lobe_2 = u32(0);\n    return s_25"
+					],
+					[
+						554095,
+						1,
+						"6"
+					],
+					[
+						554208,
+						227,
+						"6).path_0.coneWidth_2 + (*s_26).path_0.coneSpread_0 * hit_8.t_4;\n    var si_9 : SurfaceInteraction_0 = GetSurfaceInteraction_0((*s_26).path_0.direction_1, hit_8, hitConeWidth_3);\n    var V_5 : vec3<f32> = (vec3<f32>(0) - (*s_26"
+					],
+					[
+						554528,
+						122,
+						"6) = LoadPath_1(base_18);\n    var _S478 : vec3<f32> = vec3<f32>(0.0f);\n    if((any(((((*s_26).path_0.absorption_0) > _S478"
+					],
+					[
+						554675,
+						110,
+						"6).path_0.throughput_7 = (*s_26).path_0.throughput_7 * exp((*s_26).path_0.absorption_0 * vec3<f32>(- hit_8.t_4"
+					],
+					[
+						554861,
+						76,
+						"6).path_0.throughput_7, vec3<f32>(620.0f, 540.0f, 450.0f), 1.0f);\n    (*s_26"
+					],
+					[
+						555188,
+						1,
+						"6"
+					],
+					[
+						555479,
+						1,
+						"4"
+					],
+					[
+						555581,
+						41,
+						"479 : bool = NrdEnabled_0();\n    if(_S479"
+					],
+					[
+						555645,
+						293,
+						"1 : u32 = NrdBase_0(base_18);\n        gAccum_0[r_11] = vec4<f32>((*s_26).path_0.radiance_1, (bitcast<f32>((NrdPackFraction_0(vec3<f32>(0.5f))))));\n        gAccum_0[r_11 + u32(1)] = vec4<f32>(0.0f);\n        gAccum_0[r_11 + u32(2)] = vec4<f32>(0.0f, 0.0f, 0.0f, NrdPackSurface_0(ms_5.roughness_3"
+					],
+					[
+						555988,
+						35,
+						"6).active_0 = u32(0);\n    var _S480"
+					],
+					[
+						556076,
+						223,
+						"480 = !ms_5.doubleSided_2;\n    }\n    else\n    {\n        _S480 = false;\n    }\n    if(_S480)\n    {\n        _S480 = ((ms_5.inputs_1.transmissionWeight_0) <= 0.0f);\n    }\n    else\n    {\n        _S480 = false;\n    }\n    if(_S480"
+					],
+					[
+						556367,
+						3,
+						"478"
+					],
+					[
+						556395,
 						57,
 						"6).path_0.radiance_1 = (*s_26).path_0.radiance_1 + (*s_26"
 					],
 					[
-						551308,
+						556510,
 						3,
-						"464"
+						"479"
 					],
 					[
-						551442,
+						556535,
+						198,
+						"481 : u32 = NrdBase_0(base_18);\n        var _S482 : vec3<f32> = (*s_26).path_0.radiance_1;\n        gAccum_0[_S481].x = _S482.x;\n        gAccum_0[_S481].y = _S482.y;\n        gAccum_0[_S481].z = _S482"
+					],
+					[
+						556825,
+						3,
+						"483"
+					],
+					[
+						556959,
 						157,
-						"6).randomSeed_0;\n    var _S465 : bool = ((BSDF_MaxActiveAlpha_0(bsdf_6)) >= 0.0010000000474974513f);\n    (*s_26).path_0.lightsSampled_0 = _S465;\n    if(_S465"
+						"6).randomSeed_0;\n    var _S484 : bool = ((BSDF_MaxActiveAlpha_0(bsdf_6)) >= 0.0010000000474974513f);\n    (*s_26).path_0.lightsSampled_0 = _S484;\n    if(_S484"
 					],
 					[
-						551691,
+						557208,
 						31,
 						"6).path_0.coneSpread_0), (*s_26"
 					],
 					[
-						551780,
+						557297,
 						181,
-						"4 : vec2<f32> = RandomSequence_Next2D_0(&(rng_10));\n    var _S466 : f32 = RandomSequence_Next_1(&(rng_10));\n    var bs_3 : LobeSample_0 = BSDF_Sample_0(bsdf_6, vec3<f32>(u_34, _S466"
+						"4 : vec2<f32> = RandomSequence_Next2D_0(&(rng_10));\n    var _S485 : f32 = RandomSequence_Next_1(&(rng_10));\n    var bs_3 : LobeSample_0 = BSDF_Sample_0(bsdf_6, vec3<f32>(u_34, _S485"
 					],
 					[
-						552086,
+						557603,
 						206,
-						"463 = true;\n    }\n    else\n    {\n        _S463 = ((bs_3.pdf_7) <= 0.0f);\n    }\n    if(_S463)\n    {\n        _S463 = true;\n    }\n    else\n    {\n        _S463 = (all(((weight_9 <= _S462))));\n    }\n    if(_S463"
+						"480 = true;\n    }\n    else\n    {\n        _S480 = ((bs_3.pdf_7) <= 0.0f);\n    }\n    if(_S480)\n    {\n        _S480 = true;\n    }\n    else\n    {\n        _S480 = (all(((weight_9 <= _S478))));\n    }\n    if(_S480"
 					],
 					[
-						552363,
-						1,
-						"6"
-					],
-					[
-						552437,
+						557848,
 						3,
-						"464"
+						"479"
 					],
 					[
-						552595,
+						557874,
+						1,
+						"2"
+					],
+					[
+						557984,
+						159,
+						"2][i32(3)] = (bitcast<f32>((NrdPackFraction_0(NrdDiffuseFraction_0(bs_3.weight_1)))));\n        gAccum_0[r_12 + u32(3)][i32(3)] = oct_2.x;\n        gAccum_0[r_12"
+					],
+					[
+						558220,
 						1,
 						"6"
 					],
 					[
-						552705,
-						63,
-						"467 : f32 = RandomSequence_Next_1(&(rng_10));\n        if((_S467"
+						558294,
+						3,
+						"483"
 					],
 					[
-						552971,
+						558452,
+						1,
+						"6"
+					],
+					[
+						558562,
+						63,
+						"486 : f32 = RandomSequence_Next_1(&(rng_10));\n        if((_S486"
+					],
+					[
+						558828,
 						95,
 						"6).path_0.throughput_7 = throughput_30;\n    (*s_26).path_0.direction_1 = bs_3.wi_26;\n    (*s_26"
 					],
 					[
-						553216,
+						559073,
 						1,
 						"6"
 					],
 					[
-						553342,
+						559199,
 						3,
-						"463"
+						"480"
 					],
 					[
-						553399,
+						559256,
 						3,
-						"463"
+						"480"
 					],
 					[
-						553427,
+						559284,
 						3,
-						"463"
+						"480"
 					],
 					[
-						553657,
+						559514,
 						1,
 						"6"
 					],
 					[
-						553712,
+						559569,
 						241,
-						"6).path_0.coneWidth_2 = hitConeWidth_3;\n    (*s_26).path_0.coneSpread_0 = (*s_26).path_0.coneSpread_0 + ScatterConeSpread_0(bs_3.type_0, ms_5.roughness_3);\n    (*s_26).randomSeed_0 = rng_10.seed_0;\n    (*s_26).active_0 = u32(1);\n    if(_S464"
+						"6).path_0.coneWidth_2 = hitConeWidth_3;\n    (*s_26).path_0.coneSpread_0 = (*s_26).path_0.coneSpread_0 + ScatterConeSpread_0(bs_3.type_0, ms_5.roughness_3);\n    (*s_26).randomSeed_0 = rng_10.seed_0;\n    (*s_26).active_0 = u32(1);\n    if(_S483"
 					],
 					[
-						553975,
+						559832,
 						116,
-						"468 : u32 = Field_0(base_17, u32(6));\n        gAccum_0[_S468][i32(3)] = (bitcast<f32>(((bitcast<u32>((gAccum_0[_S468"
+						"487 : u32 = Field_0(base_18, u32(6));\n        gAccum_0[_S487][i32(3)] = (bitcast<f32>(((bitcast<u32>((gAccum_0[_S487"
 					],
 					[
-						554167,
+						560024,
 						1,
 						"7"
 					],
 					[
-						554280,
+						560137,
 						228,
 						"7).path_0.coneWidth_2 + (*s_27).path_0.coneSpread_0 * hit_9.t_4;\n    var si_10 : SurfaceInteraction_0 = GetSurfaceInteraction_0((*s_27).path_0.direction_1, hit_9, hitConeWidth_4);\n    var V_6 : vec3<f32> = (vec3<f32>(0) - (*s_27"
 					],
 					[
-						554602,
+						560459,
 						122,
-						"7) = LoadPath_1(base_18);\n    var _S469 : vec3<f32> = vec3<f32>(0.0f);\n    if((any(((((*s_27).path_0.absorption_0) > _S469"
+						"7) = LoadPath_1(base_19);\n    var _S488 : vec3<f32> = vec3<f32>(0.0f);\n    if((any(((((*s_27).path_0.absorption_0) > _S488"
 					],
 					[
-						554749,
+						560606,
 						110,
 						"7).path_0.throughput_7 = (*s_27).path_0.throughput_7 * exp((*s_27).path_0.absorption_0 * vec3<f32>(- hit_9.t_4"
 					],
 					[
-						554935,
+						560792,
 						79,
-						"7).path_0.throughput_7, vec3<f32>(620.0f, 540.0f, 450.0f), 1.0f);\n    var _S470"
+						"7).path_0.throughput_7, vec3<f32>(620.0f, 540.0f, 450.0f), 1.0f);\n    var _S489"
 					],
 					[
-						555088,
+						560945,
 						3,
-						"470"
+						"489"
 					],
 					[
-						555112,
+						560969,
 						1,
 						"7"
 					],
 					[
-						555366,
+						561223,
 						1,
 						"7"
 					],
 					[
-						555677,
+						561534,
 						1,
 						"4"
 					],
 					[
-						555792,
+						561690,
+						305,
+						"3 : u32 = NrdBase_0(base_19);\n            gAccum_0[r_13] = vec4<f32>((*s_27).path_0.radiance_1, (bitcast<f32>((NrdPackFraction_0(vec3<f32>(0.5f))))));\n            gAccum_0[r_13 + u32(1)] = vec4<f32>(0.0f);\n            gAccum_0[r_13 + u32(2)] = vec4<f32>(0.0f, 0.0f, 0.0f, NrdPackSurface_0(ms_6.roughness_3"
+					],
+					[
+						562055,
 						35,
-						"7).active_0 = u32(0);\n    var _S471"
+						"7).active_0 = u32(0);\n    var _S490"
 					],
 					[
-						555881,
+						562144,
 						223,
-						"471 = !ms_6.doubleSided_2;\n    }\n    else\n    {\n        _S471 = false;\n    }\n    if(_S471)\n    {\n        _S471 = ((ms_6.inputs_1.transmissionWeight_0) <= 0.0f);\n    }\n    else\n    {\n        _S471 = false;\n    }\n    if(_S471"
+						"490 = !ms_6.doubleSided_2;\n    }\n    else\n    {\n        _S490 = false;\n    }\n    if(_S490)\n    {\n        _S490 = ((ms_6.inputs_1.transmissionWeight_0) <= 0.0f);\n    }\n    else\n    {\n        _S490 = false;\n    }\n    if(_S490"
 					],
 					[
-						556202,
+						562465,
 						3,
-						"469"
+						"488"
 					],
 					[
-						556231,
+						562494,
 						37,
-						"472 : bool = !_S470;\n        if(_S472"
+						"491 : bool = !_S489;\n        if(_S491"
 					],
 					[
-						556294,
+						562557,
 						12,
-						"471 = (*s_27"
+						"490 = (*s_27"
 					],
 					[
-						556379,
-						3,
-						"471"
-					],
-					[
-						556415,
-						3,
-						"471"
-					],
-					[
-						556480,
-						94,
-						"7).path_0.scatterPdf_0, EmissiveHitPdf_0(si_10.instanceIndex_0, si_10.primitiveIndex_0, (*s_27"
-					],
-					[
-						556737,
-						1,
-						"7"
-					],
-					[
-						556949,
-						11,
-						"471 = _S472"
-					],
-					[
-						557009,
-						3,
-						"471"
-					],
-					[
-						557045,
-						3,
-						"471"
-					],
-					[
-						557234,
-						29,
-						"7).path_0.radiance_1 = (*s_27"
-					],
-					[
-						557388,
-						245,
-						"473 : bool = SharcEnabled_0();\n    if(_S473)\n    {\n        _S471 = !_S470;\n    }\n    else\n    {\n        _S471 = false;\n    }\n    if(_S471)\n    {\n        _S471 = SharcSurface_0(ms_6);\n    }\n    else\n    {\n        _S471 = false;\n    }\n    if(_S471"
-					],
-					[
-						557920,
-						210,
-						"15 : u32 = base_18 - WorkBase_0(u32(0));\n        var _S474 : bool = SharcMakeKey_0(si_10.position_0, throughput_32, V_6, si_10.materialIndex_1, si_10.instanceIndex_0, &(key_7), &(voxelSize_3));\n        if(_S474"
-					],
-					[
-						558181,
-						2,
-						"15"
-					],
-					[
-						558262,
-						54,
-						"15, bounce_6, key_7, (*s_27).path_0.radiance_1, (*s_27"
-					],
-					[
-						558414,
-						638,
-						"4) > (voxelSize_3 * sqrt(3.0f))))\n                {\n                    _S471 = (hitConeWidth_4 > voxelSize_3);\n                }\n                else\n                {\n                    _S471 = false;\n                }\n                if(_S471)\n                {\n                    _S471 = (((*s_27).path_0.coneSpread_0) >= 0.05000000074505806f);\n                }\n                else\n                {\n                    _S471 = false;\n                }\n                if(_S471)\n                {\n                    var _S475 : u32 = Field_0(base_18, u32(6));\n                    var state_3 : u32 = (bitcast<u32>((gAccum_0[_S475"
-					],
-					[
-						559221,
-						3,
-						"476"
-					],
-					[
-						559313,
-						3,
-						"476"
-					],
-					[
-						559424,
-						3,
-						"476"
-					],
-					[
-						559491,
-						47,
-						"475][i32(3)] = (bitcast<f32>(((state_3 | (_S476"
-					],
-					[
-						559629,
-						57,
-						"7).path_0.radiance_1 = (*s_27).path_0.radiance_1 + (*s_27"
-					],
-					[
-						559925,
-						157,
-						"7).randomSeed_0;\n    var _S477 : bool = ((BSDF_MaxActiveAlpha_0(bsdf_7)) >= 0.0010000000474974513f);\n    (*s_27).path_0.lightsSampled_0 = _S477;\n    if(_S477"
-					],
-					[
-						560175,
-						59,
-						"7).path_0.coneSpread_0), (*s_27).path_0.throughput_7, _S470"
-					],
-					[
-						560265,
-						181,
-						"5 : vec2<f32> = RandomSequence_Next2D_0(&(rng_11));\n    var _S478 : f32 = RandomSequence_Next_1(&(rng_11));\n    var bs_4 : LobeSample_0 = BSDF_Sample_0(bsdf_7, vec3<f32>(u_35, _S478"
-					],
-					[
-						560572,
-						207,
-						"471 = true;\n    }\n    else\n    {\n        _S471 = ((bs_4.pdf_7) <= 0.0f);\n    }\n    if(_S471)\n    {\n        _S471 = true;\n    }\n    else\n    {\n        _S471 = (all(((weight_10 <= _S469))));\n    }\n    if(_S471"
-					],
-					[
-						560850,
-						48,
-						"7).path_0.throughput_7 * weight_10;\n    if(_S473"
-					],
-					[
-						560916,
-						11,
-						"471 = _S470"
-					],
-					[
-						560960,
-						3,
-						"471"
-					],
-					[
-						560988,
-						3,
-						"471"
-					],
-					[
-						561146,
-						1,
-						"7"
-					],
-					[
-						561256,
-						63,
-						"479 : f32 = RandomSequence_Next_1(&(rng_11));\n        if((_S479"
-					],
-					[
-						561522,
-						95,
-						"7).path_0.throughput_7 = throughput_32;\n    (*s_27).path_0.direction_1 = bs_4.wi_26;\n    (*s_27"
-					],
-					[
-						561769,
-						1,
-						"7"
-					],
-					[
-						561896,
-						3,
-						"471"
-					],
-					[
-						561953,
-						3,
-						"471"
-					],
-					[
-						561981,
-						3,
-						"471"
-					],
-					[
-						562212,
-						1,
-						"7"
-					],
-					[
-						562267,
-						241,
-						"7).path_0.coneWidth_2 = hitConeWidth_4;\n    (*s_27).path_0.coneSpread_0 = (*s_27).path_0.coneSpread_0 + ScatterConeSpread_0(bs_4.type_0, ms_6.roughness_3);\n    (*s_27).randomSeed_0 = rng_11.seed_0;\n    (*s_27).active_0 = u32(1);\n    if(_S473"
-					],
-					[
-						562530,
-						116,
-						"480 : u32 = Field_0(base_18, u32(6));\n        gAccum_0[_S480][i32(3)] = (bitcast<f32>(((bitcast<u32>((gAccum_0[_S480"
-					],
-					[
-						562722,
-						1,
-						"8"
-					],
-					[
-						562810,
-						86,
-						"481 : vec3<f32> = vec3<f32>(0.0f);\n    if((any(((((*s_28).path_0.absorption_0) > _S481"
-					],
-					[
-						562921,
-						111,
-						"8).path_0.throughput_7 = (*s_28).path_0.throughput_7 * exp((*s_28).path_0.absorption_0 * vec3<f32>(- hit_10.t_4"
-					],
-					[
-						563078,
-						230,
-						"8).path_0.coneWidth_2 + (*s_28).path_0.coneSpread_0 * hit_10.t_4;\n    var si_11 : SurfaceInteraction_0 = GetSurfaceInteraction_0((*s_28).path_0.direction_1, hit_10, hitConeWidth_5);\n    var V_7 : vec3<f32> = (vec3<f32>(0) - (*s_28"
-					],
-					[
-						563459,
-						110,
-						"8).path_0.throughput_7, vec3<f32>(620.0f, 540.0f, 450.0f), 1.0f);\n    (*s_28).active_0 = u32(0);\n    var _S482"
-					],
-					[
-						563623,
-						223,
-						"482 = !ms_7.doubleSided_2;\n    }\n    else\n    {\n        _S482 = false;\n    }\n    if(_S482)\n    {\n        _S482 = ((ms_7.inputs_1.transmissionWeight_0) <= 0.0f);\n    }\n    else\n    {\n        _S482 = false;\n    }\n    if(_S482"
-					],
-					[
-						563949,
-						3,
-						"481"
-					],
-					[
-						564005,
-						1,
-						"8"
-					],
-					[
-						564083,
-						94,
-						"8).path_0.scatterPdf_0, EmissiveHitPdf_0(si_11.instanceIndex_0, si_11.primitiveIndex_0, (*s_28"
-					],
-					[
-						564331,
-						1,
-						"8"
-					],
-					[
-						564490,
-						52,
-						"483 : bool = (clampValue_6 > 0.0f);\n        if(_S483"
-					],
-					[
-						564728,
-						29,
-						"8).path_0.radiance_1 = (*s_28"
-					],
-					[
-						564882,
-						43,
-						"484 : bool = SharcEnabled_0();\n    if(_S484"
-					],
-					[
-						564943,
-						3,
-						"482"
-					],
-					[
-						565002,
-						3,
-						"482"
-					],
-					[
-						565030,
-						3,
-						"482"
-					],
-					[
-						565320,
-						210,
-						"16 : u32 = base_19 - WorkBase_0(u32(0));\n        var _S485 : bool = SharcMakeKey_0(si_11.position_0, throughput_34, V_7, si_11.materialIndex_1, si_11.instanceIndex_0, &(key_8), &(voxelSize_4));\n        if(_S485"
-					],
-					[
-						565581,
-						2,
-						"16"
-					],
-					[
-						565662,
-						54,
-						"16, bounce_7, key_8, (*s_28).path_0.radiance_1, (*s_28"
-					],
-					[
-						565815,
-						638,
-						"4) > (voxelSize_4 * sqrt(3.0f))))\n                {\n                    _S482 = (hitConeWidth_5 > voxelSize_4);\n                }\n                else\n                {\n                    _S482 = false;\n                }\n                if(_S482)\n                {\n                    _S482 = (((*s_28).path_0.coneSpread_0) >= 0.05000000074505806f);\n                }\n                else\n                {\n                    _S482 = false;\n                }\n                if(_S482)\n                {\n                    var _S486 : u32 = Field_0(base_19, u32(6));\n                    var state_4 : u32 = (bitcast<u32>((gAccum_0[_S486"
-					],
-					[
-						566622,
-						3,
-						"487"
-					],
-					[
-						566714,
-						3,
-						"487"
-					],
-					[
-						566825,
-						3,
-						"487"
-					],
-					[
-						566892,
-						47,
-						"486][i32(3)] = (bitcast<f32>(((state_4 | (_S487"
-					],
-					[
-						567030,
-						57,
-						"8).path_0.radiance_1 = (*s_28).path_0.radiance_1 + (*s_28"
-					],
-					[
-						567326,
-						157,
-						"8).randomSeed_0;\n    var _S488 : bool = ((BSDF_MaxActiveAlpha_0(bsdf_8)) >= 0.0010000000474974513f);\n    (*s_28).path_0.lightsSampled_0 = _S488;\n    if(_S488"
-					],
-					[
-						567576,
-						31,
-						"8).path_0.coneSpread_0), (*s_28"
-					],
-					[
-						567666,
-						181,
-						"6 : vec2<f32> = RandomSequence_Next2D_0(&(rng_12));\n    var _S489 : f32 = RandomSequence_Next_1(&(rng_12));\n    var bs_5 : LobeSample_0 = BSDF_Sample_0(bsdf_8, vec3<f32>(u_36, _S489"
-					],
-					[
-						567973,
-						207,
-						"482 = true;\n    }\n    else\n    {\n        _S482 = ((bs_5.pdf_7) <= 0.0f);\n    }\n    if(_S482)\n    {\n        _S482 = true;\n    }\n    else\n    {\n        _S482 = (all(((weight_11 <= _S481))));\n    }\n    if(_S482"
-					],
-					[
-						568251,
-						193,
-						"8).path_0.throughput_7 * weight_11;\n    var _S490 : f32 = sqrt(saturate(MaxComponent_0(throughput_35) / max(MaxComponent_0((*s_28).path_0.throughput_7), 9.999999960041972e-13f)));\n    if((_S490"
-					],
-					[
-						568474,
-						72,
-						"491 : f32 = RandomSequence_Next_1(&(rng_12));\n        if((_S491 >= _S490"
-					],
-					[
-						568641,
+						562642,
 						3,
 						"490"
 					],
 					[
-						568722,
+						562678,
+						3,
+						"490"
+					],
+					[
+						562743,
+						94,
+						"7).path_0.scatterPdf_0, EmissiveHitPdf_0(si_10.instanceIndex_0, si_10.primitiveIndex_0, (*s_27"
+					],
+					[
+						563000,
+						1,
+						"7"
+					],
+					[
+						563212,
+						11,
+						"490 = _S491"
+					],
+					[
+						563272,
+						3,
+						"490"
+					],
+					[
+						563308,
+						3,
+						"490"
+					],
+					[
+						563497,
+						29,
+						"7).path_0.radiance_1 = (*s_27"
+					],
+					[
+						563578,
+						3,
+						"489"
+					],
+					[
+						563599,
+						3,
+						"490"
+					],
+					[
+						563652,
+						3,
+						"490"
+					],
+					[
+						563680,
+						3,
+						"490"
+					],
+					[
+						563705,
+						198,
+						"492 : u32 = NrdBase_0(base_19);\n        var _S493 : vec3<f32> = (*s_27).path_0.radiance_1;\n        gAccum_0[_S492].x = _S493.x;\n        gAccum_0[_S492].y = _S493.y;\n        gAccum_0[_S492].z = _S493"
+					],
+					[
+						563995,
+						245,
+						"494 : bool = SharcEnabled_0();\n    if(_S494)\n    {\n        _S490 = !_S489;\n    }\n    else\n    {\n        _S490 = false;\n    }\n    if(_S490)\n    {\n        _S490 = SharcSurface_0(ms_6);\n    }\n    else\n    {\n        _S490 = false;\n    }\n    if(_S490"
+					],
+					[
+						564527,
+						210,
+						"15 : u32 = base_19 - WorkBase_0(u32(0));\n        var _S495 : bool = SharcMakeKey_0(si_10.position_0, throughput_32, V_6, si_10.materialIndex_1, si_10.instanceIndex_0, &(key_7), &(voxelSize_3));\n        if(_S495"
+					],
+					[
+						564788,
+						2,
+						"15"
+					],
+					[
+						564869,
+						54,
+						"15, bounce_6, key_7, (*s_27).path_0.radiance_1, (*s_27"
+					],
+					[
+						565021,
+						638,
+						"4) > (voxelSize_3 * sqrt(3.0f))))\n                {\n                    _S490 = (hitConeWidth_4 > voxelSize_3);\n                }\n                else\n                {\n                    _S490 = false;\n                }\n                if(_S490)\n                {\n                    _S490 = (((*s_27).path_0.coneSpread_0) >= 0.05000000074505806f);\n                }\n                else\n                {\n                    _S490 = false;\n                }\n                if(_S490)\n                {\n                    var _S496 : u32 = Field_0(base_19, u32(6));\n                    var state_3 : u32 = (bitcast<u32>((gAccum_0[_S496"
+					],
+					[
+						565828,
+						3,
+						"497"
+					],
+					[
+						565920,
+						3,
+						"497"
+					],
+					[
+						566031,
+						3,
+						"497"
+					],
+					[
+						566098,
+						47,
+						"496][i32(3)] = (bitcast<f32>(((state_3 | (_S497"
+					],
+					[
+						566236,
+						57,
+						"7).path_0.radiance_1 = (*s_27).path_0.radiance_1 + (*s_27"
+					],
+					[
+						566532,
+						157,
+						"7).randomSeed_0;\n    var _S498 : bool = ((BSDF_MaxActiveAlpha_0(bsdf_7)) >= 0.0010000000474974513f);\n    (*s_27).path_0.lightsSampled_0 = _S498;\n    if(_S498"
+					],
+					[
+						566782,
+						59,
+						"7).path_0.coneSpread_0), (*s_27).path_0.throughput_7, _S489"
+					],
+					[
+						566872,
+						181,
+						"5 : vec2<f32> = RandomSequence_Next2D_0(&(rng_11));\n    var _S499 : f32 = RandomSequence_Next_1(&(rng_11));\n    var bs_4 : LobeSample_0 = BSDF_Sample_0(bsdf_7, vec3<f32>(u_35, _S499"
+					],
+					[
+						567179,
+						207,
+						"490 = true;\n    }\n    else\n    {\n        _S490 = ((bs_4.pdf_7) <= 0.0f);\n    }\n    if(_S490)\n    {\n        _S490 = true;\n    }\n    else\n    {\n        _S490 = (all(((weight_10 <= _S488))));\n    }\n    if(_S490"
+					],
+					[
+						567425,
+						3,
+						"489"
+					],
+					[
+						567446,
+						3,
+						"490"
+					],
+					[
+						567499,
+						3,
+						"490"
+					],
+					[
+						567527,
+						3,
+						"490"
+					],
+					[
+						567553,
+						1,
+						"4"
+					],
+					[
+						567663,
+						159,
+						"4][i32(3)] = (bitcast<f32>((NrdPackFraction_0(NrdDiffuseFraction_0(bs_4.weight_1)))));\n        gAccum_0[r_14 + u32(3)][i32(3)] = oct_3.x;\n        gAccum_0[r_14"
+					],
+					[
+						567899,
+						48,
+						"7).path_0.throughput_7 * weight_10;\n    if(_S494"
+					],
+					[
+						567965,
+						11,
+						"490 = _S489"
+					],
+					[
+						568009,
+						3,
+						"490"
+					],
+					[
+						568037,
+						3,
+						"490"
+					],
+					[
+						568195,
+						1,
+						"7"
+					],
+					[
+						568306,
+						62,
+						"00 : f32 = RandomSequence_Next_1(&(rng_11));\n        if((_S500"
+					],
+					[
+						568571,
+						95,
+						"7).path_0.throughput_7 = throughput_32;\n    (*s_27).path_0.direction_1 = bs_4.wi_26;\n    (*s_27"
+					],
+					[
+						568818,
+						1,
+						"7"
+					],
+					[
+						568945,
+						3,
+						"490"
+					],
+					[
+						569002,
+						3,
+						"490"
+					],
+					[
+						569030,
+						3,
+						"490"
+					],
+					[
+						569261,
+						1,
+						"7"
+					],
+					[
+						569316,
+						241,
+						"7).path_0.coneWidth_2 = hitConeWidth_4;\n    (*s_27).path_0.coneSpread_0 = (*s_27).path_0.coneSpread_0 + ScatterConeSpread_0(bs_4.type_0, ms_6.roughness_3);\n    (*s_27).randomSeed_0 = rng_11.seed_0;\n    (*s_27).active_0 = u32(1);\n    if(_S494"
+					],
+					[
+						569580,
+						115,
+						"01 : u32 = Field_0(base_19, u32(6));\n        gAccum_0[_S501][i32(3)] = (bitcast<f32>(((bitcast<u32>((gAccum_0[_S501"
+					],
+					[
+						569771,
+						1,
+						"8"
+					],
+					[
+						569860,
+						85,
+						"02 : vec3<f32> = vec3<f32>(0.0f);\n    if((any(((((*s_28).path_0.absorption_0) > _S502"
+					],
+					[
+						569970,
+						111,
+						"8).path_0.throughput_7 = (*s_28).path_0.throughput_7 * exp((*s_28).path_0.absorption_0 * vec3<f32>(- hit_10.t_4"
+					],
+					[
+						570127,
+						230,
+						"8).path_0.coneWidth_2 + (*s_28).path_0.coneSpread_0 * hit_10.t_4;\n    var si_11 : SurfaceInteraction_0 = GetSurfaceInteraction_0((*s_28).path_0.direction_1, hit_10, hitConeWidth_5);\n    var V_7 : vec3<f32> = (vec3<f32>(0) - (*s_28"
+					],
+					[
+						570508,
+						110,
+						"8).path_0.throughput_7, vec3<f32>(620.0f, 540.0f, 450.0f), 1.0f);\n    (*s_28).active_0 = u32(0);\n    var _S503"
+					],
+					[
+						570673,
+						222,
+						"03 = !ms_7.doubleSided_2;\n    }\n    else\n    {\n        _S503 = false;\n    }\n    if(_S503)\n    {\n        _S503 = ((ms_7.inputs_1.transmissionWeight_0) <= 0.0f);\n    }\n    else\n    {\n        _S503 = false;\n    }\n    if(_S503"
+					],
+					[
+						570999,
+						2,
+						"02"
+					],
+					[
+						571054,
+						1,
+						"8"
+					],
+					[
+						571132,
+						94,
+						"8).path_0.scatterPdf_0, EmissiveHitPdf_0(si_11.instanceIndex_0, si_11.primitiveIndex_0, (*s_28"
+					],
+					[
+						571380,
+						1,
+						"8"
+					],
+					[
+						571540,
+						51,
+						"04 : bool = (clampValue_6 > 0.0f);\n        if(_S504"
+					],
+					[
+						571777,
+						29,
+						"8).path_0.radiance_1 = (*s_28"
+					],
+					[
+						571932,
+						42,
+						"05 : bool = SharcEnabled_0();\n    if(_S505"
+					],
+					[
+						571993,
+						2,
+						"03"
+					],
+					[
+						572052,
+						2,
+						"03"
+					],
+					[
+						572080,
+						2,
+						"03"
+					],
+					[
+						572369,
+						210,
+						"16 : u32 = base_20 - WorkBase_0(u32(0));\n        var _S506 : bool = SharcMakeKey_0(si_11.position_0, throughput_34, V_7, si_11.materialIndex_1, si_11.instanceIndex_0, &(key_8), &(voxelSize_4));\n        if(_S506"
+					],
+					[
+						572630,
+						2,
+						"16"
+					],
+					[
+						572711,
+						54,
+						"16, bounce_7, key_8, (*s_28).path_0.radiance_1, (*s_28"
+					],
+					[
+						572864,
+						638,
+						"4) > (voxelSize_4 * sqrt(3.0f))))\n                {\n                    _S503 = (hitConeWidth_5 > voxelSize_4);\n                }\n                else\n                {\n                    _S503 = false;\n                }\n                if(_S503)\n                {\n                    _S503 = (((*s_28).path_0.coneSpread_0) >= 0.05000000074505806f);\n                }\n                else\n                {\n                    _S503 = false;\n                }\n                if(_S503)\n                {\n                    var _S507 : u32 = Field_0(base_20, u32(6));\n                    var state_4 : u32 = (bitcast<u32>((gAccum_0[_S507"
+					],
+					[
+						573672,
+						2,
+						"08"
+					],
+					[
+						573764,
+						2,
+						"08"
+					],
+					[
+						573875,
+						2,
+						"08"
+					],
+					[
+						573942,
+						46,
+						"07][i32(3)] = (bitcast<f32>(((state_4 | (_S508"
+					],
+					[
+						574079,
+						57,
+						"8).path_0.radiance_1 = (*s_28).path_0.radiance_1 + (*s_28"
+					],
+					[
+						574375,
+						157,
+						"8).randomSeed_0;\n    var _S509 : bool = ((BSDF_MaxActiveAlpha_0(bsdf_8)) >= 0.0010000000474974513f);\n    (*s_28).path_0.lightsSampled_0 = _S509;\n    if(_S509"
+					],
+					[
+						574625,
+						31,
+						"8).path_0.coneSpread_0), (*s_28"
+					],
+					[
+						574715,
+						181,
+						"6 : vec2<f32> = RandomSequence_Next2D_0(&(rng_12));\n    var _S510 : f32 = RandomSequence_Next_1(&(rng_12));\n    var bs_5 : LobeSample_0 = BSDF_Sample_0(bsdf_8, vec3<f32>(u_36, _S510"
+					],
+					[
+						575023,
+						206,
+						"03 = true;\n    }\n    else\n    {\n        _S503 = ((bs_5.pdf_7) <= 0.0f);\n    }\n    if(_S503)\n    {\n        _S503 = true;\n    }\n    else\n    {\n        _S503 = (all(((weight_11 <= _S502))));\n    }\n    if(_S503"
+					],
+					[
+						575300,
+						193,
+						"8).path_0.throughput_7 * weight_11;\n    var _S511 : f32 = sqrt(saturate(MaxComponent_0(throughput_35) / max(MaxComponent_0((*s_28).path_0.throughput_7), 9.999999960041972e-13f)));\n    if((_S511"
+					],
+					[
+						575523,
+						72,
+						"512 : f32 = RandomSequence_Next_1(&(rng_12));\n        if((_S512 >= _S511"
+					],
+					[
+						575691,
+						2,
+						"11"
+					],
+					[
+						575771,
 						95,
 						"8).path_0.throughput_7 = throughput_34;\n    (*s_28).path_0.direction_1 = bs_5.wi_26;\n    (*s_28"
 					],
 					[
-						568969,
+						576018,
 						1,
 						"8"
 					],
 					[
-						569096,
-						3,
-						"482"
+						576146,
+						2,
+						"03"
 					],
 					[
-						569153,
-						3,
-						"482"
+						576203,
+						2,
+						"03"
 					],
 					[
-						569181,
-						3,
-						"482"
+						576231,
+						2,
+						"03"
 					],
 					[
-						569412,
+						576461,
 						1802,
-						"8).path_0.absorption_0 = throughput_34;\n    }\n    (*s_28).path_0.coneWidth_2 = hitConeWidth_5;\n    (*s_28).path_0.coneSpread_0 = (*s_28).path_0.coneSpread_0 + ScatterConeSpread_0(bs_5.type_0, ms_7.roughness_3);\n    (*s_28).randomSeed_0 = rng_12.seed_0;\n    (*s_28).active_0 = u32(1);\n    if(_S484)\n    {\n        var _S492 : u32 = Field_0(base_19, u32(6));\n        gAccum_0[_S492][i32(3)] = (bitcast<f32>(((bitcast<u32>((gAccum_0[_S492].w))) + u32(1))));\n    }\n    return;\n}\n\nfn StorePath_0( base_20 : u32,  s_29 : WavefrontPath_0)\n{\n    gAccum_0[base_20] = vec4<f32>(s_29.path_0.radiance_1, (bitcast<f32>((s_29.active_0))));\n    gAccum_0[Field_0(base_20, u32(1))] = vec4<f32>(s_29.path_0.throughput_7, (bitcast<f32>((s_29.randomSeed_0))));\n    gAccum_0[Field_0(base_20, u32(2))] = vec4<f32>(s_29.path_0.origin_3, s_29.path_0.scatterPdf_0);\n    gAccum_0[Field_0(base_20, u32(3))] = vec4<f32>(s_29.path_0.direction_1, (bitcast<f32>((select(u32(0), u32(1), s_29.path_0.lightsSampled_0)))));\n    gAccum_0[Field_0(base_20, u32(4))] = vec4<f32>(s_29.path_0.absorption_0, s_29.path_0.coneWidth_2);\n    gAccum_0[Field_0(base_20, u32(5))][i32(3)] = s_29.path_0.coneSpread_0;\n    return;\n}\n\nfn ShadePath_6( base_21 : u32,  s_30 : ptr<function, WavefrontPath_0>,  hit_11 : HitRecord_0,  bounce_8 : u32)\n{\n    var _S493 : vec3<f32> = vec3<f32>(0.0f);\n    if((any(((((*s_30).path_0.absorption_0) > _S493)))))\n    {\n        (*s_30).path_0.throughput_7 = (*s_30).path_0.throughput_7 * exp((*s_30).path_0.absorption_0 * vec3<f32>(- hit_11.t_4));\n    }\n    var hitConeWidth_6 : f32 = (*s_30).path_0.coneWidth_2 + (*s_30).path_0.coneSpread_0 * hit_11.t_4;\n    var si_12 : SurfaceInteraction_0 = GetSurfaceInteraction_0((*s_30).path_0.direction_1, hit_11, hitConeWidth_6);\n    var V_8 : vec3<f32> = (vec3<f32>(0) - (*s_30"
+						"8).path_0.absorption_0 = throughput_34;\n    }\n    (*s_28).path_0.coneWidth_2 = hitConeWidth_5;\n    (*s_28).path_0.coneSpread_0 = (*s_28).path_0.coneSpread_0 + ScatterConeSpread_0(bs_5.type_0, ms_7.roughness_3);\n    (*s_28).randomSeed_0 = rng_12.seed_0;\n    (*s_28).active_0 = u32(1);\n    if(_S505)\n    {\n        var _S513 : u32 = Field_0(base_20, u32(6));\n        gAccum_0[_S513][i32(3)] = (bitcast<f32>(((bitcast<u32>((gAccum_0[_S513].w))) + u32(1))));\n    }\n    return;\n}\n\nfn StorePath_0( base_21 : u32,  s_29 : WavefrontPath_0)\n{\n    gAccum_0[base_21] = vec4<f32>(s_29.path_0.radiance_1, (bitcast<f32>((s_29.active_0))));\n    gAccum_0[Field_0(base_21, u32(1))] = vec4<f32>(s_29.path_0.throughput_7, (bitcast<f32>((s_29.randomSeed_0))));\n    gAccum_0[Field_0(base_21, u32(2))] = vec4<f32>(s_29.path_0.origin_3, s_29.path_0.scatterPdf_0);\n    gAccum_0[Field_0(base_21, u32(3))] = vec4<f32>(s_29.path_0.direction_1, (bitcast<f32>((select(u32(0), u32(1), s_29.path_0.lightsSampled_0)))));\n    gAccum_0[Field_0(base_21, u32(4))] = vec4<f32>(s_29.path_0.absorption_0, s_29.path_0.coneWidth_2);\n    gAccum_0[Field_0(base_21, u32(5))][i32(3)] = s_29.path_0.coneSpread_0;\n    return;\n}\n\nfn ShadePath_6( base_22 : u32,  s_30 : ptr<function, WavefrontPath_0>,  hit_11 : HitRecord_0,  bounce_8 : u32)\n{\n    var _S514 : vec3<f32> = vec3<f32>(0.0f);\n    if((any(((((*s_30).path_0.absorption_0) > _S514)))))\n    {\n        (*s_30).path_0.throughput_7 = (*s_30).path_0.throughput_7 * exp((*s_30).path_0.absorption_0 * vec3<f32>(- hit_11.t_4));\n    }\n    var hitConeWidth_6 : f32 = (*s_30).path_0.coneWidth_2 + (*s_30).path_0.coneSpread_0 * hit_11.t_4;\n    var si_12 : SurfaceInteraction_0 = GetSurfaceInteraction_0((*s_30).path_0.direction_1, hit_11, hitConeWidth_6);\n    var V_8 : vec3<f32> = (vec3<f32>(0) - (*s_30"
 					],
 					[
-						571365,
+						578414,
 						76,
 						"0).path_0.throughput_7, vec3<f32>(620.0f, 540.0f, 450.0f), 1.0f);\n    (*s_30"
 					],
 					[
-						571693,
+						578742,
 						1,
 						"0"
 					],
 					[
-						571985,
+						579034,
 						1,
 						"4"
 					],
 					[
-						572087,
+						579137,
+						41,
+						"515 : bool = NrdEnabled_0();\n    if(_S515"
+					],
+					[
+						579201,
+						293,
+						"5 : u32 = NrdBase_0(base_22);\n        gAccum_0[r_15] = vec4<f32>((*s_30).path_0.radiance_1, (bitcast<f32>((NrdPackFraction_0(vec3<f32>(0.5f))))));\n        gAccum_0[r_15 + u32(1)] = vec4<f32>(0.0f);\n        gAccum_0[r_15 + u32(2)] = vec4<f32>(0.0f, 0.0f, 0.0f, NrdPackSurface_0(ms_8.roughness_3"
+					],
+					[
+						579544,
 						35,
-						"0).active_0 = u32(0);\n    var _S494"
+						"0).active_0 = u32(0);\n    var _S516"
 					],
 					[
-						572176,
+						579633,
 						223,
-						"494 = !ms_8.doubleSided_2;\n    }\n    else\n    {\n        _S494 = false;\n    }\n    if(_S494)\n    {\n        _S494 = ((ms_8.inputs_1.transmissionWeight_0) <= 0.0f);\n    }\n    else\n    {\n        _S494 = false;\n    }\n    if(_S494"
+						"516 = !ms_8.doubleSided_2;\n    }\n    else\n    {\n        _S516 = false;\n    }\n    if(_S516)\n    {\n        _S516 = ((ms_8.inputs_1.transmissionWeight_0) <= 0.0f);\n    }\n    else\n    {\n        _S516 = false;\n    }\n    if(_S516"
 					],
 					[
-						572467,
+						579924,
 						3,
-						"493"
+						"514"
 					],
 					[
-						572495,
+						579952,
 						57,
 						"0).path_0.radiance_1 = (*s_30).path_0.radiance_1 + (*s_30"
 					],
 					[
-						572683,
+						580067,
 						3,
-						"495"
+						"515"
 					],
 					[
-						572817,
+						580092,
+						198,
+						"517 : u32 = NrdBase_0(base_22);\n        var _S518 : vec3<f32> = (*s_30).path_0.radiance_1;\n        gAccum_0[_S517].x = _S518.x;\n        gAccum_0[_S517].y = _S518.y;\n        gAccum_0[_S517].z = _S518"
+					],
+					[
+						580382,
+						3,
+						"519"
+					],
+					[
+						580516,
 						157,
-						"0).randomSeed_0;\n    var _S496 : bool = ((BSDF_MaxActiveAlpha_0(bsdf_9)) >= 0.0010000000474974513f);\n    (*s_30).path_0.lightsSampled_0 = _S496;\n    if(_S496"
+						"0).randomSeed_0;\n    var _S520 : bool = ((BSDF_MaxActiveAlpha_0(bsdf_9)) >= 0.0010000000474974513f);\n    (*s_30).path_0.lightsSampled_0 = _S520;\n    if(_S520"
 					],
 					[
-						573067,
+						580766,
 						31,
 						"0).path_0.coneSpread_0), (*s_30"
 					],
 					[
-						573156,
+						580855,
 						181,
-						"7 : vec2<f32> = RandomSequence_Next2D_0(&(rng_13));\n    var _S497 : f32 = RandomSequence_Next_1(&(rng_13));\n    var bs_6 : LobeSample_0 = BSDF_Sample_0(bsdf_9, vec3<f32>(u_37, _S497"
+						"7 : vec2<f32> = RandomSequence_Next2D_0(&(rng_13));\n    var _S521 : f32 = RandomSequence_Next_1(&(rng_13));\n    var bs_6 : LobeSample_0 = BSDF_Sample_0(bsdf_9, vec3<f32>(u_37, _S521"
 					],
 					[
-						573463,
+						581162,
 						207,
-						"494 = true;\n    }\n    else\n    {\n        _S494 = ((bs_6.pdf_7) <= 0.0f);\n    }\n    if(_S494)\n    {\n        _S494 = true;\n    }\n    else\n    {\n        _S494 = (all(((weight_12 <= _S493))));\n    }\n    if(_S494"
+						"516 = true;\n    }\n    else\n    {\n        _S516 = ((bs_6.pdf_7) <= 0.0f);\n    }\n    if(_S516)\n    {\n        _S516 = true;\n    }\n    else\n    {\n        _S516 = (all(((weight_12 <= _S514))));\n    }\n    if(_S516"
 					],
 					[
-						573741,
-						1,
-						"0"
-					],
-					[
-						573816,
+						581408,
 						3,
-						"495"
+						"515"
 					],
 					[
-						573974,
+						581434,
+						1,
+						"6"
+					],
+					[
+						581544,
+						159,
+						"6][i32(3)] = (bitcast<f32>((NrdPackFraction_0(NrdDiffuseFraction_0(bs_6.weight_1)))));\n        gAccum_0[r_16 + u32(3)][i32(3)] = oct_4.x;\n        gAccum_0[r_16"
+					],
+					[
+						581780,
 						1,
 						"0"
 					],
 					[
-						574084,
-						63,
-						"498 : f32 = RandomSequence_Next_1(&(rng_13));\n        if((_S498"
+						581855,
+						3,
+						"519"
 					],
 					[
-						574350,
+						582013,
+						1,
+						"0"
+					],
+					[
+						582123,
+						63,
+						"522 : f32 = RandomSequence_Next_1(&(rng_13));\n        if((_S522"
+					],
+					[
+						582389,
 						95,
 						"0).path_0.throughput_7 = throughput_36;\n    (*s_30).path_0.direction_1 = bs_6.wi_26;\n    (*s_30"
 					],
 					[
-						574597,
+						582636,
 						1,
 						"0"
 					],
 					[
-						574724,
-						3,
-						"494"
-					],
-					[
-						574781,
-						3,
-						"494"
-					],
-					[
-						574809,
-						3,
-						"494"
-					],
-					[
-						575040,
-						1,
-						"0"
-					],
-					[
-						575095,
-						241,
-						"0).path_0.coneWidth_2 = hitConeWidth_6;\n    (*s_30).path_0.coneSpread_0 = (*s_30).path_0.coneSpread_0 + ScatterConeSpread_0(bs_6.type_0, ms_8.roughness_3);\n    (*s_30).randomSeed_0 = rng_13.seed_0;\n    (*s_30).active_0 = u32(1);\n    if(_S495"
-					],
-					[
-						575358,
-						116,
-						"499 : u32 = Field_0(base_21, u32(6));\n        gAccum_0[_S499][i32(3)] = (bitcast<f32>(((bitcast<u32>((gAccum_0[_S499"
-					],
-					[
-						575551,
-						1,
-						"6"
-					],
-					[
-						575750,
-						41,
-						"00 : vec4<f32> = fallback_2;\n    var n_14"
-					],
-					[
-						575870,
-						1,
-						"4"
-					],
-					[
-						575973,
-						54,
-						"01 : u32 = gMaterialData_0[pc_4].x;\n        if(((_S501"
-					],
-					[
-						576131,
-						2,
-						"01"
-					],
-					[
-						576299,
-						2,
-						"02"
-					],
-					[
-						576393,
-						59,
-						"02 = MaterialOperand_0(operand_1, vec4<f32>(0.0f), header_6"
-					],
-					[
-						576534,
-						10,
-						"02 = _S500"
-					],
-					[
-						576575,
-						10,
-						"00 = _S502"
-					],
-					[
-						576715,
-						8,
-						"4 = n_14"
-					],
-					[
-						576775,
-						2,
-						"00"
-					],
-					[
-						576820,
-						1,
-						"7"
-					],
-					[
-						576928,
-						54,
-						"03 : bool;\n    if((MaterialHeader_AlphaMode_0(header_7"
-					],
-					[
-						577013,
-						133,
-						"03 = ((ConstantMaterialOutput_0(header_7, header_7.opacity_0, u32(9), u32(0), vec4<f32>(defaults_0.geometryOpacity_0)).x) < (header_7"
-					],
-					[
-						577196,
-						2,
-						"03"
-					],
-					[
-						577224,
-						2,
-						"03"
-					],
-					[
-						577315,
-						144,
-						"7, header_7.emission_1, u32(8), u32(1), vec4<f32>(defaults_0.emissionColor_0, 0.0f)).xyz * vec3<f32>(ConstantMaterialOutput_0(header_7, header_7"
-					],
-					[
-						577639,
-						2,
-						"17"
-					],
-					[
-						577730,
-						85,
-						"04 : f32 = RandomSequence_Next_1(&((*rng_14)));\n    (*index_17) = SelectLight_0(_S504"
-					],
-					[
-						577862,
-						120,
-						"05 : EmissiveTriangle_std430_0 = gLights_0[(*index_17)];\n    var _S506 : u32 = AnalyticFlags_0(&(_S505));\n    if(((_S506"
-					],
-					[
-						578037,
-						93,
-						"07 : LightSample_0 = SampleAnalytic_0(&(_S505), viewer_3, &((*rng_14)));\n        return _S507"
-					],
-					[
-						578149,
-						570,
-						"08 : vec2<f32> = RandomSequence_Next2D_0(&((*rng_14)));\n    var _S509 : vec3<f32> = SampleTriangle_0(_S508);\n    (*bary_5) = _S509;\n    var s_31 : LightSample_0;\n    s_31.delta_0 = false;\n    s_31.shadow_0 = true;\n    var _S510 : vec4<f32> = _S505.p0_0;\n    var _S511 : vec4<f32> = _S505.p1_0;\n    s_31.position_1 = _S505.p0_0.xyz * vec3<f32>(_S509.x) + _S505.p1_0.xyz * vec3<f32>(_S509.y) + _S505.p2_0.xyz * vec3<f32>(_S509.z);\n    s_31.normal_7 = _S505.n_0.xyz;\n    var material_5 : MaterialHeader_0 = LoadMaterialHeader_0((bitcast<u32>((_S505.n_0.w))));\n    var _S512"
-					],
-					[
-						578821,
-						584,
-						"512 = ConstantEmissiveRadiance_0(material_5);\n    }\n    else\n    {\n        _S512 = vec3<f32>(1.0f);\n    }\n    s_31.radiance_0 = _S512;\n    var _S513 : bool = MaterialHeader_DoubleSided_0(material_5);\n    s_31.solidAnglePdf_0 = _S511.w * EmissiveSolidAnglePdf_0(_S510.w, _S513, viewer_3, s_31.position_1, s_31.normal_7);\n    var _S514 : bool;\n    if(_S513)\n    {\n        _S514 = ((dot(s_31.normal_7, viewer_3 - s_31.position_1)) < 0.0f);\n    }\n    else\n    {\n        _S514 = false;\n    }\n    if(_S514)\n    {\n        s_31.normal_7 = (vec3<f32>(0) - s_31.normal_7);\n    }\n    return s_31"
-					],
-					[
-						579870,
-						2,
-						"18"
-					],
-					[
-						579942,
-						2,
-						"18"
-					],
-					[
-						581432,
-						3,
-						"515"
-					],
-					[
-						581559,
-						3,
-						"515"
-					],
-					[
-						582292,
-						146,
-						"516 : EmissiveTriangle_std430_0 = gLights_0[lightIndex_0];\n                var _S517 : u32 = AnalyticFlags_0(&(_S516));\n                if(((_S517"
-					],
-					[
-						582561,
+						582763,
 						3,
 						"516"
 					],
 					[
-						584105,
+						582820,
 						3,
-						"518"
+						"516"
 					],
 					[
-						584358,
+						582848,
 						3,
-						"518"
+						"516"
 					],
 					[
-						584834,
-						3,
-						"519"
-					],
-					[
-						584974,
-						3,
-						"519"
-					],
-					[
-						585344,
+						583079,
 						1,
-						"3"
+						"0"
 					],
 					[
-						585445,
+						583134,
+						241,
+						"0).path_0.coneWidth_2 = hitConeWidth_6;\n    (*s_30).path_0.coneSpread_0 = (*s_30).path_0.coneSpread_0 + ScatterConeSpread_0(bs_6.type_0, ms_8.roughness_3);\n    (*s_30).randomSeed_0 = rng_13.seed_0;\n    (*s_30).active_0 = u32(1);\n    if(_S519"
+					],
+					[
+						583397,
+						116,
+						"523 : u32 = Field_0(base_22, u32(6));\n        gAccum_0[_S523][i32(3)] = (bitcast<f32>(((bitcast<u32>((gAccum_0[_S523"
+					],
+					[
+						583590,
 						1,
-						"3"
+						"6"
 					],
 					[
-						585741,
-						278,
-						"1 : u32 = u32(12) + source_3 * u32(3);\n            gAccum_0[Field_0(base_22, offset_1)] = vec4<f32>(origin_8, maxDistance_6);\n            gAccum_0[Field_0(base_22, offset_1 + u32(1))] = vec4<f32>(dir_22, (bitcast<f32>((select(u32(0), u32(1), shadow_4)))));\n            var _S520"
+						583788,
+						42,
+						"524 : vec4<f32> = fallback_2;\n    var n_14"
 					],
 					[
-						586096,
+						583909,
+						1,
+						"4"
+					],
+					[
+						584011,
+						55,
+						"525 : u32 = gMaterialData_0[pc_4].x;\n        if(((_S525"
+					],
+					[
+						584169,
+						3,
+						"525"
+					],
+					[
+						584337,
+						3,
+						"526"
+					],
+					[
+						584431,
+						60,
+						"526 = MaterialOperand_0(operand_1, vec4<f32>(0.0f), header_6"
+					],
+					[
+						584572,
+						11,
+						"526 = _S524"
+					],
+					[
+						584613,
+						11,
+						"524 = _S526"
+					],
+					[
+						584754,
+						8,
+						"4 = n_14"
+					],
+					[
+						584813,
+						3,
+						"524"
+					],
+					[
+						584859,
+						1,
+						"7"
+					],
+					[
+						584966,
+						55,
+						"527 : bool;\n    if((MaterialHeader_AlphaMode_0(header_7"
+					],
+					[
+						585051,
+						134,
+						"527 = ((ConstantMaterialOutput_0(header_7, header_7.opacity_0, u32(9), u32(0), vec4<f32>(defaults_0.geometryOpacity_0)).x) < (header_7"
+					],
+					[
+						585234,
+						3,
+						"527"
+					],
+					[
+						585262,
+						3,
+						"527"
+					],
+					[
+						585354,
+						144,
+						"7, header_7.emission_1, u32(8), u32(1), vec4<f32>(defaults_0.emissionColor_0, 0.0f)).xyz * vec3<f32>(ConstantMaterialOutput_0(header_7, header_7"
+					],
+					[
+						585678,
+						2,
+						"17"
+					],
+					[
+						585768,
+						86,
+						"528 : f32 = RandomSequence_Next_1(&((*rng_14)));\n    (*index_17) = SelectLight_0(_S528"
+					],
+					[
+						585900,
+						121,
+						"529 : EmissiveTriangle_std430_0 = gLights_0[(*index_17)];\n    var _S530 : u32 = AnalyticFlags_0(&(_S529));\n    if(((_S530"
+					],
+					[
+						586075,
+						94,
+						"531 : LightSample_0 = SampleAnalytic_0(&(_S529), viewer_3, &((*rng_14)));\n        return _S531"
+					],
+					[
+						586187,
+						571,
+						"532 : vec2<f32> = RandomSequence_Next2D_0(&((*rng_14)));\n    var _S533 : vec3<f32> = SampleTriangle_0(_S532);\n    (*bary_5) = _S533;\n    var s_31 : LightSample_0;\n    s_31.delta_0 = false;\n    s_31.shadow_0 = true;\n    var _S534 : vec4<f32> = _S529.p0_0;\n    var _S535 : vec4<f32> = _S529.p1_0;\n    s_31.position_1 = _S529.p0_0.xyz * vec3<f32>(_S533.x) + _S529.p1_0.xyz * vec3<f32>(_S533.y) + _S529.p2_0.xyz * vec3<f32>(_S533.z);\n    s_31.normal_7 = _S529.n_0.xyz;\n    var material_5 : MaterialHeader_0 = LoadMaterialHeader_0((bitcast<u32>((_S529.n_0.w))));\n    var _S536"
+					],
+					[
+						586860,
+						584,
+						"536 = ConstantEmissiveRadiance_0(material_5);\n    }\n    else\n    {\n        _S536 = vec3<f32>(1.0f);\n    }\n    s_31.radiance_0 = _S536;\n    var _S537 : bool = MaterialHeader_DoubleSided_0(material_5);\n    s_31.solidAnglePdf_0 = _S535.w * EmissiveSolidAnglePdf_0(_S534.w, _S537, viewer_3, s_31.position_1, s_31.normal_7);\n    var _S538 : bool;\n    if(_S537)\n    {\n        _S538 = ((dot(s_31.normal_7, viewer_3 - s_31.position_1)) < 0.0f);\n    }\n    else\n    {\n        _S538 = false;\n    }\n    if(_S538)\n    {\n        s_31.normal_7 = (vec3<f32>(0) - s_31.normal_7);\n    }\n    return s_31"
+					],
+					[
+						587909,
+						2,
+						"18"
+					],
+					[
+						587981,
+						2,
+						"18"
+					],
+					[
+						589471,
+						3,
+						"539"
+					],
+					[
+						589598,
+						3,
+						"539"
+					],
+					[
+						590331,
+						146,
+						"540 : EmissiveTriangle_std430_0 = gLights_0[lightIndex_0];\n                var _S541 : u32 = AnalyticFlags_0(&(_S540));\n                if(((_S541"
+					],
+					[
+						590600,
+						3,
+						"540"
+					],
+					[
+						592144,
+						3,
+						"542"
+					],
+					[
+						592397,
+						3,
+						"542"
+					],
+					[
+						592873,
+						3,
+						"543"
+					],
+					[
+						593013,
+						3,
+						"543"
+					],
+					[
+						593383,
+						1,
+						"4"
+					],
+					[
+						593484,
+						1,
+						"4"
+					],
+					[
+						593780,
+						308,
+						"1 : u32 = u32(12) + source_3 * u32(3);\n            gAccum_0[Field_0(base_23, offset_1)] = vec4<f32>(origin_8, maxDistance_6);\n            gAccum_0[Field_0(base_23, offset_1 + u32(1))] = vec4<f32>(dir_22, (bitcast<f32>((ShadowFlags_0(shadow_5, primary_2, source_3 == u32(2), eval_4)))));\n            var _S544"
+					],
+					[
+						594165,
 						20,
-						"520 = vec4<f32>(f_23"
+						"544 = vec4<f32>(f_24"
 					],
 					[
-						586193,
+						594262,
 						62,
-						"520 = vec4<f32>(vec3<f32>(weight_13) * ls_11.radiance_0 * f_23"
+						"544 = vec4<f32>(vec3<f32>(weight_13) * ls_11.radiance_0 * f_24"
 					],
 					[
-						586358,
+						594427,
 						20,
-						"1 + u32(2))] = _S520"
+						"1 + u32(2))] = _S544"
 					],
 					[
-						586986,
+						595055,
 						1,
 						"2"
 					],
 					[
-						587074,
+						595143,
 						86,
-						"521 : vec3<f32> = vec3<f32>(0.0f);\n    if((any(((((*s_32).path_0.absorption_0) > _S521"
+						"545 : vec3<f32> = vec3<f32>(0.0f);\n    if((any(((((*s_32).path_0.absorption_0) > _S545"
 					],
 					[
-						587185,
+						595254,
 						111,
 						"2).path_0.throughput_7 = (*s_32).path_0.throughput_7 * exp((*s_32).path_0.absorption_0 * vec3<f32>(- hit_12.t_4"
 					],
 					[
-						587342,
+						595411,
 						230,
 						"2).path_0.coneWidth_2 + (*s_32).path_0.coneSpread_0 * hit_12.t_4;\n    var si_14 : SurfaceInteraction_0 = GetSurfaceInteraction_0((*s_32).path_0.direction_1, hit_12, hitConeWidth_7);\n    var V_9 : vec3<f32> = (vec3<f32>(0) - (*s_32"
 					],
 					[
-						587724,
+						595793,
 						79,
-						"2).path_0.throughput_7, vec3<f32>(620.0f, 540.0f, 450.0f), 1.0f);\n    var _S522"
+						"2).path_0.throughput_7, vec3<f32>(620.0f, 540.0f, 450.0f), 1.0f);\n    var _S546"
 					],
 					[
-						587877,
+						595946,
 						3,
-						"522"
+						"546"
 					],
 					[
-						587901,
+						595970,
 						1,
 						"2"
 					],
 					[
-						588155,
+						596224,
 						1,
 						"2"
 					],
 					[
-						588467,
+						596536,
 						1,
 						"4"
 					],
 					[
-						588583,
+						596692,
+						306,
+						"17 : u32 = NrdBase_0(base_24);\n            gAccum_0[r_17] = vec4<f32>((*s_32).path_0.radiance_1, (bitcast<f32>((NrdPackFraction_0(vec3<f32>(0.5f))))));\n            gAccum_0[r_17 + u32(1)] = vec4<f32>(0.0f);\n            gAccum_0[r_17 + u32(2)] = vec4<f32>(0.0f, 0.0f, 0.0f, NrdPackSurface_0(ms_9.roughness_3"
+					],
+					[
+						597058,
 						35,
-						"2).active_0 = u32(0);\n    var _S523"
+						"2).active_0 = u32(0);\n    var _S547"
 					],
 					[
-						588672,
+						597147,
 						223,
-						"523 = !ms_9.doubleSided_2;\n    }\n    else\n    {\n        _S523 = false;\n    }\n    if(_S523)\n    {\n        _S523 = ((ms_9.inputs_1.transmissionWeight_0) <= 0.0f);\n    }\n    else\n    {\n        _S523 = false;\n    }\n    if(_S523"
+						"547 = !ms_9.doubleSided_2;\n    }\n    else\n    {\n        _S547 = false;\n    }\n    if(_S547)\n    {\n        _S547 = ((ms_9.inputs_1.transmissionWeight_0) <= 0.0f);\n    }\n    else\n    {\n        _S547 = false;\n    }\n    if(_S547"
 					],
 					[
-						588994,
+						597469,
 						3,
-						"521"
+						"545"
 					],
 					[
-						589023,
+						597498,
 						37,
-						"524 : bool = !_S522;\n        if(_S524"
+						"548 : bool = !_S546;\n        if(_S548"
 					],
 					[
-						589086,
+						597561,
 						12,
-						"523 = (*s_32"
+						"547 = (*s_32"
 					],
 					[
-						589171,
+						597646,
 						3,
-						"523"
+						"547"
 					],
 					[
-						589207,
+						597682,
 						3,
-						"523"
+						"547"
 					],
 					[
-						589272,
+						597747,
 						94,
 						"2).path_0.scatterPdf_0, EmissiveHitPdf_0(si_14.instanceIndex_0, si_14.primitiveIndex_0, (*s_32"
 					],
 					[
-						589529,
+						598004,
 						1,
 						"2"
 					],
 					[
-						589742,
+						598217,
 						11,
-						"523 = _S524"
+						"547 = _S548"
 					],
 					[
-						589802,
+						598277,
 						3,
-						"523"
+						"547"
 					],
 					[
-						589838,
+						598313,
 						3,
-						"523"
+						"547"
 					],
 					[
-						590027,
+						598502,
 						29,
 						"2).path_0.radiance_1 = (*s_32"
 					],
 					[
-						590181,
+						598583,
+						3,
+						"546"
+					],
+					[
+						598604,
+						3,
+						"547"
+					],
+					[
+						598657,
+						3,
+						"547"
+					],
+					[
+						598685,
+						3,
+						"547"
+					],
+					[
+						598710,
+						198,
+						"549 : u32 = NrdBase_0(base_24);\n        var _S550 : vec3<f32> = (*s_32).path_0.radiance_1;\n        gAccum_0[_S549].x = _S550.x;\n        gAccum_0[_S549].y = _S550.y;\n        gAccum_0[_S549].z = _S550"
+					],
+					[
+						599000,
 						245,
-						"525 : bool = SharcEnabled_0();\n    if(_S525)\n    {\n        _S523 = !_S522;\n    }\n    else\n    {\n        _S523 = false;\n    }\n    if(_S523)\n    {\n        _S523 = SharcSurface_0(ms_9);\n    }\n    else\n    {\n        _S523 = false;\n    }\n    if(_S523"
+						"551 : bool = SharcEnabled_0();\n    if(_S551)\n    {\n        _S547 = !_S546;\n    }\n    else\n    {\n        _S547 = false;\n    }\n    if(_S547)\n    {\n        _S547 = SharcSurface_0(ms_9);\n    }\n    else\n    {\n        _S547 = false;\n    }\n    if(_S547"
 					],
 					[
-						590713,
+						599532,
 						210,
-						"19 : u32 = base_23 - WorkBase_0(u32(0));\n        var _S526 : bool = SharcMakeKey_0(si_14.position_0, throughput_39, V_9, si_14.materialIndex_1, si_14.instanceIndex_0, &(key_9), &(voxelSize_5));\n        if(_S526"
+						"19 : u32 = base_24 - WorkBase_0(u32(0));\n        var _S552 : bool = SharcMakeKey_0(si_14.position_0, throughput_39, V_9, si_14.materialIndex_1, si_14.instanceIndex_0, &(key_9), &(voxelSize_5));\n        if(_S552"
 					],
 					[
-						590974,
+						599793,
 						2,
 						"19"
 					],
 					[
-						591055,
+						599874,
 						54,
 						"19, bounce_9, key_9, (*s_32).path_0.radiance_1, (*s_32"
 					],
 					[
-						591208,
+						600027,
 						638,
-						"4) > (voxelSize_5 * sqrt(3.0f))))\n                {\n                    _S523 = (hitConeWidth_7 > voxelSize_5);\n                }\n                else\n                {\n                    _S523 = false;\n                }\n                if(_S523)\n                {\n                    _S523 = (((*s_32).path_0.coneSpread_0) >= 0.05000000074505806f);\n                }\n                else\n                {\n                    _S523 = false;\n                }\n                if(_S523)\n                {\n                    var _S527 : u32 = Field_0(base_23, u32(6));\n                    var state_5 : u32 = (bitcast<u32>((gAccum_0[_S527"
+						"4) > (voxelSize_5 * sqrt(3.0f))))\n                {\n                    _S547 = (hitConeWidth_7 > voxelSize_5);\n                }\n                else\n                {\n                    _S547 = false;\n                }\n                if(_S547)\n                {\n                    _S547 = (((*s_32).path_0.coneSpread_0) >= 0.05000000074505806f);\n                }\n                else\n                {\n                    _S547 = false;\n                }\n                if(_S547)\n                {\n                    var _S553 : u32 = Field_0(base_24, u32(6));\n                    var state_5 : u32 = (bitcast<u32>((gAccum_0[_S553"
 					],
 					[
-						592015,
+						600834,
 						3,
-						"528"
+						"554"
 					],
 					[
-						592107,
+						600926,
 						3,
-						"528"
+						"554"
 					],
 					[
-						592218,
+						601037,
 						3,
-						"528"
+						"554"
 					],
 					[
-						592285,
+						601104,
 						47,
-						"527][i32(3)] = (bitcast<f32>(((state_5 | (_S528"
+						"553][i32(3)] = (bitcast<f32>(((state_5 | (_S554"
 					],
 					[
-						592423,
+						601242,
 						57,
 						"2).path_0.radiance_1 = (*s_32).path_0.radiance_1 + (*s_32"
 					],
 					[
-						592719,
+						601538,
 						158,
-						"2).randomSeed_0;\n    var _S529 : bool = ((BSDF_MaxActiveAlpha_0(bsdf_11)) >= 0.0010000000474974513f);\n    (*s_32).path_0.lightsSampled_0 = _S529;\n    if(_S529"
+						"2).randomSeed_0;\n    var _S555 : bool = ((BSDF_MaxActiveAlpha_0(bsdf_11)) >= 0.0010000000474974513f);\n    (*s_32).path_0.lightsSampled_0 = _S555;\n    if(_S555"
 					],
 					[
-						592971,
+						601790,
 						59,
-						"2).path_0.coneSpread_0), (*s_32).path_0.throughput_7, _S522"
+						"2).path_0.coneSpread_0), (*s_32).path_0.throughput_7, _S546"
 					],
 					[
-						593060,
+						601879,
 						183,
-						"38 : vec2<f32> = RandomSequence_Next2D_0(&(rng_16));\n    var _S530 : f32 = RandomSequence_Next_1(&(rng_16));\n    var bs_7 : LobeSample_0 = BSDF_Sample_0(bsdf_11, vec3<f32>(u_38, _S530"
+						"38 : vec2<f32> = RandomSequence_Next2D_0(&(rng_16));\n    var _S556 : f32 = RandomSequence_Next_1(&(rng_16));\n    var bs_7 : LobeSample_0 = BSDF_Sample_0(bsdf_11, vec3<f32>(u_38, _S556"
 					],
 					[
-						593369,
+						602188,
 						207,
-						"523 = true;\n    }\n    else\n    {\n        _S523 = ((bs_7.pdf_7) <= 0.0f);\n    }\n    if(_S523)\n    {\n        _S523 = true;\n    }\n    else\n    {\n        _S523 = (all(((weight_14 <= _S521))));\n    }\n    if(_S523"
+						"547 = true;\n    }\n    else\n    {\n        _S547 = ((bs_7.pdf_7) <= 0.0f);\n    }\n    if(_S547)\n    {\n        _S547 = true;\n    }\n    else\n    {\n        _S547 = (all(((weight_14 <= _S545))));\n    }\n    if(_S547"
 					],
 					[
-						593647,
+						602434,
+						3,
+						"546"
+					],
+					[
+						602455,
+						3,
+						"547"
+					],
+					[
+						602508,
+						3,
+						"547"
+					],
+					[
+						602536,
+						3,
+						"547"
+					],
+					[
+						602561,
+						2,
+						"18"
+					],
+					[
+						602671,
+						160,
+						"18][i32(3)] = (bitcast<f32>((NrdPackFraction_0(NrdDiffuseFraction_0(bs_7.weight_1)))));\n        gAccum_0[r_18 + u32(3)][i32(3)] = oct_5.x;\n        gAccum_0[r_18"
+					],
+					[
+						602908,
 						48,
-						"2).path_0.throughput_7 * weight_14;\n    if(_S525"
+						"2).path_0.throughput_7 * weight_14;\n    if(_S551"
 					],
 					[
-						593713,
+						602974,
 						11,
-						"523 = _S522"
+						"547 = _S546"
 					],
 					[
-						593757,
+						603018,
 						3,
-						"523"
+						"547"
 					],
 					[
-						593785,
+						603046,
 						3,
-						"523"
+						"547"
 					],
 					[
-						593943,
+						603204,
 						1,
 						"2"
 					],
 					[
-						594053,
+						603314,
 						63,
-						"531 : f32 = RandomSequence_Next_1(&(rng_16));\n        if((_S531"
+						"557 : f32 = RandomSequence_Next_1(&(rng_16));\n        if((_S557"
 					],
 					[
-						594319,
+						603580,
 						95,
 						"2).path_0.throughput_7 = throughput_39;\n    (*s_32).path_0.direction_1 = bs_7.wi_26;\n    (*s_32"
 					],
 					[
-						594566,
+						603827,
 						1,
 						"2"
 					],
 					[
-						594693,
+						603954,
 						3,
-						"523"
+						"547"
 					],
 					[
-						594750,
+						604011,
 						3,
-						"523"
+						"547"
 					],
 					[
-						594778,
+						604039,
 						3,
-						"523"
+						"547"
 					],
 					[
-						595010,
+						604271,
 						1,
 						"2"
 					],
 					[
-						595065,
+						604326,
 						241,
-						"2).path_0.coneWidth_2 = hitConeWidth_7;\n    (*s_32).path_0.coneSpread_0 = (*s_32).path_0.coneSpread_0 + ScatterConeSpread_0(bs_7.type_0, ms_9.roughness_3);\n    (*s_32).randomSeed_0 = rng_16.seed_0;\n    (*s_32).active_0 = u32(1);\n    if(_S525"
+						"2).path_0.coneWidth_2 = hitConeWidth_7;\n    (*s_32).path_0.coneSpread_0 = (*s_32).path_0.coneSpread_0 + ScatterConeSpread_0(bs_7.type_0, ms_9.roughness_3);\n    (*s_32).randomSeed_0 = rng_16.seed_0;\n    (*s_32).active_0 = u32(1);\n    if(_S551"
 					],
 					[
-						595328,
+						604589,
 						116,
-						"532 : u32 = Field_0(base_23, u32(6));\n        gAccum_0[_S532][i32(3)] = (bitcast<f32>(((bitcast<u32>((gAccum_0[_S532"
+						"558 : u32 = Field_0(base_24, u32(6));\n        gAccum_0[_S558][i32(3)] = (bitcast<f32>(((bitcast<u32>((gAccum_0[_S558"
 					],
 					[
-						595520,
+						604781,
 						1,
 						"3"
 					],
 					[
-						595609,
+						604870,
 						86,
-						"533 : vec3<f32> = vec3<f32>(0.0f);\n    if((any(((((*s_33).path_0.absorption_0) > _S533"
+						"559 : vec3<f32> = vec3<f32>(0.0f);\n    if((any(((((*s_33).path_0.absorption_0) > _S559"
 					],
 					[
-						595720,
+						604981,
 						111,
 						"3).path_0.throughput_7 = (*s_33).path_0.throughput_7 * exp((*s_33).path_0.absorption_0 * vec3<f32>(- hit_13.t_4"
 					],
 					[
-						595877,
+						605138,
 						231,
 						"3).path_0.coneWidth_2 + (*s_33).path_0.coneSpread_0 * hit_13.t_4;\n    var si_15 : SurfaceInteraction_0 = GetSurfaceInteraction_0((*s_33).path_0.direction_1, hit_13, hitConeWidth_8);\n    var V_10 : vec3<f32> = (vec3<f32>(0) - (*s_33"
 					],
 					[
-						596264,
+						605525,
 						79,
-						"3).path_0.throughput_7, vec3<f32>(620.0f, 540.0f, 450.0f), 1.0f);\n    var _S534"
+						"3).path_0.throughput_7, vec3<f32>(620.0f, 540.0f, 450.0f), 1.0f);\n    var _S560"
 					],
 					[
-						596418,
-						3,
-						"534"
-					],
-					[
-						596442,
-						1,
-						"3"
-					],
-					[
-						596699,
-						1,
-						"3"
-					],
-					[
-						597011,
-						1,
-						"4"
-					],
-					[
-						597127,
-						35,
-						"3).active_0 = u32(0);\n    var _S535"
-					],
-					[
-						597216,
-						225,
-						"535 = !ms_10.doubleSided_2;\n    }\n    else\n    {\n        _S535 = false;\n    }\n    if(_S535)\n    {\n        _S535 = ((ms_10.inputs_1.transmissionWeight_0) <= 0.0f);\n    }\n    else\n    {\n        _S535 = false;\n    }\n    if(_S535"
-					],
-					[
-						597540,
-						3,
-						"533"
-					],
-					[
-						597569,
-						37,
-						"536 : bool = !_S534;\n        if(_S536"
-					],
-					[
-						597632,
-						12,
-						"535 = (*s_33"
-					],
-					[
-						597717,
-						3,
-						"535"
-					],
-					[
-						597753,
-						3,
-						"535"
-					],
-					[
-						597818,
-						94,
-						"3).path_0.scatterPdf_0, EmissiveHitPdf_0(si_15.instanceIndex_0, si_15.primitiveIndex_0, (*s_33"
-					],
-					[
-						598075,
-						1,
-						"3"
-					],
-					[
-						598288,
-						11,
-						"535 = _S536"
-					],
-					[
-						598348,
-						3,
-						"535"
-					],
-					[
-						598384,
-						3,
-						"535"
-					],
-					[
-						598573,
-						29,
-						"3).path_0.radiance_1 = (*s_33"
-					],
-					[
-						598728,
-						246,
-						"537 : bool = SharcEnabled_0();\n    if(_S537)\n    {\n        _S535 = !_S534;\n    }\n    else\n    {\n        _S535 = false;\n    }\n    if(_S535)\n    {\n        _S535 = SharcSurface_0(ms_10);\n    }\n    else\n    {\n        _S535 = false;\n    }\n    if(_S535"
-					],
-					[
-						599263,
-						211,
-						"0 : u32 = base_24 - WorkBase_0(u32(0));\n        var _S538 : bool = SharcMakeKey_0(si_15.position_0, throughput_41, V_10, si_15.materialIndex_1, si_15.instanceIndex_0, &(key_10), &(voxelSize_6));\n        if(_S538"
-					],
-					[
-						599526,
-						1,
-						"0"
-					],
-					[
-						599607,
-						55,
-						"0, bounce_10, key_10, (*s_33).path_0.radiance_1, (*s_33"
-					],
-					[
-						599761,
-						638,
-						"4) > (voxelSize_6 * sqrt(3.0f))))\n                {\n                    _S535 = (hitConeWidth_8 > voxelSize_6);\n                }\n                else\n                {\n                    _S535 = false;\n                }\n                if(_S535)\n                {\n                    _S535 = (((*s_33).path_0.coneSpread_0) >= 0.05000000074505806f);\n                }\n                else\n                {\n                    _S535 = false;\n                }\n                if(_S535)\n                {\n                    var _S539 : u32 = Field_0(base_24, u32(6));\n                    var state_6 : u32 = (bitcast<u32>((gAccum_0[_S539"
-					],
-					[
-						600569,
-						3,
-						"540"
-					],
-					[
-						600661,
-						3,
-						"540"
-					],
-					[
-						600772,
-						3,
-						"540"
-					],
-					[
-						600839,
-						47,
-						"539][i32(3)] = (bitcast<f32>(((state_6 | (_S540"
-					],
-					[
-						600977,
-						57,
-						"3).path_0.radiance_1 = (*s_33).path_0.radiance_1 + (*s_33"
-					],
-					[
-						601273,
-						158,
-						"3).randomSeed_0;\n    var _S541 : bool = ((BSDF_MaxActiveAlpha_0(bsdf_12)) >= 0.0010000000474974513f);\n    (*s_33).path_0.lightsSampled_0 = _S541;\n    if(_S541"
-					],
-					[
-						601525,
-						59,
-						"3).path_0.coneSpread_0), (*s_33).path_0.throughput_7, _S534"
-					],
-					[
-						601614,
-						183,
-						"39 : vec2<f32> = RandomSequence_Next2D_0(&(rng_17));\n    var _S542 : f32 = RandomSequence_Next_1(&(rng_17));\n    var bs_8 : LobeSample_0 = BSDF_Sample_0(bsdf_12, vec3<f32>(u_39, _S542"
-					],
-					[
-						601923,
-						207,
-						"535 = true;\n    }\n    else\n    {\n        _S535 = ((bs_8.pdf_7) <= 0.0f);\n    }\n    if(_S535)\n    {\n        _S535 = true;\n    }\n    else\n    {\n        _S535 = (all(((weight_15 <= _S533))));\n    }\n    if(_S535"
-					],
-					[
-						602201,
-						48,
-						"3).path_0.throughput_7 * weight_15;\n    if(_S537"
-					],
-					[
-						602267,
-						11,
-						"535 = _S534"
-					],
-					[
-						602311,
-						3,
-						"535"
-					],
-					[
-						602339,
-						3,
-						"535"
-					],
-					[
-						602497,
-						1,
-						"3"
-					],
-					[
-						602607,
-						63,
-						"543 : f32 = RandomSequence_Next_1(&(rng_17));\n        if((_S543"
-					],
-					[
-						602873,
-						95,
-						"3).path_0.throughput_7 = throughput_41;\n    (*s_33).path_0.direction_1 = bs_8.wi_26;\n    (*s_33"
-					],
-					[
-						603120,
-						1,
-						"3"
-					],
-					[
-						603247,
-						3,
-						"535"
-					],
-					[
-						603305,
-						3,
-						"535"
-					],
-					[
-						603333,
-						3,
-						"535"
-					],
-					[
-						603565,
-						1,
-						"3"
-					],
-					[
-						603620,
-						242,
-						"3).path_0.coneWidth_2 = hitConeWidth_8;\n    (*s_33).path_0.coneSpread_0 = (*s_33).path_0.coneSpread_0 + ScatterConeSpread_0(bs_8.type_0, ms_10.roughness_3);\n    (*s_33).randomSeed_0 = rng_17.seed_0;\n    (*s_33).active_0 = u32(1);\n    if(_S537"
-					],
-					[
-						603884,
-						116,
-						"544 : u32 = Field_0(base_24, u32(6));\n        gAccum_0[_S544][i32(3)] = (bitcast<f32>(((bitcast<u32>((gAccum_0[_S544"
-					],
-					[
-						604180,
-						1,
-						"4"
-					],
-					[
-						604429,
-						106,
-						"545 : u32 = gFrame_0.counts_0.z;\n    var _S546 : vec3<f32> = SafeRcp_0(ray_4.direction_0);\n    var stack_4"
-					],
-					[
-						604691,
-						2,
-						"8"
-					],
-					[
-						604785,
-						76,
-						"547 : u32 = (((nodeRef_4 >> (u32(24)))) & (u32(127)));\n            var _S548"
-					],
-					[
-						604948,
-						2,
-						"8"
-					],
-					[
-						605014,
-						10,
-						"8 < _S547"
-					],
-					[
-						605204,
-						288,
-						"545 + _S548 + i_8];\n                var _S549 : bool = TraverseBLAS_0(instanceIndex_5, instanceIndex_5, InverseTransformPoint_0(instanceIndex_5, ray_4.origin_0), InverseTransformVector_0(instanceIndex_5, ray_4.direction_0), ray_4.tMin_0, anyHit_2, &((*hit_14)));\n                if(_S549"
-					],
-					[
-						605699,
-						9,
-						"8 = i_8"
-					],
-					[
-						605910,
-						1,
-						"4"
-					],
-					[
-						606259,
-						158,
-						"546, ray_4.tMin_0, (*hit_14).t_4);\n        var dist2_8 : f32 = IntersectBox_0(node_4.rmin_0, node_4.rmax_0, ray_4.origin_0, _S546, ray_4.tMin_0, (*hit_14).t_4"
-					],
-					[
-						606586,
-						2,
-						"8"
-					],
-					[
-						606751,
-						2,
-						"8"
-					],
-					[
-						607120,
-						1,
-						"4"
-					],
-					[
-						607515,
-						115,
-						"550 : u32 = stackPtr_16 + u32(1);\n                stack_4[stackPtr_16] = far_4;\n                stackPtr_19 = _S550"
-					],
-					[
-						607760,
-						2,
-						"8"
-					],
-					[
-						607934,
-						3,
-						"551"
-					],
-					[
-						608521,
-						2,
-						"9"
-					],
-					[
-						608569,
-						2,
-						"9"
-					],
-					[
-						608687,
-						121,
-						"552 : EmissiveTriangle_std430_0 = gLights_0[i_9];\n        var _S553 : u32 = AnalyticFlags_0(&(_S552));\n        var _S554"
-					],
-					[
-						608865,
-						13,
-						"554 = ((_S553"
-					],
-					[
-						608952,
-						3,
-						"554"
-					],
-					[
-						608988,
-						3,
-						"554"
-					],
-					[
-						609017,
-						9,
-						"9 = i_9"
-					],
-					[
-						609112,
-						3,
-						"555"
-					],
-					[
-						609168,
-						3,
-						"553"
-					],
-					[
-						609227,
-						78,
-						"5 : vec3<f32> = _S552.p2_0.xyz;\n            var cosTheta_14 : f32 = - dot(n_15"
-					],
-					[
-						609406,
-						1052,
-						"9 = i_9 + u32(1);\n                continue;\n            }\n            var _S556 : vec4<f32> = _S552.p0_0;\n            var _S557 : vec3<f32> = _S552.p0_0.xyz;\n            var t_11 : f32 = dot(_S557 - origin_10, n_15) / - cosTheta_14;\n            if((t_11 <= 0.0f))\n            {\n                _S555 = true;\n            }\n            else\n            {\n                _S555 = (t_11 >= nearest_0);\n            }\n            if(_S555)\n            {\n                i_9 = i_9 + u32(1);\n                continue;\n            }\n            var local_1 : vec3<f32> = origin_10 + dir_27 * vec3<f32>(t_11) - _S557;\n            var _S558 : vec3<f32> = _S552.n_0.xyz;\n            var _S559 : vec3<f32> = _S552.uvA_0.xyz;\n            var d_11 : vec2<f32> = vec2<f32>(dot(local_1, _S558) / dot(_S558, _S558), dot(local_1, _S559) / dot(_S559, _S559));\n            if(((_S553 & (u32(512)))) != u32(0))\n            {\n                inside_4 = ((dot(d_11, d_11)) <= 0.25f);\n            }\n            else\n            {\n                inside_4 = (all((((abs(d_11"
-					],
-					[
-						610557,
-						9,
-						"9 = i_9"
-					],
-					[
-						610647,
-						120,
-						"552.p1_0.xyz;\n            (*pdf_17) = _S552.p1_0.w * t_11 * t_11 / (cosTheta_14 * _S556.w);\n            nearest_1 = t_11"
-					],
-					[
-						610820,
-						68,
-						"560 : vec4<f32> = _S552.p0_0;\n            var radius_4 : f32 = _S552"
-					],
-					[
-						610964,
-						9,
-						"9 = i_9"
-					],
-					[
-						611067,
+						605679,
 						3,
 						"560"
 					],
 					[
-						611169,
-						169,
-						"8 : f32 = dot(toCenter_1, dir_27);\n            var _S561 : f32 = radius_4 * radius_4;\n            var h_15 : f32 = _S561 - (distSq_4 - tc_8 * tc_8);\n            if((h_15"
-					],
-					[
-						611380,
-						3,
-						"555"
-					],
-					[
-						611455,
-						24,
-						"555 = (distSq_4 <= _S561"
-					],
-					[
-						611513,
-						3,
-						"555"
-					],
-					[
-						611550,
-						9,
-						"9 = i_9"
-					],
-					[
-						611629,
-						49,
-						"2 : f32 = tc_8 - sqrt(h_15);\n            if((t_12"
-					],
-					[
-						611812,
-						1,
-						"2"
-					],
-					[
-						611900,
-						9,
-						"9 = i_9"
-					],
-					[
-						611978,
-						385,
-						"562 : vec4<f32> = _S552.p1_0;\n            var _S563 : vec3<f32> = _S552.p1_0.xyz;\n            var _S564 : f32 = SpotAttenuation_0(&(_S552), (vec3<f32>(0) - toCenter_1) * vec3<f32>(rsqrt_0(distSq_4)));\n            (*radiance_4) = _S563 * vec3<f32>(_S564);\n            (*pdf_17) = _S562.w / (2.0f * float_getPi_0() * SphereOneMinusCos_0(radius_4, distSq_4));\n            nearest_1 = t_12"
-					],
-					[
-						612441,
-						9,
-						"9 = i_9"
-					],
-					[
-						612545,
-						3,
-						"565"
-					],
-					[
-						612596,
-						3,
-						"565"
-					],
-					[
-						612710,
-						3,
-						"565"
-					],
-					[
-						612742,
-						3,
-						"565"
-					],
-					[
-						613080,
-						346,
-						"2 : vec3<f32> = RotateY_0(dir_29, - gFrame_0.envParams_0.y);\n    var uv_1 : vec2<f32> = fract(DirectionToEquirectUV_0(local_2));\n    var _S566 : f32 = f32(W_1);\n    var _S567 : u32 = min(u32(uv_1.x * _S566), W_1 - u32(1));\n    var _S568 : f32 = f32(H_1);\n    var _S569 : u32 = min(u32(uv_1.y * _S568), H_1 - u32(1));\n    var _S570 : f32 = local_2"
-					],
-					[
-						613491,
-						177,
-						"567 + u32(1), _S569) - EnvCdf_0(_S567, _S569)) * _S566 * ((EnvCdf_0(_S569 + u32(1), H_1) - EnvCdf_0(_S569, H_1)) * _S568) / (2.0f * PI_6 * PI_6 * sqrt(clamp(1.0f - _S570 * _S570"
-					],
-					[
-						613738,
-						1,
-						"4"
-					],
-					[
-						613875,
-						26,
-						"4).path_0.origin_3, (*s_34"
-					],
-					[
-						614059,
-						3,
-						"571"
-					],
-					[
-						614296,
-						1,
-						"4"
-					],
-					[
-						614402,
-						145,
-						"572 : bool = IntersectAnalyticLights_0(ray_6.origin_0, ray_6.direction_0, mis_6, bounce_11 == u32(0), &(radiance_5), &(pdf_18));\n        if(_S572"
-					],
-					[
-						614577,
-						55,
-						"573 : bool = (bounce_11 > u32(0));\n            if(_S573"
-					],
-					[
-						614666,
-						12,
-						"571 = (*s_34"
-					],
-					[
-						614767,
-						3,
-						"571"
-					],
-					[
-						614811,
-						3,
-						"571"
-					],
-					[
-						614875,
-						1,
-						"4"
-					],
-					[
-						615047,
-						1,
-						"4"
-					],
-					[
-						615173,
-						11,
-						"571 = _S573"
-					],
-					[
-						615249,
-						3,
-						"571"
-					],
-					[
-						615293,
-						3,
-						"571"
-					],
-					[
-						615516,
-						29,
-						"4).path_0.radiance_1 = (*s_34"
-					],
-					[
-						616014,
-						29,
-						"4).path_0.radiance_1 = (*s_34"
-					],
-					[
-						616139,
-						3,
-						"571"
-					],
-					[
-						616238,
-						3,
-						"571"
-					],
-					[
-						616282,
-						3,
-						"571"
-					],
-					[
-						616322,
-						29,
-						"4).path_0.radiance_1 = (*s_34"
-					],
-					[
-						616468,
-						1,
-						"4"
-					],
-					[
-						616554,
-						1,
-						"4"
-					],
-					[
-						616755,
-						546,
-						"4).path_0.throughput_7 * vec3<f32>(mis_6) * EvalEnvironment_0(ray_6.direction_0);\n            if(!(*s_34).path_0.lightsSampled_0)\n            {\n                _S571 = SunEnabled_0();\n            }\n            else\n            {\n                _S571 = false;\n            }\n            if(_S571)\n            {\n                _S571 = HitsSun_0(ray_6.direction_0);\n            }\n            else\n            {\n                _S571 = false;\n            }\n            if(_S571)\n            {\n                contribution_7 = contribution_9 + (*s_34"
-					],
-					[
-						617623,
-						29,
-						"4).path_0.radiance_1 = (*s_34"
-					],
-					[
-						617713,
-						1,
-						"4"
-					],
-					[
-						617786,
-						1,
-						"5"
-					],
-					[
-						617889,
-						293,
-						"5).path_0.coneWidth_2, (*s_35).path_0.coneSpread_0);\n    var _S574 : HitRecord_0 = TraceClosest_0(Ray_x24init_0((*s_35).path_0.origin_3, (*s_35).path_0.direction_1, 1.00000001504746622e+30f));\n    var _S575 : HitRecord_0 = CompleteIntersection_0(&((*s_35)), bounce_12, _S574);\n    return _S575"
-					],
-					[
-						618208,
-						100,
-						"576 : u32,  _S577 : u32,  _S578 : vec3<f32>,  _S579 : vec3<f32>,  _S580 : f32,  _S581 : bool,  _S582"
-					],
-					[
-						618384,
-						130,
-						"583 : vec3<f32> = SafeRcp_0(_S579);\n    var _S584 : bool = (((gInstances_0[_S577].flags_0) & (u32(1)))) != u32(0);\n    var stack_5"
-					],
-					[
-						618671,
-						1,
-						"0"
-					],
-					[
-						618764,
-						76,
-						"585 : u32 = (((nodeRef_5 >> (u32(24)))) & (u32(127)));\n            var _S586"
-					],
-					[
-						618928,
-						1,
-						"0"
-					],
-					[
-						618994,
-						9,
-						"0 < _S585"
-					],
-					[
-						619240,
-						35,
-						"577].blasTriOffset_0 + _S586 + i_10"
-					],
-					[
-						619367,
+						605703,
 						1,
 						"3"
 					],
 					[
-						619438,
-						186,
-						"587 : bool = IntersectTriangle_0(_S578, _S579, v0_4.xyz, gTris_0[base_25 + u32(1)].xyz, gTris_0[base_25 + u32(2)].xyz, _S580, (*_S582).t_4, &(t_13), &(bary_7));\n                if(!_S587"
-					],
-					[
-						619667,
-						8,
-						"0 = i_10"
-					],
-					[
-						619827,
-						36,
-						"588 : bool;\n                if(_S584"
-					],
-					[
-						619903,
-						111,
-						"_S588 = AlphaTestRejects_0(_S577, primitiveIndex_4, bary_7, t_13)"
-					],
-					[
-						620095,
-						3,
-						"588"
-					],
-					[
-						620147,
-						3,
-						"588"
-					],
-					[
-						620193,
-						8,
-						"0 = i_10"
-					],
-					[
-						620280,
-						203,
-						"582).t_4 = t_13;\n                (*_S582).barycentrics_0 = bary_7;\n                (*_S582).instanceIndex_2 = _S576;\n                (*_S582).primitiveIndex_1 = primitiveIndex_4;\n                if(_S581"
-					],
-					[
-						620606,
-						8,
-						"0 = i_10"
-					],
-					[
-						620816,
+						605960,
 						1,
-						"5"
+						"3"
 					],
 					[
-						621054,
-						253,
-						"577].blasNodeOffset_0 + nodeRef_5];\n        var dist1_10 : f32 = IntersectBox_0(node_5.lmin_0, node_5.lmax_0, _S578, _S583, _S580, (*_S582).t_4);\n        var dist2_10 : f32 = IntersectBox_0(node_5.rmin_0, node_5.rmax_0, _S578, _S583, _S580, (*_S582).t_4"
-					],
-					[
-						621483,
-						1,
-						"0"
-					],
-					[
-						621652,
-						1,
-						"0"
-					],
-					[
-						622023,
-						1,
-						"5"
-					],
-					[
-						622419,
-						115,
-						"589 : u32 = stackPtr_20 + u32(1);\n                stack_5[stackPtr_20] = far_5;\n                stackPtr_23 = _S589"
-					],
-					[
-						622665,
-						1,
-						"0"
-					],
-					[
-						622886,
+						606272,
 						1,
 						"4"
 					],
 					[
-						623135,
+						606428,
+						307,
+						"19 : u32 = NrdBase_0(base_25);\n            gAccum_0[r_19] = vec4<f32>((*s_33).path_0.radiance_1, (bitcast<f32>((NrdPackFraction_0(vec3<f32>(0.5f))))));\n            gAccum_0[r_19 + u32(1)] = vec4<f32>(0.0f);\n            gAccum_0[r_19 + u32(2)] = vec4<f32>(0.0f, 0.0f, 0.0f, NrdPackSurface_0(ms_10.roughness_3"
+					],
+					[
+						606796,
+						35,
+						"3).active_0 = u32(0);\n    var _S561"
+					],
+					[
+						606885,
+						225,
+						"561 = !ms_10.doubleSided_2;\n    }\n    else\n    {\n        _S561 = false;\n    }\n    if(_S561)\n    {\n        _S561 = ((ms_10.inputs_1.transmissionWeight_0) <= 0.0f);\n    }\n    else\n    {\n        _S561 = false;\n    }\n    if(_S561"
+					],
+					[
+						607209,
+						3,
+						"559"
+					],
+					[
+						607238,
+						37,
+						"562 : bool = !_S560;\n        if(_S562"
+					],
+					[
+						607301,
+						12,
+						"561 = (*s_33"
+					],
+					[
+						607386,
+						3,
+						"561"
+					],
+					[
+						607422,
+						3,
+						"561"
+					],
+					[
+						607487,
+						94,
+						"3).path_0.scatterPdf_0, EmissiveHitPdf_0(si_15.instanceIndex_0, si_15.primitiveIndex_0, (*s_33"
+					],
+					[
+						607744,
+						1,
+						"3"
+					],
+					[
+						607957,
+						11,
+						"561 = _S562"
+					],
+					[
+						608017,
+						3,
+						"561"
+					],
+					[
+						608053,
+						3,
+						"561"
+					],
+					[
+						608242,
+						29,
+						"3).path_0.radiance_1 = (*s_33"
+					],
+					[
+						608323,
+						3,
+						"560"
+					],
+					[
+						608344,
+						3,
+						"561"
+					],
+					[
+						608397,
+						3,
+						"561"
+					],
+					[
+						608425,
+						3,
+						"561"
+					],
+					[
+						608450,
+						198,
+						"563 : u32 = NrdBase_0(base_25);\n        var _S564 : vec3<f32> = (*s_33).path_0.radiance_1;\n        gAccum_0[_S563].x = _S564.x;\n        gAccum_0[_S563].y = _S564.y;\n        gAccum_0[_S563].z = _S564"
+					],
+					[
+						608741,
+						246,
+						"565 : bool = SharcEnabled_0();\n    if(_S565)\n    {\n        _S561 = !_S560;\n    }\n    else\n    {\n        _S561 = false;\n    }\n    if(_S561)\n    {\n        _S561 = SharcSurface_0(ms_10);\n    }\n    else\n    {\n        _S561 = false;\n    }\n    if(_S561"
+					],
+					[
+						609276,
+						211,
+						"0 : u32 = base_25 - WorkBase_0(u32(0));\n        var _S566 : bool = SharcMakeKey_0(si_15.position_0, throughput_41, V_10, si_15.materialIndex_1, si_15.instanceIndex_0, &(key_10), &(voxelSize_6));\n        if(_S566"
+					],
+					[
+						609539,
+						1,
+						"0"
+					],
+					[
+						609620,
+						55,
+						"0, bounce_10, key_10, (*s_33).path_0.radiance_1, (*s_33"
+					],
+					[
+						609774,
+						638,
+						"4) > (voxelSize_6 * sqrt(3.0f))))\n                {\n                    _S561 = (hitConeWidth_8 > voxelSize_6);\n                }\n                else\n                {\n                    _S561 = false;\n                }\n                if(_S561)\n                {\n                    _S561 = (((*s_33).path_0.coneSpread_0) >= 0.05000000074505806f);\n                }\n                else\n                {\n                    _S561 = false;\n                }\n                if(_S561)\n                {\n                    var _S567 : u32 = Field_0(base_25, u32(6));\n                    var state_6 : u32 = (bitcast<u32>((gAccum_0[_S567"
+					],
+					[
+						610582,
+						3,
+						"568"
+					],
+					[
+						610674,
+						3,
+						"568"
+					],
+					[
+						610785,
+						3,
+						"568"
+					],
+					[
+						610852,
+						47,
+						"567][i32(3)] = (bitcast<f32>(((state_6 | (_S568"
+					],
+					[
+						610990,
+						57,
+						"3).path_0.radiance_1 = (*s_33).path_0.radiance_1 + (*s_33"
+					],
+					[
+						611286,
+						158,
+						"3).randomSeed_0;\n    var _S569 : bool = ((BSDF_MaxActiveAlpha_0(bsdf_12)) >= 0.0010000000474974513f);\n    (*s_33).path_0.lightsSampled_0 = _S569;\n    if(_S569"
+					],
+					[
+						611538,
+						59,
+						"3).path_0.coneSpread_0), (*s_33).path_0.throughput_7, _S560"
+					],
+					[
+						611627,
+						183,
+						"39 : vec2<f32> = RandomSequence_Next2D_0(&(rng_17));\n    var _S570 : f32 = RandomSequence_Next_1(&(rng_17));\n    var bs_8 : LobeSample_0 = BSDF_Sample_0(bsdf_12, vec3<f32>(u_39, _S570"
+					],
+					[
+						611936,
+						207,
+						"561 = true;\n    }\n    else\n    {\n        _S561 = ((bs_8.pdf_7) <= 0.0f);\n    }\n    if(_S561)\n    {\n        _S561 = true;\n    }\n    else\n    {\n        _S561 = (all(((weight_15 <= _S559))));\n    }\n    if(_S561"
+					],
+					[
+						612182,
+						3,
+						"560"
+					],
+					[
+						612203,
+						3,
+						"561"
+					],
+					[
+						612256,
+						3,
+						"561"
+					],
+					[
+						612284,
+						3,
+						"561"
+					],
+					[
+						612310,
+						1,
+						"0"
+					],
+					[
+						612420,
+						159,
+						"0][i32(3)] = (bitcast<f32>((NrdPackFraction_0(NrdDiffuseFraction_0(bs_8.weight_1)))));\n        gAccum_0[r_20 + u32(3)][i32(3)] = oct_6.x;\n        gAccum_0[r_20"
+					],
+					[
+						612656,
+						48,
+						"3).path_0.throughput_7 * weight_15;\n    if(_S565"
+					],
+					[
+						612722,
+						11,
+						"561 = _S560"
+					],
+					[
+						612766,
+						3,
+						"561"
+					],
+					[
+						612794,
+						3,
+						"561"
+					],
+					[
+						612952,
+						1,
+						"3"
+					],
+					[
+						613062,
+						63,
+						"571 : f32 = RandomSequence_Next_1(&(rng_17));\n        if((_S571"
+					],
+					[
+						613328,
+						95,
+						"3).path_0.throughput_7 = throughput_41;\n    (*s_33).path_0.direction_1 = bs_8.wi_26;\n    (*s_33"
+					],
+					[
+						613575,
+						1,
+						"3"
+					],
+					[
+						613702,
+						3,
+						"561"
+					],
+					[
+						613760,
+						3,
+						"561"
+					],
+					[
+						613788,
+						3,
+						"561"
+					],
+					[
+						614020,
+						1,
+						"3"
+					],
+					[
+						614075,
+						242,
+						"3).path_0.coneWidth_2 = hitConeWidth_8;\n    (*s_33).path_0.coneSpread_0 = (*s_33).path_0.coneSpread_0 + ScatterConeSpread_0(bs_8.type_0, ms_10.roughness_3);\n    (*s_33).randomSeed_0 = rng_17.seed_0;\n    (*s_33).active_0 = u32(1);\n    if(_S565"
+					],
+					[
+						614339,
+						116,
+						"572 : u32 = Field_0(base_25, u32(6));\n        gAccum_0[_S572][i32(3)] = (bitcast<f32>(((bitcast<u32>((gAccum_0[_S572"
+					],
+					[
+						614635,
+						1,
+						"4"
+					],
+					[
+						614884,
 						106,
-						"590 : u32 = gFrame_0.counts_0.z;\n    var _S591 : vec3<f32> = SafeRcp_0(ray_7.direction_0);\n    var stack_6"
+						"573 : u32 = gFrame_0.counts_0.z;\n    var _S574 : vec3<f32> = SafeRcp_0(ray_4.direction_0);\n    var stack_4"
 					],
 					[
-						623398,
-						1,
-						"1"
+						615146,
+						2,
+						"8"
 					],
 					[
-						623491,
+						615240,
 						76,
-						"592 : u32 = (((nodeRef_6 >> (u32(24)))) & (u32(127)));\n            var _S593"
+						"575 : u32 = (((nodeRef_4 >> (u32(24)))) & (u32(127)));\n            var _S576"
 					],
 					[
-						623655,
+						615403,
+						2,
+						"8"
+					],
+					[
+						615469,
+						10,
+						"8 < _S575"
+					],
+					[
+						615659,
+						288,
+						"573 + _S576 + i_8];\n                var _S577 : bool = TraverseBLAS_0(instanceIndex_5, instanceIndex_5, InverseTransformPoint_0(instanceIndex_5, ray_4.origin_0), InverseTransformVector_0(instanceIndex_5, ray_4.direction_0), ray_4.tMin_0, anyHit_2, &((*hit_14)));\n                if(_S577"
+					],
+					[
+						616154,
+						9,
+						"8 = i_8"
+					],
+					[
+						616365,
+						1,
+						"4"
+					],
+					[
+						616714,
+						158,
+						"574, ray_4.tMin_0, (*hit_14).t_4);\n        var dist2_8 : f32 = IntersectBox_0(node_4.rmin_0, node_4.rmax_0, ray_4.origin_0, _S574, ray_4.tMin_0, (*hit_14).t_4"
+					],
+					[
+						617041,
+						2,
+						"8"
+					],
+					[
+						617206,
+						2,
+						"8"
+					],
+					[
+						617575,
+						1,
+						"4"
+					],
+					[
+						617970,
+						115,
+						"578 : u32 = stackPtr_16 + u32(1);\n                stack_4[stackPtr_16] = far_4;\n                stackPtr_19 = _S578"
+					],
+					[
+						618215,
+						2,
+						"8"
+					],
+					[
+						618389,
+						3,
+						"579"
+					],
+					[
+						618976,
+						2,
+						"9"
+					],
+					[
+						619024,
+						2,
+						"9"
+					],
+					[
+						619142,
+						121,
+						"580 : EmissiveTriangle_std430_0 = gLights_0[i_9];\n        var _S581 : u32 = AnalyticFlags_0(&(_S580));\n        var _S582"
+					],
+					[
+						619320,
+						13,
+						"582 = ((_S581"
+					],
+					[
+						619407,
+						3,
+						"582"
+					],
+					[
+						619443,
+						3,
+						"582"
+					],
+					[
+						619472,
+						9,
+						"9 = i_9"
+					],
+					[
+						619567,
+						3,
+						"583"
+					],
+					[
+						619623,
+						3,
+						"581"
+					],
+					[
+						619682,
+						78,
+						"5 : vec3<f32> = _S580.p2_0.xyz;\n            var cosTheta_14 : f32 = - dot(n_15"
+					],
+					[
+						619861,
+						1052,
+						"9 = i_9 + u32(1);\n                continue;\n            }\n            var _S584 : vec4<f32> = _S580.p0_0;\n            var _S585 : vec3<f32> = _S580.p0_0.xyz;\n            var t_11 : f32 = dot(_S585 - origin_10, n_15) / - cosTheta_14;\n            if((t_11 <= 0.0f))\n            {\n                _S583 = true;\n            }\n            else\n            {\n                _S583 = (t_11 >= nearest_0);\n            }\n            if(_S583)\n            {\n                i_9 = i_9 + u32(1);\n                continue;\n            }\n            var local_1 : vec3<f32> = origin_10 + dir_27 * vec3<f32>(t_11) - _S585;\n            var _S586 : vec3<f32> = _S580.n_0.xyz;\n            var _S587 : vec3<f32> = _S580.uvA_0.xyz;\n            var d_11 : vec2<f32> = vec2<f32>(dot(local_1, _S586) / dot(_S586, _S586), dot(local_1, _S587) / dot(_S587, _S587));\n            if(((_S581 & (u32(512)))) != u32(0))\n            {\n                inside_4 = ((dot(d_11, d_11)) <= 0.25f);\n            }\n            else\n            {\n                inside_4 = (all((((abs(d_11"
+					],
+					[
+						621012,
+						9,
+						"9 = i_9"
+					],
+					[
+						621102,
+						120,
+						"580.p1_0.xyz;\n            (*pdf_17) = _S580.p1_0.w * t_11 * t_11 / (cosTheta_14 * _S584.w);\n            nearest_1 = t_11"
+					],
+					[
+						621275,
+						68,
+						"588 : vec4<f32> = _S580.p0_0;\n            var radius_4 : f32 = _S580"
+					],
+					[
+						621419,
+						9,
+						"9 = i_9"
+					],
+					[
+						621522,
+						3,
+						"588"
+					],
+					[
+						621624,
+						169,
+						"8 : f32 = dot(toCenter_1, dir_27);\n            var _S589 : f32 = radius_4 * radius_4;\n            var h_15 : f32 = _S589 - (distSq_4 - tc_8 * tc_8);\n            if((h_15"
+					],
+					[
+						621835,
+						3,
+						"583"
+					],
+					[
+						621910,
+						24,
+						"583 = (distSq_4 <= _S589"
+					],
+					[
+						621968,
+						3,
+						"583"
+					],
+					[
+						622005,
+						9,
+						"9 = i_9"
+					],
+					[
+						622084,
+						49,
+						"2 : f32 = tc_8 - sqrt(h_15);\n            if((t_12"
+					],
+					[
+						622267,
+						1,
+						"2"
+					],
+					[
+						622355,
+						9,
+						"9 = i_9"
+					],
+					[
+						622433,
+						385,
+						"590 : vec4<f32> = _S580.p1_0;\n            var _S591 : vec3<f32> = _S580.p1_0.xyz;\n            var _S592 : f32 = SpotAttenuation_0(&(_S580), (vec3<f32>(0) - toCenter_1) * vec3<f32>(rsqrt_0(distSq_4)));\n            (*radiance_4) = _S591 * vec3<f32>(_S592);\n            (*pdf_17) = _S590.w / (2.0f * float_getPi_0() * SphereOneMinusCos_0(radius_4, distSq_4));\n            nearest_1 = t_12"
+					],
+					[
+						622896,
+						9,
+						"9 = i_9"
+					],
+					[
+						623000,
+						3,
+						"593"
+					],
+					[
+						623051,
+						3,
+						"593"
+					],
+					[
+						623165,
+						3,
+						"593"
+					],
+					[
+						623197,
+						3,
+						"593"
+					],
+					[
+						623535,
+						346,
+						"2 : vec3<f32> = RotateY_0(dir_29, - gFrame_0.envParams_0.y);\n    var uv_1 : vec2<f32> = fract(DirectionToEquirectUV_0(local_2));\n    var _S594 : f32 = f32(W_1);\n    var _S595 : u32 = min(u32(uv_1.x * _S594), W_1 - u32(1));\n    var _S596 : f32 = f32(H_1);\n    var _S597 : u32 = min(u32(uv_1.y * _S596), H_1 - u32(1));\n    var _S598 : f32 = local_2"
+					],
+					[
+						623946,
+						177,
+						"595 + u32(1), _S597) - EnvCdf_0(_S595, _S597)) * _S594 * ((EnvCdf_0(_S597 + u32(1), H_1) - EnvCdf_0(_S597, H_1)) * _S596) / (2.0f * PI_6 * PI_6 * sqrt(clamp(1.0f - _S598 * _S598"
+					],
+					[
+						624193,
+						1,
+						"4"
+					],
+					[
+						624330,
+						26,
+						"4).path_0.origin_3, (*s_34"
+					],
+					[
+						624514,
+						3,
+						"599"
+					],
+					[
+						624751,
+						1,
+						"4"
+					],
+					[
+						624858,
+						144,
+						"00 : bool = IntersectAnalyticLights_0(ray_6.origin_0, ray_6.direction_0, mis_6, bounce_11 == u32(0), &(radiance_5), &(pdf_18));\n        if(_S600"
+					],
+					[
+						625033,
+						54,
+						"01 : bool = (bounce_11 > u32(0));\n            if(_S601"
+					],
+					[
+						625121,
+						12,
+						"599 = (*s_34"
+					],
+					[
+						625222,
+						3,
+						"599"
+					],
+					[
+						625266,
+						3,
+						"599"
+					],
+					[
+						625330,
+						1,
+						"4"
+					],
+					[
+						625502,
+						1,
+						"4"
+					],
+					[
+						625628,
+						11,
+						"599 = _S601"
+					],
+					[
+						625704,
+						3,
+						"599"
+					],
+					[
+						625748,
+						3,
+						"599"
+					],
+					[
+						625971,
+						29,
+						"4).path_0.radiance_1 = (*s_34"
+					],
+					[
+						626469,
+						29,
+						"4).path_0.radiance_1 = (*s_34"
+					],
+					[
+						626594,
+						3,
+						"599"
+					],
+					[
+						626693,
+						3,
+						"599"
+					],
+					[
+						626737,
+						3,
+						"599"
+					],
+					[
+						626777,
+						29,
+						"4).path_0.radiance_1 = (*s_34"
+					],
+					[
+						626923,
+						1,
+						"4"
+					],
+					[
+						627009,
+						1,
+						"4"
+					],
+					[
+						627210,
+						546,
+						"4).path_0.throughput_7 * vec3<f32>(mis_6) * EvalEnvironment_0(ray_6.direction_0);\n            if(!(*s_34).path_0.lightsSampled_0)\n            {\n                _S599 = SunEnabled_0();\n            }\n            else\n            {\n                _S599 = false;\n            }\n            if(_S599)\n            {\n                _S599 = HitsSun_0(ray_6.direction_0);\n            }\n            else\n            {\n                _S599 = false;\n            }\n            if(_S599)\n            {\n                contribution_7 = contribution_9 + (*s_34"
+					],
+					[
+						628078,
+						29,
+						"4).path_0.radiance_1 = (*s_34"
+					],
+					[
+						628168,
+						1,
+						"4"
+					],
+					[
+						628241,
+						1,
+						"5"
+					],
+					[
+						628344,
+						293,
+						"5).path_0.coneWidth_2, (*s_35).path_0.coneSpread_0);\n    var _S602 : HitRecord_0 = TraceClosest_0(Ray_x24init_0((*s_35).path_0.origin_3, (*s_35).path_0.direction_1, 1.00000001504746622e+30f));\n    var _S603 : HitRecord_0 = CompleteIntersection_0(&((*s_35)), bounce_12, _S602);\n    return _S603"
+					],
+					[
+						628664,
+						99,
+						"04 : u32,  _S605 : u32,  _S606 : vec3<f32>,  _S607 : vec3<f32>,  _S608 : f32,  _S609 : bool,  _S610"
+					],
+					[
+						628840,
+						129,
+						"11 : vec3<f32> = SafeRcp_0(_S607);\n    var _S612 : bool = (((gInstances_0[_S605].flags_0) & (u32(1)))) != u32(0);\n    var stack_5"
+					],
+					[
+						629126,
+						1,
+						"0"
+					],
+					[
+						629219,
+						76,
+						"613 : u32 = (((nodeRef_5 >> (u32(24)))) & (u32(127)));\n            var _S614"
+					],
+					[
+						629383,
+						1,
+						"0"
+					],
+					[
+						629449,
+						9,
+						"0 < _S613"
+					],
+					[
+						629696,
+						34,
+						"05].blasTriOffset_0 + _S614 + i_10"
+					],
+					[
+						629822,
+						1,
+						"3"
+					],
+					[
+						629893,
+						186,
+						"615 : bool = IntersectTriangle_0(_S606, _S607, v0_4.xyz, gTris_0[base_26 + u32(1)].xyz, gTris_0[base_26 + u32(2)].xyz, _S608, (*_S610).t_4, &(t_13), &(bary_7));\n                if(!_S615"
+					],
+					[
+						630122,
+						8,
+						"0 = i_10"
+					],
+					[
+						630282,
+						36,
+						"616 : bool;\n                if(_S612"
+					],
+					[
+						630358,
+						111,
+						"_S616 = AlphaTestRejects_0(_S605, primitiveIndex_4, bary_7, t_13)"
+					],
+					[
+						630550,
+						3,
+						"616"
+					],
+					[
+						630602,
+						3,
+						"616"
+					],
+					[
+						630648,
+						8,
+						"0 = i_10"
+					],
+					[
+						630736,
+						202,
+						"10).t_4 = t_13;\n                (*_S610).barycentrics_0 = bary_7;\n                (*_S610).instanceIndex_2 = _S604;\n                (*_S610).primitiveIndex_1 = primitiveIndex_4;\n                if(_S609"
+					],
+					[
+						631061,
+						8,
+						"0 = i_10"
+					],
+					[
+						631271,
+						1,
+						"5"
+					],
+					[
+						631510,
+						252,
+						"05].blasNodeOffset_0 + nodeRef_5];\n        var dist1_10 : f32 = IntersectBox_0(node_5.lmin_0, node_5.lmax_0, _S606, _S611, _S608, (*_S610).t_4);\n        var dist2_10 : f32 = IntersectBox_0(node_5.rmin_0, node_5.rmax_0, _S606, _S611, _S608, (*_S610).t_4"
+					],
+					[
+						631938,
+						1,
+						"0"
+					],
+					[
+						632107,
+						1,
+						"0"
+					],
+					[
+						632478,
+						1,
+						"5"
+					],
+					[
+						632874,
+						115,
+						"617 : u32 = stackPtr_20 + u32(1);\n                stack_5[stackPtr_20] = far_5;\n                stackPtr_23 = _S617"
+					],
+					[
+						633120,
+						1,
+						"0"
+					],
+					[
+						633341,
+						1,
+						"4"
+					],
+					[
+						633590,
+						106,
+						"618 : u32 = gFrame_0.counts_0.z;\n    var _S619 : vec3<f32> = SafeRcp_0(ray_7.direction_0);\n    var stack_6"
+					],
+					[
+						633853,
 						1,
 						"1"
 					],
 					[
-						623721,
+						633946,
+						76,
+						"620 : u32 = (((nodeRef_6 >> (u32(24)))) & (u32(127)));\n            var _S621"
+					],
+					[
+						634110,
+						1,
+						"1"
+					],
+					[
+						634176,
 						9,
-						"1 < _S592"
+						"1 < _S620"
 					],
 					[
-						623910,
+						634365,
 						288,
-						"590 + _S593 + i_11];\n                var _S594 : bool = TraverseBLAS_2(instanceIndex_6, instanceIndex_6, InverseTransformPoint_0(instanceIndex_6, ray_7.origin_0), InverseTransformVector_0(instanceIndex_6, ray_7.direction_0), ray_7.tMin_0, anyHit_3, &((*hit_17)));\n                if(_S594"
+						"618 + _S621 + i_11];\n                var _S622 : bool = TraverseBLAS_2(instanceIndex_6, instanceIndex_6, InverseTransformPoint_0(instanceIndex_6, ray_7.origin_0), InverseTransformVector_0(instanceIndex_6, ray_7.direction_0), ray_7.tMin_0, anyHit_3, &((*hit_17)));\n                if(_S622"
 					],
 					[
-						624406,
+						634861,
 						8,
 						"1 = i_11"
 					],
 					[
-						624616,
+						635071,
 						1,
 						"6"
 					],
 					[
-						624966,
+						635421,
 						159,
-						"591, ray_7.tMin_0, (*hit_17).t_4);\n        var dist2_12 : f32 = IntersectBox_0(node_6.rmin_0, node_6.rmax_0, ray_7.origin_0, _S591, ray_7.tMin_0, (*hit_17).t_4"
+						"619, ray_7.tMin_0, (*hit_17).t_4);\n        var dist2_12 : f32 = IntersectBox_0(node_6.rmin_0, node_6.rmax_0, ray_7.origin_0, _S619, ray_7.tMin_0, (*hit_17).t_4"
 					],
 					[
-						625301,
+						635756,
 						1,
 						"1"
 					],
 					[
-						625470,
+						635925,
 						1,
 						"1"
 					],
 					[
-						625841,
+						636296,
 						1,
 						"6"
 					],
 					[
-						626237,
+						636692,
 						115,
-						"595 : u32 = stackPtr_24 + u32(1);\n                stack_6[stackPtr_24] = far_6;\n                stackPtr_27 = _S595"
+						"623 : u32 = stackPtr_24 + u32(1);\n                stack_6[stackPtr_24] = far_6;\n                stackPtr_27 = _S623"
 					],
 					[
-						626483,
+						636938,
 						1,
 						"1"
 					],
 					[
-						626656,
+						637111,
 						3,
-						"596"
+						"624"
 					],
 					[
-						626753,
+						637208,
 						1,
 						"6"
 					],
 					[
-						626856,
+						637311,
 						293,
-						"6).path_0.coneWidth_2, (*s_36).path_0.coneSpread_0);\n    var _S597 : HitRecord_0 = TraceClosest_1(Ray_x24init_0((*s_36).path_0.origin_3, (*s_36).path_0.direction_1, 1.00000001504746622e+30f));\n    var _S598 : HitRecord_0 = CompleteIntersection_0(&((*s_36)), bounce_13, _S597);\n    return _S598"
+						"6).path_0.coneWidth_2, (*s_36).path_0.coneSpread_0);\n    var _S625 : HitRecord_0 = TraceClosest_1(Ray_x24init_0((*s_36).path_0.origin_3, (*s_36).path_0.direction_1, 1.00000001504746622e+30f));\n    var _S626 : HitRecord_0 = CompleteIntersection_0(&((*s_36)), bounce_13, _S625);\n    return _S626"
 					],
 					[
-						627436,
+						637891,
 						405,
-						"599 : PathState_0;\n    _S599.radiance_1 = radiance_6;\n    _S599.throughput_7 = throughput_43;\n    _S599.origin_3 = origin_11;\n    _S599.direction_1 = direction_2;\n    _S599.scatterPdf_0 = scatterPdf_1;\n    _S599.lobe_2 = lobe_7;\n    _S599.coneWidth_2 = coneWidth_4;\n    _S599.coneSpread_0 = coneSpread_1;\n    _S599.absorption_0 = absorption_4;\n    _S599.lightsSampled_0 = lightsSampled_1;\n    return _S599"
+						"627 : PathState_0;\n    _S627.radiance_1 = radiance_6;\n    _S627.throughput_7 = throughput_43;\n    _S627.origin_3 = origin_11;\n    _S627.direction_1 = direction_2;\n    _S627.scatterPdf_0 = scatterPdf_1;\n    _S627.lobe_2 = lobe_7;\n    _S627.coneWidth_2 = coneWidth_4;\n    _S627.coneSpread_0 = coneSpread_1;\n    _S627.absorption_0 = absorption_4;\n    _S627.lightsSampled_0 = lightsSampled_1;\n    return _S627"
 					],
 					[
-						628013,
-						199,
-						"00 : WavefrontPath_0;\n    _S600.path_0 = path_1;\n    _S600.active_0 = active_1;\n    _S600.randomSeed_0 = randomSeed_1;\n    _S600.albedo_2 = albedo_8;\n    _S600.normal_11 = normal_23;\n    return _S600"
+						638467,
+						200,
+						"628 : WavefrontPath_0;\n    _S628.path_0 = path_1;\n    _S628.active_0 = active_1;\n    _S628.randomSeed_0 = randomSeed_1;\n    _S628.albedo_2 = albedo_8;\n    _S628.normal_11 = normal_23;\n    return _S628"
 					],
 					[
-						628286,
-						492,
-						"01 : vec3<f32> = vec3<f32>(0.0f);\n    var s_37 : WavefrontPath_0 = WavefrontPath_x24init_0(PathState_x24init_0(_S601, _S601, _S601, _S601, 0.0f, u32(0), 0.0f, 0.0f, _S601, false), u32(0), u32(0), _S601, _S601);\n    s_37.active_0 = (bitcast<u32>((gAccum_0[base_26].w)));\n    s_37.path_0.direction_1 = gAccum_0[Field_0(base_26, u32(3))].xyz;\n    s_37.path_0.coneWidth_2 = gAccum_0[Field_0(base_26, u32(4))].w;\n    s_37.path_0.coneSpread_0 = gAccum_0[Field_0(base_26, u32(5))].w;\n    return s_37"
+						638740,
+						493,
+						"629 : vec3<f32> = vec3<f32>(0.0f);\n    var s_37 : WavefrontPath_0 = WavefrontPath_x24init_0(PathState_x24init_0(_S629, _S629, _S629, _S629, 0.0f, u32(0), 0.0f, 0.0f, _S629, false), u32(0), u32(0), _S629, _S629);\n    s_37.active_0 = (bitcast<u32>((gAccum_0[base_27].w)));\n    s_37.path_0.direction_1 = gAccum_0[Field_0(base_27, u32(3))].xyz;\n    s_37.path_0.coneWidth_2 = gAccum_0[Field_0(base_27, u32(4))].w;\n    s_37.path_0.coneSpread_0 = gAccum_0[Field_0(base_27, u32(5))].w;\n    return s_37"
 					],
 					[
-						628782,
+						639237,
 						0,
 						"\nvar<private> gVTRequest_0 : u32;\n\nvar<private> gVTRequestCount_0 : u32;\n\nvar<private> gVTRandom_0 : u32;\n"
 					],
 					[
-						629258,
-						33,
-						"02 : u32 = tid_0.x;\n    if((_S602"
+						639712,
+						34,
+						"630 : u32 = tid_0.x;\n    if((_S630"
 					],
 					[
-						629390,
-						2,
-						"02"
+						639844,
+						3,
+						"630"
 					],
 					[
-						629465,
+						639920,
 						62,
-						"8 : WavefrontPath_0 = LoadShadingPath_0(base_29);\n    if((s_38"
+						"8 : WavefrontPath_0 = LoadShadingPath_0(base_30);\n    if((s_38"
 					],
 					[
-						629654,
+						640109,
 						1,
 						"4"
 					],
 					[
-						629945,
-						121,
-						"03 : HitRecord_0 = hit_19;\n    ShadePath_2(base_29, &(s_38), _S603, gWavefront_0.bounce_0);\n    StorePath_0(base_29, s_38"
+						640399,
+						122,
+						"631 : HitRecord_0 = hit_19;\n    ShadePath_2(base_30, &(s_38), _S631, gWavefront_0.bounce_0);\n    StorePath_0(base_30, s_38"
 					],
 					[
-						630153,
+						640608,
 						2,
 						"39"
 					],
 					[
-						630213,
+						640668,
 						725,
-						"39.path_0.radiance_1, (bitcast<f32>((s_39.active_0))));\n    gAccum_0[Field_0(base_30, u32(1))] = vec4<f32>(s_39.path_0.throughput_7, (bitcast<f32>((s_39.randomSeed_0))));\n    gAccum_0[Field_0(base_30, u32(2))] = vec4<f32>(s_39.path_0.origin_3, s_39.path_0.scatterPdf_0);\n    gAccum_0[Field_0(base_30, u32(3))] = vec4<f32>(s_39.path_0.direction_1, (bitcast<f32>((select(u32(0), u32(1), s_39.path_0.lightsSampled_0)))));\n    gAccum_0[Field_0(base_30, u32(4))] = vec4<f32>(s_39.path_0.absorption_0, s_39.path_0.coneWidth_2);\n    gAccum_0[Field_0(base_30, u32(5))] = vec4<f32>(s_39.albedo_2, s_39.path_0.coneSpread_0);\n    var _S604 : u32 = Field_0(base_30, u32(6));\n    gAccum_0[_S604] = vec4<f32>(s_39.normal_11, gAccum_0[_S604"
+						"39.path_0.radiance_1, (bitcast<f32>((s_39.active_0))));\n    gAccum_0[Field_0(base_31, u32(1))] = vec4<f32>(s_39.path_0.throughput_7, (bitcast<f32>((s_39.randomSeed_0))));\n    gAccum_0[Field_0(base_31, u32(2))] = vec4<f32>(s_39.path_0.origin_3, s_39.path_0.scatterPdf_0);\n    gAccum_0[Field_0(base_31, u32(3))] = vec4<f32>(s_39.path_0.direction_1, (bitcast<f32>((select(u32(0), u32(1), s_39.path_0.lightsSampled_0)))));\n    gAccum_0[Field_0(base_31, u32(4))] = vec4<f32>(s_39.path_0.absorption_0, s_39.path_0.coneWidth_2);\n    gAccum_0[Field_0(base_31, u32(5))] = vec4<f32>(s_39.albedo_2, s_39.path_0.coneSpread_0);\n    var _S632 : u32 = Field_0(base_31, u32(6));\n    gAccum_0[_S632] = vec4<f32>(s_39.normal_11, gAccum_0[_S632"
 					],
 					[
-						631007,
-						33,
-						"05 : u32 = tid_1.x;\n    if((_S605"
-					],
-					[
-						631139,
-						2,
-						"05"
-					],
-					[
-						631214,
-						62,
-						"0 : WavefrontPath_0 = LoadShadingPath_0(base_31);\n    if((s_40"
-					],
-					[
-						631403,
-						1,
-						"4"
-					],
-					[
-						631694,
-						106,
-						"06 : HitRecord_0 = hit_20;\n    ShadePath_3(base_31, &(s_40), _S606, u32(0));\n    StorePath_1(base_31, s_40"
-					],
-					[
-						631901,
-						33,
-						"07 : u32 = tid_2.x;\n    if((_S607"
-					],
-					[
-						632033,
-						2,
-						"07"
-					],
-					[
-						632108,
-						62,
-						"1 : WavefrontPath_0 = LoadShadingPath_0(base_32);\n    if((s_41"
-					],
-					[
-						632297,
-						1,
-						"4"
-					],
-					[
-						632588,
-						121,
-						"08 : HitRecord_0 = hit_21;\n    ShadePath_4(base_32, &(s_41), _S608, gWavefront_0.bounce_0);\n    StorePath_1(base_32, s_41"
-					],
-					[
-						632810,
-						33,
-						"09 : u32 = tid_3.x;\n    if((_S609"
-					],
-					[
-						632942,
-						2,
-						"09"
-					],
-					[
-						633017,
-						55,
-						"2 : WavefrontPath_0 = LoadPath_0(base_33);\n    if((s_42"
-					],
-					[
-						633199,
-						1,
-						"4"
-					],
-					[
-						633490,
-						121,
-						"10 : HitRecord_0 = hit_22;\n    ShadePath_5(base_33, &(s_42), _S610, gWavefront_0.bounce_0);\n    StorePath_0(base_33, s_42"
-					],
-					[
-						633711,
+						641461,
 						34,
-						"611 : u32 = tid_4.x;\n    if((_S611"
+						"633 : u32 = tid_1.x;\n    if((_S633"
 					],
 					[
-						633843,
+						641593,
 						3,
-						"611"
+						"633"
 					],
 					[
-						633919,
-						55,
-						"3 : WavefrontPath_0 = LoadPath_1(base_34);\n    if((s_43"
+						641669,
+						62,
+						"0 : WavefrontPath_0 = LoadShadingPath_0(base_32);\n    if((s_40"
 					],
 					[
-						634101,
+						641858,
 						1,
 						"4"
 					],
 					[
-						634391,
+						642148,
 						107,
-						"612 : HitRecord_0 = hit_23;\n    ShadePath_6(base_34, &(s_43), _S612, u32(0));\n    StorePath_1(base_34, s_43"
+						"634 : HitRecord_0 = hit_20;\n    ShadePath_3(base_32, &(s_40), _S634, u32(0));\n    StorePath_1(base_32, s_40"
 					],
 					[
-						634701,
+						642355,
+						34,
+						"635 : u32 = tid_2.x;\n    if((_S635"
+					],
+					[
+						642487,
+						3,
+						"635"
+					],
+					[
+						642563,
+						62,
+						"1 : WavefrontPath_0 = LoadShadingPath_0(base_33);\n    if((s_41"
+					],
+					[
+						642752,
+						1,
+						"4"
+					],
+					[
+						643042,
+						122,
+						"636 : HitRecord_0 = hit_21;\n    ShadePath_4(base_33, &(s_41), _S636, gWavefront_0.bounce_0);\n    StorePath_1(base_33, s_41"
+					],
+					[
+						643264,
+						34,
+						"637 : u32 = tid_3.x;\n    if((_S637"
+					],
+					[
+						643396,
+						3,
+						"637"
+					],
+					[
+						643472,
+						55,
+						"2 : WavefrontPath_0 = LoadPath_0(base_34);\n    if((s_42"
+					],
+					[
+						643654,
+						1,
+						"4"
+					],
+					[
+						643944,
+						122,
+						"638 : HitRecord_0 = hit_22;\n    ShadePath_5(base_34, &(s_42), _S638, gWavefront_0.bounce_0);\n    StorePath_0(base_34, s_42"
+					],
+					[
+						644166,
+						34,
+						"639 : u32 = tid_4.x;\n    if((_S639"
+					],
+					[
+						644298,
+						3,
+						"639"
+					],
+					[
+						644374,
+						55,
+						"3 : WavefrontPath_0 = LoadPath_1(base_35);\n    if((s_43"
+					],
+					[
+						644556,
+						1,
+						"4"
+					],
+					[
+						644846,
+						107,
+						"640 : HitRecord_0 = hit_23;\n    ShadePath_6(base_35, &(s_43), _S640, u32(0));\n    StorePath_1(base_35, s_43"
+					],
+					[
+						645156,
 						1,
 						"1"
 					],
 					[
-						634771,
+						645226,
 						21,
 						"1 / u32(4)][(index_21"
 					],
 					[
-						634860,
+						645315,
 						34,
-						"613 : u32 = tid_5.x;\n    if((_S613"
+						"641 : u32 = tid_5.x;\n    if((_S641"
 					],
 					[
-						635043,
+						645498,
 						3,
-						"613"
+						"641"
 					],
 					[
-						635120,
+						645575,
 						62,
-						"4 : WavefrontPath_0 = LoadShadingPath_0(base_36);\n    if((s_44"
+						"4 : WavefrontPath_0 = LoadShadingPath_0(base_37);\n    if((s_44"
 					],
 					[
-						635309,
+						645764,
 						1,
 						"4"
 					],
 					[
-						635599,
+						646054,
 						122,
-						"614 : HitRecord_0 = hit_24;\n    ShadePath_2(base_36, &(s_44), _S614, gWavefront_0.bounce_0);\n    StorePath_0(base_36, s_44"
+						"642 : HitRecord_0 = hit_24;\n    ShadePath_2(base_37, &(s_44), _S642, gWavefront_0.bounce_0);\n    StorePath_0(base_37, s_44"
 					],
 					[
-						635821,
+						646276,
 						34,
-						"615 : u32 = tid_6.x;\n    if((_S615"
+						"643 : u32 = tid_6.x;\n    if((_S643"
 					],
 					[
-						636004,
+						646459,
 						3,
-						"615"
+						"643"
 					],
 					[
-						636081,
+						646536,
 						62,
-						"5 : WavefrontPath_0 = LoadShadingPath_0(base_37);\n    if((s_45"
+						"5 : WavefrontPath_0 = LoadShadingPath_0(base_38);\n    if((s_45"
 					],
 					[
-						636270,
+						646725,
 						1,
 						"4"
 					],
 					[
-						636560,
+						647015,
 						107,
-						"616 : HitRecord_0 = hit_25;\n    ShadePath_3(base_37, &(s_45), _S616, u32(0));\n    StorePath_1(base_37, s_45"
+						"644 : HitRecord_0 = hit_25;\n    ShadePath_3(base_38, &(s_45), _S644, u32(0));\n    StorePath_1(base_38, s_45"
 					],
 					[
-						636767,
+						647222,
 						34,
-						"617 : u32 = tid_7.x;\n    if((_S617"
+						"645 : u32 = tid_7.x;\n    if((_S645"
 					],
 					[
-						636950,
+						647405,
 						3,
-						"617"
+						"645"
 					],
 					[
-						637027,
+						647482,
 						62,
-						"6 : WavefrontPath_0 = LoadShadingPath_0(base_38);\n    if((s_46"
+						"6 : WavefrontPath_0 = LoadShadingPath_0(base_39);\n    if((s_46"
 					],
 					[
-						637216,
+						647671,
 						1,
 						"4"
 					],
 					[
-						637506,
+						647961,
 						122,
-						"618 : HitRecord_0 = hit_26;\n    ShadePath_4(base_38, &(s_46), _S618, gWavefront_0.bounce_0);\n    StorePath_1(base_38, s_46"
+						"646 : HitRecord_0 = hit_26;\n    ShadePath_4(base_39, &(s_46), _S646, gWavefront_0.bounce_0);\n    StorePath_1(base_39, s_46"
 					],
 					[
-						637728,
+						648183,
 						34,
-						"619 : u32 = tid_8.x;\n    if((_S619"
+						"647 : u32 = tid_8.x;\n    if((_S647"
 					],
 					[
-						637911,
+						648366,
 						3,
-						"619"
+						"647"
 					],
 					[
-						637988,
+						648443,
 						55,
-						"7 : WavefrontPath_0 = LoadPath_0(base_39);\n    if((s_47"
+						"7 : WavefrontPath_0 = LoadPath_0(base_40);\n    if((s_47"
 					],
 					[
-						638170,
+						648625,
 						1,
 						"4"
 					],
 					[
-						638460,
+						648915,
 						122,
-						"620 : HitRecord_0 = hit_27;\n    ShadePath_5(base_39, &(s_47), _S620, gWavefront_0.bounce_0);\n    StorePath_0(base_39, s_47"
+						"648 : HitRecord_0 = hit_27;\n    ShadePath_5(base_40, &(s_47), _S648, gWavefront_0.bounce_0);\n    StorePath_0(base_40, s_47"
 					],
 					[
-						638682,
+						649137,
 						34,
-						"621 : u32 = tid_9.x;\n    if((_S621"
+						"649 : u32 = tid_9.x;\n    if((_S649"
 					],
 					[
-						638865,
+						649320,
 						3,
-						"621"
+						"649"
 					],
 					[
-						638942,
+						649397,
 						55,
-						"8 : WavefrontPath_0 = LoadPath_1(base_40);\n    if((s_48"
+						"8 : WavefrontPath_0 = LoadPath_1(base_41);\n    if((s_48"
 					],
 					[
-						639124,
+						649579,
 						1,
 						"4"
 					],
 					[
-						639414,
+						649869,
 						107,
-						"622 : HitRecord_0 = hit_28;\n    ShadePath_6(base_40, &(s_48), _S622, u32(0));\n    StorePath_1(base_40, s_48"
+						"650 : HitRecord_0 = hit_28;\n    ShadePath_6(base_41, &(s_48), _S650, u32(0));\n    StorePath_1(base_41, s_48"
 					],
 					[
-						639607,
+						650062,
 						1,
 						"2"
 					],
 					[
-						639759,
+						650214,
 						348,
-						"2];\n    var _S623 : vec3<f32> = light_5.p0_0.xyz;\n    var _S624 : f32 = bary_8.x;\n    var _S625 : vec3<f32> = light_5.p1_0.xyz;\n    var _S626 : f32 = bary_8.y;\n    var _S627 : vec3<f32> = light_5.p2_0.xyz;\n    var _S628 : f32 = bary_8.z;\n    var position_4 : vec3<f32> = _S623 * vec3<f32>(_S624) + _S625 * vec3<f32>(_S626) + _S627 * vec3<f32>(_S628"
+						"2];\n    var _S651 : vec3<f32> = light_5.p0_0.xyz;\n    var _S652 : f32 = bary_8.x;\n    var _S653 : vec3<f32> = light_5.p1_0.xyz;\n    var _S654 : f32 = bary_8.y;\n    var _S655 : vec3<f32> = light_5.p2_0.xyz;\n    var _S656 : f32 = bary_8.z;\n    var position_4 : vec3<f32> = _S651 * vec3<f32>(_S652) + _S653 * vec3<f32>(_S654) + _S655 * vec3<f32>(_S656"
 					],
 					[
-						640218,
+						650673,
 						909,
-						"9 : TextureCoords_0;\n    var _S629 : vec2<f32> = light_5.uvA_0.xy;\n    var _S630 : vec2<f32> = vec2<f32>(_S624);\n    var _S631 : vec2<f32> = light_5.uvA_0.zw;\n    var _S632 : vec2<f32> = vec2<f32>(_S626);\n    var _S633 : vec2<f32> = light_5.uvB_0.xy;\n    var _S634 : vec2<f32> = vec2<f32>(_S628);\n    var _S635 : vec2<f32> = _S629 * _S630 + _S631 * _S632 + _S633 * _S634;\n    var _S636 : vec2<f32> = light_5.uvB_0.zw;\n    var _S637 : vec2<f32> = light_5.uvC_0.xy;\n    var _S638 : vec2<f32> = light_5.uvC_0.zw;\n    var _S639 : vec2<f32> = _S636 * _S630 + _S637 * _S632 + _S638 * _S634;\n    var _S640 : vec3<f32> = _S625 - _S623;\n    var _S641 : vec3<f32> = _S627 - _S623;\n    var _S642 : vec2<f32> = _S631 - _S629;\n    var _S643 : vec2<f32> = _S633 - _S629;\n    var _S644 : vec2<f32> = _S637 - _S636;\n    var _S645 : vec2<f32> = _S638 - _S636;\n    var _S646 : f32 = cone_5.x + cone_5.y * dist_1;\n    var _S647"
+						"9 : TextureCoords_0;\n    var _S657 : vec2<f32> = light_5.uvA_0.xy;\n    var _S658 : vec2<f32> = vec2<f32>(_S652);\n    var _S659 : vec2<f32> = light_5.uvA_0.zw;\n    var _S660 : vec2<f32> = vec2<f32>(_S654);\n    var _S661 : vec2<f32> = light_5.uvB_0.xy;\n    var _S662 : vec2<f32> = vec2<f32>(_S656);\n    var _S663 : vec2<f32> = _S657 * _S658 + _S659 * _S660 + _S661 * _S662;\n    var _S664 : vec2<f32> = light_5.uvB_0.zw;\n    var _S665 : vec2<f32> = light_5.uvC_0.xy;\n    var _S666 : vec2<f32> = light_5.uvC_0.zw;\n    var _S667 : vec2<f32> = _S664 * _S658 + _S665 * _S660 + _S666 * _S662;\n    var _S668 : vec3<f32> = _S653 - _S651;\n    var _S669 : vec3<f32> = _S655 - _S651;\n    var _S670 : vec2<f32> = _S659 - _S657;\n    var _S671 : vec2<f32> = _S661 - _S657;\n    var _S672 : vec2<f32> = _S665 - _S664;\n    var _S673 : vec2<f32> = _S666 - _S664;\n    var _S674 : f32 = cone_5.x + cone_5.y * dist_1;\n    var _S675"
 					],
 					[
-						641175,
+						651630,
 						3,
-						"647"
+						"675"
 					],
 					[
-						641254,
+						651709,
 						3,
-						"647"
+						"675"
 					],
 					[
-						641279,
+						651734,
 						323,
-						"9 = MakeTextureCoords_0(_S635, _S639, _S640, _S641, _S642, _S643, _S644, _S645, _S646, _S647);\n    tc_9.objectPosition_0 = InverseTransformPoint_0((bitcast<u32>((light_5.pad_0.x))), position_4);\n    return EmissiveRadiance_0(LoadMaterialHeader_0((bitcast<u32>((light_5.n_0.w)))), tc_9)"
+						"9 = MakeTextureCoords_0(_S663, _S667, _S668, _S669, _S670, _S671, _S672, _S673, _S674, _S675);\n    tc_9.objectPosition_0 = InverseTransformPoint_0((bitcast<u32>((light_5.pad_0.x))), position_4);\n    return EmissiveRadiance_0(LoadMaterialHeader_0((bitcast<u32>((light_5.n_0.w)))), tc_9)"
 					],
 					[
-						641660,
+						652115,
 						34,
-						"648 : u32 = tid_10.x;\n    if((_S64"
+						"676 : u32 = tid_10.x;\n    if((_S67"
 					],
 					[
-						641793,
+						652248,
 						106,
-						"648);\n    var _S649 : u32 = Field_0(base_41, u32(11));\n    var mask_5 : u32 = (bitcast<u32>((gAccum_0[_S64"
+						"676);\n    var _S677 : u32 = Field_0(base_42, u32(11));\n    var mask_5 : u32 = (bitcast<u32>((gAccum_0[_S67"
 					],
 					[
-						642022,
+						652477,
 						2,
-						"64"
+						"67"
 					],
 					[
-						642313,
+						652768,
 						2,
-						"64"
+						"67"
 					],
 					[
-						642405,
+						652860,
 						132,
-						"650 : u32 = Field_0(base_41, u32(17));\n        gAccum_0[_S650] = vec4<f32>(vec3<f32>(gAccum_0[_S650].w) * radiance_7 * gAccum_0[_S65"
+						"678 : u32 = Field_0(base_42, u32(17));\n        gAccum_0[_S678] = vec4<f32>(vec3<f32>(gAccum_0[_S678].w) * radiance_7 * gAccum_0[_S67"
 					],
 					[
-						642829,
+						653284,
 						2,
-						"64"
+						"67"
 					],
 					[
-						642995,
+						653450,
 						34,
-						"651 : u32 = tid_11.x;\n    if((_S65"
+						"679 : u32 = tid_11.x;\n    if((_S67"
 					],
 					[
-						643119,
+						653574,
 						197,
-						"652 : u32 = QueueIndex_0(ShadowQueueBase_0(), _S651);\n    var base_42 : u32 = WorkBase_0(_S652);\n    var _S653 : u32 = Field_0(base_42, u32(11));\n    var mask_7 : u32 = (bitcast<u32>((gAccum_0[_S65"
+						"680 : u32 = QueueIndex_0(ShadowQueueBase_0(), _S679);\n    var base_43 : u32 = WorkBase_0(_S680);\n    var _S681 : u32 = Field_0(base_43, u32(11));\n    var mask_7 : u32 = (bitcast<u32>((gAccum_0[_S68"
 					],
 					[
-						643439,
+						653894,
 						2,
-						"65"
+						"68"
 					],
 					[
-						643730,
+						654185,
 						2,
-						"65"
+						"68"
 					],
 					[
-						643822,
+						654277,
 						132,
-						"654 : u32 = Field_0(base_42, u32(17));\n        gAccum_0[_S654] = vec4<f32>(vec3<f32>(gAccum_0[_S654].w) * radiance_8 * gAccum_0[_S65"
+						"682 : u32 = Field_0(base_43, u32(17));\n        gAccum_0[_S682] = vec4<f32>(vec3<f32>(gAccum_0[_S682].w) * radiance_8 * gAccum_0[_S68"
 					],
 					[
-						644246,
+						654701,
 						2,
-						"65"
+						"68"
 					],
 					[
-						644408,
+						654863,
 						148,
-						"655 : u32 = BucketMetadataBase_0();\n    var _S656 : u32 = tid_12.x;\n    if((_S656 >= (bitcast<u32>((gAccum_0[_S65"
+						"683 : u32 = BucketMetadataBase_0();\n    var _S684 : u32 = tid_12.x;\n    if((_S684 >= (bitcast<u32>((gAccum_0[_S68"
 					],
 					[
-						644689,
+						655144,
 						16,
-						"655].y))) + _S65"
+						"683].y))) + _S68"
 					],
 					[
-						644779,
+						655234,
 						56,
-						"49 : WavefrontPath_0 = LoadPath_1(base_43);\n    if((s_49"
+						"49 : WavefrontPath_0 = LoadPath_1(base_44);\n    if((s_49"
 					],
 					[
-						644962,
+						655417,
 						1,
 						"4"
 					],
 					[
-						645252,
+						655707,
 						122,
-						"657 : HitRecord_0 = hit_29;\n    ShadePath_7(base_43, &(s_49), _S657, gWavefront_0.bounce_0);\n    StorePath_1(base_43, s_49"
+						"685 : HitRecord_0 = hit_29;\n    ShadePath_7(base_44, &(s_49), _S685, gWavefront_0.bounce_0);\n    StorePath_1(base_44, s_49"
 					],
 					[
-						645476,
+						655931,
 						34,
-						"658 : u32 = tid_13.x;\n    if((_S65"
+						"686 : u32 = tid_13.x;\n    if((_S68"
 					],
 					[
-						645660,
+						656115,
 						2,
-						"65"
+						"68"
 					],
 					[
-						645761,
+						656216,
 						210,
-						"659 : u32 = Field_0(base_44, u32(8));\n    var _S660 : u32 = gMaterialData_0[gInstances_0[(bitcast<u32>((gAccum_0[_S659].w)))].materialIndex_0 * u32(2)].w;\n    if(((((_S660 >> (u32(21)))) & (u32(31)))) != u32(0"
+						"687 : u32 = Field_0(base_45, u32(8));\n    var _S688 : u32 = gMaterialData_0[gInstances_0[(bitcast<u32>((gAccum_0[_S687].w)))].materialIndex_0 * u32(2)].w;\n    if(((((_S688 >> (u32(21)))) & (u32(31)))) != u32(0"
 					],
 					[
-						646072,
+						656527,
 						55,
-						"0 : WavefrontPath_0 = LoadPath_1(base_44);\n    if((s_50"
+						"0 : WavefrontPath_0 = LoadPath_1(base_45);\n    if((s_50"
 					],
 					[
-						646254,
+						656709,
 						128,
-						"4 = gAccum_0[_S659].x;\n    hit_30.barycentrics_0 = gAccum_0[_S659].yz;\n    hit_30.instanceIndex_2 = (bitcast<u32>((gAccum_0[_S65"
+						"4 = gAccum_0[_S687].x;\n    hit_30.barycentrics_0 = gAccum_0[_S687].yz;\n    hit_30.instanceIndex_2 = (bitcast<u32>((gAccum_0[_S68"
 					],
 					[
-						646487,
+						656942,
 						122,
-						"661 : HitRecord_0 = hit_30;\n    ShadePath_7(base_44, &(s_50), _S661, gWavefront_0.bounce_0);\n    StorePath_1(base_44, s_50"
+						"689 : HitRecord_0 = hit_30;\n    ShadePath_7(base_45, &(s_50), _S689, gWavefront_0.bounce_0);\n    StorePath_1(base_45, s_50"
 					],
 					[
-						646711,
+						657166,
 						34,
-						"662 : u32 = tid_14.x;\n    if((_S66"
+						"690 : u32 = tid_14.x;\n    if((_S69"
 					],
 					[
-						646844,
+						657299,
 						2,
-						"66"
+						"69"
 					],
 					[
-						646920,
+						657375,
 						55,
-						"1 : WavefrontPath_0 = LoadPath_1(base_45);\n    if((s_51"
+						"1 : WavefrontPath_0 = LoadPath_1(base_46);\n    if((s_51"
 					],
 					[
-						647102,
+						657557,
 						1,
 						"4"
 					],
 					[
-						647392,
+						657847,
 						122,
-						"663 : HitRecord_0 = hit_31;\n    ShadePath_7(base_45, &(s_51), _S663, gWavefront_0.bounce_0);\n    StorePath_1(base_45, s_51"
+						"691 : HitRecord_0 = hit_31;\n    ShadePath_7(base_46, &(s_51), _S691, gWavefront_0.bounce_0);\n    StorePath_1(base_46, s_51"
 					],
 					[
-						647616,
+						658071,
 						34,
-						"664 : u32 = tid_15.x;\n    if((_S66"
+						"692 : u32 = tid_15.x;\n    if((_S69"
 					],
 					[
-						647800,
+						658255,
 						2,
-						"66"
+						"69"
 					],
 					[
-						647877,
+						658332,
 						55,
-						"2 : WavefrontPath_0 = LoadPath_1(base_46);\n    if((s_52"
+						"2 : WavefrontPath_0 = LoadPath_1(base_47);\n    if((s_52"
 					],
 					[
-						648059,
+						658514,
 						1,
 						"4"
 					],
 					[
-						648349,
+						658804,
 						122,
-						"665 : HitRecord_0 = hit_32;\n    ShadePath_7(base_46, &(s_52), _S665, gWavefront_0.bounce_0);\n    StorePath_1(base_46, s_52"
+						"693 : HitRecord_0 = hit_32;\n    ShadePath_7(base_47, &(s_52), _S693, gWavefront_0.bounce_0);\n    StorePath_1(base_47, s_52"
 					],
 					[
-						648663,
+						659118,
 						1,
 						"4"
 					],
 					[
-						648912,
+						659367,
 						106,
-						"666 : u32 = gFrame_0.counts_0.z;\n    var _S667 : vec3<f32> = SafeRcp_0(ray_9.direction_0);\n    var stack_7"
+						"694 : u32 = gFrame_0.counts_0.z;\n    var _S695 : vec3<f32> = SafeRcp_0(ray_9.direction_0);\n    var stack_7"
 					],
 					[
-						649175,
+						659630,
 						1,
 						"2"
 					],
 					[
-						649268,
+						659723,
 						75,
-						"668 : u32 = (((nodeRef_7 >> (u32(24)))) & (u32(127)));\n            var _S66"
+						"696 : u32 = (((nodeRef_7 >> (u32(24)))) & (u32(127)));\n            var _S69"
 					],
 					[
-						649432,
+						659887,
 						1,
 						"2"
 					],
 					[
-						649498,
+						659953,
 						8,
-						"2 < _S66"
+						"2 < _S69"
 					],
 					[
-						649687,
+						660142,
 						287,
-						"666 + _S669 + i_12];\n                var _S670 : bool = TraverseBLAS_0(instanceIndex_7, instanceIndex_7, InverseTransformPoint_0(instanceIndex_7, ray_9.origin_0), InverseTransformVector_0(instanceIndex_7, ray_9.direction_0), ray_9.tMin_0, anyHit_4, &((*hit_33)));\n                if(_S67"
+						"694 + _S697 + i_12];\n                var _S698 : bool = TraverseBLAS_0(instanceIndex_7, instanceIndex_7, InverseTransformPoint_0(instanceIndex_7, ray_9.origin_0), InverseTransformVector_0(instanceIndex_7, ray_9.direction_0), ray_9.tMin_0, anyHit_4, &((*hit_33)));\n                if(_S69"
 					],
 					[
-						650183,
+						660638,
 						8,
 						"2 = i_12"
 					],
 					[
-						650393,
+						660848,
 						1,
 						"7"
 					],
 					[
-						650743,
+						661198,
 						159,
-						"667, ray_9.tMin_0, (*hit_33).t_4);\n        var dist2_14 : f32 = IntersectBox_0(node_7.rmin_0, node_7.rmax_0, ray_9.origin_0, _S667, ray_9.tMin_0, (*hit_33).t_4"
+						"695, ray_9.tMin_0, (*hit_33).t_4);\n        var dist2_14 : f32 = IntersectBox_0(node_7.rmin_0, node_7.rmax_0, ray_9.origin_0, _S695, ray_9.tMin_0, (*hit_33).t_4"
 					],
 					[
-						651078,
+						661533,
 						1,
 						"2"
 					],
 					[
-						651247,
+						661702,
 						1,
 						"2"
 					],
 					[
-						651618,
+						662073,
 						1,
 						"7"
 					],
 					[
-						652014,
+						662469,
 						114,
-						"671 : u32 = stackPtr_28 + u32(1);\n                stack_7[stackPtr_28] = far_7;\n                stackPtr_31 = _S67"
+						"699 : u32 = stackPtr_28 + u32(1);\n                stack_7[stackPtr_28] = far_7;\n                stackPtr_31 = _S69"
 					],
 					[
-						652260,
+						662715,
 						1,
 						"2"
 					],
 					[
-						652414,
+						662823,
 						2,
-						"67"
+						"17"
 					],
 					[
-						652494,
+						662876,
+						72,
+						"17 & (u32(511)))), f32((((v_17 >> (u32(9)))) & (u32(511)))), f32((((v_17"
+					],
+					[
+						663031,
+						1,
+						"2"
+					],
+					[
+						663221,
+						530,
+						"2 & (u32(4)))) != u32(0);\n    var _S700 : vec3<f32>;\n    if(skip_0)\n    {\n        _S700 = vec3<f32>(0.0f);\n    }\n    else\n    {\n        _S700 = contribution_10 * NrdUnpackFraction_0((flags_2 >> (u32(3))));\n    }\n    (*diffuse_3) = _S700;\n    if(skip_0)\n    {\n        _S700 = vec3<f32>(0.0f);\n    }\n    else\n    {\n        _S700 = contribution_10 - (*diffuse_3);\n    }\n    (*specular_3) = _S700;\n    if(skip_0)\n    {\n        _S700 = contribution_10;\n    }\n    else\n    {\n        _S700 = vec3<f32>(0.0f);\n    }\n    (*bypass_1) = _S70"
+					],
+					[
+						663791,
+						1,
+						"5"
+					],
+					[
+						663836,
+						1,
+						"5"
+					],
+					[
+						663961,
+						1,
+						"3"
+					],
+					[
+						664043,
+						1,
+						"3"
+					],
+					[
+						664217,
+						1120,
+						"3, contribution_11, &(diffuse_4), &(specular_4), &(bypass_2));\n    var r_21 : u32 = NrdBase_0(base_48);\n    var _S701 : vec3<f32> = gAccum_0[r_21].xyz + bypass_2;\n    gAccum_0[r_21].x = _S701.x;\n    gAccum_0[r_21].y = _S701.y;\n    gAccum_0[r_21].z = _S701.z;\n    var _S702 : u32 = r_21 + u32(1);\n    var _S703 : vec3<f32> = gAccum_0[_S702].xyz + diffuse_4;\n    gAccum_0[_S702].x = _S703.x;\n    gAccum_0[_S702].y = _S703.y;\n    gAccum_0[_S702].z = _S703.z;\n    var _S704 : u32 = r_21 + u32(2);\n    var _S705 : vec3<f32> = gAccum_0[_S704].xyz + specular_4;\n    gAccum_0[_S704].x = _S705.x;\n    gAccum_0[_S704].y = _S705.y;\n    gAccum_0[_S704].z = _S705.z;\n    var _S706 : u32 = r_21 + u32(3);\n    var _S707 : vec3<f32> = gAccum_0[_S706].xyz + vec3<f32>(Luminance_0(diffuse_4)) * direction_3;\n    gAccum_0[_S706].x = _S707.x;\n    gAccum_0[_S706].y = _S707.y;\n    gAccum_0[_S706].z = _S707.z;\n    var _S708 : u32 = r_21 + u32(4);\n    var _S709 : vec3<f32> = gAccum_0[_S708].xyz + vec3<f32>(Luminance_0(specular_4)) * direction_3;\n    gAccum_0[_S708].x = _S709.x;\n    gAccum_0[_S708].y = _S709.y;\n    gAccum_0[_S708].z = _S70"
+					],
+					[
+						665429,
+						2,
+						"71"
+					],
+					[
+						665582,
 						20,
-						"3 : vec3<f32> = _S67"
+						"3 : vec3<f32> = _S71"
 					],
 					[
-						652724,
-						9,
-						"3 = sum_3"
+						665884,
+						360,
+						"711 : u32 = source_4 * u32(3);\n        var value_3 : vec3<f32> = gAccum_0[Field_0(base_49, u32(14) + _S711)].xyz;\n        var sum_4 : vec3<f32> = sum_3 + value_3;\n        NrdAddDirect_0(base_49, (bitcast<u32>((gAccum_0[Field_0(base_49, u32(13) + _S711)].w))), throughput_44.xyz * value_3, gAccum_0[Field_0(base_49, u32(13) + _S711)].xyz);\n        sum_3 = sum_4"
 					],
 					[
-						652935,
+						666352,
 						15,
-						"3;\n    var _S67"
+						"3;\n    var _S71"
 					],
 					[
-						653046,
+						666441,
 						2,
-						"67"
+						"71"
 					],
 					[
-						653124,
+						666519,
 						2,
-						"67"
+						"71"
 					],
 					[
-						653259,
+						666654,
 						126,
-						"674 : vec3<f32> = gAccum_0[base_47].xyz + contribution_11;\n    path_2.x = _S674.x;\n    path_2.y = _S674.y;\n    path_2.z = _S67"
+						"713 : vec3<f32> = gAccum_0[base_49].xyz + contribution_13;\n    path_2.x = _S713.x;\n    path_2.y = _S713.y;\n    path_2.z = _S71"
 					],
 					[
-						653553,
+						666948,
 						34,
-						"675 : u32 = tid_16.x;\n    if((_S67"
-					],
-					[
-						653686,
-						153,
-						"675);\n    var _S676 : u32 = Field_0(base_48, u32(11));\n    var info_0 : vec4<f32> = gAccum_0[_S676];\n    var mask_10 : u32 = (bitcast<u32>((gAccum_0[_S67"
-					],
-					[
-						654506,
-						185,
-						"2 : u32 = u32(12) + source_5 * u32(3);\n        var origin_12 : vec4<f32> = gAccum_0[Field_0(base_48, offset_2)];\n        var direction_3 : vec4<f32> = gAccum_0[Field_0(base_48, offset_2"
-					],
-					[
-						654752,
-						72,
-						"677 : bool;\n        if((bitcast<u32>((gAccum_0[Field_0(base_48, offset_2"
-					],
-					[
-						654880,
-						128,
-						"678 : bool = TraceScene_4(Ray_x24init_0(origin_12.xyz, direction_3.xyz, origin_12.w), true, &(hit_34));\n            _S677 = _S67"
-					],
-					[
-						655058,
-						2,
-						"67"
-					],
-					[
-						655094,
-						2,
-						"67"
-					],
-					[
-						655832,
-						2,
-						"67"
-					],
-					[
-						655995,
-						34,
-						"679 : u32 = tid_17.x;\n    if((_S67"
-					],
-					[
-						656180,
-						154,
-						"679));\n    var _S680 : u32 = Field_0(base_49, u32(11));\n    var info_1 : vec4<f32> = gAccum_0[_S680];\n    var mask_13 : u32 = (bitcast<u32>((gAccum_0[_S68"
-					],
-					[
-						657001,
-						185,
-						"3 : u32 = u32(12) + source_6 * u32(3);\n        var origin_13 : vec4<f32> = gAccum_0[Field_0(base_49, offset_3)];\n        var direction_4 : vec4<f32> = gAccum_0[Field_0(base_49, offset_3"
-					],
-					[
-						657247,
-						72,
-						"681 : bool;\n        if((bitcast<u32>((gAccum_0[Field_0(base_49, offset_3"
-					],
-					[
-						657375,
-						128,
-						"682 : bool = TraceScene_4(Ray_x24init_0(origin_13.xyz, direction_4.xyz, origin_13.w), true, &(hit_35));\n            _S681 = _S68"
-					],
-					[
-						657553,
-						2,
-						"68"
-					],
-					[
-						657589,
-						2,
-						"68"
-					],
-					[
-						658327,
-						2,
-						"68"
-					],
-					[
-						658484,
-						59,
-						"4 : vec3<f32>;\n    var _S683 : u32 = tid_18.x;\n    if((_S68"
-					],
-					[
-						658642,
-						153,
-						"683);\n    var _S684 : u32 = Field_0(base_50, u32(11));\n    var info_2 : vec4<f32> = gAccum_0[_S684];\n    var mask_16 : u32 = (bitcast<u32>((gAccum_0[_S68"
-					],
-					[
-						658896,
-						2,
-						"68"
-					],
-					[
-						658976,
-						20,
-						"5 : vec3<f32> = _S68"
-					],
-					[
-						659284,
-						726,
-						"4 : u32 = u32(12) + source_7 * u32(3);\n        var origin_14 : vec4<f32> = gAccum_0[Field_0(base_50, offset_4)];\n        var direction_5 : vec4<f32> = gAccum_0[Field_0(base_50, offset_4 + u32(1))];\n        var _S686 : bool;\n        if((bitcast<u32>((gAccum_0[Field_0(base_50, offset_4 + u32(1))].w))) == u32(0))\n        {\n            _S686 = true;\n        }\n        else\n        {\n            var _S687 : bool = TraceOcclusion_0(Ray_x24init_0(origin_14.xyz, direction_5.xyz, origin_14.w));\n            _S686 = !_S687;\n        }\n        if(_S686)\n        {\n            sum_4 = sum_5 + gAccum_0[Field_0(base_50, offset_4 + u32(2))].xyz;\n        }\n        else\n        {\n            sum_4 = sum_5;\n        }\n        sum_5 = sum_4"
-					],
-					[
-						660140,
-						76,
-						"5;\n    var _S688 : f32 = gAccum_0[Field_0(base_50, u32(10))].w;\n    if((_S68"
-					],
-					[
-						660245,
-						39,
-						"4 = min(contribution_12, vec3<f32>(_S68"
-					],
-					[
-						660322,
-						1,
-						"4"
-					],
-					[
-						660407,
-						116,
-						"689 : vec3<f32> = gAccum_0[base_50].xyz + sum_4;\n    path_3.x = _S689.x;\n    path_3.y = _S689.y;\n    path_3.z = _S68"
-					],
-					[
-						660575,
-						2,
-						"68"
-					],
-					[
-						660665,
-						59,
-						"6 : vec3<f32>;\n    var _S690 : u32 = tid_19.x;\n    if((_S69"
-					],
-					[
-						660823,
-						153,
-						"690);\n    var _S691 : u32 = Field_0(base_51, u32(11));\n    var info_3 : vec4<f32> = gAccum_0[_S691];\n    var mask_17 : u32 = (bitcast<u32>((gAccum_0[_S69"
-					],
-					[
-						661111,
-						2,
-						"69"
-					],
-					[
-						661191,
-						20,
-						"7 : vec3<f32> = _S69"
-					],
-					[
-						661499,
-						726,
-						"5 : u32 = u32(12) + source_8 * u32(3);\n        var origin_15 : vec4<f32> = gAccum_0[Field_0(base_51, offset_5)];\n        var direction_6 : vec4<f32> = gAccum_0[Field_0(base_51, offset_5 + u32(1))];\n        var _S693 : bool;\n        if((bitcast<u32>((gAccum_0[Field_0(base_51, offset_5 + u32(1))].w))) == u32(0))\n        {\n            _S693 = true;\n        }\n        else\n        {\n            var _S694 : bool = TraceOcclusion_1(Ray_x24init_0(origin_15.xyz, direction_6.xyz, origin_15.w));\n            _S693 = !_S694;\n        }\n        if(_S693)\n        {\n            sum_6 = sum_7 + gAccum_0[Field_0(base_51, offset_5 + u32(2))].xyz;\n        }\n        else\n        {\n            sum_6 = sum_7;\n        }\n        sum_7 = sum_6"
-					],
-					[
-						662355,
-						76,
-						"7;\n    var _S695 : f32 = gAccum_0[Field_0(base_51, u32(10))].w;\n    if((_S69"
-					],
-					[
-						662460,
-						39,
-						"6 = min(contribution_13, vec3<f32>(_S69"
-					],
-					[
-						662537,
-						1,
-						"6"
-					],
-					[
-						662622,
-						116,
-						"696 : vec3<f32> = gAccum_0[base_51].xyz + sum_6;\n    path_4.x = _S696.x;\n    path_4.y = _S696.y;\n    path_4.z = _S69"
-					],
-					[
-						662790,
-						2,
-						"69"
-					],
-					[
-						662913,
-						148,
-						"697 : u32 = BucketMetadataBase_0();\n    var _S698 : u32 = tid_20.x;\n    if((_S698 >= (bitcast<u32>((gAccum_0[_S69"
-					],
-					[
-						663194,
-						16,
-						"697].y))) + _S69"
-					],
-					[
-						663285,
-						55,
-						"3 : WavefrontPath_0 = LoadPath_1(base_52);\n    if((s_53"
-					],
-					[
-						663467,
-						1,
-						"4"
-					],
-					[
-						663757,
-						122,
-						"699 : HitRecord_0 = hit_36;\n    ShadePath_8(base_52, &(s_53), _S699, gWavefront_0.bounce_0);\n    StorePath_1(base_52, s_53"
-					],
-					[
-						663982,
-						33,
-						"00 : u32 = tid_21.x;\n    if((_S70"
-					],
-					[
-						664115,
-						1,
-						"0"
-					],
-					[
-						664215,
-						209,
-						"01 : u32 = Field_0(base_53, u32(8));\n    var _S702 : u32 = gMaterialData_0[gInstances_0[(bitcast<u32>((gAccum_0[_S701].w)))].materialIndex_0 * u32(2)].w;\n    if(((((_S702 >> (u32(16)))) & (u32(31)))) != u32(0"
-					],
-					[
-						664525,
-						55,
-						"4 : WavefrontPath_0 = LoadPath_1(base_53);\n    if((s_54"
-					],
-					[
-						664707,
-						128,
-						"4 = gAccum_0[_S701].x;\n    hit_37.barycentrics_0 = gAccum_0[_S701].yz;\n    hit_37.instanceIndex_2 = (bitcast<u32>((gAccum_0[_S70"
-					],
-					[
-						664941,
-						121,
-						"03 : HitRecord_0 = hit_37;\n    ShadePath_8(base_53, &(s_54), _S703, gWavefront_0.bounce_0);\n    StorePath_1(base_53, s_54"
-					],
-					[
-						665165,
-						33,
-						"04 : u32 = tid_22.x;\n    if((_S70"
-					],
-					[
-						665349,
-						1,
-						"0"
-					],
-					[
-						665450,
-						209,
-						"05 : u32 = Field_0(base_54, u32(8));\n    var _S706 : u32 = gMaterialData_0[gInstances_0[(bitcast<u32>((gAccum_0[_S705].w)))].materialIndex_0 * u32(2)].w;\n    if(((((_S706 >> (u32(16)))) & (u32(31)))) != u32(0"
-					],
-					[
-						665760,
-						55,
-						"5 : WavefrontPath_0 = LoadPath_1(base_54);\n    if((s_55"
-					],
-					[
-						665942,
-						128,
-						"4 = gAccum_0[_S705].x;\n    hit_38.barycentrics_0 = gAccum_0[_S705].yz;\n    hit_38.instanceIndex_2 = (bitcast<u32>((gAccum_0[_S70"
-					],
-					[
-						666176,
-						121,
-						"07 : HitRecord_0 = hit_38;\n    ShadePath_8(base_54, &(s_55), _S707, gWavefront_0.bounce_0);\n    StorePath_1(base_54, s_55"
-					],
-					[
-						666400,
-						33,
-						"08 : u32 = tid_23.x;\n    if((_S70"
-					],
-					[
-						666533,
-						1,
-						"0"
-					],
-					[
-						666608,
-						55,
-						"6 : WavefrontPath_0 = LoadPath_1(base_55);\n    if((s_56"
-					],
-					[
-						666790,
-						1,
-						"4"
+						"714 : u32 = tid_16.x;\n    if((_S71"
 					],
 					[
 						667081,
-						121,
-						"09 : HitRecord_0 = hit_39;\n    ShadePath_8(base_55, &(s_56), _S709, gWavefront_0.bounce_0);\n    StorePath_1(base_55, s_56"
+						153,
+						"714);\n    var _S715 : u32 = Field_0(base_50, u32(11));\n    var info_0 : vec4<f32> = gAccum_0[_S715];\n    var mask_10 : u32 = (bitcast<u32>((gAccum_0[_S71"
 					],
 					[
-						667307,
-						308,
-						"710 : u32 = tid_24.x;\n    if((_S710 >= (gWavefront_0.pathCount_0)))\n    {\n        return;\n    }\n    var base_56 : u32 = WorkBase_0(_S710);\n    var s_57 : WavefrontPath_0 = LoadPath_1(base_56);\n    if((s_57.active_0) == u32(0))\n    {\n        return;\n    }\n    var hit_40 : HitRecord_0 = IntersectPath_0(&(s_57"
+						667901,
+						185,
+						"2 : u32 = u32(12) + source_5 * u32(3);\n        var origin_12 : vec4<f32> = gAccum_0[Field_0(base_50, offset_2)];\n        var direction_4 : vec4<f32> = gAccum_0[Field_0(base_50, offset_2"
 					],
 					[
-						667746,
-						1,
-						"4"
+						668147,
+						74,
+						"716 : bool;\n        if((((bitcast<u32>((gAccum_0[Field_0(base_50, offset_2"
 					],
 					[
-						667987,
-						40,
-						"7.path_0.radiance_1, (bitcast<f32>((s_57"
+						668290,
+						128,
+						"717 : bool = TraceScene_4(Ray_x24init_0(origin_12.xyz, direction_4.xyz, origin_12.w), true, &(hit_34));\n            _S716 = _S71"
 					],
 					[
-						668109,
-						34,
-						"711 : u32 = tid_25.x;\n    if((_S71"
+						668468,
+						2,
+						"71"
 					],
 					[
-						668242,
-						72,
-						"711);\n    var s_58 : WavefrontPath_0 = LoadPath_1(base_57);\n    if((s_58"
-					],
-					[
-						668450,
-						1,
-						"8"
-					],
-					[
-						668582,
-						1,
-						"4"
-					],
-					[
-						668823,
-						40,
-						"8.path_0.radiance_1, (bitcast<f32>((s_58"
-					],
-					[
-						669045,
-						56,
-						"712 : u32 = tid_26.x;\n    var _S713 : bool;\n    if((_S71"
-					],
-					[
-						669132,
+						668504,
 						2,
 						"71"
 					],
@@ -15050,1309 +15200,1844 @@ export const materialStackVariants: Record<'PathTracing' | 'Wavefront', Material
 						"71"
 					],
 					[
-						669339,
+						669405,
+						34,
+						"718 : u32 = tid_17.x;\n    if((_S71"
+					],
+					[
+						669590,
+						154,
+						"718));\n    var _S719 : u32 = Field_0(base_51, u32(11));\n    var info_1 : vec4<f32> = gAccum_0[_S719];\n    var mask_13 : u32 = (bitcast<u32>((gAccum_0[_S71"
+					],
+					[
+						670411,
+						185,
+						"3 : u32 = u32(12) + source_6 * u32(3);\n        var origin_13 : vec4<f32> = gAccum_0[Field_0(base_51, offset_3)];\n        var direction_5 : vec4<f32> = gAccum_0[Field_0(base_51, offset_3"
+					],
+					[
+						670657,
+						74,
+						"720 : bool;\n        if((((bitcast<u32>((gAccum_0[Field_0(base_51, offset_3"
+					],
+					[
+						670800,
+						128,
+						"721 : bool = TraceScene_4(Ray_x24init_0(origin_13.xyz, direction_5.xyz, origin_13.w), true, &(hit_35));\n            _S720 = _S72"
+					],
+					[
+						670978,
+						2,
+						"72"
+					],
+					[
+						671014,
+						2,
+						"72"
+					],
+					[
+						671752,
 						2,
 						"71"
 					],
 					[
-						669377,
-						2,
-						"71"
+						671909,
+						59,
+						"5 : vec3<f32>;\n    var _S722 : u32 = tid_18.x;\n    if((_S72"
 					],
 					[
-						669479,
+						672067,
+						153,
+						"722);\n    var _S723 : u32 = Field_0(base_52, u32(11));\n    var info_2 : vec4<f32> = gAccum_0[_S723];\n    var mask_16 : u32 = (bitcast<u32>((gAccum_0[_S72"
+					],
+					[
+						672321,
+						2,
+						"72"
+					],
+					[
+						672474,
+						20,
+						"6 : vec3<f32> = _S72"
+					],
+					[
+						672782,
+						960,
+						"4 : u32 = u32(12) + source_7 * u32(3);\n        var origin_14 : vec4<f32> = gAccum_0[Field_0(base_52, offset_4)];\n        var direction_6 : vec4<f32> = gAccum_0[Field_0(base_52, offset_4 + u32(1))];\n        var flags_4 : u32 = (bitcast<u32>((gAccum_0[Field_0(base_52, offset_4 + u32(1))].w)));\n        var _S725 : bool;\n        if(((flags_4 & (u32(1)))) == u32(0))\n        {\n            _S725 = true;\n        }\n        else\n        {\n            var _S726 : bool = TraceOcclusion_0(Ray_x24init_0(origin_14.xyz, direction_6.xyz, origin_14.w));\n            _S725 = !_S726;\n        }\n        if(_S725)\n        {\n            var value_4 : vec3<f32> = gAccum_0[Field_0(base_52, offset_4 + u32(2))].xyz;\n            var sum_7 : vec3<f32> = sum_6 + value_4;\n            NrdAddDirect_0(base_52, flags_4, throughput_45.xyz * value_4, direction_6.xyz);\n            sum_5 = sum_7;\n        }\n        else\n        {\n            sum_5 = sum_6;\n        }\n        sum_6 = sum_5"
+					],
+					[
+						673850,
+						54,
+						"6;\n    var _S727 : f32 = throughput_45.w;\n    if((_S72"
+					],
+					[
+						673933,
+						39,
+						"5 = min(contribution_14, vec3<f32>(_S72"
+					],
+					[
+						674010,
+						1,
+						"5"
+					],
+					[
+						674095,
+						116,
+						"728 : vec3<f32> = gAccum_0[base_52].xyz + sum_5;\n    path_3.x = _S728.x;\n    path_3.y = _S728.y;\n    path_3.z = _S72"
+					],
+					[
+						674263,
+						2,
+						"72"
+					],
+					[
+						674353,
+						60,
+						"8 : vec3<f32>;\n    var _S729 : u32 = tid_19.x;\n    if((_S72"
+					],
+					[
+						674512,
+						153,
+						"729);\n    var _S730 : u32 = Field_0(base_53, u32(11));\n    var info_3 : vec4<f32> = gAccum_0[_S730];\n    var mask_17 : u32 = (bitcast<u32>((gAccum_0[_S73"
+					],
+					[
+						674800,
+						2,
+						"73"
+					],
+					[
+						674953,
+						21,
+						"9 : vec3<f32> = _S73"
+					],
+					[
+						675262,
+						968,
+						"5 : u32 = u32(12) + source_8 * u32(3);\n        var origin_15 : vec4<f32> = gAccum_0[Field_0(base_53, offset_5)];\n        var direction_7 : vec4<f32> = gAccum_0[Field_0(base_53, offset_5 + u32(1))];\n        var flags_5 : u32 = (bitcast<u32>((gAccum_0[Field_0(base_53, offset_5 + u32(1))].w)));\n        var _S732 : bool;\n        if(((flags_5 & (u32(1)))) == u32(0))\n        {\n            _S732 = true;\n        }\n        else\n        {\n            var _S733 : bool = TraceOcclusion_1(Ray_x24init_0(origin_15.xyz, direction_7.xyz, origin_15.w));\n            _S732 = !_S733;\n        }\n        if(_S732)\n        {\n            var value_5 : vec3<f32> = gAccum_0[Field_0(base_53, offset_5 + u32(2))].xyz;\n            var sum_10 : vec3<f32> = sum_9 + value_5;\n            NrdAddDirect_0(base_53, flags_5, throughput_46.xyz * value_5, direction_7.xyz);\n            sum_8 = sum_10;\n        }\n        else\n        {\n            sum_8 = sum_9;\n        }\n        sum_9 = sum_8"
+					],
+					[
+						676338,
+						55,
+						"9;\n    var _S734 : f32 = throughput_46.w;\n    if((_S73"
+					],
+					[
+						676422,
+						40,
+						"8 = min(contribution_15, vec3<f32>(_S73"
+					],
+					[
+						676500,
+						2,
+						"8"
+					],
+					[
+						676586,
+						117,
+						"735 : vec3<f32> = gAccum_0[base_53].xyz + sum_8;\n    path_4.x = _S735.x;\n    path_4.y = _S735.y;\n    path_4.z = _S73"
+					],
+					[
+						676755,
+						2,
+						"73"
+					],
+					[
+						676878,
+						148,
+						"736 : u32 = BucketMetadataBase_0();\n    var _S737 : u32 = tid_20.x;\n    if((_S737 >= (bitcast<u32>((gAccum_0[_S73"
+					],
+					[
+						677159,
+						16,
+						"736].y))) + _S73"
+					],
+					[
+						677250,
+						55,
+						"3 : WavefrontPath_0 = LoadPath_1(base_54);\n    if((s_53"
+					],
+					[
+						677432,
+						1,
+						"4"
+					],
+					[
+						677722,
+						122,
+						"738 : HitRecord_0 = hit_36;\n    ShadePath_8(base_54, &(s_53), _S738, gWavefront_0.bounce_0);\n    StorePath_1(base_54, s_53"
+					],
+					[
+						677946,
+						34,
+						"739 : u32 = tid_21.x;\n    if((_S73"
+					],
+					[
+						678079,
+						2,
+						"73"
+					],
+					[
+						678179,
+						210,
+						"740 : u32 = Field_0(base_55, u32(8));\n    var _S741 : u32 = gMaterialData_0[gInstances_0[(bitcast<u32>((gAccum_0[_S740].w)))].materialIndex_0 * u32(2)].w;\n    if(((((_S741 >> (u32(16)))) & (u32(31)))) != u32(0"
+					],
+					[
+						678490,
+						55,
+						"4 : WavefrontPath_0 = LoadPath_1(base_55);\n    if((s_54"
+					],
+					[
+						678672,
+						128,
+						"4 = gAccum_0[_S740].x;\n    hit_37.barycentrics_0 = gAccum_0[_S740].yz;\n    hit_37.instanceIndex_2 = (bitcast<u32>((gAccum_0[_S74"
+					],
+					[
+						678905,
+						122,
+						"742 : HitRecord_0 = hit_37;\n    ShadePath_8(base_55, &(s_54), _S742, gWavefront_0.bounce_0);\n    StorePath_1(base_55, s_54"
+					],
+					[
+						679129,
+						34,
+						"743 : u32 = tid_22.x;\n    if((_S74"
+					],
+					[
+						679313,
+						2,
+						"74"
+					],
+					[
+						679414,
+						210,
+						"744 : u32 = Field_0(base_56, u32(8));\n    var _S745 : u32 = gMaterialData_0[gInstances_0[(bitcast<u32>((gAccum_0[_S744].w)))].materialIndex_0 * u32(2)].w;\n    if(((((_S745 >> (u32(16)))) & (u32(31)))) != u32(0"
+					],
+					[
+						679725,
+						55,
+						"5 : WavefrontPath_0 = LoadPath_1(base_56);\n    if((s_55"
+					],
+					[
+						679907,
+						128,
+						"4 = gAccum_0[_S744].x;\n    hit_38.barycentrics_0 = gAccum_0[_S744].yz;\n    hit_38.instanceIndex_2 = (bitcast<u32>((gAccum_0[_S74"
+					],
+					[
+						680140,
+						122,
+						"746 : HitRecord_0 = hit_38;\n    ShadePath_8(base_56, &(s_55), _S746, gWavefront_0.bounce_0);\n    StorePath_1(base_56, s_55"
+					],
+					[
+						680364,
+						34,
+						"747 : u32 = tid_23.x;\n    if((_S74"
+					],
+					[
+						680497,
+						2,
+						"74"
+					],
+					[
+						680573,
+						55,
+						"6 : WavefrontPath_0 = LoadPath_1(base_57);\n    if((s_56"
+					],
+					[
+						680755,
+						1,
+						"4"
+					],
+					[
+						681045,
+						122,
+						"748 : HitRecord_0 = hit_39;\n    ShadePath_8(base_57, &(s_56), _S748, gWavefront_0.bounce_0);\n    StorePath_1(base_57, s_56"
+					],
+					[
+						681272,
+						347,
+						"749 : u32 = tid_24.x;\n    if((_S749 >= (gWavefront_0.pathCount_0)))\n    {\n        return;\n    }\n    var base_58 : u32 = WorkBase_0(_S749);\n    var s_57 : WavefrontPath_0 = LoadPath_1(base_58);\n    if((s_57.active_0) == u32(0))\n    {\n        return;\n    }\n    var hit_40 : HitRecord_0 = IntersectPath_0(&(s_57), gWavefront_0.bounce_0);\n    var _S75"
+					],
+					[
+						681687,
+						2,
+						"75"
+					],
+					[
+						681740,
+						2,
+						"75"
+					],
+					[
+						681768,
+						2,
+						"75"
+					],
+					[
+						681793,
+						48,
+						"751 : u32 = NrdBase_0(base_58);\n        var _S75"
+					],
+					[
+						681912,
+						16,
+						"752 = hit_40.t_4"
+					],
+					[
+						681977,
+						2,
+						"75"
+					],
+					[
+						682022,
+						28,
+						"751 + u32(1)][i32(3)] = _S75"
+					],
+					[
+						682163,
+						1,
+						"4"
+					],
+					[
+						682404,
+						40,
+						"7.path_0.radiance_1, (bitcast<f32>((s_57"
+					],
+					[
+						682526,
+						34,
+						"753 : u32 = tid_25.x;\n    if((_S75"
+					],
+					[
+						682659,
+						72,
+						"753);\n    var s_58 : WavefrontPath_0 = LoadPath_1(base_59);\n    if((s_58"
+					],
+					[
+						682867,
+						40,
+						"8), gWavefront_0.bounce_0);\n    var _S75"
+					],
+					[
+						682975,
+						2,
+						"75"
+					],
+					[
+						683028,
+						2,
+						"75"
+					],
+					[
+						683056,
+						2,
+						"75"
+					],
+					[
+						683081,
+						48,
+						"755 : u32 = NrdBase_0(base_59);\n        var _S75"
+					],
+					[
+						683200,
+						16,
+						"756 = hit_41.t_4"
+					],
+					[
+						683265,
+						2,
+						"75"
+					],
+					[
+						683310,
+						28,
+						"755 + u32(1)][i32(3)] = _S75"
+					],
+					[
+						683451,
+						1,
+						"4"
+					],
+					[
+						683692,
+						40,
+						"8.path_0.radiance_1, (bitcast<f32>((s_58"
+					],
+					[
+						683914,
+						56,
+						"757 : u32 = tid_26.x;\n    var _S758 : bool;\n    if((_S75"
+					],
+					[
+						684001,
+						2,
+						"75"
+					],
+					[
+						684111,
+						2,
+						"75"
+					],
+					[
+						684208,
+						2,
+						"75"
+					],
+					[
+						684246,
+						2,
+						"75"
+					],
+					[
+						684348,
 						73,
-						"712));\n    var s_59 : WavefrontPath_0 = LoadPath_1(base_58);\n    if((s_59"
+						"757));\n    var s_59 : WavefrontPath_0 = LoadPath_1(base_60);\n    if((s_59"
 					],
 					[
-						669878,
+						684747,
 						33,
 						"59), bounce_14);\n        if((s_59"
 					],
 					[
-						670005,
+						684874,
 						41,
 						"59), hit_42, bounce_14);\n        if((s_59"
 					],
 					[
-						670180,
+						685049,
 						2,
 						"59"
 					],
 					[
-						670352,
+						685221,
 						56,
-						"714 : u32 = tid_27.x;\n    var _S715 : bool;\n    if((_S71"
+						"759 : u32 = tid_27.x;\n    var _S760 : bool;\n    if((_S75"
 					],
 					[
-						670439,
+						685308,
 						2,
-						"71"
+						"76"
 					],
 					[
-						670549,
+						685418,
 						2,
-						"71"
+						"76"
 					],
 					[
-						670646,
+						685515,
 						2,
-						"71"
+						"76"
 					],
 					[
-						670684,
+						685553,
 						2,
-						"71"
+						"76"
 					],
 					[
-						670786,
+						685655,
 						73,
-						"714));\n    var s_60 : WavefrontPath_0 = LoadPath_1(base_59);\n    if((s_60"
+						"759));\n    var s_60 : WavefrontPath_0 = LoadPath_1(base_61);\n    if((s_60"
 					],
 					[
-						671186,
+						686055,
 						32,
 						"0), bounce_15);\n        if((s_60"
 					],
 					[
-						671313,
+						686182,
 						40,
 						"0), hit_43, bounce_15);\n        if((s_60"
 					],
 					[
-						671488,
+						686357,
 						1,
 						"0"
 					],
 					[
-						671593,
-						60,
-						"8 : vec3<f32>;\n    var _S716 : u32 = tid_28.x;\n    if((_S71"
-					],
-					[
-						671804,
-						154,
-						"716));\n    var _S717 : u32 = Field_0(base_60, u32(11));\n    var info_4 : vec4<f32> = gAccum_0[_S717];\n    var mask_18 : u32 = (bitcast<u32>((gAccum_0[_S71"
-					],
-					[
-						672059,
-						2,
-						"71"
-					],
-					[
-						672139,
-						21,
-						"9 : vec3<f32> = _S71"
-					],
-					[
-						672448,
-						732,
-						"6 : u32 = u32(12) + source_9 * u32(3);\n        var origin_16 : vec4<f32> = gAccum_0[Field_0(base_60, offset_6)];\n        var direction_7 : vec4<f32> = gAccum_0[Field_0(base_60, offset_6 + u32(1))];\n        var _S719 : bool;\n        if((bitcast<u32>((gAccum_0[Field_0(base_60, offset_6 + u32(1))].w))) == u32(0))\n        {\n            _S719 = true;\n        }\n        else\n        {\n            var _S720 : bool = TraceOcclusion_0(Ray_x24init_0(origin_16.xyz, direction_7.xyz, origin_16.w));\n            _S719 = !_S720;\n        }\n        if(_S719)\n        {\n            sum_8 = sum_9 + gAccum_0[Field_0(base_60, offset_6 + u32(2))].xyz;\n        }\n        else\n        {\n            sum_8 = sum_9;\n        }\n        sum_9 = sum_8"
-					],
-					[
-						673310,
-						77,
-						"9;\n    var _S721 : f32 = gAccum_0[Field_0(base_60, u32(10))].w;\n    if((_S72"
-					],
-					[
-						673416,
-						40,
-						"8 = min(contribution_14, vec3<f32>(_S72"
-					],
-					[
-						673494,
-						2,
-						"8"
-					],
-					[
-						673580,
-						117,
-						"722 : vec3<f32> = gAccum_0[base_60].xyz + sum_8;\n    path_5.x = _S722.x;\n    path_5.y = _S722.y;\n    path_5.z = _S72"
-					],
-					[
-						673749,
-						2,
-						"71"
-					],
-					[
-						673840,
+						686463,
 						59,
-						"0 : vec3<f32>;\n    var _S723 : u32 = tid_29.x;\n    if((_S72"
+						"1 : vec3<f32>;\n    var _S761 : u32 = tid_28.x;\n    if((_S76"
 					],
 					[
-						674050,
+						686673,
 						154,
-						"723));\n    var _S724 : u32 = Field_0(base_61, u32(11));\n    var info_5 : vec4<f32> = gAccum_0[_S724];\n    var mask_19 : u32 = (bitcast<u32>((gAccum_0[_S72"
+						"761));\n    var _S762 : u32 = Field_0(base_62, u32(11));\n    var info_4 : vec4<f32> = gAccum_0[_S762];\n    var mask_18 : u32 = (bitcast<u32>((gAccum_0[_S76"
 					],
 					[
-						674339,
+						686928,
 						2,
-						"72"
+						"76"
 					],
 					[
-						674421,
+						687082,
 						20,
-						"1 : vec3<f32> = _S72"
+						"2 : vec3<f32> = _S76"
 					],
 					[
-						674733,
-						733,
-						"7 : u32 = u32(12) + source_10 * u32(3);\n        var origin_17 : vec4<f32> = gAccum_0[Field_0(base_61, offset_7)];\n        var direction_8 : vec4<f32> = gAccum_0[Field_0(base_61, offset_7 + u32(1))];\n        var _S726 : bool;\n        if((bitcast<u32>((gAccum_0[Field_0(base_61, offset_7 + u32(1))].w))) == u32(0))\n        {\n            _S726 = true;\n        }\n        else\n        {\n            var _S727 : bool = TraceOcclusion_1(Ray_x24init_0(origin_17.xyz, direction_8.xyz, origin_17.w));\n            _S726 = !_S727;\n        }\n        if(_S726)\n        {\n            sum_10 = sum_11 + gAccum_0[Field_0(base_61, offset_7 + u32(2))].xyz;\n        }\n        else\n        {\n            sum_10 = sum_11;\n        }\n        sum_11 = sum_10"
+						687390,
+						968,
+						"6 : u32 = u32(12) + source_9 * u32(3);\n        var origin_16 : vec4<f32> = gAccum_0[Field_0(base_62, offset_6)];\n        var direction_8 : vec4<f32> = gAccum_0[Field_0(base_62, offset_6 + u32(1))];\n        var flags_6 : u32 = (bitcast<u32>((gAccum_0[Field_0(base_62, offset_6 + u32(1))].w)));\n        var _S764 : bool;\n        if(((flags_6 & (u32(1)))) == u32(0))\n        {\n            _S764 = true;\n        }\n        else\n        {\n            var _S765 : bool = TraceOcclusion_0(Ray_x24init_0(origin_16.xyz, direction_8.xyz, origin_16.w));\n            _S764 = !_S765;\n        }\n        if(_S764)\n        {\n            var value_6 : vec3<f32> = gAccum_0[Field_0(base_62, offset_6 + u32(2))].xyz;\n            var sum_13 : vec3<f32> = sum_12 + value_6;\n            NrdAddDirect_0(base_62, flags_6, throughput_47.xyz * value_6, direction_8.xyz);\n            sum_11 = sum_13;\n        }\n        else\n        {\n            sum_11 = sum_12;\n        }\n        sum_12 = sum_11"
 					],
 					[
-						675599,
-						76,
-						"1;\n    var _S728 : f32 = gAccum_0[Field_0(base_61, u32(10))].w;\n    if((_S72"
+						688467,
+						54,
+						"2;\n    var _S766 : f32 = throughput_47.w;\n    if((_S76"
 					],
 					[
-						675705,
+						688551,
 						39,
-						"0 = min(contribution_15, vec3<f32>(_S72"
+						"1 = min(contribution_16, vec3<f32>(_S76"
 					],
 					[
-						675783,
-						1,
-						"0"
-					],
-					[
-						675868,
-						117,
-						"729 : vec3<f32> = gAccum_0[base_61].xyz + sum_10;\n    path_6.x = _S729.x;\n    path_6.y = _S729.y;\n    path_6.z = _S72"
-					],
-					[
-						676037,
-						2,
-						"72"
-					],
-					[
-						676160,
-						34,
-						"730 : u32 = tid_30.x;\n    if((_S73"
-					],
-					[
-						676344,
-						2,
-						"73"
-					],
-					[
-						676421,
-						55,
-						"1 : WavefrontPath_0 = LoadPath_1(base_62);\n    if((s_61"
-					],
-					[
-						676603,
-						1,
-						"4"
-					],
-					[
-						676893,
-						122,
-						"731 : HitRecord_0 = hit_44;\n    ShadePath_8(base_62, &(s_61), _S731, gWavefront_0.bounce_0);\n    StorePath_1(base_62, s_61"
-					],
-					[
-						677120,
-						359,
-						"732 : u32 = tid_31.x;\n    if((_S732 >= (bitcast<u32>((gAccum_0[HeaderBase_0()].x)))))\n    {\n        return;\n    }\n    var base_63 : u32 = WorkBase_0(QueueIndex_0(MainQueueBase_0(), _S732));\n    var s_62 : WavefrontPath_0 = LoadPath_1(base_63);\n    if((s_62.active_0) == u32(0))\n    {\n        return;\n    }\n    var hit_45 : HitRecord_0 = IntersectPath_0(&(s_62"
-					],
-					[
-						677610,
-						1,
-						"4"
-					],
-					[
-						677851,
-						40,
-						"2.path_0.radiance_1, (bitcast<f32>((s_62"
-					],
-					[
-						677973,
-						34,
-						"733 : u32 = tid_32.x;\n    if((_S73"
-					],
-					[
-						678156,
-						73,
-						"733));\n    var s_63 : WavefrontPath_0 = LoadPath_1(base_64);\n    if((s_63"
-					],
-					[
-						678365,
-						1,
-						"3"
-					],
-					[
-						678497,
-						1,
-						"4"
-					],
-					[
-						678738,
-						40,
-						"3.path_0.radiance_1, (bitcast<f32>((s_63"
-					],
-					[
-						679088,
-						57,
-						"734 : u32 = AnalyticFlags_1(&((*light_7)));\n    if(((_S73"
-					],
-					[
-						679216,
-						146,
-						"25 : f32 = dot(dir_30, (*light_7).p2_0.xyz) - (*light_7).uvA_0.w;\n    var scale_5 : f32 = (*light_7).uvB_0.x;\n    var _S735 : f32;\n    if((scale_5"
-					],
-					[
-						679388,
-						43,
-						"735 = smoothstep(0.0f, 1.0f, x_25 * scale_5"
-					],
-					[
-						679469,
-						2,
-						"25"
-					],
-					[
-						679505,
-						2,
-						"73"
-					],
-					[
-						679564,
-						2,
-						"73"
-					],
-					[
-						679605,
-						2,
-						"73"
-					],
-					[
-						679940,
-						1,
-						"3"
-					],
-					[
-						679988,
-						1,
-						"3"
-					],
-					[
-						680105,
-						120,
-						"736 : EmissiveTriangle_std430_0 = gLights_0[i_13];\n        var _S737 : u32 = AnalyticFlags_1(&(_S736));\n        var _S73"
-					],
-					[
-						680283,
-						12,
-						"738 = ((_S73"
-					],
-					[
-						680370,
-						2,
-						"73"
-					],
-					[
-						680406,
-						2,
-						"73"
-					],
-					[
-						680436,
-						8,
-						"3 = i_13"
-					],
-					[
-						680530,
-						2,
-						"73"
-					],
-					[
-						680586,
-						2,
-						"73"
-					],
-					[
-						680644,
-						79,
-						"16 : vec3<f32> = _S736.p2_0.xyz;\n            var cosTheta_15 : f32 = - dot(n_16"
-					],
-					[
-						680825,
-						1051,
-						"3 = i_13 + u32(1);\n                continue;\n            }\n            var _S740 : vec4<f32> = _S736.p0_0;\n            var _S741 : vec3<f32> = _S736.p0_0.xyz;\n            var t_14 : f32 = dot(_S741 - origin_18, n_16) / - cosTheta_15;\n            if((t_14 <= 0.0f))\n            {\n                _S739 = true;\n            }\n            else\n            {\n                _S739 = (t_14 >= nearest_2);\n            }\n            if(_S739)\n            {\n                i_13 = i_13 + u32(1);\n                continue;\n            }\n            var local_3 : vec3<f32> = origin_18 + dir_31 * vec3<f32>(t_14) - _S741;\n            var _S742 : vec3<f32> = _S736.n_0.xyz;\n            var _S743 : vec3<f32> = _S736.uvA_0.xyz;\n            var d_12 : vec2<f32> = vec2<f32>(dot(local_3, _S742) / dot(_S742, _S742), dot(local_3, _S743) / dot(_S743, _S743));\n            if(((_S737 & (u32(512)))) != u32(0))\n            {\n                inside_5 = ((dot(d_12, d_12)) <= 0.25f);\n            }\n            else\n            {\n                inside_5 = (all((((abs(d_12"
-					],
-					[
-						681976,
-						8,
-						"3 = i_13"
-					],
-					[
-						682065,
-						120,
-						"736.p1_0.xyz;\n            (*pdf_19) = _S736.p1_0.w * t_14 * t_14 / (cosTheta_15 * _S740.w);\n            nearest_3 = t_14"
-					],
-					[
-						682238,
-						67,
-						"744 : vec4<f32> = _S736.p0_0;\n            var radius_5 : f32 = _S73"
-					],
-					[
-						682383,
-						8,
-						"3 = i_13"
-					],
-					[
-						682485,
-						2,
-						"74"
-					],
-					[
-						682588,
-						171,
-						"0 : f32 = dot(toCenter_2, dir_31);\n            var _S745 : f32 = radius_5 * radius_5;\n            var h_16 : f32 = _S745 - (distSq_5 - tc_10 * tc_10);\n            if((h_16"
-					],
-					[
-						682801,
-						2,
-						"73"
-					],
-					[
-						682876,
-						23,
-						"739 = (distSq_5 <= _S74"
-					],
-					[
-						682934,
-						2,
-						"73"
-					],
-					[
-						682972,
-						8,
-						"3 = i_13"
-					],
-					[
-						683050,
-						50,
-						"5 : f32 = tc_10 - sqrt(h_16);\n            if((t_15"
-					],
-					[
-						683234,
-						1,
-						"5"
-					],
-					[
-						683323,
-						8,
-						"3 = i_13"
-					],
-					[
-						683400,
-						385,
-						"746 : vec4<f32> = _S736.p1_0;\n            var _S747 : vec3<f32> = _S736.p1_0.xyz;\n            var _S748 : f32 = SpotAttenuation_1(&(_S736), (vec3<f32>(0) - toCenter_2) * vec3<f32>(rsqrt_0(distSq_5)));\n            (*radiance_9) = _S747 * vec3<f32>(_S748);\n            (*pdf_19) = _S746.w / (2.0f * float_getPi_0() * SphereOneMinusCos_0(radius_5, distSq_5));\n            nearest_3 = t_15"
-					],
-					[
-						683864,
-						8,
-						"3 = i_13"
-					],
-					[
-						683943,
-						1,
-						"4"
-					],
-					[
-						684081,
-						26,
-						"4).path_0.origin_3, (*s_64"
-					],
-					[
-						684266,
-						2,
-						"74"
-					],
-					[
-						684505,
-						1,
-						"4"
-					],
-					[
-						684611,
-						147,
-						"750 : bool = IntersectAnalyticLights_1(ray_10.origin_0, ray_10.direction_0, mis_7, bounce_16 == u32(0), &(radiance_10), &(pdf_20));\n        if(_S75"
-					],
-					[
-						684789,
-						54,
-						"751 : bool = (bounce_16 > u32(0));\n            if(_S75"
-					],
-					[
-						684878,
-						12,
-						"749 = (*s_64"
-					],
-					[
-						684979,
-						2,
-						"74"
-					],
-					[
-						685023,
-						2,
-						"74"
-					],
-					[
-						685087,
-						1,
-						"4"
-					],
-					[
-						685260,
-						1,
-						"4"
-					],
-					[
-						685388,
-						10,
-						"749 = _S75"
-					],
-					[
-						685464,
-						2,
-						"74"
-					],
-					[
-						685508,
-						2,
-						"74"
-					],
-					[
-						685736,
-						29,
-						"4).path_0.radiance_1 = (*s_64"
-					],
-					[
-						686238,
-						29,
-						"4).path_0.radiance_1 = (*s_64"
-					],
-					[
-						686364,
-						2,
-						"74"
-					],
-					[
-						686464,
-						2,
-						"74"
-					],
-					[
-						686508,
-						2,
-						"74"
-					],
-					[
-						686548,
-						29,
-						"4).path_0.radiance_1 = (*s_64"
-					],
-					[
-						686694,
-						1,
-						"4"
-					],
-					[
-						686780,
-						1,
-						"4"
-					],
-					[
-						686983,
-						550,
-						"4).path_0.throughput_7 * vec3<f32>(mis_7) * EvalEnvironment_0(ray_10.direction_0);\n            if(!(*s_64).path_0.lightsSampled_0)\n            {\n                _S749 = SunEnabled_0();\n            }\n            else\n            {\n                _S749 = false;\n            }\n            if(_S749)\n            {\n                _S749 = HitsSun_0(ray_10.direction_0);\n            }\n            else\n            {\n                _S749 = false;\n            }\n            if(_S749)\n            {\n                contribution_16 = contribution_18 + (*s_64"
-					],
-					[
-						687861,
-						29,
-						"4).path_0.radiance_1 = (*s_64"
-					],
-					[
-						687952,
-						1,
-						"4"
-					],
-					[
-						688043,
-						1,
-						"5"
-					],
-					[
-						688114,
-						404,
-						"752 : HitRecord_0 = CompleteIntersection_1(&((*s_65)), u32(0), hit_48);\n    gAccum_0[Field_0(base_65, u32(8))] = vec4<f32>(_S752.t_4, _S752.barycentrics_0, (bitcast<f32>((_S752.instanceIndex_2))));\n    gAccum_0[Field_0(base_65, u32(9))] = (bitcast<vec4<f32>>((vec4<u32>(_S752.primitiveIndex_1, u32(0), u32(0), u32(0)))));\n    gAccum_0[base_65] = vec4<f32>((*s_65).path_0.radiance_1, (bitcast<f32>(((*s_65"
-					],
-					[
-						688612,
-						34,
-						"753 : u32 = tid_33.x;\n    if((_S75"
-					],
-					[
-						688796,
-						312,
-						"753));\n    var s_66 : WavefrontPath_0 = LoadPath_1(base_66);\n    gRayCone_0 = vec2<f32>(s_66.path_0.coneWidth_2, s_66.path_0.coneSpread_0);\n    var hit_49 : HitRecord_0 = TraceClosest_0(Ray_x24init_0(s_66.path_0.origin_3, s_66.path_0.direction_1, 1.00000001504746622e+30f));\n    StorePrimaryHit_0(base_66, &(s_66"
-					],
-					[
-						689198,
-						34,
-						"754 : u32 = tid_34.x;\n    if((_S75"
-					],
-					[
-						689382,
-						19,
-						"754));\n    var s_67"
-					],
-					[
-						689507,
-						221,
-						"7.path_0.coneWidth_2, s_67.path_0.coneSpread_0);\n    var hit_50 : HitRecord_0 = TraceClosest_1(Ray_x24init_0(s_67.path_0.origin_3, s_67.path_0.direction_1, 1.00000001504746622e+30f));\n    StorePrimaryHit_0(base_67, &(s_67"
-					],
-					[
-						689807,
-						2,
-						"26"
-					],
-					[
-						689854,
-						29,
-						"9 : vec2<bool>;\n    var i_14"
-					],
-					[
-						689930,
-						1,
-						"4"
-					],
-					[
-						690030,
-						54,
-						"9[i_14] = isfinite_0(x_26[i_14]);\n        i_14 = i_14"
-					],
-					[
-						690119,
-						2,
-						"9"
-					],
-					[
-						690167,
-						1,
-						"8"
-					],
-					[
-						690238,
-						404,
-						"755 : HitRecord_0 = CompleteIntersection_0(&((*s_68)), u32(0), hit_51);\n    gAccum_0[Field_0(base_68, u32(8))] = vec4<f32>(_S755.t_4, _S755.barycentrics_0, (bitcast<f32>((_S755.instanceIndex_2))));\n    gAccum_0[Field_0(base_68, u32(9))] = (bitcast<vec4<f32>>((vec4<u32>(_S755.primitiveIndex_1, u32(0), u32(0), u32(0)))));\n    gAccum_0[base_68] = vec4<f32>((*s_68).path_0.radiance_1, (bitcast<f32>(((*s_68"
-					],
-					[
-						690678,
-						2,
-						"75"
-					],
-					[
-						690896,
-						62,
-						"756("
-					],
-					[
-						690995,
-						616,
-						"RequestCount_0 = u32(0);\n    gVTRandom_0 = u32(0);\n    var _S757 : u32 = tid_35.x;\n    if((_S757 >= (gWavefront_0.pathCount_0)))\n    {\n        return;\n    }\n    var base_69 : u32 = WorkBase_0(_S757);\n    var _S758 : u32 = Field_0(base_69, u32(9));\n    gAccum_0[_S758] = vec4<f32>(0.0f);\n    var s_69 : WavefrontPath_0 = LoadPath_1(base_69);\n    if((s_69.active_0) == u32(0))\n    {\n        return;\n    }\n    var _S759 : vec2<u32> = WorkPixel_0(_S757);\n    var _S760 : vec3<i32> = vec3<i32>(vec2<i32>(_S759), i32(0));\n    var ids_0 : vec2<u32> = (textureLoad((gPrimaryVisibility_0), ((_S760)).xy, ((_S76"
-					],
-					[
-						691868,
-						1,
-						"4"
-					],
-					[
-						692046,
-						2,
-						"76"
-					],
-					[
-						692102,
-						213,
-						"761 = (ids_0.x) == u32(4294967295);\n    }\n    else\n    {\n        _S761 = false;\n    }\n    if(_S761)\n    {\n        _S761 = (ids_0.y) != u32(4294967295);\n    }\n    else\n    {\n        _S761 = false;\n    }\n    if(_S76"
-					],
-					[
-						692402,
-						2,
-						"76"
-					],
-					[
-						692469,
-						2,
-						"76"
-					],
-					[
-						692497,
-						2,
-						"76"
-					],
-					[
-						692522,
-						37,
-						"762 : u32 = ids_0.x;\n        if((_S76"
-					],
-					[
-						692692,
-						64,
-						"763 : u32 = ids_0.y;\n            if((_S763 >= (gInstances_0[_S76"
-					],
-					[
-						692905,
-						2,
-						"76"
-					],
-					[
-						693084,
-						859,
-						"764 : vec3<u32> = LoadTriangleIndices_0(_S762, _S763);\n                    var p_2 : vec3<f32> = gVertices_0[_S764.x].positionU_0.xyz;\n                    var e1_2 : vec3<f32> = gVertices_0[_S764.y].positionU_0.xyz - p_2;\n                    var e2_2 : vec3<f32> = gVertices_0[_S764.z].positionU_0.xyz - p_2;\n                    var _S765 : vec3<f32> = InverseTransformPoint_0(_S762, s_69.path_0.origin_3);\n                    var _S766 : vec3<f32> = InverseTransformVector_0(_S762, s_69.path_0.direction_1);\n                    var _S767 : f32 = hit_52.t_4;\n                    var _S768 : vec2<f32> = hit_52.barycentrics_0;\n                    var valid_2 : bool = IntersectTriangle_0(_S765, _S766, p_2, e1_2, e2_2, 0.0f, 1.00000001504746622e+30f, &(_S767), &(_S768));\n                    hit_52.t_4 = _S767;\n                    hit_52.barycentrics_0 = _S76"
-					],
-					[
-						694027,
-						445,
-						"761 = true;\n                    }\n                    else\n                    {\n                        _S761 = !isfinite_0(hit_52.t_4);\n                    }\n                    if(_S761)\n                    {\n                        _S761 = true;\n                    }\n                    else\n                    {\n                        _S761 = !(all((isfinite_2(hit_52.barycentrics_0))));\n                    }\n                    if(_S76"
-					],
-					[
-						694661,
-						59,
-						"762;\n                        hit_52.primitiveIndex_1 = _S76"
-					],
-					[
-						694846,
-						2,
-						"75"
-					],
-					[
-						694983,
-						2,
-						"69"
-					],
-					[
-						695180,
-						62,
-						"756("
-					],
-					[
-						695279,
-						53,
-						"RequestCount_0 = u32(0);\n    gVTRandom"
-					],
-					[
-						695568,
-						62,
-						"756("
-					],
-					[
-						695667,
-						53,
-						"RequestCount_0 = u32(0);\n    gVTRandom"
-					],
-					[
-						695955,
-						62,
-						"756("
-					],
-					[
-						696054,
-						53,
-						"RequestCount_0 = u32(0);\n    gVTRandom"
-					],
-					[
-						696348,
-						62,
-						"756("
-					],
-					[
-						696447,
-						53,
-						"RequestCount_0 = u32(0);\n    gVTRandom"
-					],
-					[
-						696669,
-						149,
-						"769 : RandomSequence_0;\n    _S769.seed_0 = StrongIntegerHash_0(pixel_7.x + pixel_7.y * u32(65536) + StrongIntegerHash_0(timeSeed_1));\n    return _S76"
-					],
-					[
-						696921,
-						141,
-						"27 : f32 = RandomSequence_Next_1(&((*this_119)));\n    var y_7 : f32 = RandomSequence_Next_1(&((*this_119)));\n    return vec2<f32>(x_27, y_7"
-					],
-					[
-						697310,
-						69,
-						"770 : vec2<f32> = RandomSequence_Next2D_1(&(rng_18));\n    return _S77"
-					],
-					[
-						697494,
-						62,
-						"771 : vec2<f32> = vec2<f32>(gFrame_0.frame_0.xy);\n    var _S77"
-					],
-					[
-						697791,
-						2,
-						"77"
-					],
-					[
-						697867,
-						2,
-						"77"
-					],
-					[
-						698470,
-						107,
-						"773 : vec2<f32> = RandomSequence_Next2D_0(&((*rng_19)));\n        var lens_0 : vec2<f32> = SampleDisk_0(_S77"
-					],
-					[
-						699442,
-						62,
-						"756("
-					],
-					[
-						699541,
-						117,
-						"RequestCount_0 = u32(0);\n    gVTRandom_0 = u32(0);\n    var index_23 : u32 = tid_40.x;\n    if((index_23"
-					],
-					[
-						699769,
-						1,
-						"3"
-					],
-					[
-						699943,
-						584,
-						"0 : WavefrontPath_0;\n    var _S774 : vec3<f32> = vec3<f32>(0.0f);\n    s_70.path_0.radiance_1 = _S774;\n    s_70.path_0.throughput_7 = vec3<f32>(1.0f);\n    s_70.path_0.origin_3 = ray_11.origin_0;\n    s_70.path_0.direction_1 = ray_11.direction_0;\n    s_70.path_0.scatterPdf_0 = 1.0f;\n    s_70.path_0.lobe_2 = u32(0);\n    s_70.path_0.coneWidth_2 = 0.0f;\n    s_70.path_0.coneSpread_0 = gFrame_0.vtParams_0.y;\n    s_70.path_0.absorption_0 = _S774;\n    s_70.path_0.lightsSampled_0 = false;\n    s_70.active_0 = select(u32(0), u32(1), (all(((pixel_10 < (gFrame_0.frame_0.xy))))));\n    var _S77"
-					],
-					[
-						700593,
-						11,
-						"775 = (s_70"
-					],
-					[
-						700657,
-						2,
-						"77"
-					],
-					[
-						700685,
-						2,
-						"77"
-					],
-					[
-						700899,
-						162,
-						"0.randomSeed_0 = rng_20.seed_0;\n    s_70.albedo_2 = _S774;\n    s_70.normal_11 = _S774;\n    var base_70 : u32 = WorkBase_0(index_23);\n    StorePath_1(base_70, s_70"
-					],
-					[
-						701105,
-						11,
-						"775 = (s_70"
-					],
-					[
-						701169,
-						2,
-						"77"
-					],
-					[
-						701225,
-						2,
-						"77"
-					],
-					[
-						701272,
-						1,
-						"3"
-					],
-					[
-						701691,
-						1,
-						"3"
-					],
-					[
-						701767,
-						101,
-						"3 / u32(4)] = (bitcast<vec4<f32>>((vec4<u32>(index_23, index_23 + u32(1), index_23 + u32(2), index_23"
-					],
-					[
-						701903,
-						1,
-						"3"
-					],
-					[
-						702156,
-						308,
-						"776 : u32 = HeaderBase_0();\n        gAccum_0[_S776] = (bitcast<vec4<f32>>((vec4<u32>(gWavefront_0.pathCount_0, u32(0), u32(0), sortGroups_0))));\n        gAccum_0[_S776 + u32(1)] = (bitcast<vec4<f32>>((vec4<u32>((gWavefront_0.pathCount_0 + u32(63)) / u32(64), u32(1), u32(1), u32(0)))));\n        gAccum_0[_S77"
-					],
-					[
-						702796,
-						62,
-						"756("
-					],
-					[
-						702895,
-						53,
-						"RequestCount_0 = u32(0);\n    gVTRandom"
-					],
-					[
-						703162,
-						62,
-						"756("
-					],
-					[
-						703261,
-						53,
-						"RequestCount_0 = u32(0);\n    gVTRandom"
-					],
-					[
-						703518,
-						62,
-						"756("
-					],
-					[
-						703617,
-						53,
-						"RequestCount_0 = u32(0);\n    gVTRandom"
-					],
-					[
-						703872,
-						62,
-						"756("
-					],
-					[
-						703971,
-						53,
-						"RequestCount_0 = u32(0);\n    gVTRandom"
-					],
-					[
-						704232,
-						62,
-						"756("
-					],
-					[
-						704331,
-						53,
-						"RequestCount_0 = u32(0);\n    gVTRandom"
-					],
-					[
-						704584,
-						62,
-						"756("
-					],
-					[
-						704683,
-						53,
-						"RequestCount_0 = u32(0);\n    gVTRandom"
-					],
-					[
-						704940,
-						62,
-						"756("
-					],
-					[
-						705039,
-						53,
-						"RequestCount_0 = u32(0);\n    gVTRandom"
-					],
-					[
-						705175,
-						1,
-						"4"
-					],
-					[
-						705421,
-						126,
-						"4 / u32(16) * u32(4) + vertex_0) / u32(4);\n        var _S777 : u32 = base_71 + u32(1);\n        if((bitcast<u32>((gAccum_0[_S77"
-					],
-					[
-						705664,
-						100,
-						"778 : u32 = base_71 + u32(2);\n        var target_0 : vec3<f32> = max(finalRadiance_0 - gAccum_0[_S77"
-					],
-					[
-						705899,
-						2,
-						"77"
-					],
-					[
-						705969,
-						2,
-						"77"
-					],
-					[
-						706126,
-						118,
-						"779 : vec2<u32> = vec2<u32>(gFrame_0.vtInfo_0.w);\n    return (all((pixel_11 == (min(((((pixel_11 >> (_S779))) << (_S77"
-					],
-					[
-						706539,
-						62,
-						"756("
-					],
-					[
-						706638,
-						117,
-						"RequestCount_0 = u32(0);\n    gVTRandom_0 = u32(0);\n    var index_25 : u32 = tid_48.x;\n    if((index_25"
-					],
-					[
-						706857,
-						110,
-						"25);\n    var s_71 : WavefrontPath_0 = LoadPath_1(base_72);\n    var pixel_12 : vec2<u32> = WorkPixel_0(index_25"
-					],
-					[
-						707061,
-						2,
-						"78"
-					],
-					[
-						707114,
-						32,
-						"780 = SharcUpdatePath_0(index_25"
-					],
-					[
-						707206,
-						2,
-						"78"
-					],
-					[
-						707234,
-						2,
-						"78"
-					],
-					[
-						707279,
-						8,
-						"25, s_71"
-					],
-					[
-						707558,
+						688629,
 						1,
 						"1"
 					],
 					[
-						707889,
-						148,
-						"781 : u32 = output_8 + u32(1);\n    var _S782 : f32 = gAccum_0[_S781].w;\n    var _S783 : u32 = output_8 + u32(2);\n    var _S784 : f32 = gAccum_0[_S78"
+						688714,
+						117,
+						"767 : vec3<f32> = gAccum_0[base_62].xyz + sum_11;\n    path_5.x = _S767.x;\n    path_5.y = _S767.y;\n    path_5.z = _S76"
 					],
 					[
-						708166,
+						688883,
+						2,
+						"76"
+					],
+					[
+						688974,
+						59,
+						"4 : vec3<f32>;\n    var _S768 : u32 = tid_29.x;\n    if((_S76"
+					],
+					[
+						689184,
+						154,
+						"768));\n    var _S769 : u32 = Field_0(base_63, u32(11));\n    var info_5 : vec4<f32> = gAccum_0[_S769];\n    var mask_19 : u32 = (bitcast<u32>((gAccum_0[_S76"
+					],
+					[
+						689473,
+						2,
+						"77"
+					],
+					[
+						689628,
+						20,
+						"5 : vec3<f32> = _S77"
+					],
+					[
+						689940,
+						969,
+						"7 : u32 = u32(12) + source_10 * u32(3);\n        var origin_17 : vec4<f32> = gAccum_0[Field_0(base_63, offset_7)];\n        var direction_9 : vec4<f32> = gAccum_0[Field_0(base_63, offset_7 + u32(1))];\n        var flags_7 : u32 = (bitcast<u32>((gAccum_0[Field_0(base_63, offset_7 + u32(1))].w)));\n        var _S771 : bool;\n        if(((flags_7 & (u32(1)))) == u32(0))\n        {\n            _S771 = true;\n        }\n        else\n        {\n            var _S772 : bool = TraceOcclusion_1(Ray_x24init_0(origin_17.xyz, direction_9.xyz, origin_17.w));\n            _S771 = !_S772;\n        }\n        if(_S771)\n        {\n            var value_7 : vec3<f32> = gAccum_0[Field_0(base_63, offset_7 + u32(2))].xyz;\n            var sum_16 : vec3<f32> = sum_15 + value_7;\n            NrdAddDirect_0(base_63, flags_7, throughput_48.xyz * value_7, direction_9.xyz);\n            sum_14 = sum_16;\n        }\n        else\n        {\n            sum_14 = sum_15;\n        }\n        sum_15 = sum_14"
+					],
+					[
+						691020,
+						54,
+						"5;\n    var _S773 : f32 = throughput_48.w;\n    if((_S77"
+					],
+					[
+						691104,
+						39,
+						"4 = min(contribution_17, vec3<f32>(_S77"
+					],
+					[
+						691182,
+						1,
+						"4"
+					],
+					[
+						691267,
+						117,
+						"774 : vec3<f32> = gAccum_0[base_63].xyz + sum_14;\n    path_6.x = _S774.x;\n    path_6.y = _S774.y;\n    path_6.z = _S77"
+					],
+					[
+						691436,
+						2,
+						"76"
+					],
+					[
+						691559,
+						34,
+						"775 : u32 = tid_30.x;\n    if((_S77"
+					],
+					[
+						691743,
+						2,
+						"77"
+					],
+					[
+						691820,
+						55,
+						"1 : WavefrontPath_0 = LoadPath_1(base_64);\n    if((s_61"
+					],
+					[
+						692002,
+						1,
+						"4"
+					],
+					[
+						692292,
+						122,
+						"776 : HitRecord_0 = hit_44;\n    ShadePath_8(base_64, &(s_61), _S776, gWavefront_0.bounce_0);\n    StorePath_1(base_64, s_61"
+					],
+					[
+						692519,
+						398,
+						"777 : u32 = tid_31.x;\n    if((_S777 >= (bitcast<u32>((gAccum_0[HeaderBase_0()].x)))))\n    {\n        return;\n    }\n    var base_65 : u32 = WorkBase_0(QueueIndex_0(MainQueueBase_0(), _S777));\n    var s_62 : WavefrontPath_0 = LoadPath_1(base_65);\n    if((s_62.active_0) == u32(0))\n    {\n        return;\n    }\n    var hit_45 : HitRecord_0 = IntersectPath_0(&(s_62), gWavefront_0.bounce_0);\n    var _S77"
+					],
+					[
+						692985,
+						2,
+						"77"
+					],
+					[
+						693038,
+						2,
+						"77"
+					],
+					[
+						693066,
+						2,
+						"77"
+					],
+					[
+						693091,
+						48,
+						"779 : u32 = NrdBase_0(base_65);\n        var _S78"
+					],
+					[
+						693210,
+						16,
+						"780 = hit_45.t_4"
+					],
+					[
+						693275,
+						2,
+						"78"
+					],
+					[
+						693320,
+						28,
+						"779 + u32(1)][i32(3)] = _S78"
+					],
+					[
+						693461,
+						1,
+						"4"
+					],
+					[
+						693702,
+						40,
+						"2.path_0.radiance_1, (bitcast<f32>((s_62"
+					],
+					[
+						693824,
+						34,
+						"781 : u32 = tid_32.x;\n    if((_S78"
+					],
+					[
+						694007,
+						73,
+						"781));\n    var s_63 : WavefrontPath_0 = LoadPath_1(base_66);\n    if((s_63"
+					],
+					[
+						694216,
+						40,
+						"3), gWavefront_0.bounce_0);\n    var _S78"
+					],
+					[
+						694324,
+						2,
+						"78"
+					],
+					[
+						694377,
+						2,
+						"78"
+					],
+					[
+						694405,
+						2,
+						"78"
+					],
+					[
+						694430,
+						48,
+						"783 : u32 = NrdBase_0(base_66);\n        var _S78"
+					],
+					[
+						694549,
+						16,
+						"784 = hit_46.t_4"
+					],
+					[
+						694614,
+						2,
+						"78"
+					],
+					[
+						694659,
+						28,
+						"783 + u32(1)][i32(3)] = _S78"
+					],
+					[
+						694800,
+						1,
+						"4"
+					],
+					[
+						695041,
+						40,
+						"3.path_0.radiance_1, (bitcast<f32>((s_63"
+					],
+					[
+						695391,
+						57,
+						"785 : u32 = AnalyticFlags_1(&((*light_7)));\n    if(((_S78"
+					],
+					[
+						695519,
+						146,
+						"25 : f32 = dot(dir_30, (*light_7).p2_0.xyz) - (*light_7).uvA_0.w;\n    var scale_5 : f32 = (*light_7).uvB_0.x;\n    var _S786 : f32;\n    if((scale_5"
+					],
+					[
+						695691,
+						43,
+						"786 = smoothstep(0.0f, 1.0f, x_25 * scale_5"
+					],
+					[
+						695772,
+						2,
+						"25"
+					],
+					[
+						695808,
+						2,
+						"78"
+					],
+					[
+						695867,
+						2,
+						"78"
+					],
+					[
+						695908,
+						2,
+						"78"
+					],
+					[
+						696243,
+						1,
+						"3"
+					],
+					[
+						696291,
+						1,
+						"3"
+					],
+					[
+						696408,
+						120,
+						"787 : EmissiveTriangle_std430_0 = gLights_0[i_13];\n        var _S788 : u32 = AnalyticFlags_1(&(_S787));\n        var _S78"
+					],
+					[
+						696586,
+						12,
+						"789 = ((_S78"
+					],
+					[
+						696673,
+						2,
+						"78"
+					],
+					[
+						696709,
+						2,
+						"78"
+					],
+					[
+						696739,
+						8,
+						"3 = i_13"
+					],
+					[
+						696833,
+						2,
+						"79"
+					],
+					[
+						696889,
+						2,
+						"78"
+					],
+					[
+						696947,
 						79,
-						"781] = vec4<f32>(s_71.albedo_2, 1.0f);\n        gAccum_0[_S783] = vec4<f32>(s_71"
+						"16 : vec3<f32> = _S787.p2_0.xyz;\n            var cosTheta_15 : f32 = - dot(n_16"
 					],
 					[
-						708299,
-						339,
-						"785 : vec3<f32> = vec3<f32>((1.0f / f32(gFrame_0.frame_0.z + u32(1))));\n        gAccum_0[output_8] = vec4<f32>(mix(gAccum_0[output_8].xyz, radiance_12, _S785), 1.0f);\n        gAccum_0[_S781] = vec4<f32>(mix(gAccum_0[_S781].xyz, s_71.albedo_2, _S785), 1.0f);\n        gAccum_0[_S783] = vec4<f32>(mix(gAccum_0[_S783].xyz, s_71.normal_11, _S78"
+						697128,
+						1051,
+						"3 = i_13 + u32(1);\n                continue;\n            }\n            var _S791 : vec4<f32> = _S787.p0_0;\n            var _S792 : vec3<f32> = _S787.p0_0.xyz;\n            var t_14 : f32 = dot(_S792 - origin_18, n_16) / - cosTheta_15;\n            if((t_14 <= 0.0f))\n            {\n                _S790 = true;\n            }\n            else\n            {\n                _S790 = (t_14 >= nearest_2);\n            }\n            if(_S790)\n            {\n                i_13 = i_13 + u32(1);\n                continue;\n            }\n            var local_3 : vec3<f32> = origin_18 + dir_31 * vec3<f32>(t_14) - _S792;\n            var _S793 : vec3<f32> = _S787.n_0.xyz;\n            var _S794 : vec3<f32> = _S787.uvA_0.xyz;\n            var d_12 : vec2<f32> = vec2<f32>(dot(local_3, _S793) / dot(_S793, _S793), dot(local_3, _S794) / dot(_S794, _S794));\n            if(((_S788 & (u32(512)))) != u32(0))\n            {\n                inside_5 = ((dot(d_12, d_12)) <= 0.25f);\n            }\n            else\n            {\n                inside_5 = (all((((abs(d_12"
 					],
 					[
-						708720,
-						60,
-						"781][i32(3)] = _S782;\n        gAccum_0[_S783][i32(3)] = _S78"
+						698279,
+						8,
+						"3 = i_13"
 					],
 					[
-						708961,
-						62,
-						"756("
+						698368,
+						120,
+						"787.p1_0.xyz;\n            (*pdf_19) = _S787.p1_0.w * t_14 * t_14 / (cosTheta_15 * _S791.w);\n            nearest_3 = t_14"
 					],
 					[
-						709060,
+						698541,
+						67,
+						"795 : vec4<f32> = _S787.p0_0;\n            var radius_5 : f32 = _S78"
+					],
+					[
+						698686,
+						8,
+						"3 = i_13"
+					],
+					[
+						698788,
+						2,
+						"79"
+					],
+					[
+						698891,
+						171,
+						"0 : f32 = dot(toCenter_2, dir_31);\n            var _S796 : f32 = radius_5 * radius_5;\n            var h_16 : f32 = _S796 - (distSq_5 - tc_10 * tc_10);\n            if((h_16"
+					],
+					[
+						699104,
+						2,
+						"79"
+					],
+					[
+						699179,
+						23,
+						"790 = (distSq_5 <= _S79"
+					],
+					[
+						699237,
+						2,
+						"79"
+					],
+					[
+						699275,
+						8,
+						"3 = i_13"
+					],
+					[
+						699353,
+						50,
+						"5 : f32 = tc_10 - sqrt(h_16);\n            if((t_15"
+					],
+					[
+						699537,
+						1,
+						"5"
+					],
+					[
+						699626,
+						8,
+						"3 = i_13"
+					],
+					[
+						699703,
+						385,
+						"797 : vec4<f32> = _S787.p1_0;\n            var _S798 : vec3<f32> = _S787.p1_0.xyz;\n            var _S799 : f32 = SpotAttenuation_1(&(_S787), (vec3<f32>(0) - toCenter_2) * vec3<f32>(rsqrt_0(distSq_5)));\n            (*radiance_9) = _S798 * vec3<f32>(_S799);\n            (*pdf_19) = _S797.w / (2.0f * float_getPi_0() * SphereOneMinusCos_0(radius_5, distSq_5));\n            nearest_3 = t_15"
+					],
+					[
+						700167,
+						8,
+						"3 = i_13"
+					],
+					[
+						700246,
+						1,
+						"4"
+					],
+					[
+						700384,
+						26,
+						"4).path_0.origin_3, (*s_64"
+					],
+					[
+						700570,
+						1,
+						"0"
+					],
+					[
+						700808,
+						1,
+						"4"
+					],
+					[
+						700915,
+						146,
+						"01 : bool = IntersectAnalyticLights_1(ray_10.origin_0, ray_10.direction_0, mis_7, bounce_16 == u32(0), &(radiance_10), &(pdf_20));\n        if(_S80"
+					],
+					[
+						701093,
+						53,
+						"02 : bool = (bounce_16 > u32(0));\n            if(_S80"
+					],
+					[
+						701182,
+						11,
+						"00 = (*s_64"
+					],
+					[
+						701283,
+						1,
+						"0"
+					],
+					[
+						701327,
+						1,
+						"0"
+					],
+					[
+						701390,
+						1,
+						"4"
+					],
+					[
+						701563,
+						1,
+						"4"
+					],
+					[
+						701692,
+						9,
+						"00 = _S80"
+					],
+					[
+						701768,
+						1,
+						"0"
+					],
+					[
+						701812,
+						1,
+						"0"
+					],
+					[
+						702039,
+						29,
+						"4).path_0.radiance_1 = (*s_64"
+					],
+					[
+						702541,
+						29,
+						"4).path_0.radiance_1 = (*s_64"
+					],
+					[
+						702668,
+						1,
+						"0"
+					],
+					[
+						702768,
+						1,
+						"0"
+					],
+					[
+						702812,
+						1,
+						"0"
+					],
+					[
+						702851,
+						29,
+						"4).path_0.radiance_1 = (*s_64"
+					],
+					[
+						702997,
+						1,
+						"4"
+					],
+					[
+						703083,
+						1,
+						"4"
+					],
+					[
+						703286,
+						550,
+						"4).path_0.throughput_7 * vec3<f32>(mis_7) * EvalEnvironment_0(ray_10.direction_0);\n            if(!(*s_64).path_0.lightsSampled_0)\n            {\n                _S800 = SunEnabled_0();\n            }\n            else\n            {\n                _S800 = false;\n            }\n            if(_S800)\n            {\n                _S800 = HitsSun_0(ray_10.direction_0);\n            }\n            else\n            {\n                _S800 = false;\n            }\n            if(_S800)\n            {\n                contribution_18 = contribution_20 + (*s_64"
+					],
+					[
+						704164,
+						29,
+						"4).path_0.radiance_1 = (*s_64"
+					],
+					[
+						704255,
+						1,
+						"4"
+					],
+					[
+						704346,
+						1,
+						"5"
+					],
+					[
+						704418,
+						403,
+						"03 : HitRecord_0 = CompleteIntersection_1(&((*s_65)), u32(0), hit_48);\n    gAccum_0[Field_0(base_67, u32(8))] = vec4<f32>(_S803.t_4, _S803.barycentrics_0, (bitcast<f32>((_S803.instanceIndex_2))));\n    gAccum_0[Field_0(base_67, u32(9))] = (bitcast<vec4<f32>>((vec4<u32>(_S803.primitiveIndex_1, u32(0), u32(0), u32(0)))));\n    gAccum_0[base_67] = vec4<f32>((*s_65).path_0.radiance_1, (bitcast<f32>(((*s_65"
+					],
+					[
+						704916,
+						33,
+						"04 : u32 = tid_33.x;\n    if((_S80"
+					],
+					[
+						705100,
+						311,
+						"04));\n    var s_66 : WavefrontPath_0 = LoadPath_1(base_68);\n    gRayCone_0 = vec2<f32>(s_66.path_0.coneWidth_2, s_66.path_0.coneSpread_0);\n    var hit_49 : HitRecord_0 = TraceClosest_0(Ray_x24init_0(s_66.path_0.origin_3, s_66.path_0.direction_1, 1.00000001504746622e+30f));\n    StorePrimaryHit_0(base_68, &(s_66"
+					],
+					[
+						705502,
+						33,
+						"05 : u32 = tid_34.x;\n    if((_S80"
+					],
+					[
+						705686,
+						18,
+						"05));\n    var s_67"
+					],
+					[
+						705810,
+						221,
+						"7.path_0.coneWidth_2, s_67.path_0.coneSpread_0);\n    var hit_50 : HitRecord_0 = TraceClosest_1(Ray_x24init_0(s_67.path_0.origin_3, s_67.path_0.direction_1, 1.00000001504746622e+30f));\n    StorePrimaryHit_0(base_69, &(s_67"
+					],
+					[
+						706110,
+						2,
+						"26"
+					],
+					[
+						706157,
+						29,
+						"9 : vec2<bool>;\n    var i_14"
+					],
+					[
+						706233,
+						1,
+						"4"
+					],
+					[
+						706333,
+						54,
+						"9[i_14] = isfinite_0(x_26[i_14]);\n        i_14 = i_14"
+					],
+					[
+						706422,
+						2,
+						"9"
+					],
+					[
+						706470,
+						1,
+						"8"
+					],
+					[
+						706542,
+						403,
+						"06 : HitRecord_0 = CompleteIntersection_0(&((*s_68)), u32(0), hit_51);\n    gAccum_0[Field_0(base_70, u32(8))] = vec4<f32>(_S806.t_4, _S806.barycentrics_0, (bitcast<f32>((_S806.instanceIndex_2))));\n    gAccum_0[Field_0(base_70, u32(9))] = (bitcast<vec4<f32>>((vec4<u32>(_S806.primitiveIndex_1, u32(0), u32(0), u32(0)))));\n    gAccum_0[base_70] = vec4<f32>((*s_68).path_0.radiance_1, (bitcast<f32>(((*s_68"
+					],
+					[
+						706982,
+						1,
+						"0"
+					],
+					[
+						707200,
+						61,
+						"07("
+					],
+					[
+						707298,
+						616,
+						"RequestCount_0 = u32(0);\n    gVTRandom_0 = u32(0);\n    var _S808 : u32 = tid_35.x;\n    if((_S808 >= (gWavefront_0.pathCount_0)))\n    {\n        return;\n    }\n    var base_71 : u32 = WorkBase_0(_S808);\n    var _S809 : u32 = Field_0(base_71, u32(9));\n    gAccum_0[_S809] = vec4<f32>(0.0f);\n    var s_69 : WavefrontPath_0 = LoadPath_1(base_71);\n    if((s_69.active_0) == u32(0))\n    {\n        return;\n    }\n    var _S810 : vec2<u32> = WorkPixel_0(_S808);\n    var _S811 : vec3<i32> = vec3<i32>(vec2<i32>(_S810), i32(0));\n    var ids_0 : vec2<u32> = (textureLoad((gPrimaryVisibility_0), ((_S811)).xy, ((_S81"
+					],
+					[
+						708171,
+						1,
+						"4"
+					],
+					[
+						708349,
+						2,
+						"81"
+					],
+					[
+						708405,
+						213,
+						"812 = (ids_0.x) == u32(4294967295);\n    }\n    else\n    {\n        _S812 = false;\n    }\n    if(_S812)\n    {\n        _S812 = (ids_0.y) != u32(4294967295);\n    }\n    else\n    {\n        _S812 = false;\n    }\n    if(_S81"
+					],
+					[
+						708705,
+						2,
+						"81"
+					],
+					[
+						708772,
+						2,
+						"81"
+					],
+					[
+						708800,
+						2,
+						"81"
+					],
+					[
+						708825,
+						37,
+						"813 : u32 = ids_0.x;\n        if((_S81"
+					],
+					[
+						708995,
+						64,
+						"814 : u32 = ids_0.y;\n            if((_S814 >= (gInstances_0[_S81"
+					],
+					[
+						709208,
+						2,
+						"81"
+					],
+					[
+						709387,
+						859,
+						"815 : vec3<u32> = LoadTriangleIndices_0(_S813, _S814);\n                    var p_3 : vec3<f32> = gVertices_0[_S815.x].positionU_0.xyz;\n                    var e1_2 : vec3<f32> = gVertices_0[_S815.y].positionU_0.xyz - p_3;\n                    var e2_2 : vec3<f32> = gVertices_0[_S815.z].positionU_0.xyz - p_3;\n                    var _S816 : vec3<f32> = InverseTransformPoint_0(_S813, s_69.path_0.origin_3);\n                    var _S817 : vec3<f32> = InverseTransformVector_0(_S813, s_69.path_0.direction_1);\n                    var _S818 : f32 = hit_52.t_4;\n                    var _S819 : vec2<f32> = hit_52.barycentrics_0;\n                    var valid_2 : bool = IntersectTriangle_0(_S816, _S817, p_3, e1_2, e2_2, 0.0f, 1.00000001504746622e+30f, &(_S818), &(_S819));\n                    hit_52.t_4 = _S818;\n                    hit_52.barycentrics_0 = _S81"
+					],
+					[
+						710330,
+						445,
+						"812 = true;\n                    }\n                    else\n                    {\n                        _S812 = !isfinite_0(hit_52.t_4);\n                    }\n                    if(_S812)\n                    {\n                        _S812 = true;\n                    }\n                    else\n                    {\n                        _S812 = !(all((isfinite_2(hit_52.barycentrics_0))));\n                    }\n                    if(_S81"
+					],
+					[
+						710964,
+						59,
+						"813;\n                        hit_52.primitiveIndex_1 = _S81"
+					],
+					[
+						711150,
+						1,
+						"0"
+					],
+					[
+						711286,
+						2,
+						"69"
+					],
+					[
+						711484,
+						61,
+						"07("
+					],
+					[
+						711582,
 						53,
 						"RequestCount_0 = u32(0);\n    gVTRandom"
 					],
 					[
-						709333,
-						62,
-						"756("
+						711872,
+						61,
+						"07("
 					],
 					[
-						709432,
+						711970,
 						53,
 						"RequestCount_0 = u32(0);\n    gVTRandom"
 					],
 					[
-						709695,
-						62,
-						"756("
+						712259,
+						61,
+						"07("
 					],
 					[
-						709794,
+						712357,
 						53,
 						"RequestCount_0 = u32(0);\n    gVTRandom"
 					],
 					[
-						710054,
-						62,
-						"756("
+						712652,
+						61,
+						"07("
 					],
 					[
-						710153,
+						712750,
 						53,
 						"RequestCount_0 = u32(0);\n    gVTRandom"
 					],
 					[
-						710419,
-						62,
-						"756("
+						712972,
+						149,
+						"820 : RandomSequence_0;\n    _S820.seed_0 = StrongIntegerHash_0(pixel_8.x + pixel_8.y * u32(65536) + StrongIntegerHash_0(timeSeed_1));\n    return _S82"
 					],
 					[
-						710518,
+						713224,
+						141,
+						"27 : f32 = RandomSequence_Next_1(&((*this_119)));\n    var y_7 : f32 = RandomSequence_Next_1(&((*this_119)));\n    return vec2<f32>(x_27, y_7"
+					],
+					[
+						713613,
+						69,
+						"821 : vec2<f32> = RandomSequence_Next2D_1(&(rng_18));\n    return _S82"
+					],
+					[
+						713797,
+						62,
+						"822 : vec2<f32> = vec2<f32>(gFrame_0.frame_0.xy);\n    var _S82"
+					],
+					[
+						714094,
+						2,
+						"82"
+					],
+					[
+						714170,
+						2,
+						"82"
+					],
+					[
+						714773,
+						107,
+						"824 : vec2<f32> = RandomSequence_Next2D_0(&((*rng_19)));\n        var lens_0 : vec2<f32> = SampleDisk_0(_S82"
+					],
+					[
+						715749,
+						61,
+						"07("
+					],
+					[
+						715847,
+						117,
+						"RequestCount_0 = u32(0);\n    gVTRandom_0 = u32(0);\n    var index_23 : u32 = tid_40.x;\n    if((index_23"
+					],
+					[
+						716075,
+						1,
+						"3"
+					],
+					[
+						716249,
+						584,
+						"0 : WavefrontPath_0;\n    var _S825 : vec3<f32> = vec3<f32>(0.0f);\n    s_70.path_0.radiance_1 = _S825;\n    s_70.path_0.throughput_7 = vec3<f32>(1.0f);\n    s_70.path_0.origin_3 = ray_11.origin_0;\n    s_70.path_0.direction_1 = ray_11.direction_0;\n    s_70.path_0.scatterPdf_0 = 1.0f;\n    s_70.path_0.lobe_2 = u32(0);\n    s_70.path_0.coneWidth_2 = 0.0f;\n    s_70.path_0.coneSpread_0 = gFrame_0.vtParams_0.y;\n    s_70.path_0.absorption_0 = _S825;\n    s_70.path_0.lightsSampled_0 = false;\n    s_70.active_0 = select(u32(0), u32(1), (all(((pixel_11 < (gFrame_0.frame_0.xy))))));\n    var _S82"
+					],
+					[
+						716899,
+						11,
+						"826 = (s_70"
+					],
+					[
+						716963,
+						2,
+						"82"
+					],
+					[
+						716991,
+						2,
+						"82"
+					],
+					[
+						717237,
+						11,
+						"826 = (s_70"
+					],
+					[
+						717301,
+						2,
+						"82"
+					],
+					[
+						717329,
+						2,
+						"82"
+					],
+					[
+						717355,
+						361,
+						"2 : u32 = gFrame_0.envInfo_0.w + (pixel_11.y * gFrame_0.frame_0.x + pixel_11.x) * u32(5);\n        var _S827 : vec4<f32> = vec4<f32>(0.0f);\n        gAccum_0[r_22] = _S827;\n        gAccum_0[r_22 + u32(1)] = _S827;\n        gAccum_0[r_22 + u32(2)] = vec4<f32>(0.0f, 0.0f, 0.0f, -1.0f);\n        gAccum_0[r_22 + u32(3)] = _S827;\n        gAccum_0[r_22 + u32(4)] = _S82"
+					],
+					[
+						717732,
+						162,
+						"0.randomSeed_0 = rng_20.seed_0;\n    s_70.albedo_2 = _S825;\n    s_70.normal_11 = _S825;\n    var base_72 : u32 = WorkBase_0(index_23);\n    StorePath_1(base_72, s_70"
+					],
+					[
+						717938,
+						11,
+						"826 = (s_70"
+					],
+					[
+						718002,
+						2,
+						"82"
+					],
+					[
+						718058,
+						2,
+						"82"
+					],
+					[
+						718105,
+						1,
+						"3"
+					],
+					[
+						718524,
+						1,
+						"3"
+					],
+					[
+						718600,
+						101,
+						"3 / u32(4)] = (bitcast<vec4<f32>>((vec4<u32>(index_23, index_23 + u32(1), index_23 + u32(2), index_23"
+					],
+					[
+						718736,
+						1,
+						"3"
+					],
+					[
+						718989,
+						308,
+						"828 : u32 = HeaderBase_0();\n        gAccum_0[_S828] = (bitcast<vec4<f32>>((vec4<u32>(gWavefront_0.pathCount_0, u32(0), u32(0), sortGroups_0))));\n        gAccum_0[_S828 + u32(1)] = (bitcast<vec4<f32>>((vec4<u32>((gWavefront_0.pathCount_0 + u32(63)) / u32(64), u32(1), u32(1), u32(0)))));\n        gAccum_0[_S82"
+					],
+					[
+						719630,
+						61,
+						"07("
+					],
+					[
+						719728,
 						53,
 						"RequestCount_0 = u32(0);\n    gVTRandom"
 					],
 					[
-						710785,
-						62,
-						"756("
+						719996,
+						61,
+						"07("
 					],
 					[
-						710884,
+						720094,
 						53,
 						"RequestCount_0 = u32(0);\n    gVTRandom"
 					],
 					[
-						711145,
-						62,
-						"756("
+						720352,
+						61,
+						"07("
 					],
 					[
-						711244,
+						720450,
 						53,
 						"RequestCount_0 = u32(0);\n    gVTRandom"
 					],
 					[
-						711511,
-						62,
-						"756("
+						720706,
+						61,
+						"07("
 					],
 					[
-						711610,
+						720804,
 						53,
 						"RequestCount_0 = u32(0);\n    gVTRandom"
 					],
 					[
-						711873,
-						62,
-						"756("
+						721066,
+						61,
+						"07("
 					],
 					[
-						711972,
+						721164,
 						53,
 						"RequestCount_0 = u32(0);\n    gVTRandom"
 					],
 					[
-						712249,
-						62,
-						"756("
+						721418,
+						61,
+						"07("
 					],
 					[
-						712348,
+						721516,
 						53,
 						"RequestCount_0 = u32(0);\n    gVTRandom"
 					],
 					[
-						712616,
-						62,
-						"756("
+						721774,
+						61,
+						"07("
 					],
 					[
-						712715,
+						721872,
+						53,
+						"RequestCount_0 = u32(0);\n    gVTRandom"
+					],
+					[
+						722008,
+						1,
+						"4"
+					],
+					[
+						722254,
+						126,
+						"4 / u32(16) * u32(4) + vertex_0) / u32(4);\n        var _S829 : u32 = base_73 + u32(1);\n        if((bitcast<u32>((gAccum_0[_S82"
+					],
+					[
+						722497,
+						100,
+						"830 : u32 = base_73 + u32(2);\n        var target_0 : vec3<f32> = max(finalRadiance_0 - gAccum_0[_S83"
+					],
+					[
+						722732,
+						2,
+						"82"
+					],
+					[
+						722802,
+						2,
+						"83"
+					],
+					[
+						722959,
+						118,
+						"831 : vec2<u32> = vec2<u32>(gFrame_0.vtInfo_0.w);\n    return (all((pixel_12 == (min(((((pixel_12 >> (_S831))) << (_S83"
+					],
+					[
+						723243,
+						2,
+						"4"
+					],
+					[
+						723284,
+						116,
+						"832 : vec3<f32> = vec3<f32>(p_4, 1.0f - abs(p_4.x) - abs(p_4.y));\n    var v_18 : vec3<f32> = _S832;\n    if(((_S83"
+					],
+					[
+						723434,
+						175,
+						"833 : vec2<f32> = (vec2<f32>(1.0f) - abs(v_18.yx)) * select(vec2<f32>(-1.0f), vec2<f32>(1.0f), ((v_18.xy) >= vec2<f32>(0.0f)));\n        v_18.x = _S833.x;\n        v_18.y = _S83"
+					],
+					[
+						723643,
+						2,
+						"18"
+					],
+					[
+						723802,
+						61,
+						"07("
+					],
+					[
+						723900,
+						117,
+						"RequestCount_0 = u32(0);\n    gVTRandom_0 = u32(0);\n    var index_25 : u32 = tid_48.x;\n    if((index_25"
+					],
+					[
+						724119,
 						110,
-						"RequestCount_0 = u32(0);\n    gVTRandom_0 = u32(0);\n    var _S786 : u32 = tid_59.x;\n    if((_S78"
+						"25);\n    var s_71 : WavefrontPath_0 = LoadPath_1(base_74);\n    var pixel_13 : vec2<u32> = WorkPixel_0(index_25"
 					],
 					[
-						712975,
+						724410,
+						2,
+						"25"
+					],
+					[
+						724549,
+						8,
+						"25, s_71"
+					],
+					[
+						724828,
+						1,
+						"1"
+					],
+					[
+						725159,
+						148,
+						"834 : u32 = output_8 + u32(1);\n    var _S835 : f32 = gAccum_0[_S834].w;\n    var _S836 : u32 = output_8 + u32(2);\n    var _S837 : f32 = gAccum_0[_S83"
+					],
+					[
+						725436,
+						79,
+						"834] = vec4<f32>(s_71.albedo_2, 1.0f);\n        gAccum_0[_S836] = vec4<f32>(s_71"
+					],
+					[
+						725569,
+						339,
+						"838 : vec3<f32> = vec3<f32>((1.0f / f32(gFrame_0.frame_0.z + u32(1))));\n        gAccum_0[output_8] = vec4<f32>(mix(gAccum_0[output_8].xyz, radiance_12, _S838), 1.0f);\n        gAccum_0[_S834] = vec4<f32>(mix(gAccum_0[_S834].xyz, s_71.albedo_2, _S838), 1.0f);\n        gAccum_0[_S836] = vec4<f32>(mix(gAccum_0[_S836].xyz, s_71.normal_11, _S83"
+					],
+					[
+						725990,
+						60,
+						"834][i32(3)] = _S835;\n        gAccum_0[_S836][i32(3)] = _S83"
+					],
+					[
+						726103,
+						883,
+						"3 : u32 = NrdBase_0(base_74);\n        var _S839 : u32 = r_23 + u32(1);\n        var diffuse_5 : vec4<f32> = gAccum_0[_S839];\n        var _S840 : u32 = r_23 + u32(2);\n        var _S841 : u32 = r_23 + u32(3);\n        var diffuseDirection_0 : vec4<f32> = gAccum_0[_S841];\n        var _S842 : u32 = r_23 + u32(4);\n        var specularDirection_0 : vec4<f32> = gAccum_0[_S842];\n        var _S843 : f32 = gAccum_0[_S840].w;\n        var surface_1 : bool = (_S843 >= 0.0f);\n        var _S844 : vec3<f32> = gAccum_0[_S839].xyz;\n        var _S845 : vec3<f32> = gAccum_0[_S840].xyz;\n        var _S846 : vec3<f32> = vec3<f32>(0.0f);\n        var _S847 : vec3<f32> = max(s_71.path_0.radiance_1 - gAccum_0[r_23].xyz - _S844 - _S845, _S846);\n        var indirectDiffuse_0 : vec3<f32> = _S847 * NrdUnpackFraction_0((bitcast<u32>((gAccum_0[r_23].w))));\n        var indirectSpecular_0 : vec3<f32> = _S84"
+					],
+					[
+						727060,
+						2,
+						"84"
+					],
+					[
+						727244,
+						2,
+						"84"
+					],
+					[
+						727273,
+						572,
+						"848 : vec3<f32> = _S844 + indirectDiffuse_0;\n        var dDirection_0 : vec3<f32> = (diffuseDirection_0.xyz + vec3<f32>(Luminance_0(indirectDiffuse_0)) * wi_43) / vec3<f32>(max(Luminance_0(_S848), 9.999999960041972e-13f));\n        var _S849 : vec3<f32> = _S845 + indirectSpecular_0;\n        var sDirection_0 : vec3<f32> = (specularDirection_0.xyz + vec3<f32>(Luminance_0(indirectSpecular_0)) * wi_43) / vec3<f32>(max(Luminance_0(_S849), 9.999999960041972e-13f));\n        var d_13 : vec3<f32> = _S848 * vec3<f32>(gFrame_0.envParams_0.z);\n        var sp_0 : vec3<f32> = _S84"
+					],
+					[
+						727958,
+						1,
+						"3"
+					],
+					[
+						728241,
+						1,
+						"3"
+					],
+					[
+						728299,
+						2,
+						"84"
+					],
+					[
+						728334,
+						1,
+						"3"
+					],
+					[
+						728481,
+						574,
+						"846;\n        }\n        gAccum_0[_S839] = vec4<f32>(wi_43, _S843);\n        if(valid_3)\n        {\n            radiance_12 = max(radiance_12 - d_13 - sp_0, _S846);\n        }\n        var _S850 : f32;\n        if(valid_3)\n        {\n            _S850 = 1.0f;\n        }\n        else\n        {\n            _S850 = 0.0f;\n        }\n        gAccum_0[_S840] = vec4<f32>(radiance_12, _S850);\n        var _S851 : bool;\n        if(valid_3)\n        {\n            _S851 = (all((isfinite_1(dDirection_0))));\n        }\n        else\n        {\n            _S851 = false;\n        }\n        if(_S85"
+					],
+					[
+						729169,
+						2,
+						"84"
+					],
+					[
+						729203,
+						2,
+						"84"
+					],
+					[
+						729530,
+						2,
+						"84"
+					],
+					[
+						729564,
+						2,
+						"84"
+					],
+					[
+						729780,
+						61,
+						"07("
+					],
+					[
+						729878,
+						53,
+						"RequestCount_0 = u32(0);\n    gVTRandom"
+					],
+					[
+						730152,
+						61,
+						"07("
+					],
+					[
+						730250,
+						53,
+						"RequestCount_0 = u32(0);\n    gVTRandom"
+					],
+					[
+						730514,
+						61,
+						"07("
+					],
+					[
+						730612,
+						53,
+						"RequestCount_0 = u32(0);\n    gVTRandom"
+					],
+					[
+						730873,
+						61,
+						"07("
+					],
+					[
+						730971,
+						53,
+						"RequestCount_0 = u32(0);\n    gVTRandom"
+					],
+					[
+						731238,
+						61,
+						"07("
+					],
+					[
+						731336,
+						53,
+						"RequestCount_0 = u32(0);\n    gVTRandom"
+					],
+					[
+						731604,
+						61,
+						"07("
+					],
+					[
+						731702,
+						53,
+						"RequestCount_0 = u32(0);\n    gVTRandom"
+					],
+					[
+						731964,
+						61,
+						"07("
+					],
+					[
+						732062,
+						53,
+						"RequestCount_0 = u32(0);\n    gVTRandom"
+					],
+					[
+						732330,
+						61,
+						"07("
+					],
+					[
+						732428,
+						53,
+						"RequestCount_0 = u32(0);\n    gVTRandom"
+					],
+					[
+						732692,
+						61,
+						"07("
+					],
+					[
+						732790,
+						53,
+						"RequestCount_0 = u32(0);\n    gVTRandom"
+					],
+					[
+						733068,
+						61,
+						"07("
+					],
+					[
+						733166,
+						53,
+						"RequestCount_0 = u32(0);\n    gVTRandom"
+					],
+					[
+						733435,
+						61,
+						"07("
+					],
+					[
+						733533,
+						110,
+						"RequestCount_0 = u32(0);\n    gVTRandom_0 = u32(0);\n    var _S852 : u32 = tid_59.x;\n    if((_S85"
+					],
+					[
+						733793,
 						98,
-						"786));\n    var _S787 : u32 = (bitcast<u32>((gAccum_0[Field_0(base_73, u32(11))].z)));\n    var _S78"
+						"852));\n    var _S853 : u32 = (bitcast<u32>((gAccum_0[Field_0(base_75, u32(11))].z)));\n    var _S85"
 					],
 					[
-						713291,
+						734109,
 						2,
-						"78"
+						"85"
 					],
 					[
-						713482,
+						734300,
 						2,
-						"78"
+						"85"
 					],
 					[
-						713614,
+						734432,
 						225,
-						"8 : u32 = u32(12) + source_11 * u32(3);\n        var _S789 : bool = TraceOcclusion_1(Ray_x24init_0(gAccum_0[Field_0(base_73, offset_8)].xyz, gAccum_0[Field_0(base_73, offset_8 + u32(1))].xyz, gAccum_0[Field_0(base_73, offset_8"
+						"8 : u32 = u32(12) + source_11 * u32(3);\n        var _S855 : bool = TraceOcclusion_1(Ray_x24init_0(gAccum_0[Field_0(base_75, offset_8)].xyz, gAccum_0[Field_0(base_75, offset_8 + u32(1))].xyz, gAccum_0[Field_0(base_75, offset_8"
 					],
 					[
-						713887,
+						734705,
 						2,
-						"78"
+						"85"
 					],
 					[
-						714348,
-						62,
-						"756("
+						735167,
+						61,
+						"07("
 					],
 					[
-						714447,
+						735265,
 						53,
 						"RequestCount_0 = u32(0);\n    gVTRandom"
 					],
 					[
-						714714,
-						62,
-						"756("
+						735533,
+						61,
+						"07("
 					],
 					[
-						714813,
+						735631,
 						53,
 						"RequestCount_0 = u32(0);\n    gVTRandom"
 					],
 					[
-						715080,
-						62,
-						"756("
+						735899,
+						61,
+						"07("
 					],
 					[
-						715179,
+						735997,
 						53,
 						"RequestCount_0 = u32(0);\n    gVTRandom"
 					],
 					[
-						715447,
-						62,
-						"756("
+						736266,
+						61,
+						"07("
 					],
 					[
-						715546,
+						736364,
 						53,
 						"RequestCount_0 = u32(0);\n    gVTRandom"
 					],
 					[
-						715805,
-						62,
-						"756("
+						736624,
+						61,
+						"07("
 					],
 					[
-						715904,
+						736722,
 						53,
 						"RequestCount_0 = u32(0);\n    gVTRandom"
 					],
 					[
-						716173,
-						62,
-						"756("
+						736992,
+						61,
+						"07("
 					],
 					[
-						716272,
+						737090,
 						53,
 						"RequestCount_0 = u32(0);\n    gVTRandom"
 					],
 					[
-						716537,
-						62,
-						"756("
+						737356,
+						61,
+						"07("
 					],
 					[
-						716636,
+						737454,
 						53,
 						"RequestCount_0 = u32(0);\n    gVTRandom"
 					],
 					[
-						716898,
-						62,
-						"756("
+						737717,
+						61,
+						"07("
 					],
 					[
-						716997,
+						737815,
 						53,
 						"RequestCount_0 = u32(0);\n    gVTRandom"
 					],
 					[
-						717254,
-						62,
-						"756("
+						738073,
+						61,
+						"07("
 					],
 					[
-						717353,
+						738171,
 						53,
 						"RequestCount_0 = u32(0);\n    gVTRandom"
 					],
 					[
-						717617,
-						62,
-						"756("
+						738436,
+						61,
+						"07("
 					],
 					[
-						717716,
+						738534,
 						53,
 						"RequestCount_0 = u32(0);\n    gVTRandom"
 					],
 					[
-						717982,
-						62,
-						"756("
+						738801,
+						61,
+						"07("
 					],
 					[
-						718081,
+						738899,
 						53,
 						"RequestCount_0 = u32(0);\n    gVTRandom"
 					],
 					[
-						718347,
-						62,
-						"756("
+						739166,
+						61,
+						"07("
 					],
 					[
-						718446,
+						739264,
 						53,
 						"RequestCount_0 = u32(0);\n    gVTRandom"
 					],
 					[
-						718714,
-						62,
-						"756("
+						739533,
+						61,
+						"07("
 					],
 					[
-						718813,
+						739631,
 						53,
 						"RequestCount_0 = u32(0);\n    gVTRandom"
 					],
 					[
-						719076,
-						62,
-						"756("
+						739895,
+						61,
+						"07("
 					],
 					[
-						719175,
+						739993,
 						53,
 						"RequestCount_0 = u32(0);\n    gVTRandom"
 					],
 					[
-						719445,
-						62,
-						"756("
+						740264,
+						61,
+						"07("
 					],
 					[
-						719544,
+						740362,
 						53,
 						"RequestCount_0 = u32(0);\n    gVTRandom"
 					],
 					[
-						719816,
-						62,
-						"756("
+						740635,
+						61,
+						"07("
 					],
 					[
-						719915,
+						740733,
 						53,
 						"RequestCount_0 = u32(0);\n    gVTRandom"
 					]
 				]
 			},
 			"1": {
-				"sha256": "523108a5b00c21e3e815e6fa48a2590d3cc12e88c1112e38e5116c1de712b774",
+				"sha256": "099c6948b1ea9a06442d55fd788d1d9b42f935c72505527fb4ffdfe7310b84c4",
 				"edits": [
 					[
 						45154,
@@ -17195,34 +17880,34 @@ export const materialStackVariants: Record<'PathTracing' | 'Wavefront', Material
 						""
 					],
 					[
-						644463,
+						654918,
 						2,
 						"0"
 					],
 					[
-						645970,
+						656425,
 						1,
 						""
 					],
 					[
-						662968,
+						676933,
 						2,
 						"0"
 					],
 					[
-						664423,
+						678388,
 						1,
 						""
 					],
 					[
-						665658,
+						679623,
 						1,
 						""
 					]
 				]
 			},
 			"2": {
-				"sha256": "7d0fa7768d5a0ffb88be507df75de8fe7baeb01ce1dab837a38740ee229ec06a",
+				"sha256": "16e5b26563bc590c13f05b035972b1717eb0d975e3a2da6a3d6c6f69f8a545b3",
 				"edits": [
 					[
 						45153,
@@ -18065,34 +18750,34 @@ export const materialStackVariants: Record<'PathTracing' | 'Wavefront', Material
 						""
 					],
 					[
-						644464,
+						654919,
 						1,
 						""
 					],
 					[
-						645969,
+						656424,
 						2,
 						"2"
 					],
 					[
-						662969,
+						676934,
 						1,
 						""
 					],
 					[
-						664422,
+						678387,
 						2,
 						"2"
 					],
 					[
-						665657,
+						679622,
 						2,
 						"2"
 					]
 				]
 			},
 			"4": {
-				"sha256": "64ebdb2fd9a09d48f070aba68b4488d87b1a0cc03e63576457d64b3d4aab22d8",
+				"sha256": "0fcfa62f250c3ef0324d7e8becb5fe970e02f1a76604e6780560867da8385591",
 				"edits": [
 					[
 						45153,
@@ -18935,34 +19620,34 @@ export const materialStackVariants: Record<'PathTracing' | 'Wavefront', Material
 						""
 					],
 					[
-						644463,
+						654918,
 						2,
 						"3"
 					],
 					[
-						645969,
+						656424,
 						2,
 						"4"
 					],
 					[
-						662968,
+						676933,
 						2,
 						"3"
 					],
 					[
-						664422,
+						678387,
 						2,
 						"4"
 					],
 					[
-						665657,
+						679622,
 						2,
 						"4"
 					]
 				]
 			},
 			"8": {
-				"sha256": "a6c6c614600938b7d5d4fde1349466b2f919f9b5d4d7459c68988b46d04f3c47",
+				"sha256": "44d682be199482726fbf6797ee643cbe6d01ba35f4bf76a54b686f3d9b2056bb",
 				"edits": [
 					[
 						45153,
@@ -19805,27 +20490,27 @@ export const materialStackVariants: Record<'PathTracing' | 'Wavefront', Material
 						""
 					],
 					[
-						644463,
+						654918,
 						2,
 						"7"
 					],
 					[
-						645969,
+						656424,
 						2,
 						"8"
 					],
 					[
-						662968,
+						676933,
 						2,
 						"7"
 					],
 					[
-						664422,
+						678387,
 						2,
 						"8"
 					],
 					[
-						665657,
+						679622,
 						2,
 						"8"
 					]

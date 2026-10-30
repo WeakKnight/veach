@@ -46,6 +46,17 @@ Motion excludes jitter; background's previousWorld is a direction. The buffer is
 each frame and replaced on resize; callers must not destroy it. Supports camera and rigid
 instance motion, not deformation or reflected/refracted secondary-surface motion.
 
+## NRD denoising (optional)
+
+`await renderer.setNrd(true, 'sh' | 'radiance')` loads NVIDIA NRD REBLUR (a lazy chunk) and denoises
+real-time wavefront frames before TAA; `setNrd(false)` releases every loaded mode. `sh` (default) adds
+SG resolve and re-jittering (`settings.nrdReJitter`) for detail and film-jitter interplay with TAA. It throws when the device lacks
+`float32-filterable` or enough storage/sampled textures per stage. `renderer.nrdStats` reports
+whether it ran, the fallback reason (`taa-*`, `integrator`, `storage-budget`, `compiling`),
+dispatches per frame and texture memory. `settings.nrdDebug` (presentation only) shows
+0 denoised, 1 noisy, 2 diffuse, 3 specular, 4 guides or 5 the re-jitter scale. NRD is NVIDIA-licensed, not MIT;
+see [Nrd.md](Nrd.md).
+
 ## Radiance cache
 
 ```ts

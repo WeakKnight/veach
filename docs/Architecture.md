@@ -50,6 +50,10 @@ hit distance and numeric instance slot + 1 occupy the accumulation albedo/normal
 while TAA is active. Its separate motion/resolve layout uses seven storage buffers, including
 previous instance transforms and explicit motion vectors, and adds no storage binding to the path shading stages.
 The final frame-uniform group at byte 288 stores TAA jitter, guide enablement and motion visualization.
+Optional [NVIDIA NRD REBLUR](Nrd.md) runs between TAA's motion and resolve passes for real-time wavefront
+frames. Its per-pixel diffuse/specular split and light directions (80 bytes/pixel) follows the wavefront work metadata in the
+accumulation buffer; `FrameUniforms.envInfo.w` holds its float4 offset (0 = off). NRD's own passes use
+textures and separate layouts (`src/render/denoise/NrdDenoiser.ts`, `shaders/Nrd`, generated `src/generated/nrd`).
 A scene-derived opcode mask specializes the material interpreter by default using
 two pipeline constants. Pipeline caches include the mask as well as stack capacity;
 the zero-stack module omits these constants. The scene mask includes all three programs,

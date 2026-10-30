@@ -7,7 +7,7 @@ export default defineConfig({
 	},
 	optimizeDeps: {
 		// the Emscripten module locates its .wasm through import.meta.url
-		exclude: ['./src/generated/tinybvh/tinybvh.mjs'],
+		exclude: ['./src/generated/tinybvh/tinybvh.mjs', './src/generated/nrd/nrd.mjs'],
 	},
 	test: {
 		include: ['tests/**/*.test.ts'],

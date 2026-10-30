@@ -103,6 +103,8 @@ export class Wavefront {
 	private readonly indirect: GPUBuffer;
 	visibilityScratchBytes = 0;
 	sharcCacheBytes = 0;
+	/** Per-pixel NRD split (five float4, NRD_STRIDE), placed after the work metadata. */
+	nrdBytes = 0;
 	private primaryTexture: GPUTexture | null = null;
 	private readonly dummyPrimaryTexture: GPUTexture;
 
@@ -262,7 +264,7 @@ export class Wavefront {
 
 	capacity(pixels: number): number {
 		const sharc = this.sharcCacheBytes || 0;
-		const available = Math.min(this.device.limits.maxStorageBufferBindingSize, this.device.limits.maxBufferSize) - pixels * 48 - 96 - METADATA_BYTES - this.visibilityScratchBytes - sharc - (sharc ? 256 : 0);
+		const available = Math.min(this.device.limits.maxStorageBufferBindingSize, this.device.limits.maxBufferSize) - pixels * 48 - 96 - METADATA_BYTES - this.visibilityScratchBytes - (this.nrdBytes || 0) - sharc - (sharc ? 256 : 0);
 		const capacity = Math.min(TILE_CAPACITY, pixels, Math.floor(available / (this.recordBytes + 12 + (sharc ? 16 : 0))));
 		if (capacity < 1) throw new Error('Image dimensions leave no room for wavefront work storage');
 		return capacity;
@@ -270,7 +272,13 @@ export class Wavefront {
 
 	storageBytes(pixels: number): number {
 		const capacity = this.capacity(pixels);
-		return 48 + capacity * this.recordBytes + Math.ceil(capacity / 4) * 48 + METADATA_BYTES + this.visibilityScratchBytes + (this.sharcCacheBytes ? this.sharcCacheBytes + SharcCache.recordBytes(capacity) : 0);
+		return this.nrdOffset(pixels) + (this.nrdBytes || 0) + this.visibilityScratchBytes + (this.sharcCacheBytes ? this.sharcCacheBytes + SharcCache.recordBytes(capacity) : 0);
+	}
+
+	/** Byte offset of the NRD region after the image prefix: header, records, queues and metadata. */
+	nrdOffset(pixels: number): number {
+		const capacity = this.capacity(pixels);
+		return 48 + capacity * this.recordBytes + Math.ceil(capacity / 4) * 48 + METADATA_BYTES;
 	}
 
 	private get recordBytes(): number {

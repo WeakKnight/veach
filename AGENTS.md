@@ -33,6 +33,7 @@ Read the relevant doc before changing a subsystem, and update it with the change
 | [docs/ExposureAndToneMapping.md](docs/ExposureAndToneMapping.md) | ACES 2.0 LUT, auto exposure, local exposure |
 | [docs/Sky.md](docs/Sky.md) | Atmosphere bake, sun |
 | [docs/BlendImport.md](docs/BlendImport.md) | `.blend` loader conventions |
+| [docs/Nrd.md](docs/Nrd.md) | Optional NVIDIA NRD REBLUR for real-time frames: build, split, host |
 
 ## Rules
 
@@ -42,7 +43,8 @@ Read the relevant doc before changing a subsystem, and update it with the change
 - Emissive triangles are listed in primitive order (`lightOffset + primIdx`) for MIS; underestimated light power is safe, overestimated is not.
 - Exposure and tone mapping settings are presentation settings and must never reset accumulation.
 - The package is `@tianyuliwiwo/veach` (`npm run build:lib` -> `dist-lib/`): `src/index.ts` must stay free of DOM side effects; DOM code goes in `src/view` (`@tianyuliwiwo/veach/view`).
-- Generated code is committed. After editing `shaders/` run `npm run build:shaders`; `wasm/` or tinybvh: `npm run build:wasm`; `shaders/Materials/BSDF`, `shaders/Common` or `tests/bsdf`: `npm run build:bsdf-harness`.
+- Generated code is committed. After editing `shaders/` run `npm run build:shaders`; `wasm/` or tinybvh: `npm run build:wasm`;
+  `shaders/Nrd` or `wasm/nrd_wasm.cpp`: `npm run build:nrd` (needs the NRD SDK, see docs/Nrd.md); `shaders/Materials/BSDF`, `shaders/Common` or `tests/bsdf`: `npm run build:bsdf-harness`.
 
 ## Commands
 
@@ -50,6 +52,8 @@ Read the relevant doc before changing a subsystem, and update it with the change
 npm run dev | build | typecheck | test
 npm run build:shaders       # slangc -> src/generated/shaders
 npm run build:wasm          # emscripten -> src/generated/tinybvh (-- --debug for symbols/assertions)
+npm run build:nrd           # NRD runtime (emscripten) + REBLUR WGSL (slangc) -> src/generated/nrd
+npm run check:nrd           # headless NRD renders -> .tools/nrd/*.png
 npm run build:bsdf-tables   # ThirdParty/openpbr-bsdf data -> src/generated/bsdf/BSDFTables.bin
 npm run build:bsdf-harness  # slangc -target cpp + em++ -> tests/generated/bsdf (needs emsdk, GLM)
 npm run fetch-samples       # Khronos samples + HDR -> public/samples (gitignored)

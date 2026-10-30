@@ -68,6 +68,74 @@ uint2 WorkPixel(uint index)
 	return uint2((block % blocksX) * 8u + (lane & 7u), (block / blocksX) * 8u + lane / 8u);
 }
 
+// NRD split (Nrd.md), active when gFrame.envInfo.w (float4 offset of NRD_STRIDE float4 per pixel) is nonzero.
+// During tracing: (bypass radiance, packed indirect diffuse fraction), (primary direct diffuse, first
+// bounce hit distance), (primary direct specular, packed roughness/metalness or -1 without a surface),
+// (luminance-weighted direct diffuse directions, primary sample direction octahedral x),
+// (luminance-weighted direct specular directions, octahedral y).
+// Finalize rewrites them pre-exposed as (diffuse, hit distance), (specular, roughness/metalness),
+// (bypass, surface), (mean diffuse direction, 0), (mean specular direction, 0). A mean direction
+// shorter than one encodes angular spread for REBLUR's SH mode.
+static const uint NRD_STRIDE = 5u;
+static const float NRD_MISS_DISTANCE = 65504.0;
+bool NrdEnabled() { return gFrame.envInfo.w != 0u; }
+uint NrdBase(uint base)
+{
+	uint2 pixel = WorkPixel(base - WorkBase(0u));
+	return gFrame.envInfo.w + (pixel.y * gFrame.frame.x + pixel.x) * NRD_STRIDE;
+}
+float2 NrdOctEncode(float3 v)
+{
+	float2 p = v.xy / (abs(v.x) + abs(v.y) + abs(v.z));
+	return v.z >= 0.0 ? p : (1.0 - abs(p.yx)) * select(p >= 0.0, float2(1.0), float2(-1.0));
+}
+float3 NrdOctDecode(float2 p)
+{
+	float3 v = float3(p, 1.0 - abs(p.x) - abs(p.y));
+	if (v.z < 0.0) v.xy = (1.0 - abs(v.yx)) * select(v.xy >= 0.0, float2(1.0), float2(-1.0));
+	return normalize(v);
+}
+// Roughness in [0, 1] plus metalness quantized to 8 bits in the integer part (even numbers).
+float NrdPackSurface(float roughness, float metalness) { return saturate(roughness) * 0.99 + 2.0 * round(saturate(metalness) * 255.0); }
+// Three 9-bit diffuse fractions; shadow flags keep the low three bits.
+uint NrdPackFraction(float3 f)
+{
+	uint3 q = uint3(round(saturate(f) * 511.0));
+	return q.x | (q.y << 9u) | (q.z << 18u);
+}
+float3 NrdUnpackFraction(uint v) { return float3(float(v & 511u), float((v >> 9u) & 511u), float((v >> 18u) & 511u)) / 511.0; }
+float3 NrdDiffuseFraction(DiffuseSpecular v)
+{
+	float3 total = v.diffuse + v.specular;
+	return float3(total.x > 0.0 ? v.diffuse.x / total.x : 0.5, total.y > 0.0 ? v.diffuse.y / total.y : 0.5, total.z > 0.0 ? v.diffuse.z / total.z : 0.5);
+}
+// Shadow flags: bit 0 tests visibility, bit 1 marks a primary NRD vertex, bit 2 bypasses NRD
+// (sun: a single sample is nearly noise-free and REBLUR would soften its shadows), bits 3.. hold the diffuse fraction.
+uint ShadowFlags(bool shadow, bool primary, bool bypass, DiffuseSpecular eval)
+{
+	return uint(shadow) | (primary && NrdEnabled() ? 2u | (bypass ? 4u : 0u) | (NrdPackFraction(NrdDiffuseFraction(eval)) << 3u) : 0u);
+}
+// Per source split of visible primary direct light (unclamped): (diffuse, specular, bypass).
+void NrdSplitDirect(uint flags, float3 contribution, out float3 diffuse, out float3 specular, out float3 bypass)
+{
+	bool skip = (flags & 4u) != 0u;
+	diffuse = skip ? float3(0.0) : contribution * NrdUnpackFraction(flags >> 3u);
+	specular = skip ? float3(0.0) : contribution - diffuse;
+	bypass = skip ? contribution : float3(0.0);
+}
+void NrdAddDirect(uint base, uint flags, float3 contribution, float3 direction)
+{
+	if ((flags & 2u) == 0u) return;
+	float3 diffuse, specular, bypass;
+	NrdSplitDirect(flags, contribution, diffuse, specular, bypass);
+	uint r = NrdBase(base);
+	gAccum[r].xyz += bypass;
+	gAccum[r + 1u].xyz += diffuse;
+	gAccum[r + 2u].xyz += specular;
+	gAccum[r + 3u].xyz += Luminance(diffuse) * direction;
+	gAccum[r + 4u].xyz += Luminance(specular) * direction;
+}
+
 void StoreFeedbackState(uint base)
 {
 	gAccum[Field(base, 7u)] = asfloat(uint4(gVTRequest, gVTRequestCount, gVTRandom, 0u));
@@ -148,6 +216,12 @@ void Initialize(uint3 tid : SV_DispatchThreadID)
 	{
 		uint output = (pixel.y * gFrame.frame.x + pixel.x) * 3u;
 		gAccum[output + 1u].w = 0.0; gAccum[output + 2u].w = 0.0;
+	}
+	if (NrdEnabled() && s.active != 0u)
+	{
+		uint r = gFrame.envInfo.w + (pixel.y * gFrame.frame.x + pixel.x) * NRD_STRIDE;
+		gAccum[r] = float4(0.0); gAccum[r + 1u] = float4(0.0); gAccum[r + 2u] = float4(0.0, 0.0, 0.0, -1.0);
+		gAccum[r + 3u] = float4(0.0); gAccum[r + 4u] = float4(0.0);
 	}
 	s.randomSeed = rng.seed;
 	s.albedo = float3(0.0);
@@ -294,6 +368,8 @@ void IntersectImpl<let ALPHA : bool, let DIRECT : bool>(uint3 tid)
 	if (s.active == 0u) return;
 	if (ALPHA) LoadFeedbackState(base);
 	HitRecord hit = IntersectPath<ALPHA>(s, gWavefront.bounce);
+	// NRD hit distance: the first segment after the primary surface only.
+	if (gWavefront.bounce == 1u && NrdEnabled()) gAccum[NrdBase(base) + 1u].w = hit.IsHit() ? hit.t : NRD_MISS_DISTANCE;
 	if (hit.IsHit())
 	{
 		gAccum[Field(base, 8u)] = float4(hit.t, hit.barycentrics, asfloat(hit.instanceIndex));
@@ -371,7 +447,7 @@ void QueueDirectLighting<let SEPARATE_LIGHT : bool>(uint base, SurfaceInteractio
 			float weight = mis ? EvalMISRobust(ls.solidAnglePdf, pdf) : 1.0;
 			uint offset = 12u + source * 3u;
 			gAccum[Field(base, offset)] = float4(origin, maxDistance);
-			gAccum[Field(base, offset + 1u)] = float4(dir, asfloat(uint(shadow)));
+			gAccum[Field(base, offset + 1u)] = float4(dir, asfloat(ShadowFlags(shadow, primary, source == 2u, eval)));
 			gAccum[Field(base, offset + 2u)] = pendingLight ? float4(f, weight)
 				: float4(weight * ls.radiance * f / ls.solidAnglePdf, 0.0);
 			mask |= 1u << source;
@@ -408,6 +484,13 @@ void ShadePath<let DEFERRED : bool, let ALPHA : bool, let PHASE : uint = 0u, let
 			uint output = (pixel.y * gFrame.frame.x + pixel.x) * 3u;
 			gAccum[output + 1u].w = hit.t; gAccum[output + 2u].w = float(hit.instanceIndex + 1u);
 		}
+		if (NrdEnabled())
+		{
+			uint r = NrdBase(base);
+			gAccum[r] = float4(s.path.radiance, asfloat(NrdPackFraction(float3(0.5))));
+			gAccum[r + 1u] = float4(0.0);
+			gAccum[r + 2u] = float4(0.0, 0.0, 0.0, NrdPackSurface(ms.roughness, ms.inputs.baseMetalness));
+		}
 	}
 	s.active = 0u;
 	if (!si.frontFacing && !ms.doubleSided && ms.inputs.transmissionWeight <= 0.0) return;
@@ -425,6 +508,7 @@ void ShadePath<let DEFERRED : bool, let ALPHA : bool, let PHASE : uint = 0u, let
 		if (clampValue > 0.0 && !primary) contribution = min(contribution, float3(clampValue));
 		s.path.radiance += contribution;
 	}
+	if (primary && NrdEnabled()) gAccum[NrdBase(base)].xyz = s.path.radiance;
 	if (bounce == gFrame.settings.x) return;
 	if (SharcEnabled() && !primary && SharcSurface(ms))
 	{
@@ -465,6 +549,13 @@ void ShadePath<let DEFERRED : bool, let ALPHA : bool, let PHASE : uint = 0u, let
 	LobeSample bs = bsdf.Sample(float3(u, rng.Next()));
 	float3 weight = bs.weight.diffuse + bs.weight.specular;
 	if (!bs.valid || bs.pdf <= 0.0 || all(weight <= 0.0)) return;
+	if (primary && NrdEnabled())
+	{
+		uint r = NrdBase(base);
+		float2 oct = NrdOctEncode(bs.wi);
+		gAccum[r].w = asfloat(NrdPackFraction(NrdDiffuseFraction(bs.weight)));
+		gAccum[r + 3u].w = oct.x; gAccum[r + 4u].w = oct.y;
+	}
 	float3 throughput = s.path.throughput * weight;
 	// As in Remix, active SHARC preserves the first continuation for both update and query paths.
 	// Invalid BSDF samples and the bounce limit still terminate normally; later bounces retain RR.
@@ -647,15 +738,21 @@ void ShadowImpl<let ALPHA : bool, let DIRECT : bool>(uint3 tid)
 	if (ALPHA) LoadFeedbackState(base);
 	gRayCone = info.xy;
 	float3 sum = float3(0.0);
+	float4 throughput = gAccum[Field(base, 10u)];
 	[loop]
 	for (uint source = 0u; source < 3u; source++)
 	{
 		if ((mask & (1u << source)) == 0u) continue;
 		uint offset = 12u + source * 3u;
 		float4 origin = gAccum[Field(base, offset)], direction = gAccum[Field(base, offset + 1u)];
-		if (asuint(direction.w) == 0u || !TraceOcclusion<ALPHA>(Ray(origin.xyz, direction.xyz, origin.w))) sum += gAccum[Field(base, offset + 2u)].xyz;
+		uint flags = asuint(direction.w);
+		if ((flags & 1u) == 0u || !TraceOcclusion<ALPHA>(Ray(origin.xyz, direction.xyz, origin.w)))
+		{
+			float3 value = gAccum[Field(base, offset + 2u)].xyz;
+			sum += value;
+			NrdAddDirect(base, flags, throughput.xyz * value, direction.xyz);
+		}
 	}
-	float4 throughput = gAccum[Field(base, 10u)];
 	float3 contribution = throughput.xyz * sum;
 	if (throughput.w > 0.0) contribution = min(contribution, float3(throughput.w));
 	float4 path = gAccum[base];
@@ -669,9 +766,15 @@ void ShadowImpl<let ALPHA : bool, let DIRECT : bool>(uint3 tid)
 void ResolveShadowVisibility(uint base, uint mask)
 {
 	float3 sum = float3(0.0);
-	for (uint source = 0u; source < 3u; source++)
-		if ((mask & (1u << source)) != 0u) sum += gAccum[Field(base, 14u + source * 3u)].xyz;
 	float4 throughput = gAccum[Field(base, 10u)];
+	for (uint source = 0u; source < 3u; source++)
+	{
+		if ((mask & (1u << source)) == 0u) continue;
+		float3 value = gAccum[Field(base, 14u + source * 3u)].xyz;
+		sum += value;
+		float4 direction = gAccum[Field(base, 13u + source * 3u)];
+		NrdAddDirect(base, asuint(direction.w), throughput.xyz * value, direction.xyz);
+	}
 	float3 contribution = throughput.xyz * sum;
 	if (throughput.w > 0.0) contribution = min(contribution, float3(throughput.w));
 	float4 path = gAccum[base];
@@ -698,7 +801,7 @@ void ShadowClassifyImpl<let DIRECT : bool>(uint3 tid)
 		uint offset = 12u + source * 3u;
 		float4 origin = gAccum[Field(base, offset)], direction = gAccum[Field(base, offset + 1u)];
 		HitRecord hit;
-		if (asuint(direction.w) != 0u && TraceScene<false>(Ray(origin.xyz, direction.xyz, origin.w), true, hit))
+		if ((asuint(direction.w) & 1u) != 0u && TraceScene<false>(Ray(origin.xyz, direction.xyz, origin.w), true, hit))
 		{
 			if ((gInstances[hit.instanceIndex].flags & INSTANCE_FLAG_ALPHA_TESTED) != 0u) pending |= bit;
 			else mask &= ~bit;
@@ -806,4 +909,27 @@ void Finalize(uint3 tid : SV_DispatchThreadID)
 		gAccum[output + 2u] = float4(lerp(gAccum[output + 2u].xyz, s.normal, w), 1.0);
 	}
 	if (gFrame.temporal.z != 0.0) { gAccum[output + 1u].w = primaryGuide.x; gAccum[output + 2u].w = primaryGuide.y; }
+	if (NrdEnabled())
+	{
+		uint r = NrdBase(base);
+		float4 bypass = gAccum[r], diffuse = gAccum[r + 1u], specular = gAccum[r + 2u];
+		float4 diffuseDirection = gAccum[r + 3u], specularDirection = gAccum[r + 4u];
+		bool surface = specular.w >= 0.0;
+		// Everything after primary direct light is indirect, split by the primary BSDF sample weight.
+		float3 indirect = max(s.path.radiance - bypass.xyz - diffuse.xyz - specular.xyz, 0.0);
+		float3 fraction = NrdUnpackFraction(asuint(bypass.w));
+		float3 indirectDiffuse = indirect * fraction, indirectSpecular = indirect - indirectDiffuse;
+		// Luminance is linear, so the direction weights of each signal sum to its luminance.
+		float3 wi = any(indirect > 0.0) ? NrdOctDecode(float2(diffuseDirection.w, specularDirection.w)) : float3(0.0);
+		float3 dDirection = (diffuseDirection.xyz + Luminance(indirectDiffuse) * wi) / max(Luminance(diffuse.xyz + indirectDiffuse), 1e-12);
+		float3 sDirection = (specularDirection.xyz + Luminance(indirectSpecular) * wi) / max(Luminance(specular.xyz + indirectSpecular), 1e-12);
+		float3 d = (diffuse.xyz + indirectDiffuse) * gFrame.envParams.z;
+		float3 sp = (specular.xyz + indirectSpecular) * gFrame.envParams.z;
+		bool valid = surface && all(isfinite(d)) && all(isfinite(sp));
+		gAccum[r] = float4(valid ? d : float3(0.0), diffuse.w);
+		gAccum[r + 1u] = float4(valid ? sp : float3(0.0), specular.w);
+		gAccum[r + 2u] = float4(valid ? max(radiance - d - sp, 0.0) : radiance, valid ? 1.0 : 0.0);
+		gAccum[r + 3u] = float4(valid && all(isfinite(dDirection)) ? dDirection : float3(0.0), 0.0);
+		gAccum[r + 4u] = float4(valid && all(isfinite(sDirection)) ? sDirection : float3(0.0), 0.0);
+	}
 }

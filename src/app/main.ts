@@ -81,6 +81,10 @@ async function main(): Promise<void> {
 	const primaryVisibility = params.get('primaryVisibility');
 	if (primaryVisibility === 'auto' || primaryVisibility === 'ray-traced' || primaryVisibility === 'rasterized') await renderer.setPrimaryVisibility(primaryVisibility);
 	if (params.get('sharc') === '0') await renderer.setSharc(false);
+	// Real-time frames (TAA, one sample per frame) instead of progressive accumulation.
+	if (params.get('accumulation') === '0') renderer.settings.accumulation = false;
+	if (params.get('nrd') === '1') { renderer.settings.accumulation = false; await renderer.setNrd(true, params.get('nrdMode') === 'radiance' ? 'radiance' : 'sh'); }
+	if (params.has('nrdDebug')) renderer.settings.nrdDebug = Number(params.get('nrdDebug'));
 	new OrbitController(renderer.camera, canvas, () => renderer.resetAccumulation());
 
 	const reset = () => renderer.resetAccumulation();

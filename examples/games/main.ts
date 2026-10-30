@@ -154,6 +154,23 @@ function finish() {
 		: `Three laps complete. Best lap ${bestLap.toFixed(2)}s · ${collisions} barrier contacts.`, 'PLAY AGAIN');
 }
 $('start').onclick = begin; $('pause').onclick = pause; $('reset').onclick = restart;
+// NRD loads once; afterwards switching only toggles the setting, keeping its textures and pipelines.
+const denoiser = $<HTMLSelectElement>('denoiser');
+if (new URLSearchParams(location.search).get('nrd') === '1') {
+	denoiser.value = 'nrd';
+	document.querySelectorAll<HTMLAnchorElement>('a[href^="?game="]').forEach(a => { a.href += '&nrd=1'; });
+}
+async function applyDenoiser() {
+	if (!renderer) return;
+	const value = denoiser.value;
+	try {
+		// Each mode loads once; switching back and forth keeps its resources.
+		if (value !== 'taa') await renderer.setNrd(true, value === 'radiance' ? 'radiance' : 'sh');
+		renderer.settings.nrdEnabled = value !== 'taa';
+		renderer.settings.nrdDebug = value === 'noisy' ? 1 : 0;
+	} catch (error) { denoiser.value = 'taa'; toast(`NRD UNAVAILABLE: ${String(error).replace(/^Error: /, '')}`); }
+}
+denoiser.onchange = () => { void applyDenoiser(); };
 $<HTMLSelectElement>('quality').onchange = event => { if (renderer) renderer.settings.resolutionScale = Number((event.target as HTMLSelectElement).value); };
 window.addEventListener('keydown', e => {
 	if (debugConsole?.isOpen || gpuProfilerPanel?.isOpen || consoleBusy || (e.target instanceof HTMLElement && e.target.matches('input,textarea,select,[contenteditable]'))) return;
@@ -262,6 +279,7 @@ async function init() {
 			finally { consoleBusy = false; lastTime = performance.now(); }
 		},
 	}), { onOpenChange: open => { keys.clear(); lastTime = performance.now(); document.body.classList.toggle('console-open', open); } });
+	await applyDenoiser();
 	ready = true; for (const id of ['start', 'pause', 'reset']) $<HTMLButtonElement>(id).disabled = false;
 	$('load-progress').style.width = '100%';
 	showCard(mode === 'aim' ? '45 SECOND DRILL' : 'THREE LAP CHALLENGE', mode === 'aim' ? 'Fast hands. Clear mind.' : 'Find the perfect line.', mode === 'aim' ? 'Click the moving targets. Build a streak for bonus points. Six targets, forty-five seconds, no second chances.' : 'W to accelerate, S to brake. A and D to steer. Follow the green checkpoint and finish three laps. R puts you back on track.', 'START SESSION');

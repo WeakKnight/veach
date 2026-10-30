@@ -626,3 +626,4 @@ fn Resolve(@builtin(global_invocation_id) tid_1 : vec3<u32>)
     }
     return;
 }
+

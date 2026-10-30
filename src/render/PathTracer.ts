@@ -84,6 +84,8 @@ export class PathTracer {
 	private gpuScene: GpuScene | null = null;
 	private rasterActive = false;
 	private rasterAllocated = false;
+	/** Reserve the per-pixel NRD split region in the accumulation buffer (wavefront only). */
+	private nrdRequested = false;
 	sharcEnabled = true;
 	private sharcOptions: SharcSettings = { ...defaultSharcSettings };
 	private sharc: SharcCache | null = null;
@@ -315,6 +317,7 @@ export class PathTracer {
 		if (this.wavefront) {
 			this.wavefront.sharcCacheBytes = 0;
 			this.wavefront.visibilityScratchBytes = 0;
+			this.wavefront.nrdBytes = this.nrdRequested && this.hasGeometry && this.integrator === 'wavefront' ? width * height * 80 : 0;
 			if (this.visibility && this.gpuScene?.visibilityCount && this.integrator === 'wavefront' && this.wantsRasterPrimary) {
 				const reserve = VisibilityBuffer.scratchBytes(this.gpuScene.visibilityCount);
 				const available = Math.min(this.device.limits.maxBufferSize, this.device.limits.maxStorageBufferBindingSize) - width * height * 48 - reserve;
@@ -409,6 +412,19 @@ export class PathTracer {
 
 	get ready(): boolean {
 		return !!this.sceneBindGroup && !!this.accumBindGroup;
+	}
+
+	setNrd(enabled: boolean): void {
+		if (enabled === this.nrdRequested) return;
+		this.nrdRequested = enabled;
+		if (this.accumBuffer) this.resize(this.width, this.height);
+	}
+
+	/** Float4 offset of the NRD split region in the accumulation buffer, or 0 when unavailable. */
+	get nrdRegion(): number {
+		if (!this.accumBuffer || !this.wavefront?.nrdBytes || this.integrator !== 'wavefront' || !this.hasGeometry) return 0;
+		const pixels = this.width * this.height;
+		return (pixels * ACCUM_BYTES_PER_PIXEL + this.wavefront.nrdOffset(pixels)) / 16;
 	}
 
 	get accumulation(): GPUBuffer | null {

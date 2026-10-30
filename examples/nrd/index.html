@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="icon" href="data:,">
+<title>Veach · NRD 降噪对比</title>
+<link rel="stylesheet" href="./style.css">
+</head>
+<body>
+<header>
+	<div class="brand"><span class="logo">V</span> VEACH <small>NRD REBLUR · WebGPU</small></div>
+	<nav>
+		<a href="#live" class="active" data-tab="live">实时场景</a>
+		<a href="#games" data-tab="games">小游戏</a>
+		<a href="#captures" data-tab="captures">截图对比</a>
+	</nav>
+</header>
+
+<section id="live" class="tab active">
+	<aside class="panel">
+		<h3>场景</h3>
+		<div id="scenes" class="list"></div>
+		<h3>显示</h3>
+		<div id="modes" class="list"></div>
+		<p class="hint">按住 <kbd>C</kbd> 临时切到「仅 TAA」对比。</p>
+		<h3>相机</h3>
+		<label class="row"><input type="checkbox" id="orbit"> 自动环绕（看运动下的表现）</label>
+		<label class="row">速度 <input type="range" id="orbit-speed" min="0.1" max="3" step="0.1" value="0.8"></label>
+		<p class="hint">拖动旋转 · 右键/Shift 平移 · 滚轮缩放</p>
+		<h3>分辨率</h3>
+		<select id="resolution">
+			<option value="0.5">0.5×（快）</option>
+			<option value="0.75">0.75×</option>
+			<option value="1" selected>1×</option>
+		</select>
+		<h3>统计</h3>
+		<pre id="stats">初始化中…</pre>
+		<button id="profile">GPU 计时</button>
+		<pre id="profile-out"></pre>
+	</aside>
+	<div class="stage">
+		<canvas id="viewport"></canvas>
+		<div id="badge"></div>
+		<div id="loading"><div class="bar"><span></span></div><p></p></div>
+		<div id="error"></div>
+	</div>
+</section>
+
+<section id="games" class="tab">
+	<div class="cards">
+		<a class="card" id="game-aim" target="_blank">
+			<span class="tag">01</span><h2>AIM LAB</h2>
+			<p>Three.js 托管场景，每帧 1 spp，移动靶 + 碎片。开局默认 NRD + TAA，右下角下拉框可切换「TAA ONLY / NRD SPLIT」。</p>
+			<span class="go">在新标签页打开 →</span>
+		</a>
+		<a class="card" id="game-race" target="_blank">
+			<span class="tag">02</span><h2>APEX RUN</h2>
+			<p>赛车：相机持续高速运动，最能看出时间累积的拖影与重建速度。W/S 油门刹车，A/D 转向。</p>
+			<span class="go">在新标签页打开 →</span>
+		</a>
+	</div>
+	<p class="hint center">两个游戏都在独立页面运行（各自占用一个 WebGPU 设备）。比较时建议先关闭「实时场景」标签的渲染：切到本页时它已自动暂停。</p>
+</section>
+
+<section id="captures" class="tab">
+	<p class="hint">来自 <code>npm run check:nrd</code> 的离线截图（<code>.tools/nrd</code>）。每对图从相同起点、相同帧数拍摄；「运动」为相机环绕 40 帧后的画面。点击图片放大，拖动中间滑块对比。</p>
+	<div id="capture-list"></div>
+</section>
+
+<div id="lightbox"><div class="wipe"><img id="wipe-a"><div class="clip"><img id="wipe-b"></div><input type="range" id="wipe" min="0" max="100" value="50"><span class="l"></span><span class="r"></span></div></div>
+<script type="module" src="./main.ts"></script>
+</body>
+</html>
