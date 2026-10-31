@@ -1,0 +1,10 @@
+AMD FidelityFX SDK 1.1.4 (download FidelityFX-SDK-v1.1.4): SSSR 1.5.0, Denoiser 1.3.0 (reflections).
+https://github.com/GPUOpen-LibrariesAndSDKs/FidelityFX-SDK
+Copied unmodified, a subset:
+  gpu/       sdk/include/FidelityFX/gpu: ffx_core (HLSL path), sssr/ (no depth downsample / SPD),
+             denoiser/ reflections only. Veach compiles these to WGSL with its own callbacks (shaders/Sssr).
+  host/      sdk/src/components/{sssr,denoiser} and host headers: porting reference for src/render/sssr;
+             samplerBlueNoise..._1spp.cpp is the source of the sobol / scrambling tables.
+  hlsl/      sdk/src/backends/dx12/shaders pass wrappers: per-pass binding reference.
+  docs/      docs/techniques/stochastic-screen-space-reflections.md and denoiser.md (images omitted).
+  LICENSE.txt (MIT).
