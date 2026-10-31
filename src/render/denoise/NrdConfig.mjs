@@ -5,8 +5,9 @@
 export const SHIFT = { sampler: 0, constant: 2, storage: 3, texture: 20 };
 // nrd::Denoiser values per instance; identifiers are indices. SH mode uses separate diffuse and specular
 // denoisers: the combined REBLUR_DIFFUSE_SPECULAR_SH temporal accumulation writes 9 storage textures,
-// WebGPU allows at most 8.
-export const DENOISERS = { radiance: [6], sh: [2, 5] };
+// WebGPU allows at most 8. 'diffuse-sh' (REBLUR_DIFFUSE_SH only) serves SSSR frames, whose reflections
+// come from FidelityFX SSSR instead (docs/Sssr.md).
+export const DENOISERS = { radiance: [6], sh: [2, 5], 'diffuse-sh': [2] };
 
 export const DESCRIPTOR_TEXTURE = 0;
 export const IN_MV = 0, IN_NORMAL_ROUGHNESS = 1, IN_VIEWZ = 2, IN_DIFF = 6, IN_SPEC = 7, IN_DIFF_SH0 = 11, IN_DIFF_SH1 = 12, IN_SPEC_SH0 = 13, IN_SPEC_SH1 = 14;

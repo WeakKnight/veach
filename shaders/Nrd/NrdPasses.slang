@@ -1,6 +1,11 @@
 // NRD front-end (Prepare) and back-end (Composite) for the real-time path (docs/Nrd.md).
 // Built by scripts/build-nrd.mjs, which provides NRD.hlsli from the NRD SDK. NRD_PASS_SH = 1 targets
 // REBLUR_DIFFUSE_SPECULAR_SH: SG inputs from the dominant light directions, SG resolve and re-jittering.
+// NRD_PASS_DIFFUSE_ONLY = 1 (with NRD_PASS_SH) targets REBLUR_DIFFUSE_SH alone for SSSR frames: the specular
+// split holds only signal SSSR replaces, so Composite outputs bypass + diffuse, the SSSR color input.
+#ifndef NRD_PASS_DIFFUSE_ONLY
+#define NRD_PASS_DIFFUSE_ONLY 0
+#endif
 #include "NRD.hlsli"
 import Scene.SceneTypes;
 
@@ -19,16 +24,24 @@ struct NrdParams
 [[vk::binding(5, 0)]] [format("rgba16f")] WTexture2D<float4> gOutNormalRoughness;
 [[vk::binding(6, 0)]] [format("r32f")] WTexture2D<float> gOutViewZ;
 [[vk::binding(7, 0)]] [format("rgba16f")] WTexture2D<float4> gOutDiff;
+#if !NRD_PASS_DIFFUSE_ONLY
 [[vk::binding(8, 0)]] [format("rgba16f")] WTexture2D<float4> gOutSpec;
+#endif
 [[vk::binding(9, 0)]] Texture2D<float4> gDiff;
+#if !NRD_PASS_DIFFUSE_ONLY
 [[vk::binding(10, 0)]] Texture2D<float4> gSpec;
+#endif
 [[vk::binding(11, 0)]] RWStructuredBuffer<float4> gComposite;
 #if NRD_PASS_SH
 // SH mode: gOutDiff/gOutSpec/gDiff/gSpec hold SH0; these hold SH1.
 [[vk::binding(12, 0)]] [format("rgba16f")] WTexture2D<float4> gOutDiffSh1;
+#if !NRD_PASS_DIFFUSE_ONLY
 [[vk::binding(13, 0)]] [format("rgba16f")] WTexture2D<float4> gOutSpecSh1;
+#endif
 [[vk::binding(14, 0)]] Texture2D<float4> gDiffSh1;
+#if !NRD_PASS_DIFFUSE_ONLY
 [[vk::binding(15, 0)]] Texture2D<float4> gSpecSh1;
+#endif
 #endif
 static const uint NRD_STRIDE = 5u; // float4 per pixel in the region, see Wavefront.slang
 
@@ -100,9 +113,13 @@ void Prepare(uint3 tid : SV_DispatchThreadID)
 #if NRD_PASS_SH
 	float4 diffSh1, specSh1;
 	gOutDiff[pixel] = REBLUR_FrontEnd_PackSh(diffuse, diffHit, s.diffuseDirection, diffSh1, true);
+#if !NRD_PASS_DIFFUSE_ONLY
 	gOutSpec[pixel] = REBLUR_FrontEnd_PackSh(specular, specHit, s.specularDirection, specSh1, true);
+#endif
 	gOutDiffSh1[pixel] = diffSh1;
+#if !NRD_PASS_DIFFUSE_ONLY
 	gOutSpecSh1[pixel] = specSh1;
+#endif
 #else
 	gOutDiff[pixel] = REBLUR_FrontEnd_PackRadianceAndNormHitDist(diffuse, diffHit, true);
 	gOutSpec[pixel] = REBLUR_FrontEnd_PackRadianceAndNormHitDist(specular, specHit, true);
@@ -145,11 +162,20 @@ void Composite(uint3 tid : SV_DispatchThreadID)
 		{
 #if NRD_PASS_SH
 			NRD_SG diffSg = REBLUR_BackEnd_UnpackSh(gDiff.Load(int3(pixel, 0)), gDiffSh1.Load(int3(pixel, 0)).xyz);
+#if NRD_PASS_DIFFUSE_ONLY
+			// The specular SG only feeds re-jittering's specular scale, which is unused here.
+			NRD_SG specSg = diffSg;
+#else
 			NRD_SG specSg = REBLUR_BackEnd_UnpackSh(gSpec.Load(int3(pixel, 0)), gSpecSh1.Load(int3(pixel, 0)).xyz);
+#endif
 			// Macro details from the SG resolve, micro details / per-frame jitter from re-jittering.
 			float2 scale = gNrd.control.w != 0u ? ReJitter(pixel, s, diffSg, specSg) : float2(1.0);
 			float3 d = NRD_SG_ResolveDiffuse(diffSg, s.normal, s.view, s.roughness) * scale.x * s.diffFactor;
+#if NRD_PASS_DIFFUSE_ONLY
+			float3 sp = float3(0.0);
+#else
 			float3 sp = NRD_SG_ResolveSpecular(specSg, s.normal, s.view, s.roughness) * scale.y * s.specFactor;
+#endif
 			if (debug == 5u) { gComposite[base] = float4(float3(saturate(0.5 + 0.5 * log2(scale)), 0.5) * gFrame.envParams.z, 1.0); gComposite[base + 1u] = gAccum[base + 1u]; gComposite[base + 2u] = gAccum[base + 2u]; return; }
 #else
 			float3 d = REBLUR_BackEnd_UnpackRadianceAndNormHitDist(gDiff.Load(int3(pixel, 0))).xyz * s.diffFactor;
@@ -157,6 +183,9 @@ void Composite(uint3 tid : SV_DispatchThreadID)
 #endif
 			if (all(isfinite(d)) && all(isfinite(sp))) { diffuse = max(d, 0.0); specular = max(sp, 0.0); }
 		}
+#if NRD_PASS_DIFFUSE_ONLY
+		specular = float3(0.0);
+#endif
 		result = debug == 2u ? diffuse : debug == 3u ? specular : s.bypass + diffuse + specular;
 	}
 	else if (debug == 2u || debug == 3u) result = float3(0.0);

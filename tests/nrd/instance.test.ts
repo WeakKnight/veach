@@ -20,7 +20,7 @@ function constantBytes(constants: string): number {
 }
 
 describe('NRD TypeScript instance', () => {
-	for (const mode of ['radiance', 'sh'] as const) {
+	for (const mode of ['radiance', 'sh', 'diffuse-sh'] as const) {
 		it(`matches the wasm instance description: ${mode}`, async () => {
 			const { desc } = createInstance(await wasmModule(), mode);
 			expect(new NrdInstance(DENOISERS[mode]).desc).toEqual(desc);

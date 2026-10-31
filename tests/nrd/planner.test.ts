@@ -66,7 +66,7 @@ describe('NRD TypeScript planner', () => {
 	}
 
 	// Production passes timeDelta 0: NRD then measures frame times with its timer (Date.now through Emscripten).
-	for (const mode of ['radiance', 'sh'] as const) {
+	for (const mode of ['radiance', 'sh', 'diffuse-sh'] as const) {
 		it(`measures frame times like the wasm timer: ${mode}`, async () => {
 			const base = scenarios().find(s => s.mode === mode && s.name === 'motion')!;
 			const scenario: Scenario = { ...base, frames: base.frames.map(frame => ({ ...frame, timeDelta: 0 })) };

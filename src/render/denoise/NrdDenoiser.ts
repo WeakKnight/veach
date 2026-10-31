@@ -1,7 +1,8 @@
 // NVIDIA NRD REBLUR on WebGPU (docs/Nrd.md). The TypeScript port of NRD's runtime (nrd/Planner.ts) plans
 // dispatches; this class owns textures, pipelines and bind groups. Loaded lazily: the generated shaders and runtime are only
-// fetched when NRD is enabled. Two modes: 'radiance' (REBLUR_DIFFUSE_SPECULAR) and 'sh'
-// (REBLUR_DIFFUSE_SH + REBLUR_SPECULAR_SH, SG resolve and re-jittering in Composite).
+// fetched when NRD is enabled. Modes: 'radiance' (REBLUR_DIFFUSE_SPECULAR), 'sh' (REBLUR_DIFFUSE_SH +
+// REBLUR_SPECULAR_SH, SG resolve and re-jittering in Composite) and, for SSSR frames, 'diffuse-sh'
+// (REBLUR_DIFFUSE_SH only; Composite outputs bypass + diffuse, the SSSR color input).
 import { nrdShaders } from '../../generated/nrd/NrdShaders';
 import { nrdPasses } from '../../generated/nrd/NrdPasses';
 import { vec3, type Vec3 } from '../../math/Math';
@@ -33,11 +34,14 @@ export interface NrdFrame {
 const PREPARE: Record<NrdMode, [number, number][]> = {
 	radiance: [[4, IN_MV], [5, IN_NORMAL_ROUGHNESS], [6, IN_VIEWZ], [7, IN_DIFF], [8, IN_SPEC]],
 	sh: [[4, IN_MV], [5, IN_NORMAL_ROUGHNESS], [6, IN_VIEWZ], [7, IN_DIFF_SH0], [8, IN_SPEC_SH0], [12, IN_DIFF_SH1], [13, IN_SPEC_SH1]],
+	'diffuse-sh': [[4, IN_MV], [5, IN_NORMAL_ROUGHNESS], [6, IN_VIEWZ], [7, IN_DIFF_SH0], [12, IN_DIFF_SH1]],
 };
 const COMPOSITE: Record<NrdMode, [number, number][]> = {
 	radiance: [[9, OUT_DIFF], [10, OUT_SPEC]],
 	sh: [[9, OUT_DIFF_SH0], [10, OUT_SPEC_SH0], [14, OUT_DIFF_SH1], [15, OUT_SPEC_SH1]],
+	'diffuse-sh': [[9, OUT_DIFF_SH0], [14, OUT_DIFF_SH1]],
 };
+const SUFFIX = { radiance: '', sh: 'Sh', 'diffuse-sh': 'DiffSh' } as const satisfies Record<NrdMode, string>;
 const CONSTANT_STRIDE = 1024;
 const BYTES: Partial<Record<GPUTextureFormat, number>> = { r8unorm: 1, r8snorm: 1, r8uint: 1, r8sint: 1, rg8unorm: 2, rg8snorm: 2, rg8uint: 2, rg8sint: 2,
 	rgba8unorm: 4, rgba8snorm: 4, rgba8uint: 4, rgba8sint: 4, r16uint: 2, r16sint: 2, r16float: 2, rg16uint: 4, rg16sint: 4, rg16float: 4,
@@ -142,7 +146,7 @@ export class NrdDenoiser {
 			...PREPARE[mode].map(([binding, type]) => ({ binding, visibility: C, storageTexture: { access: 'write-only' as const, format: userFormat(type) } }))] });
 		const composite = device.createBindGroupLayout({ label: 'nrd.composite', entries: [buffer(0, 'uniform'), buffer(1, 'uniform'), buffer(2, 'read-only-storage'),
 			...COMPOSITE[mode].map(([binding]) => ({ binding, visibility: C, texture: { sampleType: 'float' as const } })), buffer(11, 'storage')] });
-		const suffix = mode === 'sh' ? 'Sh' : '';
+		const suffix = SUFFIX[mode];
 		const compile = async (entry: 'Prepare' | 'Composite', layout: GPUBindGroupLayout) => ({ layout, pipeline: await device.createComputePipelineAsync({ label: `nrd.${entry}${suffix}`,
 			layout: device.createPipelineLayout({ bindGroupLayouts: [layout] }),
 			compute: { module: device.createShaderModule({ label: `nrd.${entry}${suffix}`, code: nrdPasses[`${entry}${suffix}`] }), entryPoint: entry } }) });

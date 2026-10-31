@@ -16,7 +16,7 @@ describe('NRD wasm reference', () => {
 	}
 
 	it('covers resets, steady frames and ping-pong swaps', async () => {
-		for (const mode of ['radiance', 'sh'] as const) {
+		for (const mode of ['radiance', 'sh', 'diffuse-sh'] as const) {
 			const { frames } = await recordWasm(scenarios().find(s => s.mode === mode && s.name === 'steady')!);
 			// Resets prepend clears of every storage texture; steady frames have the denoiser passes only.
 			expect(frames[0].length).toBeGreaterThan(frames[1].length);

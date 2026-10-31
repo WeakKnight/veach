@@ -56,7 +56,7 @@ export function scenarios(): Scenario[] {
 		{ name: 'wrap', startFrameIndex: 2 ** 32 - 3, frames: frames(8, still) },
 		{ name: 'late', startFrameIndex: 1_000_003, frames: frames(8, orbit) },
 	];
-	return (['radiance', 'sh'] as const).flatMap(mode => list.map(s => ({ ...s, mode })));
+	return (['radiance', 'sh', 'diffuse-sh'] as const).flatMap(mode => list.map(s => ({ ...s, mode })));
 }
 
 /** Common settings per frame, as NrdDenoiser.encode computes them (every frame's pipelines are ready). */

@@ -1,4 +1,4 @@
-export type NrdMode = 'radiance' | 'sh';
+export type NrdMode = 'radiance' | 'sh' | 'diffuse-sh';
 export interface InstanceDesc {
 	constantBufferMaxDataSize: number;
 	resourcesSpace: number;
