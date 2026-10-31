@@ -4,13 +4,15 @@ Optional NVIDIA NRD 4.18 REBLUR denoising for the real-time path: wavefront inte
 per pixel, TAA active (host frames or `settings.renderMode = 'realtime'`). It is off by default.
 `renderer.setNrd(true, mode)` (viewer `?nrd=1&nrdMode=sh|radiance`, console `r.NRD.Enabled 1`,
 `r.NRD.Mode`) loads a lazy chunk with NRD's dispatch planner (TypeScript) and the generated WGSL.
-Progressive accumulation, OIDN and the megakernel are unchanged. Two modes:
+Progressive accumulation, OIDN and the megakernel are unchanged. Modes:
 
 - `sh` (default): `REBLUR_DIFFUSE_SH` + `REBLUR_SPECULAR_SH` (14 dispatches). The inputs carry each
   signal's dominant light direction; Composite resolves the SGs (`NRD_SG_ResolveDiffuse/Specular`,
   macro detail) and re-jitters them (`NRD_SG_ReJitter`, micro detail and per-frame film jitter that
   NRD's temporal accumulation removes), so TAA again receives jittered lighting detail.
 - `radiance`: `REBLUR_DIFFUSE_SPECULAR` (7 dispatches), radiance and hit distance only.
+- `diffuse-sh` (internal, SSSR frames): `REBLUR_DIFFUSE_SH` alone; Prepare/Composite DiffSh variants
+  without specular inputs, Composite outputs bypass + denoised diffuse. See [Sssr.md](Sssr.md).
 
 The combined `REBLUR_DIFFUSE_SPECULAR_SH` is not used: its temporal accumulation writes 9 storage
 textures, while WebGPU adapters expose at most 8 per stage. The split diffuse/specular denoisers

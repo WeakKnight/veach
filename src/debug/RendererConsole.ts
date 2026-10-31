@@ -25,6 +25,9 @@ export const renderConsoleSettings = {
 	nrdMode: { name: 'r.NRD.Mode', help: 'sh: REBLUR diffuse/specular SH with SG resolve and re-jittering; radiance: REBLUR_DIFFUSE_SPECULAR. Loads on first use.', type: consoleEnum({ sh: 'sh', radiance: 'radiance' } as const) },
 	nrdReJitter: { name: 'r.NRD.ReJitter', help: 'SH mode: restore per-pixel micro detail and film jitter after denoising (NRD_SG_ReJitter).', type: consoleBoolean },
 	nrdDebug: { name: 'r.NRD.Debug', help: 'NRD view: 0 denoised, 1 noisy split, 2 diffuse, 3 specular, 4 guides (hit distance/viewZ, roughness, surface), 5 re-jitter scale (SH: R diffuse, G specular, 0.5 = 1x).', type: consoleNumber(0, 5, true) },
+	sssrEnabled: { name: 'r.SSSR.Enabled', help: 'Realtime wavefront frames: diffuse ray traced lighting (NRD REBLUR_DIFFUSE_SH) plus FidelityFX SSSR reflections; loads on first use. r.SSSR.Stats reports fallbacks.', type: consoleBoolean },
+	sssrDebug: { name: 'r.SSSR.Debug', help: 'SSSR view: 0 final, 1 reflections only, 2 color input (bypass + denoised diffuse), 3 camera reconstruction error (black = consistent), 4 raw intersection (no denoiser).', type: consoleNumber(0, 4, true) },
+	sssrRoughnessThreshold: { name: 'r.SSSR.RoughnessThreshold', help: 'Squared roughness above which SSSR uses the unoccluded environment fallback instead of screen-space rays.', type: consoleNumber(0, 1) },
 	maxBounces: { name: 'r.PathTracing.MaxBounces', help: 'Maximum continuation bounces. Resets accumulation.', type: consoleNumber(0, 128, true) },
 	maxSamples: { name: 'r.PathTracing.MaxSamples', help: 'Progressive sample limit; 0 unlimited. Host games use samples per frame.', type: consoleNumber(0, 1000000, true) },
 	resolutionScale: { name: 'r.Resolution.Scale', help: 'Internal resolution scale; 0.5 is half width and height.', type: consoleNumber(0.1, 2) },
@@ -73,6 +76,7 @@ export function createRendererConsole(renderer: Renderer, options: RendererConso
 	for (const key of Object.keys(renderConsoleSettings) as (keyof RenderSettings)[]) {
 		const d = renderConsoleSettings[key];
 		if (key === 'nrdEnabled') { bind(d.name, d.help, consoleBoolean, () => renderer.settings.nrdEnabled, v => renderer.setNrd(v)); continue; }
+		if (key === 'sssrEnabled') { bind(d.name, d.help, consoleBoolean, () => renderer.settings.sssrEnabled, v => renderer.setSssr(v)); continue; }
 		if (key === 'nrdMode') { bind(d.name, d.help, renderConsoleSettings.nrdMode.type, () => renderer.settings.nrdMode, v => renderer.setNrd(true, v)); continue; }
 		bind(d.name, d.help, d.type as ConsoleValueType<unknown>, () => renderer.settings[key], value => {
 			const s = { ...renderer.settings, [key]: value };
@@ -112,6 +116,7 @@ export function createRendererConsole(renderer: Renderer, options: RendererConso
 	command('r.Accumulation.Reset', 'Restart image sampling.', () => { renderer.resetAccumulation(); return 'Accumulation reset'; });
 	command('r.TAA.Reset', 'Discard temporal history, for example after a camera cut.', () => { renderer.resetTaa(); return 'TAA history reset'; });
 	command('r.NRD.Stats', 'Actual NRD state, fallback reason, dispatches per frame and texture memory.', () => renderer.nrdStats);
+	command('r.SSSR.Stats', 'Actual SSSR state, fallback reason, frames and memory (excluding its NRD instance).', () => renderer.sssrStats);
 	command('r.TAA.Stats', 'Actual TAA mode, history frames, reset reason and memory.', () => renderer.taaStats);
 	command('r.ProfileGPU.Capture', 'Capture GPU pass timings on the next rendered frame. Ctrl+Shift+, opens the panel.', () => {
 		renderer.gpuProfiler.capture(); return renderer.gpuProfiler.status;

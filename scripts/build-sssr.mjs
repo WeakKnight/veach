@@ -25,7 +25,7 @@ const PASSES = {
 const DEFINES = ['FFX_GPU=1', 'FFX_HLSL=1', 'FFX_HALF=0', 'FFX_HLSL_SM=62', 'FFX_WAVE=1', 'FFX_SSSR_OPTION_INVERTED_DEPTH=1'];
 
 // 1. Stage and patch the GPU headers.
-rmSync(join(stage, 'gpu'), { recursive: true, force: true });
+rmSync(join(stage, 'gpu'), { recursive: true, force: true, maxRetries: 5 });
 mkdirSync(stage, { recursive: true });
 cpSync(join(ffx, 'gpu'), join(stage, 'gpu'), { recursive: true });
 patch(join(stage, 'gpu', 'sssr', 'ffx_sssr_classify_tiles.h'), [

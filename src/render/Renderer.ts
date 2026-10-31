@@ -3,6 +3,8 @@ import type { SharcSettings, SharcStats } from './SharcCache';
 import { TemporalAA, type TaaStats } from './TemporalAA';
 import { GpuProfiler } from './GpuProfiler';
 import type { NrdDenoiser, NrdMode, NrdStats } from './denoise/NrdDenoiser';
+import type { SssrReflections, SssrStats } from './sssr/SssrReflections';
+import { SSSR_DEFAULTS } from './sssr/SssrConfig';
 // Public entry point: owns the WebGPU device, the scene and the progressive render loop.
 import { BuildQuality, TinyBVH } from '../accel/TinyBVH';
 import type { HDRImage } from '../loaders/HDRLoader';
@@ -22,6 +24,7 @@ import {
 	FRAME_FLAG_ENV_VISIBLE,
 	FRAME_FLAG_SUN,
 	FRAME_FLAG_SHARED_JITTER,
+	FRAME_FLAG_DIFFUSE_ONLY,
 	FRAME_UNIFORM_BYTES,
 	Tonemapper,
 	packFrameUniforms,
@@ -69,11 +72,20 @@ export interface RenderSettings {
 	/** NVIDIA NRD REBLUR before TAA in real-time (non-progressive) wavefront frames; see setNrd(). */
 	nrdEnabled: boolean;
 	/** 'sh': REBLUR diffuse + specular SH with SG resolve and re-jittering; 'radiance': REBLUR_DIFFUSE_SPECULAR. Select with setNrd(). */
-	nrdMode: NrdMode;
+	nrdMode: Exclude<NrdMode, 'diffuse-sh'>;
 	/** SH mode: restore per-pixel micro detail and film jitter after denoising (NRD_SG_ReJitter). Presentation only. */
 	nrdReJitter: boolean;
 	/** 0 denoised, 1 noisy split (bypasses NRD), 2 diffuse, 3 specular, 4 guides, 5 re-jitter scale (SH). Presentation only. */
 	nrdDebug: number;
+	/**
+	 * Realtime wavefront frames: the path tracer provides diffuse lighting only (denoised by NRD REBLUR_DIFFUSE_SH)
+	 * and AMD FidelityFX SSSR all specular reflection; see setSssr(). Takes precedence over nrdEnabled.
+	 */
+	sssrEnabled: boolean;
+	/** SSSR view: 0 final, 1 reflections only, 2 color input (bypass + denoised diffuse), 3 camera reconstruction error, 4 raw intersection. Presentation only. */
+	sssrDebug: number;
+	/** Squared roughness above which SSSR uses the environment fallback instead of screen-space rays. */
+	sssrRoughnessThreshold: number;
 	maxBounces: number;
 	maxSamples: number; // 0 = unlimited
 	resolutionScale: number;
@@ -128,6 +140,9 @@ export function defaultRenderSettings(): RenderSettings {
 		nrdMode: 'sh',
 		nrdReJitter: true,
 		nrdDebug: 0,
+		sssrEnabled: false,
+		sssrDebug: 0,
+		sssrRoughnessThreshold: SSSR_DEFAULTS.roughnessThreshold,
 		maxBounces: 8,
 		maxSamples: 128,
 		resolutionScale: 1,
@@ -165,7 +180,7 @@ export function defaultRenderSettings(): RenderSettings {
 
 // Applied when presenting (the accumulation is pre-exposed), so changing them keeps the samples.
 export function isPresentationSetting(key: keyof RenderSettings): boolean {
-	return key === 'tonemapper' || key.startsWith('autoExposure') || key.startsWith('histogramLog') || key.startsWith('localExposure') || key === 'visualizeLocalExposure' || key === 'taaMotionVectorDebug' || key === 'nrdDebug' || key === 'nrdReJitter';
+	return key === 'tonemapper' || key.startsWith('autoExposure') || key.startsWith('histogramLog') || key.startsWith('localExposure') || key === 'visualizeLocalExposure' || key === 'taaMotionVectorDebug' || key === 'nrdDebug' || key === 'nrdReJitter' || key === 'sssrDebug';
 }
 
 // Renderer.create progress. Without a browser pipeline cache (first visit, new shaders) compiling
@@ -279,6 +294,11 @@ export class Renderer {
 	private nrdRequest = 0;
 	private nrdActive = false;
 	private nrdError: string | null = null;
+	// SSSR owns its diffuse-only NRD instance: the nrdEnabled / nrdMode selection is independent.
+	private sssr: { reflections: SssrReflections; nrd: NrdDenoiser } | null = null;
+	private sssrRequest = 0;
+	private sssrActive = false;
+	private sssrError: string | null = null;
 	private temporalCamera: { position: Vec3; right: Vec3; up: Vec3; forward: Vec3 } | null = null;
 	private temporalFrame = 0;
 	private progressiveMode: boolean | null = null;
@@ -410,6 +430,43 @@ export class Renderer {
 		return this.nrd ? { ...this.nrd.stats } : { active: false, reason: this.nrdError ?? (this.settings.nrdEnabled ? 'loading' : 'disabled'), mode: this.settings.nrdMode, dispatches: 0, frames: 0, bytes: 0 };
 	}
 
+	get sssrStats(): SssrStats {
+		return this.sssr ? { ...this.sssr.reflections.stats } : { active: false, reason: this.sssrError ?? (this.settings.sssrEnabled ? 'loading' : 'disabled'), frames: 0, bytes: 0 };
+	}
+
+	/**
+	 * Load (or release) FidelityFX SSSR with its diffuse-only NRD instance. Active only for realtime wavefront
+	 * frames with TAA; offline frames are unchanged.
+	 */
+	async setSssr(enabled: boolean): Promise<boolean> {
+		if (this.destroyed) throw new Error('Renderer has been destroyed');
+		const request = ++this.sssrRequest;
+		this.sssrError = null;
+		if (!enabled) {
+			this.settings.sssrEnabled = false;
+			this.sssr?.reflections.destroy(); this.sssr?.nrd.destroy();
+			this.sssr = null;
+			this.tracer.setNrd(this.nrds.size > 0);
+			return true;
+		}
+		try {
+			if (!this.sssr) {
+				const [{ NrdDenoiser }, { SssrReflections }] = await Promise.all([import('./denoise/NrdDenoiser'), import('./sssr/SssrReflections')]);
+				const reason = NrdDenoiser.unsupportedReason(this.device) ?? SssrReflections.unsupportedReason(this.device);
+				if (reason) throw new Error(`SSSR is unsupported on this device: ${reason}`);
+				const [reflections, nrd] = await Promise.all([SssrReflections.create(this.device), NrdDenoiser.create(this.device, 'diffuse-sh')]);
+				if (this.destroyed || request !== this.sssrRequest) { reflections.destroy(); nrd.destroy(); return false; }
+				this.sssr = { reflections, nrd };
+			}
+			this.settings.sssrEnabled = true;
+			this.tracer.setNrd(true);
+			return true;
+		} catch (error) {
+			if (request === this.sssrRequest) { this.sssrError = String(error); this.settings.sssrEnabled = false; }
+			throw error;
+		}
+	}
+
 	/** Load (or release every mode of) NRD. Active only for real-time wavefront frames with TAA; other frames are unchanged. */
 	async setNrd(enabled: boolean, mode: NrdMode = this.settings.nrdMode): Promise<boolean> {
 		if (this.destroyed) throw new Error('Renderer has been destroyed');
@@ -420,7 +477,7 @@ export class Renderer {
 			this.settings.nrdEnabled = false;
 			for (const nrd of this.nrds.values()) nrd.destroy();
 			this.nrds.clear();
-			this.tracer.setNrd(false);
+			this.tracer.setNrd(!!this.sssr);
 			return true;
 		}
 		try {
@@ -430,7 +487,7 @@ export class Renderer {
 			const nrd = this.nrds.get(mode) ?? await NrdDenoiser.create(this.device, mode);
 			if (this.destroyed || request !== this.nrdRequest) { if (nrd !== this.nrds.get(mode)) nrd.destroy(); return false; }
 			this.nrds.set(mode, nrd);
-			this.settings.nrdMode = mode;
+			this.settings.nrdMode = mode as Exclude<NrdMode, 'diffuse-sh'>;
 			this.settings.nrdEnabled = true;
 			this.tracer.setNrd(true);
 			return true;
@@ -831,12 +888,13 @@ export class Renderer {
 		if (this.sun.enabled && Math.max(...sun.radiance) > 0) flags |= FRAME_FLAG_SUN;
 		const primary = this.tracer.primaryVisibilityFrame(this.hostView ? 0 : this.camera.lensRadius, s.debugMode);
 		if (primary.sharedJitter || this.taaActive) flags |= FRAME_FLAG_SHARED_JITTER;
+		if (this.sssrActive) flags |= FRAME_FLAG_DIFFUSE_ONLY;
 		packFrameUniforms(this.uniformData, {
 			temporal: this.taaActive ? [this.taa.jitter[0], this.taa.jitter[1], 1, Number(s.taaMotionVectorDebug)] : [0, 0, 0, 0],
 			...this.tracer.sharcFrame(s.debugMode, s.maxBounces, s.fireflyClamp,
 				`${this.currentSkyKey()}/${this.sun.enabled}/${this.sun.angularDiameter}/${s.environmentIntensity}/${this.environment.importance}/${s.maxBounces}/${s.textureMipBias}`, traceSample),
 			primaryVisibility: primary.data,
-			nrdRegion: this.nrdActive ? this.tracer.nrdRegion : 0,
+			nrdRegion: this.nrdActive || this.sssrActive ? this.tracer.nrdRegion : 0,
 			cameraPosition: this.hostView?.position ?? this.camera.position,
 			lensRadius: this.hostView ? 0 : this.camera.lensRadius,
 			cameraRight: basis.right,
@@ -914,7 +972,11 @@ export class Renderer {
 			this.taaActive = this.taa.begin(this.temporalCamera, this.tracer.width, this.tracer.height, this.scene, this.activeHost ?? this.scene, s.taaMaximumRadiance, frame?.cameraCut ?? false);
 			if (!this.taaActive) this.tracer.setPresentationBuffer(null);
 		}
-		const nrdReason = !this.nrd ? null : !s.nrdEnabled ? 'disabled' : !this.taaActive ? `taa-${this.taa.stats.reason ?? 'inactive'}` : this.tracer.integrator !== 'wavefront' ? 'integrator' : !this.tracer.nrdRegion ? 'storage-budget' : null;
+		const realtimeReason = !this.taaActive ? `taa-${this.taa.stats.reason ?? 'inactive'}` : this.tracer.integrator !== 'wavefront' ? 'integrator' : !this.tracer.nrdRegion ? 'storage-budget' : null;
+		const sssrReason = !this.sssr ? null : !s.sssrEnabled ? 'disabled' : realtimeReason;
+		this.sssrActive = !!this.sssr && s.sssrEnabled && sssrReason === null;
+		if (sssrReason && this.sssr?.reflections.stats.reason !== sssrReason) { this.sssr?.reflections.suspend(sssrReason); this.sssr?.nrd.suspend(sssrReason); }
+		const nrdReason = !this.nrd ? null : !s.nrdEnabled ? 'disabled' : this.sssrActive ? 'sssr' : realtimeReason;
 		this.nrdActive = !!this.nrd && s.nrdEnabled && nrdReason === null;
 		// Suspending keeps NRD's textures and pipelines; toggling settings.nrdEnabled is instant.
 		if (nrdReason && this.nrd?.stats.reason !== nrdReason) this.nrd?.suspend(nrdReason);
@@ -939,11 +1001,22 @@ export class Renderer {
 		// present reads the tonemapping settings from the uniforms; frameIndex there is unused
 		this.writeUniforms();
 		const encoder = this.gpuProfiler.createCommandEncoder({ label: 'present' });
-		const nrd = this.nrdActive ? (enc: GPUCommandEncoder, motion: GPUBuffer) => this.gpuProfiler.scope('NRD', () => this.nrd!.encode(enc, {
+		const nrdInput = (motion: GPUBuffer, debug: number) => ({
 			frame: this.tracer.uniformBuffer, accumulation: this.tracer.accumulation!, region: this.tracer.nrdRegion, motion,
 			width: this.tracer.width, height: this.tracer.height, camera: this.temporalCamera!, jitter: this.taa.jitter,
-			reset: this.taa.stats.historyFrames === 0, debug: s.nrdDebug, reJitter: s.nrdReJitter,
-		}) ?? this.tracer.accumulation!) : undefined;
+			reset: this.taa.stats.historyFrames === 0, debug, reJitter: s.nrdReJitter,
+		});
+		const sssr = this.sssrActive ? this.sssr! : null;
+		const nrd = sssr ? (enc: GPUCommandEncoder, motion: GPUBuffer) => {
+			const color = this.gpuProfiler.scope('NRD', () => sssr.nrd.encode(enc, nrdInput(motion, 0))) ?? this.tracer.accumulation!;
+			return this.gpuProfiler.scope('SSSR', () => sssr.reflections.encode(enc, {
+				frame: this.tracer.uniformBuffer, accumulation: this.tracer.accumulation!, region: this.tracer.nrdRegion, motion, color,
+				width: this.tracer.width, height: this.tracer.height, camera: this.temporalCamera!, jitter: this.taa.jitter,
+				environment: this.environment.texture, environmentKey: this.currentSkyKey(),
+				iblFactor: s.environmentIntensity * this.preExposure, envRotation: (s.environmentRotation * Math.PI) / 180, preExposure: this.preExposure,
+				parameters: { ...SSSR_DEFAULTS, roughnessThreshold: s.sssrRoughnessThreshold }, debug: s.sssrDebug,
+			}));
+		} : this.nrdActive ? (enc: GPUCommandEncoder, motion: GPUBuffer) => this.gpuProfiler.scope('NRD', () => this.nrd!.encode(enc, nrdInput(motion, s.nrdDebug)) ?? this.tracer.accumulation!) : undefined;
 		if (this.taaActive) this.gpuProfiler.scope('Temporal AA', () => this.tracer.setPresentationBuffer(this.taa.encode(encoder, this.tracer.uniformBuffer, this.tracer.accumulation!, this.scene!, s.taaNewFrameWeight, s.taaColorClampingFactor, s.taaMaximumRadiance, nrd)));
 		const now = performance.now();
 		const deltaTime = this.lastExposureTime ? Math.min((now - this.lastExposureTime) / 1000, 1) : 0;
@@ -1132,6 +1205,7 @@ export class Renderer {
 		this.sky.destroy();
 		this.taa.destroy();
 		for (const nrd of this.nrds.values()) nrd.destroy();
+		this.sssr?.reflections.destroy(); this.sssr?.nrd.destroy();
 		this.gpuProfiler.destroy();
 		this.tracer.destroy();
 		this.device.destroy();

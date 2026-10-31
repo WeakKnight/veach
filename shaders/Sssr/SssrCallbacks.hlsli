@@ -3,7 +3,8 @@
 // (FFX_HALF = 0 paths): a pass defines the same SSSR_BIND_* / DENOISER_BIND_* flags as FidelityFX's DX12
 // pass wrapper and gets exactly those resources, at the fixed WebGPU bindings below (group 0). Differences:
 // - one constant buffer serves both components;
-// - material parameters and input color come from Veach's buffers instead of textures;
+// - material parameters and input color come from Veach's buffers instead of textures, and the input color adds
+//   the previous frame's reprojected reflections (multi-bounce: metals reflecting metals are not black);
 // - the ray counter is Atomic<uint> (WGSL atomics need atomic<T> storage);
 // - the environment fallback is Veach's equirect environment with a box-filtered mip chain;
 // - every storage texture is write-only in a core WebGPU format.
@@ -44,9 +45,11 @@ struct SssrConstants
 	uint temporalVarianceGuidedTracingEnabled;
 	uint region; // float4 offset of the NRD split region in gAccum (NRD_STRIDE float4 per pixel)
 	float envRotation;
-	uint debug; // Apply: 0 final, 1 reflections only, 2 color input only
+	uint debug; // Apply: 0 final, 1 reflections only, 2 color input only, 3 camera reconstruction error
 	float nearPlane; // Prepare: depth = nearPlane / viewZ
-	float3 padding;
+	float preExposure; // of this frame; the reflection history is scene-linear
+	uint reflectionHistory; // 1 when gReflectionHistory holds the previous frame's reflections
+	float padding0;
 };
 [[vk::binding(0, 0)]] ConstantBuffer<SssrConstants> gSssr;
 
@@ -81,11 +84,14 @@ static const uint SSSR_NRD_STRIDE = 5u; // float4 per pixel in the NRD region, s
 #if defined(SSSR_BIND_SRV_INPUT_MATERIAL_PARAMETERS) || defined(SSSR_VEACH_ACCUM)
 [[vk::binding(2, 0)]] StructuredBuffer<float4> gAccum; // accumulation image (three float4 per pixel) and NRD region
 #endif
-#if defined(DENOISER_BIND_SRV_INPUT_MOTION_VECTORS) || defined(SSSR_VEACH_MOTION)
+#if defined(DENOISER_BIND_SRV_INPUT_MOTION_VECTORS) || defined(SSSR_BIND_SRV_INPUT_COLOR)
 [[vk::binding(3, 0)]] StructuredBuffer<float4> gMotion; // TAA motion: two float4 per pixel, pixels, previous minus current
 #endif
 #if defined(SSSR_BIND_SRV_INPUT_COLOR) || defined(SSSR_VEACH_COLOR)
 [[vk::binding(4, 0)]] StructuredBuffer<float4> gColor; // NRD composite: three float4 per pixel, radiance first
+#endif
+#if defined(SSSR_BIND_SRV_INPUT_COLOR)
+[[vk::binding(41, 0)]] StructuredBuffer<float4> gReflectionHistory; // previous frame's applied reflections / pre-exposure
 #endif
 #if defined(SSSR_BIND_UAV_RAY_LIST)
 [[vk::binding(5, 0)]] RWStructuredBuffer<FfxUInt32> rw_ray_list;
@@ -363,11 +369,21 @@ FfxUInt32 FFX_SSSR_GetRayCounter(FfxUInt32 index)
 #endif
 
 #if defined(SSSR_BIND_SRV_INPUT_COLOR)
+// Lit color at a hit: this frame's color plus the previous frame's reflections at the reprojected pixel.
 FfxFloat32x3 FFX_SSSR_LoadInputColor(FfxInt32x3 coordinate)
 {
 	FfxUInt32x2 size = RenderSize();
 	FfxUInt32x2 p = FfxUInt32x2(clamp(coordinate.xy, FfxInt32x2(0, 0), FfxInt32x2(size) - 1));
-	return gColor[(p.y * size.x + p.x) * 3u].xyz;
+	uint index = p.y * size.x + p.x;
+	FfxFloat32x3 color = gColor[index * 3u].xyz;
+	float4 motion = gMotion[index * 2u];
+	if (gSssr.reflectionHistory != 0u && motion.w != 0.0)
+	{
+		FfxInt32x2 previous = FfxInt32x2(floor(FfxFloat32x2(p) + 0.5 + motion.xy));
+		if (all(previous >= 0) && all(previous < FfxInt32x2(size)))
+			color += gReflectionHistory[uint(previous.y) * size.x + uint(previous.x)].xyz * gSssr.preExposure;
+	}
+	return color;
 }
 #endif
 

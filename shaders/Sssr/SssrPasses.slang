@@ -183,6 +183,7 @@ import Scene.SceneTypes;
 [[vk::binding(39, 0)]] Texture2D<float4> gSourceColor;
 [[vk::binding(40, 0)]] [format("rgba16f")] WTexture2D<float4> gOutColor;
 [[vk::binding(9, 0)]] RWStructuredBuffer<float4> gOutput;
+[[vk::binding(42, 0)]] RWStructuredBuffer<float4> gReflectionOut; // Apply: this frame's reflections / pre-exposure
 [[vk::binding(28, 0)]] Texture2D<float4> gBrdfLut; // split-sum GGX scale (x) and bias (y) by (N.V, perceptual roughness)
 [[vk::binding(10, 0)]] SamplerState gLinearClamp;
 
@@ -237,7 +238,7 @@ void main(uint3 tid : SV_DispatchThreadID)
 }
 
 #elif SSSR_PASS == SSSR_PASS_ENVIRONMENT_DOWNSAMPLE
-// Box-filtered mip of the equirect environment: the 2x2 footprint, wrapping in U.
+// Box-filtered mip of the equirect environment: the 2x2 footprint, wrapping in U (mip 0 copies).
 [shader("compute")]
 [numthreads(8, 8, 1)]
 void main(uint3 tid : SV_DispatchThreadID)
@@ -247,6 +248,8 @@ void main(uint3 tid : SV_DispatchThreadID)
 	gSourceColor.GetDimensions(srcWidth, srcHeight);
 	uint2 pixel = tid.xy;
 	if (pixel.x >= width || pixel.y >= height) return;
+	// Mip 0: a copy of the environment.
+	if (srcWidth == width && srcHeight == height) { gOutColor[pixel] = gSourceColor.Load(int3(int2(pixel), 0)); return; }
 	float4 sum = float4(0.0);
 	for (uint y = 0u; y < 2u; y++)
 		for (uint x = 0u; x < 2u; x++)
@@ -256,7 +259,8 @@ void main(uint3 tid : SV_DispatchThreadID)
 
 #elif SSSR_PASS == SSSR_PASS_APPLY
 // Writes the TAA input layout: color + denoised reflections * split-sum specular, then the unchanged guides.
-// The specular F0 approximation matches NrdPasses.slang LoadSurface. Debug: 1 reflections only, 2 color input only.
+// The specular F0 approximation matches NrdPasses.slang LoadSurface. Debug: 1 reflections only, 2 color input only,
+// 3 camera reconstruction error.
 [shader("compute")]
 [numthreads(8, 8, 1)]
 void main(uint3 tid : SV_DispatchThreadID)
@@ -281,8 +285,18 @@ void main(uint3 tid : SV_DispatchThreadID)
 		float3 reflection = max(r_radiance.Load(int3(pixel, 0)).xyz, 0.0);
 		if (all(isfinite(reflection))) specular = reflection * (f0 * ab.x + ab.y);
 	}
+	gReflectionOut[pixel.y * size.x + pixel.x] = float4(specular / gFrame.envParams.z, 0.0);
 	uint debug = gSssr.debug;
 	float3 result = debug == 1u ? specular : debug == 2u ? color : color + specular;
+	// 3: world position reconstructed from depth as FidelityFX does (InvViewProjection) against the traced hit;
+	// black when the camera constants agree with the path tracer (100x error, scene units).
+	if (debug == 3u && PrimaryViewZ(pixel, viewZ, direction))
+	{
+		float2 uv = (float2(pixel) + 0.5) * gSssr.inverseRenderSize;
+		float4 world = mul(gSssr.invViewProjection, float4(uv.x * 2.0 - 1.0, 1.0 - uv.y * 2.0, gSssr.nearPlane / viewZ, 1.0));
+		float3 traced = gFrame.cameraPosition.xyz + direction * gAccum[base + 1u].w;
+		result = saturate(abs(world.xyz / world.w - traced) * 100.0) * gFrame.envParams.z;
+	}
 	gOutput[base] = float4(result, 1.0);
 	gOutput[base + 1u] = gAccum[base + 1u];
 	gOutput[base + 2u] = gAccum[base + 2u];

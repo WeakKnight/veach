@@ -14,7 +14,7 @@ src/         TypeScript host: accel (tinybvh wrapper), loaders (glTF, HDR, blend
 wasm/        tinybvh C ABI for Emscripten
 ThirdParty/  Vendored tinybvh, openpbr-bsdf, NRD and MathLib (see VERSION.txt)
 examples/    view (demo of <veach-view>)
-tools/       Committed temporary toolchain: slangc with WGSL tier1 storage formats for build:nrd (tools/slang/README.md)
+tools/       Committed temporary toolchain: slangc with the WGSL fixes build:nrd and build:sssr need (tools/slang/README.md)
 tests/       vitest (Node)
 scripts/     Build, sample fetching, headless smoke renders
 docs/        Design docs (below)
@@ -35,6 +35,7 @@ Read the relevant doc before changing a subsystem, and update it with the change
 | [docs/Sky.md](docs/Sky.md) | Atmosphere bake, sun |
 | [docs/BlendImport.md](docs/BlendImport.md) | `.blend` loader conventions |
 | [docs/Nrd.md](docs/Nrd.md) | Optional NVIDIA NRD REBLUR for real-time frames: build, split, host |
+| [docs/Sssr.md](docs/Sssr.md) | Realtime diffuse ray traced lighting + FidelityFX SSSR reflections: path tracer split, passes, host |
 
 ## Rules
 
@@ -43,9 +44,11 @@ Read the relevant doc before changing a subsystem, and update it with the change
 - Keep CPU references in sync with their shaders: `Interpreter.ts` / `MaterialProgram.slang`, `Procedural.ts` / `Procedural.slang`, `Atmosphere.ts` / `Atmosphere.slang`.
 - Emissive triangles are listed in primitive order (`lightOffset + primIdx`) for MIS; underestimated light power is safe, overestimated is not.
 - Exposure and tone mapping settings are presentation settings and must never reset accumulation.
+- Realtime-only path tracer behavior (FRAME_FLAG_DIFFUSE_ONLY, docs/Sssr.md) stays in `WavefrontRealtime.slang`; offline frames must stay bit-identical.
 - The package is `@tianyuliwiwo/veach` (`npm run build:lib` -> `dist-lib/`): `src/index.ts` must stay free of DOM side effects; DOM code goes in `src/view` (`@tianyuliwiwo/veach/view`).
 - Generated code is committed. After editing `shaders/` run `npm run build:shaders`; `wasm/` or tinybvh: `npm run build:wasm`;
-  `shaders/Nrd` or `wasm/nrd_wasm.cpp`: `npm run build:nrd` (ThirdParty/NRD, tools/slang, emsdk; see docs/Nrd.md); `shaders/Materials/BSDF`, `shaders/Common` or `tests/bsdf`: `npm run build:bsdf-harness`.
+  `shaders/Nrd` or `wasm/nrd_wasm.cpp`: `npm run build:nrd` (ThirdParty/NRD, tools/slang, emsdk; see docs/Nrd.md);
+  `shaders/Sssr` or `ThirdParty/FidelityFX`: `npm run build:sssr` (tools/slang; see docs/Sssr.md); `shaders/Materials/BSDF`, `shaders/Common` or `tests/bsdf`: `npm run build:bsdf-harness`.
 
 ## Commands
 
@@ -54,6 +57,7 @@ npm run dev | build | typecheck | test
 npm run build:shaders       # slangc -> src/generated/shaders
 npm run build:wasm          # emscripten -> src/generated/tinybvh (-- --debug for symbols/assertions)
 npm run build:nrd           # REBLUR WGSL (slangc) -> src/generated/nrd; NRD runtime test reference (emscripten) -> tests/generated/nrd
+npm run build:sssr          # FidelityFX SSSR + reflection denoiser WGSL, blue noise tables -> src/generated/sssr
 npm run check:nrd           # headless NRD renders -> .tools/nrd/*.png
 npm run build:bsdf-tables   # ThirdParty/openpbr-bsdf data -> src/generated/bsdf/BSDFTables.bin
 npm run build:bsdf-harness  # slangc -target cpp + em++ -> tests/generated/bsdf (needs emsdk, GLM)
