@@ -59,6 +59,7 @@ export const FRAME_FLAG_SUN = 2;
 export const FRAME_FLAG_ENV_IMPORTANCE = 4;
 export const FRAME_FLAG_ENV_VISIBLE = 8;
 export const FRAME_FLAG_SHARED_JITTER = 16;
+export const FRAME_FLAG_DIFFUSE_ONLY = 32; // realtime SSSR frames: the path tracer provides diffuse lighting only
 
 export enum DebugMode {
 	None = 0,

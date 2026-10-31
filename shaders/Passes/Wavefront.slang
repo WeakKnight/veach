@@ -16,6 +16,7 @@ import Materials.VirtualTexture;
 import Lights.Lights;
 import Passes.Sharc;
 import Passes.SharcCommon;
+import Passes.WavefrontRealtime;
 
 struct WavefrontUniforms
 {
@@ -98,6 +99,8 @@ float3 NrdOctDecode(float2 p)
 // Roughness in [0, 1] plus metalness quantized to 8 bits in the integer part (even numbers).
 float NrdPackSurface(float roughness, float metalness) { return saturate(roughness) * 0.99 + 2.0 * round(saturate(metalness) * 255.0); }
 // Three 9-bit diffuse fractions; shadow flags keep the low three bits.
+// Bit 27 of the packed primary sample fraction: the sample crossed the surface (realtime SSSR frames only).
+static const uint NRD_TRANSMITTED = 1u << 27u;
 uint NrdPackFraction(float3 f)
 {
 	uint3 q = uint3(round(saturate(f) * 511.0));
@@ -381,7 +384,8 @@ void IntersectImpl<let ALPHA : bool, let DIRECT : bool>(uint3 tid)
 	if (ALPHA) StoreFeedbackState(base);
 }
 
-void QueueDirectLighting<let SEPARATE_LIGHT : bool>(uint base, SurfaceInteraction si, BSDF bsdf, float2 cone, float3 throughput, bool primary, inout RandomSequence rng)
+// diffuseOnly: realtime SSSR primary vertex (WavefrontRealtime.slang), cosine continuation around normal.
+void QueueDirectLighting<let SEPARATE_LIGHT : bool>(uint base, SurfaceInteraction si, BSDF bsdf, float2 cone, float3 throughput, bool primary, bool diffuseOnly, float3 normal, inout RandomSequence rng)
 {
 	uint mask = 0u;
 	gRayCone = cone;
@@ -441,6 +445,7 @@ void QueueDirectLighting<let SEPARATE_LIGHT : bool>(uint base, SurfaceInteractio
 		}
 		DiffuseSpecular eval; float pdf;
 		bsdf.EvalPdf(dir, eval, pdf);
+		if (diffuseOnly) DiffuseOnlyLight(normal, dir, eval, pdf);
 		float3 f = eval.diffuse + eval.specular;
 		if (any(f > 0.0))
 		{
@@ -530,12 +535,13 @@ void ShadePath<let DEFERRED : bool, let ALPHA : bool, let PHASE : uint = 0u, let
 	}
 	RandomSequence rng = RandomSequence(0u, 0u);
 	rng.seed = s.randomSeed;
+	bool diffuseOnly = DiffuseOnlyVertex(primary, ms);
 	s.path.lightsSampled = bsdf.MaxActiveAlpha() >= NEAR_SPECULAR_ALPHA;
 	if (s.path.lightsSampled)
 	{
 		if (DEFERRED)
 		{
-			QueueDirectLighting<SEPARATE_LIGHT>(base, si, bsdf, float2(hitConeWidth, s.path.coneSpread), s.path.throughput, primary, rng);
+			QueueDirectLighting<SEPARATE_LIGHT>(base, si, bsdf, float2(hitConeWidth, s.path.coneSpread), s.path.throughput, primary, diffuseOnly, s.normal, rng);
 		}
 		else
 		{
@@ -546,14 +552,18 @@ void ShadePath<let DEFERRED : bool, let ALPHA : bool, let PHASE : uint = 0u, let
 		}
 	}
 	float2 u = rng.Next2D();
-	LobeSample bs = bsdf.Sample(float3(u, rng.Next()));
+	LobeSample bs;
+	if (diffuseOnly) bs = SampleDiffuseOnly(bsdf, s.normal, u);
+	else bs = bsdf.Sample(float3(u, rng.Next()));
 	float3 weight = bs.weight.diffuse + bs.weight.specular;
 	if (!bs.valid || bs.pdf <= 0.0 || all(weight <= 0.0)) return;
 	if (primary && NrdEnabled())
 	{
 		uint r = NrdBase(base);
 		float2 oct = NrdOctEncode(bs.wi);
-		gAccum[r].w = asfloat(NrdPackFraction(NrdDiffuseFraction(bs.weight)));
+		// Realtime SSSR frames keep the indirect specular of a transmitted primary sample (Finalize).
+		bool transmitted = DiffuseOnlyFrame() && (dot(bs.wi, si.faceNormal) > 0.0) != si.frontFacing;
+		gAccum[r].w = asfloat(NrdPackFraction(NrdDiffuseFraction(bs.weight)) | (transmitted ? NRD_TRANSMITTED : 0u));
 		gAccum[r + 3u].w = oct.x; gAccum[r + 4u].w = oct.y;
 	}
 	float3 throughput = s.path.throughput * weight;
@@ -919,6 +929,9 @@ void Finalize(uint3 tid : SV_DispatchThreadID)
 		float3 indirect = max(s.path.radiance - bypass.xyz - diffuse.xyz - specular.xyz, 0.0);
 		float3 fraction = NrdUnpackFraction(asuint(bypass.w));
 		float3 indirectDiffuse = indirect * fraction, indirectSpecular = indirect - indirectDiffuse;
+		// Realtime SSSR frames drop the specular signal (SSSR replaces it), except refraction: a transmitted
+		// primary sample's indirect specular moves to the bypass.
+		if ((asuint(bypass.w) & NRD_TRANSMITTED) != 0u) indirectSpecular = float3(0.0);
 		// Luminance is linear, so the direction weights of each signal sum to its luminance.
 		float3 wi = any(indirect > 0.0) ? NrdOctDecode(float2(diffuseDirection.w, specularDirection.w)) : float3(0.0);
 		float3 dDirection = (diffuseDirection.xyz + Luminance(indirectDiffuse) * wi) / max(Luminance(diffuse.xyz + indirectDiffuse), 1e-12);

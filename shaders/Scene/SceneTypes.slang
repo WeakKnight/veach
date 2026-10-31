@@ -105,6 +105,7 @@ static const uint FRAME_FLAG_SUN = 2u;
 static const uint FRAME_FLAG_ENV_IMPORTANCE = 4u;
 static const uint FRAME_FLAG_ENV_VISIBLE = 8u;
 static const uint FRAME_FLAG_SHARED_JITTER = 16u;
+static const uint FRAME_FLAG_DIFFUSE_ONLY = 32u; // realtime SSSR frames: primary vertex diffuse only (WavefrontRealtime.slang)
 
 static const uint DEBUG_NONE = 0u;
 static const uint DEBUG_ALBEDO = 1u;
