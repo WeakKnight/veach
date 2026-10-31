@@ -39,6 +39,13 @@ export function poolFormat(nrd, tier1) {
 	return pair[tier1 ? 0 : 1];
 }
 
+// Veach's REBLUR settings in nrd_set_reblur order (wasm/nrd_wasm.cpp): hit distance A B C,
+// fastHistoryClampingSigmaScale, diffuse/specular prepass radius, min/max blur radius, lobeAngleFraction,
+// roughnessFraction, planeDistanceSensitivity; maxAccumulatedFrameNum, maxFastAccumulatedFrameNum,
+// maxStabilizedFrameNum, historyFixFrameNum, checkerboardMode, hitDistanceReconstructionMode, enableAntiFirefly.
+export const REBLUR_FLOATS = [...HIT_DISTANCE, 2, 30, 50, 1, 30, 0.15, 0.15, 0.02];
+export const REBLUR_INTS = [30, 6, 63, 3, 0, 0, 1];
+
 /** Creates an instance of the mode's denoisers with Veach's REBLUR settings. */
 export function createInstance(module, mode) {
 	const denoisers = DENOISERS[mode];
@@ -48,8 +55,8 @@ export function createInstance(module, mode) {
 	module._nrd_free(list);
 	if (!context) throw new Error('NRD instance creation failed');
 	const reblur = module._nrd_malloc(4 * 18);
-	module.HEAPF32.set([...HIT_DISTANCE, 2, 30, 50, 1, 30, 0.15, 0.15, 0.02], reblur >> 2);
-	module.HEAPU32.set([30, 6, 63, 3, 0, 0, 1], (reblur >> 2) + 11);
+	module.HEAPF32.set(REBLUR_FLOATS, reblur >> 2);
+	module.HEAPU32.set(REBLUR_INTS, (reblur >> 2) + 11);
 	const status = module._nrd_set_reblur(context, reblur, reblur + 44);
 	module._nrd_free(reblur);
 	if (status !== 0) throw new Error('NRD REBLUR settings rejected');

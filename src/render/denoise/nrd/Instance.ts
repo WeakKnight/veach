@@ -375,7 +375,8 @@ export class NrdInstance {
 	}
 
 	private addReblurDiffuseSh(): void {
-		const NAME = 'REBLUR_DiffuseSh';
+		// Reblur_DiffuseSh.hpp does not define DENOISER_NAME, so PushPass stringifies the macro name.
+		const NAME = 'DENOISER_NAME';
 		const pass = (n: string) => this.pushPass(`${NAME} - ${n}`);
 		const P = PERMANENT_POOL_START, PREV_VIEWZ = P, PREV_NORMAL_ROUGHNESS = P + 1, PREV_INTERNAL_DATA = P + 2, DIFF_HISTORY = P + 3,
 			DIFF_FAST_HISTORY_P = P + 4, DIFF_HISTORY_STABILIZED_PING = P + 5, DIFF_HISTORY_STABILIZED_PONG = P + 6, DIFF_SH_HISTORY = P + 7;

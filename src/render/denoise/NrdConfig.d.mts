@@ -22,6 +22,8 @@ export const OUT_DIFF: number, OUT_SPEC: number, OUT_DIFF_SH0: number, OUT_DIFF_
 export const ACCUMULATION_CONTINUE: number, ACCUMULATION_CLEAR_AND_RESTART: number;
 export const DENOISING_RANGE: number;
 export const HIT_DISTANCE: readonly [number, number, number];
+export const REBLUR_FLOATS: readonly number[];
+export const REBLUR_INTS: readonly number[];
 export const FORMATS: Record<number, [GPUTextureFormat, GPUTextureFormat]>;
 export function userFormat(type: number): GPUTextureFormat;
 export function poolFormat(nrd: number, tier1: boolean): GPUTextureFormat;

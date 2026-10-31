@@ -50,6 +50,8 @@ export function scenarios(): Scenario[] {
 			const [w, h] = i < 8 ? [W, H] : i < 16 ? [80, 45] : [W, H];
 			return { camera: lookAt([0, 1.5, 4], [0, 1, 0], w, h), width: w, height: h, timeDelta: 16.666 };
 		}) },
+		// Production resolution: pool sizes, tile grids and reciprocal sizes at 1080p.
+		{ name: 'hd', frames: frames(4, i => ({ ...orbit(i), camera: lookAt([0, 1.5, 4], [0, 1, 0], 1920, 1080), width: 1920, height: 1080 })) },
 		// Long sessions: the host's frame index grows past 2^32 and is written as uint32.
 		{ name: 'wrap', startFrameIndex: 2 ** 32 - 3, frames: frames(8, still) },
 		{ name: 'late', startFrameIndex: 1_000_003, frames: frames(8, orbit) },
