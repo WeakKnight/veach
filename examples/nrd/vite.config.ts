@@ -6,7 +6,7 @@ const repo = (p: string) => fileURLToPath(new URL(`../../${p}`, import.meta.url)
 // NRD showcase: live scenes plus the screenshots written by `npm run check:nrd` (.tools/nrd, served at /captures).
 export default defineConfig({
 	root: fileURLToPath(new URL('.', import.meta.url)), base: './', publicDir: repo('public'),
-	optimizeDeps: { exclude: [repo('src/generated/tinybvh/tinybvh.mjs'), repo('src/generated/nrd/nrd.mjs')] },
+	optimizeDeps: { exclude: [repo('src/generated/tinybvh/tinybvh.mjs')] },
 	build: { target: 'es2022', outDir: repo('dist-nrd'), emptyOutDir: true },
 	server: { port: 5178, host: '127.0.0.1' },
 	plugins: [{

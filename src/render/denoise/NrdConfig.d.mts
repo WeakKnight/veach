@@ -1,5 +1,3 @@
-import type { NRDModule } from '../../generated/nrd/nrd.mjs';
-
 export type NrdMode = 'radiance' | 'sh';
 export interface InstanceDesc {
 	constantBufferMaxDataSize: number;
@@ -27,8 +25,5 @@ export const REBLUR_INTS: readonly number[];
 export const FORMATS: Record<number, [GPUTextureFormat, GPUTextureFormat]>;
 export function userFormat(type: number): GPUTextureFormat;
 export function poolFormat(nrd: number, tier1: boolean): GPUTextureFormat;
-export function createInstance(module: NRDModule, mode: NrdMode): { context: number; desc: InstanceDesc };
-export const PLAN_SCRATCH_BYTES: number;
-export function planDispatches(module: NRDModule, context: number, scratch: number, matrices: ArrayLike<number>, params: ArrayLike<number>, ints: ArrayLike<number>): Dispatch[];
 export function resourceFormat(desc: InstanceDesc, resource: Resource, tier1: boolean): GPUTextureFormat;
 export function nrdVariantKey(formats: readonly string[]): string;

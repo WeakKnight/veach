@@ -2,9 +2,10 @@
 import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { DENOISERS, createInstance } from '../../src/render/denoise/NrdConfig.mjs';
+import { DENOISERS } from '../../src/render/denoise/NrdConfig.mjs';
 import { BLOBS, NrdInstance, REBLUR_CONSTANTS_BYTES } from '../../src/render/denoise/nrd/Instance';
 import { wasmModule } from './oracle';
+import { createInstance } from './wasm';
 
 const shaders = join(__dirname, '../../ThirdParty/NRD/Shaders');
 

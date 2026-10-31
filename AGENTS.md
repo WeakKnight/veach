@@ -53,7 +53,7 @@ Read the relevant doc before changing a subsystem, and update it with the change
 npm run dev | build | typecheck | test
 npm run build:shaders       # slangc -> src/generated/shaders
 npm run build:wasm          # emscripten -> src/generated/tinybvh (-- --debug for symbols/assertions)
-npm run build:nrd           # NRD runtime (emscripten) + REBLUR WGSL (slangc) -> src/generated/nrd
+npm run build:nrd           # REBLUR WGSL (slangc) -> src/generated/nrd; NRD runtime test reference (emscripten) -> tests/generated/nrd
 npm run check:nrd           # headless NRD renders -> .tools/nrd/*.png
 npm run build:bsdf-tables   # ThirdParty/openpbr-bsdf data -> src/generated/bsdf/BSDFTables.bin
 npm run build:bsdf-harness  # slangc -target cpp + em++ -> tests/generated/bsdf (needs emsdk, GLM)

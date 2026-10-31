@@ -3,7 +3,7 @@
 Optional NVIDIA NRD 4.18 REBLUR denoising for the real-time path: wavefront integrator, one sample
 per pixel, TAA active (host frames or `settings.accumulation = false`). It is off by default.
 `renderer.setNrd(true, mode)` (viewer `?nrd=1&nrdMode=sh|radiance`, console `r.NRD.Enabled 1`,
-`r.NRD.Mode`) loads a lazy chunk with the NRD runtime (WebAssembly) and the generated WGSL.
+`r.NRD.Mode`) loads a lazy chunk with NRD's dispatch planner (TypeScript) and the generated WGSL.
 Progressive accumulation, OIDN and the megakernel are unchanged. Two modes:
 
 - `sh` (default): `REBLUR_DIFFUSE_SH` + `REBLUR_SPECULAR_SH` (14 dispatches). The inputs carry each
@@ -52,8 +52,9 @@ this first. The script:
      gives write-only textures no subscript, while NRD writes `gOut[ p ] = value`.
 2. Compiles the runtime and `wasm/nrd_wasm.cpp` (C ABI over contexts: create with a denoiser list,
    instance description as JSON, common/REBLUR settings, flattened dispatches of all denoisers) into
-   `src/generated/nrd/nrd.{mjs,wasm}`. `-fmacro-prefix-map` replaces the checkout path in the
-   `__FILE__` strings of NRD's asserts, so the committed wasm is reproducible from any directory.
+   `tests/generated/nrd/nrd.{mjs,wasm}`: the reference the TypeScript planner is tested against (below);
+   the renderer does not load it. `-fmacro-prefix-map` replaces the checkout path in the `__FILE__`
+   strings of NRD's asserts, so the committed wasm is reproducible from any directory.
 3. Loads that module in Node and plans both modes' dispatches with Veach's settings
    (`src/render/denoise/NrdConfig.mjs`, shared with `NrdDenoiser`) over history resets, steady frames
    and a resize. That gives every pipeline's bound storage formats for both pool format sets
@@ -137,7 +138,7 @@ changes between accumulation resets.
 
 `src/render/denoise/NrdDenoiser.ts` owns the NRD instance and GPU resources:
 
-- One NRD context per mode. Pools from the instance description plus user textures (rgba16float, viewZ
+- One planner (`nrd/Planner.ts`) per mode. Pools from the instance description plus user textures (rgba16float, viewZ
   r32float); at 960x640 with tier 1 formats about 107 MB (radiance) or 144 MB (SH). Resolution changes
   recreate them and restart NRD history. The Renderer keeps every loaded mode, so switching is instant;
   a mode's history restarts when it becomes current again, and its REBLUR pipelines compile on first use.
@@ -156,10 +157,10 @@ Settings: `nrdEnabled` and `nrdMode` (via `setNrd`), `nrdReJitter` (SH, presenta
 log2 mapped to [0, 1], R diffuse, G specular, gray = unchanged). REBLUR settings are NRD defaults with `maxAccumulatedFrameNum = 30`,
 `maxFastAccumulatedFrameNum = 6`, `maxStabilizedFrameNum = 63`, anti-firefly on.
 
-## Dispatch planner (TypeScript migration)
+## Dispatch planner
 
-NRD's CPU side (instance description, per-frame dispatches, constant buffers) is being moved from the
-WebAssembly runtime into TypeScript, without changing behavior. `src/render/denoise/nrd/` ports exactly
+NRD's CPU side (instance description, per-frame dispatches, constant buffers) runs in TypeScript, a port
+of the NRD runtime that keeps its behavior. `src/render/denoise/nrd/` ports exactly
 what Veach uses: `Instance.ts` (InstanceImpl::Create and the three REBLUR denoiser definitions, in call
 order), `Planner.ts` (SetCommonSettings, GetComputeDispatches, Update_Reblur, AddSharedConstants_Reblur,
 NRD's wall-clock timer) and `Math32.ts` (the MathLib float32 operations as the wasm build computes them:
@@ -168,21 +169,24 @@ Emscripten's exact rcp/rsqrt plus MathLib's Newton-Raphson step, FMA emulated as
 never sets keep NRD's defaults; unported denoisers throw. The DiffuseSh pass names keep upstream's literal
 `DENOISER_NAME` prefix (its header does not define the macro).
 
-`Planners.ts` selects the planner: `Renderer.nrdPlanner` (internal; viewer `?nrdPlanner=`, `nrd-check
---planner`) is `'ts'` (default), `'wasm'`, or `'both'`, which renders with wasm, gives the TypeScript timer
-the `Date.now` values the wasm timer read, and reports any frame whose dispatches or constant words differ
-as a console error (one ulp is allowed for the cosf/sinf rotators). `build:nrd` runs through vite-node
-and sweeps formats with the TypeScript planner; the wasm runtime is still built as the reference.
+The migration from the wasm runtime ran in steps: recording the runtime as a test reference, porting
+instance creation, porting per-frame planning, rendering with either planner (and with both, checked
+against each other every frame on the GPU: no divergence in any `check:nrd` scene or the kitchen scene,
+static and orbiting), then the TypeScript default. The runtime now only exists as the reference in
+`tests/generated/nrd` (`tests/nrd/wasm.ts` wraps its C ABI). `build:nrd` runs through vite-node and
+sweeps storage formats with the TypeScript planner.
 
 Tests (`tests/nrd`) drive scripted frame sequences through NrdDenoiser's reset and frame-index logic
 (steady, motion, resets, resize, 1080p, frame index past 2^32) with a fixed time delta, and the timer
 path with a scripted clock. The TypeScript description, dispatches and every constant word equal the
 wasm runtime's in both modes, bit for bit (the rotator allowance is unused). Invalid common settings are
-rejected by both; the wasm build aborts on NRD's asserts, the TypeScript planner throws.
+rejected by both; the wasm build aborts on NRD's asserts, the TypeScript planner throws. When Veach changes
+NRD's behavior on purpose, these comparisons give way to snapshots of the TypeScript planner and the
+reference can be removed (`ThirdParty/NRD/Source` then serves only as documentation).
 
 ## Validation
 
-`npm run check:nrd` (headless Chrome, `.tools/nrd/`; `-- --planner wasm|both` for the planner migration): helmet (HDR and low sun), metal/rough spheres,
+`npm run check:nrd` (headless Chrome, `.tools/nrd/`): helmet (HDR and low sun), metal/rough spheres,
 alpha blend modes and transmission, plus the megakernel fallback. For each it checks both modes' state
 (SH 14, radiance 7 REBLUR dispatches per frame), that the noisy split recomposes the raw radiance (max
 relative error about 2e-7), finite output and no GPU/console errors, captures a GPU profile, and saves

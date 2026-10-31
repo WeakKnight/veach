@@ -1,7 +1,8 @@
 // The NRD runtime compiled to WebAssembly, recorded as the reference for the TypeScript planner, and the
 // TypeScript planner recorded the same way.
-import createNRDModule, { type NRDModule } from '../../src/generated/nrd/nrd.mjs';
-import { DENOISERS, PLAN_SCRATCH_BYTES, REBLUR_FLOATS, REBLUR_INTS, createInstance, planDispatches, type Dispatch, type InstanceDesc } from '../../src/render/denoise/NrdConfig.mjs';
+import createNRDModule, { type NRDModule } from '../generated/nrd/nrd.mjs';
+import { DENOISERS, REBLUR_FLOATS, REBLUR_INTS, type Dispatch, type InstanceDesc } from '../../src/render/denoise/NrdConfig.mjs';
+import { PLAN_SCRATCH_BYTES, createInstance, planDispatches } from './wasm';
 import { NrdPlanner } from '../../src/render/denoise/nrd/Planner';
 import { drive, type Scenario } from './scenarios';
 

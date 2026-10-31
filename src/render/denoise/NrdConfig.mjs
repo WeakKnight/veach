@@ -1,5 +1,5 @@
-// NRD settings shared by scripts/build-nrd.mjs and NrdDenoiser.ts (docs/Nrd.md). The build bakes storage
-// formats into the generated WGSL from the dispatches these settings produce, so both must agree.
+// NRD settings shared by scripts/build-nrd.mjs, NrdDenoiser.ts and the TypeScript planner (docs/Nrd.md). The
+// build bakes storage formats into the generated WGSL from the dispatches these settings produce.
 
 // Same register shifts as NRD's SPIR-V build: samplers 0+, constants 2, storage textures 3+, textures 20+.
 export const SHIFT = { sampler: 0, constant: 2, storage: 3, texture: 20 };
@@ -45,54 +45,6 @@ export function poolFormat(nrd, tier1) {
 // maxStabilizedFrameNum, historyFixFrameNum, checkerboardMode, hitDistanceReconstructionMode, enableAntiFirefly.
 export const REBLUR_FLOATS = [...HIT_DISTANCE, 2, 30, 50, 1, 30, 0.15, 0.15, 0.02];
 export const REBLUR_INTS = [30, 6, 63, 3, 0, 0, 1];
-
-/** Creates an instance of the mode's denoisers with Veach's REBLUR settings. */
-export function createInstance(module, mode) {
-	const denoisers = DENOISERS[mode];
-	const list = module._nrd_malloc(denoisers.length * 4);
-	module.HEAPU32.set(denoisers, list >> 2);
-	const context = module._nrd_create(list, denoisers.length);
-	module._nrd_free(list);
-	if (!context) throw new Error('NRD instance creation failed');
-	const reblur = module._nrd_malloc(4 * 18);
-	module.HEAPF32.set(REBLUR_FLOATS, reblur >> 2);
-	module.HEAPU32.set(REBLUR_INTS, (reblur >> 2) + 11);
-	const status = module._nrd_set_reblur(context, reblur, reblur + 44);
-	module._nrd_free(reblur);
-	if (status !== 0) throw new Error('NRD REBLUR settings rejected');
-	return { context, desc: JSON.parse(module.UTF8ToString(module._nrd_instance_desc(context))) };
-}
-
-/** Bytes of the scratch block `planDispatches` writes: 4 matrices, 11 float and 7 integer parameters. */
-export const PLAN_SCRATCH_BYTES = 4 * (64 + 11 + 7);
-
-/**
- * Sets the common settings and returns this frame's dispatches (wasm/nrd_wasm.cpp layout).
- * `matrices` holds viewToClip, viewToClipPrev, worldToView, worldToViewPrev (column-major).
- */
-export function planDispatches(module, context, scratch, matrices, params, ints) {
-	const base = scratch >> 2;
-	module.HEAPF32.set(matrices, base);
-	module.HEAPF32.set(params, base + 64);
-	module.HEAPU32.set(ints, base + 75);
-	if (module._nrd_set_common(context, scratch, scratch + 256, scratch + 300) !== 0) throw new Error('NRD common settings rejected');
-	const pointer = module._nrd_dispatches(context);
-	if (!pointer) throw new Error('NRD GetComputeDispatches failed');
-	const words = module.HEAPU32, bytes = module.HEAPU8;
-	let at = pointer >> 2;
-	const count = words[at++];
-	const dispatches = [];
-	for (let i = 0; i < count; i++) {
-		const [pipeline, width, height, resourceCount, constantBytes, name] = words.subarray(at, at + 6);
-		at += 6;
-		const constants = bytes.slice(at * 4, at * 4 + constantBytes);
-		at += Math.ceil(constantBytes / 4);
-		const resources = [];
-		for (let r = 0; r < resourceCount; r++, at += 3) resources.push({ descriptor: words[at], type: words[at + 1], index: words[at + 2] });
-		dispatches.push({ pipeline, width, height, constants, resources, name: name ? module.UTF8ToString(name) : `nrd${pipeline}` });
-	}
-	return dispatches;
-}
 
 /** WebGPU format of a dispatch resource (pool textures by nrd::Format, user textures fixed). */
 export function resourceFormat(desc, resource, tier1) {

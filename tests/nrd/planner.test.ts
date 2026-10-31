@@ -3,10 +3,11 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { DENOISERS, PLAN_SCRATCH_BYTES, createInstance, planDispatches, type Dispatch } from '../../src/render/denoise/NrdConfig.mjs';
+import { DENOISERS, type Dispatch } from '../../src/render/denoise/NrdConfig.mjs';
 import { NrdPlanner } from '../../src/render/denoise/nrd/Planner';
-import createNRDModule from '../../src/generated/nrd/nrd.mjs';
+import createNRDModule from '../generated/nrd/nrd.mjs';
 import { recordTs, recordWasm, type Recording } from './oracle';
+import { PLAN_SCRATCH_BYTES, createInstance, planDispatches } from './wasm';
 import { drive, scenarios, type Scenario } from './scenarios';
 
 // Constant buffer member names by 32-bit word, from the vendored REBLUR_SHARED_CONSTANTS and ClearConstants.

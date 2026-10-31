@@ -1,5 +1,5 @@
-// NVIDIA NRD REBLUR on WebGPU (docs/Nrd.md). A planner (nrd/Planners.ts: the NRD runtime as WASM, or its
-// TypeScript port) plans dispatches; this class owns textures, pipelines and bind groups. Loaded lazily: the generated shaders and runtime are only
+// NVIDIA NRD REBLUR on WebGPU (docs/Nrd.md). The TypeScript port of NRD's runtime (nrd/Planner.ts) plans
+// dispatches; this class owns textures, pipelines and bind groups. Loaded lazily: the generated shaders and runtime are only
 // fetched when NRD is enabled. Two modes: 'radiance' (REBLUR_DIFFUSE_SPECULAR) and 'sh'
 // (REBLUR_DIFFUSE_SH + REBLUR_SPECULAR_SH, SG resolve and re-jittering in Composite).
 import { nrdShaders } from '../../generated/nrd/NrdShaders';
@@ -8,11 +8,11 @@ import { vec3, type Vec3 } from '../../math/Math';
 import {
 	ACCUMULATION_CLEAR_AND_RESTART, ACCUMULATION_CONTINUE, DENOISING_RANGE, DESCRIPTOR_TEXTURE, HIT_DISTANCE, PERMANENT_POOL, SHIFT, TRANSIENT_POOL,
 	IN_DIFF, IN_DIFF_SH0, IN_DIFF_SH1, IN_MV, IN_NORMAL_ROUGHNESS, IN_SPEC, IN_SPEC_SH0, IN_SPEC_SH1, IN_VIEWZ, OUT_DIFF, OUT_DIFF_SH0, OUT_DIFF_SH1, OUT_SPEC, OUT_SPEC_SH0, OUT_SPEC_SH1,
-	nrdVariantKey, poolFormat, userFormat, type Dispatch, type InstanceDesc, type NrdMode, type Resource,
+	DENOISERS, REBLUR_FLOATS, REBLUR_INTS, nrdVariantKey, poolFormat, userFormat, type Dispatch, type InstanceDesc, type NrdMode, type Resource,
 } from './NrdConfig.mjs';
-import { createPlanner, type NrdPlannerKind, type Planner } from './nrd/Planners';
+import { NrdPlanner } from './nrd/Planner';
 
-export type { NrdMode, NrdPlannerKind };
+export type { NrdMode };
 export interface NrdCamera { position: Vec3; right: Vec3; up: Vec3; forward: Vec3 }
 export interface NrdStats { active: boolean; reason: string | null; mode: NrdMode; dispatches: number; frames: number; bytes: number }
 export interface NrdFrame {
@@ -80,7 +80,7 @@ export function nrdMatrices(camera: NrdCamera): { worldToView: Float32Array; vie
 export interface NrdFrameState { camera: NrdCamera; jitter: [number, number]; width: number; height: number }
 
 /**
- * NRD common settings for one frame, in planDispatches' layout (NrdConfig.mjs). `previous` is the last
+ * NRD common settings for one frame, as NrdPlanner.plan takes them. `previous` is the last
  * denoised frame; it is ignored for matrices and jitter on a history reset. `timeDelta` 0 lets NRD measure
  * the time between frames itself (production); tests pass a fixed value for deterministic constants.
  */
@@ -114,7 +114,7 @@ export class NrdDenoiser {
 	private needsReset = true;
 	private readonly exact: boolean;
 
-	private constructor(private readonly device: GPUDevice, private readonly planner: Planner, passes: NrdDenoiser['passes'], readonly mode: NrdMode) {
+	private constructor(private readonly device: GPUDevice, private readonly planner: NrdPlanner, passes: NrdDenoiser['passes'], readonly mode: NrdMode) {
 		this.passes = passes;
 		this.stats = { active: false, reason: 'not-rendered', mode, dispatches: 0, frames: 0, bytes: 0 };
 		this.exact = device.features.has('texture-formats-tier1' as GPUFeatureName);
@@ -122,9 +122,6 @@ export class NrdDenoiser {
 		this.samplers = this.desc.samplers.map(kind => device.createSampler({ label: `nrd.sampler${kind}`, magFilter: kind ? 'linear' : 'nearest', minFilter: kind ? 'linear' : 'nearest' }));
 		this.params = device.createBuffer({ label: 'nrd.params', size: 32, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
 	}
-
-	/** Which planner produces the dispatches: 'ts' (default), 'wasm', or 'both' (wasm, checked against 'ts'). */
-	get plannerKind(): NrdPlannerKind { return this.planner.kind; }
 
 	/** Requires float32-filterable (32-bit float pools are sampled with linear filtering) and 7 storage / 15 sampled textures. */
 	static unsupportedReason(device: GPUDevice): string | null {
@@ -134,10 +131,11 @@ export class NrdDenoiser {
 		return null;
 	}
 
-	static async create(device: GPUDevice, mode: NrdMode = 'radiance', plannerKind: NrdPlannerKind = 'ts'): Promise<NrdDenoiser> {
+	static async create(device: GPUDevice, mode: NrdMode = 'radiance'): Promise<NrdDenoiser> {
 		const reason = NrdDenoiser.unsupportedReason(device);
 		if (reason) throw new Error(`NRD is unsupported on this device: ${reason}`);
-		const planner = await createPlanner(plannerKind, mode);
+		const planner = new NrdPlanner(DENOISERS[mode]);
+		planner.setReblur(REBLUR_FLOATS, REBLUR_INTS);
 		const C = GPUShaderStage.COMPUTE;
 		const buffer = (binding: number, type: GPUBufferBindingType): GPUBindGroupLayoutEntry => ({ binding, visibility: C, buffer: { type } });
 		const prepare = device.createBindGroupLayout({ label: 'nrd.prepare', entries: [buffer(0, 'uniform'), buffer(1, 'uniform'), buffer(2, 'read-only-storage'), buffer(3, 'read-only-storage'),
@@ -148,13 +146,8 @@ export class NrdDenoiser {
 		const compile = async (entry: 'Prepare' | 'Composite', layout: GPUBindGroupLayout) => ({ layout, pipeline: await device.createComputePipelineAsync({ label: `nrd.${entry}${suffix}`,
 			layout: device.createPipelineLayout({ bindGroupLayouts: [layout] }),
 			compute: { module: device.createShaderModule({ label: `nrd.${entry}${suffix}`, code: nrdPasses[`${entry}${suffix}`] }), entryPoint: entry } }) });
-		try {
-			const [Prepare, Composite] = await Promise.all([compile('Prepare', prepare), compile('Composite', composite)]);
-			return new NrdDenoiser(device, planner, { Prepare, Composite }, mode);
-		} catch (error) {
-			planner.destroy();
-			throw error;
-		}
+		const [Prepare, Composite] = await Promise.all([compile('Prepare', prepare), compile('Composite', composite)]);
+		return new NrdDenoiser(device, planner, { Prepare, Composite }, mode);
 	}
 
 	/** Returns the resolve input for TAA (same three-float4 layout as the accumulation image), or null to bypass. */
@@ -304,6 +297,5 @@ export class NrdDenoiser {
 		this.release();
 		this.constants?.destroy();
 		this.params.destroy();
-		this.planner.destroy();
 	}
 }

@@ -1,12 +1,13 @@
 // Builds the optional NVIDIA NRD denoiser integration into src/generated/nrd:
-//   1. NRD's API-agnostic runtime (pipelines, pools, per-frame dispatches) -> nrd.mjs / nrd.wasm (emsdk)
-//   2. Every pipeline the runtime dispatches for REBLUR_DIFFUSE_SPECULAR(_SH) -> WGSL (slangc), one variant per
+//   1. NRD's API-agnostic runtime -> tests/generated/nrd/nrd.{mjs,wasm} (emsdk): only the reference the
+//      TypeScript planner (src/render/denoise/nrd) is tested against; the renderer does not load it
+//   2. Every pipeline the planner dispatches for REBLUR_DIFFUSE_SPECULAR(_SH) -> WGSL (slangc), one variant per
 //      combination of bound storage formats (texture-formats-tier1 and core WebGPU pools)
 //   3. Veach's NRD front/back-end passes (shaders/Nrd) -> NrdPasses.wgsl
 // NRD and MathLib come from ThirdParty/NRD and ThirdParty/MathLib (unmodified upstream, see VERSION.txt);
 // NRD_SDK / NRD_MATHLIB override them with other checkouts. Staged, patched copies go to .tools/nrd/build.
 // slangc must emit WGSL texture-formats-tier1 storage formats (shader-slang/slang#13778): SLANGC, else tools/slang.
-// --skip-wasm reuses the committed runtime (src/generated/nrd/nrd.mjs) and needs no emsdk.
+// --skip-wasm keeps the committed reference runtime (tests/generated/nrd) and needs no emsdk.
 import { spawnSync } from 'node:child_process';
 import { cpSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
@@ -125,8 +126,9 @@ for (const file of readdirSync(join(stage, 'Shaders')).filter(f => /\.hlsli?$/.t
 patch('Source/Timer.cpp', [[/defined\(__linux__\) \|\| defined\(__SCE__\)/g, 'defined(__linux__) || defined(__EMSCRIPTEN__) || defined(__SCE__)']]);
 
 // 2. Runtime -> WASM.
-const outDir = join(root, 'src', 'generated', 'nrd');
+const outDir = join(root, 'src', 'generated', 'nrd'), referenceDir = join(root, 'tests', 'generated', 'nrd');
 mkdirSync(outDir, { recursive: true });
+mkdirSync(referenceDir, { recursive: true });
 const defines = [
 	...Object.entries(CONFIG).map(([k, v]) => `-D${k}=${v}`),
 	'-DNRD_EMBEDS_DXBC_SHADERS=0', '-DNRD_EMBEDS_DXIL_SHADERS=0', '-DNRD_EMBEDS_SPIRV_SHADERS=0',
@@ -146,11 +148,11 @@ const emArgs = [
 	'-sENVIRONMENT=web,worker,node', '-sALLOW_MEMORY_GROWTH=1', '-sFILESYSTEM=0',
 	`-sEXPORTED_FUNCTIONS=${exported.map(f => `_${f}`).join(',')}`,
 	'-sEXPORTED_RUNTIME_METHODS=HEAPU8,HEAPF32,HEAPU32,UTF8ToString',
-	'-o', join(outDir, 'nrd.mjs'),
+	'-o', join(referenceDir, 'nrd.mjs'),
 ];
 if (skipWasm) {
-	if (!existsSync(join(outDir, 'nrd.mjs'))) throw new Error('[build-nrd] --skip-wasm needs an existing src/generated/nrd/nrd.mjs');
-	console.log('[build-nrd] reusing src/generated/nrd/nrd.mjs');
+	if (!existsSync(join(referenceDir, 'nrd.mjs'))) throw new Error('[build-nrd] --skip-wasm needs an existing tests/generated/nrd/nrd.mjs');
+	console.log('[build-nrd] keeping tests/generated/nrd/nrd.mjs');
 } else {
 	const emsdk = requireEmsdk(root, 'build-nrd');
 	console.log('[build-nrd] emcc NRD runtime');
@@ -209,7 +211,7 @@ const passes = Object.fromEntries(['', 'Sh'].flatMap(suffix => ['Prepare', 'Comp
 })));
 writeFileSync(join(outDir, 'NrdPasses.ts'), '// Generated from shaders/Nrd/NrdPasses.slang by scripts/build-nrd.mjs. Do not edit.\n' +
 	`export const nrdPasses = ${JSON.stringify(passes, null, '\t')};\n`);
-writeFileSync(join(outDir, 'nrd.d.mts'), 'export interface NRDModule {\n' + exported.map(f => `\t_${f}(...args: number[]): number;\n`).join('') +
+writeFileSync(join(referenceDir, 'nrd.d.mts'), 'export interface NRDModule {\n' + exported.map(f => `\t_${f}(...args: number[]): number;\n`).join('') +
 	'\tHEAPU8: Uint8Array;\n\tHEAPF32: Float32Array;\n\tHEAPU32: Uint32Array;\n\tUTF8ToString(pointer: number): string;\n}\n' +
 	'export default function createNRDModule(options?: object): Promise<NRDModule>;\n');
 console.log(`[build-nrd] wrote ${outDir}`);

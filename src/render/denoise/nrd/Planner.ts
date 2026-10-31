@@ -1,8 +1,8 @@
 // NRD per-frame planning in TypeScript: common settings, history clears, ping-pongs, REBLUR passes and
 // their constant buffers. A port of InstanceImpl::SetCommonSettings / GetComputeDispatches / PushDispatch
 // (ThirdParty/NRD/Source/InstanceImpl.cpp) and Update_Reblur / AddSharedConstants_Reblur (Reblur.cpp), as
-// configured by wasm/nrd_wasm.cpp. Inputs and outputs match planDispatches (NrdConfig.mjs), and the results
-// are equal to the wasm runtime's (tests/nrd): float32 math follows Math32.ts.
+// configured by wasm/nrd_wasm.cpp. Inputs and outputs match the wasm runtime's ABI (tests/nrd/wasm.ts), and the
+// results are equal to its results (tests/nrd): float32 math follows Math32.ts.
 import type { Dispatch, InstanceDesc } from '../NrdConfig.mjs';
 import {
 	type M4, type V4, clamp, decomposeProjection, fromColumns, identity, invertOrtho, lerp, mulMatrix, negate, PROJ_LEFT_HANDED, PROJ_ORTHO,
@@ -150,7 +150,7 @@ export class NrdPlanner {
 		}
 	}
 
-	/** nrd_set_common + nrd_dispatches; throws where planDispatches does. */
+	/** nrd_set_common + nrd_dispatches; throws on invalid common settings, where NRD's asserts fire. */
 	plan(matrices: ArrayLike<number>, params: ArrayLike<number>, ints: ArrayLike<number>): Dispatch[] {
 		const c = this.input, p = Array.from(params, f), n = Array.from(ints, x => x >>> 0), m = Array.from(matrices, f);
 		c.viewToClip = m.slice(0, 16); c.viewToClipPrev = m.slice(16, 32); c.worldToView = m.slice(32, 48); c.worldToViewPrev = m.slice(48, 64);
