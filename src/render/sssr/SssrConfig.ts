@@ -1,5 +1,5 @@
 // FidelityFX SSSR settings, constants and matrices (docs/Sssr.md). SssrConstants mirrors the struct in
-// shaders/Sssr/SssrCallbacks.hlsli (496 bytes, matrices column-major).
+// shaders/Sssr/SssrCallbacks.hlsli (512 bytes, matrices column-major).
 import { mat4, vec3, type Mat4, type Vec3 } from '../../math/Math';
 
 export interface SssrCamera { position: Vec3; right: Vec3; up: Vec3; forward: Vec3 }
@@ -31,7 +31,7 @@ export const SSSR_DEFAULTS: SssrParameters = {
 	temporalVarianceGuidedTracingEnabled: true,
 };
 
-export const SSSR_CONSTANTS_BYTES = 496;
+export const SSSR_CONSTANTS_BYTES = 512;
 export const SSSR_NEAR_PLANE = 0.01;
 // FidelityFX: the input depth plus 6 downsampled mips at most.
 export const sssrDepthMips = (width: number, height: number) => Math.max(1, Math.min(7, Math.ceil(Math.log2(Math.max(width, height)))));
@@ -82,7 +82,8 @@ export interface SssrFrameConstants {
 	region: number; // float4 offset of the NRD split region
 	debug: number; // Apply: 0 final, 1 reflections only, 2 color input only, 3 camera reconstruction error
 	preExposure: number;
-	reflectionHistory: boolean; // the previous frame's reflections are available
+	sceneColorHistory: boolean; // the previous frame's scene color is available
+	jitterDelta: readonly [number, number]; // current minus previous film jitter, pixels
 }
 
 export function packSssrConstants(c: SssrFrameConstants): ArrayBuffer {
@@ -96,7 +97,8 @@ export function packSssrConstants(c: SssrFrameConstants): ArrayBuffer {
 	f.set([p.depthBufferThickness, p.roughnessThreshold, p.varianceThreshold], 108); u[111] = c.frameIndex >>> 0;
 	u.set([p.maxTraversalIntersections, p.minTraversalOccupancy, p.mostDetailedMip, p.samplesPerQuad, Number(p.temporalVarianceGuidedTracingEnabled), c.region], 112);
 	f[118] = c.envRotation; u[119] = c.debug;
-	f[120] = SSSR_NEAR_PLANE; f[121] = c.preExposure; u[122] = Number(c.reflectionHistory);
+	f[120] = SSSR_NEAR_PLANE; f[121] = c.preExposure; u[122] = Number(c.sceneColorHistory);
+	f.set(c.jitterDelta, 124);
 	return data;
 }
 

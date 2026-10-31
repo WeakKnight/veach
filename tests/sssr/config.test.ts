@@ -42,7 +42,7 @@ describe('SSSR constants', () => {
 	it('packs the SssrConstants fields at their WGSL offsets', () => {
 		const current = sssrMatrices(lookAt([0, 1, 4], [0, 1, 0], W, H), [0.5, 0.5], W, H);
 		const data = packSssrConstants({ current, previous: current, width: W, height: H, frameIndex: 2 ** 32 + 5, parameters: SSSR_DEFAULTS,
-			iblFactor: 2, envRotation: 0.5, region: 1234, debug: 1, preExposure: 3, reflectionHistory: true });
+			iblFactor: 2, envRotation: 0.5, region: 1234, debug: 1, preExposure: 3, sceneColorHistory: true, jitterDelta: [0.25, -0.5] });
 		expect(data.byteLength).toBe(SSSR_CONSTANTS_BYTES);
 		const f = new Float32Array(data), u = new Uint32Array(data);
 		expect(f.subarray(16, 32)).toEqual(current.projection);
@@ -54,7 +54,7 @@ describe('SSSR constants', () => {
 		expect([u[112], u[113], u[115], u[116], u[117]]).toEqual([128, 4, 1, 1, 1234]);
 		expect([f[118], u[119]]).toEqual([0.5, 1]);
 		expect(f[120]).toBeCloseTo(SSSR_NEAR_PLANE, 7);
-		expect([f[121], u[122]]).toEqual([3, 1]);
+		expect([f[121], u[122], f[124], f[125]]).toEqual([3, 1, 0.25, -0.5]);
 	});
 
 	it('limits the depth hierarchy to FidelityFX mip counts', () => {

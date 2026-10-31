@@ -56,7 +56,7 @@ const B = {
 	extractedRoughness: 17, sobol: 18, scrambling: 19, blueNoise: 20, sampleCount: 21, averageRadiance: 22, reprojectedRadiance: 23,
 	depthHistory: 24, normalHistory: 25, roughnessHistory: 26, environment: 27, brdfLut: 28, source: 29,
 	rwRadiance: 30, rwVariance: 31, rwExtractedRoughness: 32, rwBlueNoise: 33, rwSampleCount: 34, rwAverageRadiance: 35,
-	rwReprojectedRadiance: 36, outDepth: 37, outNormal: 38, sourceColor: 39, outColor: 40, reflectionHistory: 41, reflectionOut: 42,
+	rwReprojectedRadiance: 36, outDepth: 37, outNormal: 38, sourceColor: 39, outColor: 40, sceneColorHistory: 41, sceneColorOut: 42,
 } as const;
 const BYTES: Partial<Record<GPUTextureFormat, number>> = { r32float: 4, rgba16float: 8, rgba8unorm: 4, r32uint: 4, rg32float: 8 };
 const BRDF_LUT_SIZE = 32;
@@ -76,8 +76,9 @@ export class SssrReflections {
 	private rayList: GPUBuffer | null = null;
 	private tileList: GPUBuffer | null = null;
 	private output: GPUBuffer | null = null;
-	// Applied reflections / pre-exposure of the current and previous frame (multi-bounce input color).
-	private reflections: [GPUBuffer, GPUBuffer] | null = null;
+	// Linear scene color (Apply output / pre-exposure), ping-pong by frame: the previous frame's is the ray-march input.
+	private sceneColor: [GPUTexture, GPUTexture] | null = null;
+	private previousJitter: [number, number] | null = null;
 	private environment: { texture: GPUTexture; source: GPUTexture; key: string } | null = null;
 	private width = 0;
 	private height = 0;
@@ -144,15 +145,16 @@ export class SssrReflections {
 			current, previous: this.previous ?? current, width: input.width, height: input.height, frameIndex: this.frameIndex,
 			// Debug 4 shows the raw intersection output: reflections only, without the denoiser passes.
 			parameters: input.parameters, iblFactor: input.iblFactor, envRotation: input.envRotation, region: input.region, debug: input.debug === 4 ? 1 : input.debug,
-			preExposure: input.preExposure, reflectionHistory: this.frameIndex > 0,
+			preExposure: input.preExposure, sceneColorHistory: this.frameIndex > 0,
+			jitterDelta: this.previousJitter ? [input.jitter[0] - this.previousJitter[0], input.jitter[1] - this.previousJitter[1]] : [0, 0],
 		}));
 		const view = (texture: GPUTexture, mip?: number) => mip === undefined ? texture.createView() : texture.createView({ baseMipLevel: mip, mipLevelCount: 1 });
 		const common: Record<number, GPUBindingResource> = {
 			[B.constants]: { buffer: this.constants }, [B.frame]: { buffer: input.frame }, [B.accum]: { buffer: input.accumulation },
 			[B.motion]: { buffer: input.motion }, [B.color]: { buffer: input.color }, [B.rayList]: { buffer: this.rayList! },
 			[B.tileList]: { buffer: this.tileList! }, [B.rayCounter]: { buffer: this.rayCounter }, [B.indirectArgs]: { buffer: this.indirectArgs },
-			[B.output]: { buffer: this.output! }, [B.reflectionHistory]: { buffer: this.reflections![(this.frameIndex + 1) & 1] },
-			[B.reflectionOut]: { buffer: this.reflections![this.frameIndex & 1] }, [B.linearSampler]: this.linear, [B.environmentSampler]: this.environmentSampler,
+			[B.output]: { buffer: this.output! }, [B.sceneColorHistory]: view(this.sceneColor![(this.frameIndex + 1) & 1]),
+			[B.sceneColorOut]: view(this.sceneColor![this.frameIndex & 1]), [B.linearSampler]: this.linear, [B.environmentSampler]: this.environmentSampler,
 			[B.depthHierarchy]: view(t.depth), [B.normal]: view(t.normal), [B.extractedRoughness]: view(t.extractedRoughness),
 			[B.sobol]: view(this.sobol), [B.scrambling]: view(this.scrambling), [B.blueNoise]: view(this.blueNoise),
 			[B.reprojectedRadiance]: view(t.reprojectedRadiance), [B.depthHistory]: view(t.depthHistory), [B.normalHistory]: view(t.normalHistory),
@@ -217,6 +219,7 @@ export class SssrReflections {
 		encoder.copyTextureToTexture({ texture: t.extractedRoughness }, { texture: t.roughnessHistory }, size);
 		encoder.copyTextureToTexture({ texture: t.depth, mipLevel: 0 }, { texture: t.depthHistory }, size);
 		this.previous = current;
+		this.previousJitter = [...input.jitter];
 		this.frameIndex++;
 		this.stats = { active: true, reason: null, frames: this.stats.frames + 1, bytes: this.bytes() };
 		return this.output!;
@@ -254,9 +257,9 @@ export class SssrReflections {
 		this.rayList = device.createBuffer({ label: 'sssr.rayList', size: pixels * 4, usage: GPUBufferUsage.STORAGE });
 		this.tileList = device.createBuffer({ label: 'sssr.denoiserTileList', size: Math.max(4, Math.ceil(width / 8) * Math.ceil(height / 8) * 4), usage: GPUBufferUsage.STORAGE });
 		this.output = device.createBuffer({ label: 'sssr.output', size: pixels * 48, usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC });
-		this.reflections = [0, 1].map(i => device.createBuffer({ label: `sssr.reflections${i}`, size: pixels * 16, usage: GPUBufferUsage.STORAGE })) as [GPUBuffer, GPUBuffer];
+		this.sceneColor = [create('sceneColor0', 'rgba16float', work), create('sceneColor1', 'rgba16float', work)];
 		this.width = width; this.height = height;
-		this.frameIndex = 0; this.previous = null;
+		this.frameIndex = 0; this.previous = null; this.previousJitter = null;
 	}
 
 	// Equirect mip chain of the environment for FidelityFX's roughness-based fallback lookups.
@@ -285,9 +288,9 @@ export class SssrReflections {
 	private bytes(): number {
 		const t = this.textures;
 		if (!t) return 0;
-		let total = (this.rayList?.size ?? 0) + (this.tileList?.size ?? 0) + (this.output?.size ?? 0) + 2 * (this.reflections?.[0].size ?? 0);
+		let total = (this.rayList?.size ?? 0) + (this.tileList?.size ?? 0) + (this.output?.size ?? 0) ;
 		const textures = [t.depth, t.depthHistory, t.normal, t.normalHistory, ...t.radiance, ...t.variance, ...t.sampleCount, ...t.averageRadiance,
-			t.extractedRoughness, t.roughnessHistory, t.reprojectedRadiance, ...(this.environment ? [this.environment.texture] : [])];
+			t.extractedRoughness, t.roughnessHistory, t.reprojectedRadiance, ...(this.sceneColor ?? []), ...(this.environment ? [this.environment.texture] : [])];
 		for (const texture of textures) {
 			let texels = 0;
 			for (let mip = 0; mip < texture.mipLevelCount; mip++) texels += Math.max(1, texture.width >> mip) * Math.max(1, texture.height >> mip);
@@ -300,8 +303,8 @@ export class SssrReflections {
 		const t = this.textures;
 		if (t) for (const texture of [t.depth, t.depthHistory, t.normal, t.normalHistory, ...t.radiance, ...t.variance, ...t.sampleCount, ...t.averageRadiance,
 			t.extractedRoughness, t.roughnessHistory, t.reprojectedRadiance]) texture.destroy();
-		this.rayList?.destroy(); this.tileList?.destroy(); this.output?.destroy(); this.reflections?.forEach(b => b.destroy());
-		this.textures = null; this.rayList = null; this.tileList = null; this.output = null; this.reflections = null;
+		this.rayList?.destroy(); this.tileList?.destroy(); this.output?.destroy(); this.sceneColor?.forEach(t => t.destroy());
+		this.textures = null; this.rayList = null; this.tileList = null; this.output = null; this.sceneColor = null;
 		this.width = 0; this.height = 0;
 	}
 

@@ -183,7 +183,7 @@ import Scene.SceneTypes;
 [[vk::binding(39, 0)]] Texture2D<float4> gSourceColor;
 [[vk::binding(40, 0)]] [format("rgba16f")] WTexture2D<float4> gOutColor;
 [[vk::binding(9, 0)]] RWStructuredBuffer<float4> gOutput;
-[[vk::binding(42, 0)]] RWStructuredBuffer<float4> gReflectionOut; // Apply: this frame's reflections / pre-exposure
+[[vk::binding(42, 0)]] [format("rgba16f")] WTexture2D<float4> gSceneColorOut; // Apply: this frame's scene color / pre-exposure
 [[vk::binding(28, 0)]] Texture2D<float4> gBrdfLut; // split-sum GGX scale (x) and bias (y) by (N.V, perceptual roughness)
 [[vk::binding(10, 0)]] SamplerState gLinearClamp;
 
@@ -285,9 +285,11 @@ void main(uint3 tid : SV_DispatchThreadID)
 		float3 reflection = max(r_radiance.Load(int3(pixel, 0)).xyz, 0.0);
 		if (all(isfinite(reflection))) specular = reflection * (f0 * ab.x + ab.y);
 	}
-	gReflectionOut[pixel.y * size.x + pixel.x] = float4(specular / gFrame.envParams.z, 0.0);
+	// Linear scene color for the next frame's ray march, independent of the debug view.
+	float3 scene = color + specular;
+	gSceneColorOut[pixel] = float4(all(isfinite(scene)) ? scene / gFrame.envParams.z : float3(0.0), 1.0);
 	uint debug = gSssr.debug;
-	float3 result = debug == 1u ? specular : debug == 2u ? color : color + specular;
+	float3 result = debug == 1u ? specular : debug == 2u ? color : scene;
 	// 3: world position reconstructed from depth as FidelityFX does (InvViewProjection) against the traced hit;
 	// black when the camera constants agree with the path tracer (100x error, scene units).
 	if (debug == 3u && PrimaryViewZ(pixel, viewZ, direction))

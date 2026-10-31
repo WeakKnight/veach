@@ -11,7 +11,8 @@ console `r.SSSR.Enabled 1`) loads a lazy chunk and applies to realtime wavefront
 wavefront trace, diffuse only at the primary vertex (NRD split region)
   -> taa.motion -> nrd.prepare -> REBLUR_DIFFUSE_SH -> nrd.composite: color = bypass + denoised diffuse
   -> sssr: prepare (depth, normals) -> depth hierarchy -> classify tiles -> blue noise -> indirect args
-     -> intersect -> reproject -> prefilter -> resolve temporal -> apply: color + reflections * split-sum BRDF
+     -> intersect (ray marches the previous frame's linear scene color) -> reproject -> prefilter -> resolve temporal
+     -> apply: color + reflections * split-sum BRDF -> linear scene color ping-pong (next frame's ray march input)
   -> taa.resolve -> exposure / presentation
 ```
 
@@ -57,12 +58,16 @@ module per pass (`src/generated/sssr/SssrShaders.ts`), and repacks the 1 spp blu
 - Each FidelityFX pass defines the `SSSR_BIND_*` / `DENOISER_BIND_*` flags of FidelityFX's DX12 pass
   wrapper (`ThirdParty/FidelityFX/hlsl`) and includes the FidelityFX header with Veach's callbacks,
   `shaders/Sssr/SssrCallbacks.hlsli`, which declares exactly those resources at fixed WebGPU bindings.
-  One constant buffer (`SssrConstants`, 496 bytes, `src/render/sssr/SssrConfig.ts`) serves SSSR and
+  One constant buffer (`SssrConstants`, 512 bytes, `src/render/sssr/SssrConfig.ts`) serves SSSR and
   the denoiser; matrices are column-major (`-matrix-layout-column-major`).
-- The callbacks read Veach data directly: roughness from the NRD region, the input color from the NRD
-  composite buffer plus the previous frame's reprojected reflections (scene-linear history, so
-  metals reflecting metals are not black), motion from the TAA buffer (pixels, `MotionVectorScale =
-  1 / size`). Storage textures use core WebGPU formats (variance, sample count and roughness `r32float`,
+- The callbacks read Veach data directly: roughness from the NRD region and motion from the TAA buffer
+  (pixels, `MotionVectorScale = 1 / size`). The ray march reads the **previous frame's linear scene
+  color**: Apply writes color + reflections / pre-exposure into a ping-pong pair of `rgba16float`
+  textures, and Intersect samples the previous one bilinearly at the hit's reprojected position,
+  addressed like TAA history (`pixel + motion + current jitter - previous jitter`), times this frame's
+  pre-exposure. Reflections therefore bounce (metals reflecting metals are not black). Without history
+  (first frame, resize, suspension) or off screen it falls back to this frame's NRD composite (bypass +
+  denoised diffuse). Storage textures use core WebGPU formats (variance, sample count and roughness `r32float`,
   blue noise `rgba8unorm`, average radiance `rgba16float`), all write-only.
 - WGSL atomics need `atomic<T>` storage: the ray counter is `Atomic<uint>` in the callbacks, and the
   build stages the GPU headers to `.tools/sssr/gpu`, patching classify's groupshared tile counter.
