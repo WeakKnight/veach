@@ -6,9 +6,14 @@ import createNRDModule, { type NRDModule } from '../../generated/nrd/nrd.mjs';
 import { nrdShaders } from '../../generated/nrd/NrdShaders';
 import { nrdPasses } from '../../generated/nrd/NrdPasses';
 import { vec3, type Vec3 } from '../../math/Math';
+import {
+	ACCUMULATION_CLEAR_AND_RESTART, ACCUMULATION_CONTINUE, DENOISING_RANGE, DESCRIPTOR_TEXTURE, HIT_DISTANCE, PERMANENT_POOL, PLAN_SCRATCH_BYTES, SHIFT, TRANSIENT_POOL,
+	IN_DIFF, IN_DIFF_SH0, IN_DIFF_SH1, IN_MV, IN_NORMAL_ROUGHNESS, IN_SPEC, IN_SPEC_SH0, IN_SPEC_SH1, IN_VIEWZ, OUT_DIFF, OUT_DIFF_SH0, OUT_DIFF_SH1, OUT_SPEC, OUT_SPEC_SH0, OUT_SPEC_SH1,
+	createInstance, nrdVariantKey, planDispatches, poolFormat, userFormat, type Dispatch, type InstanceDesc, type NrdMode, type Resource,
+} from './NrdConfig.mjs';
 
+export type { NrdMode };
 export interface NrdCamera { position: Vec3; right: Vec3; up: Vec3; forward: Vec3 }
-export type NrdMode = 'radiance' | 'sh';
 export interface NrdStats { active: boolean; reason: string | null; mode: NrdMode; dispatches: number; frames: number; bytes: number }
 export interface NrdFrame {
 	frame: GPUBuffer; // FrameUniforms of this frame (jitter in temporal.xy, pre-exposure)
@@ -24,13 +29,6 @@ export interface NrdFrame {
 	reJitter: boolean; // SH mode only
 }
 
-// Matches the CONFIG and register shifts in scripts/build-nrd.mjs.
-const SHIFT = { sampler: 0, constant: 2, storage: 3, texture: 20 };
-// nrd::Denoiser values; identifiers are indices (scripts/build-nrd.mjs DENOISERS).
-const DENOISERS: Record<NrdMode, number[]> = { radiance: [6], sh: [2, 5] };
-const DESCRIPTOR_TEXTURE = 0;
-const IN_MV = 0, IN_NORMAL_ROUGHNESS = 1, IN_VIEWZ = 2, IN_DIFF = 6, IN_SPEC = 7, IN_DIFF_SH0 = 11, IN_DIFF_SH1 = 12, IN_SPEC_SH0 = 13, IN_SPEC_SH1 = 14;
-const OUT_DIFF = 18, OUT_SPEC = 19, OUT_DIFF_SH0 = 20, OUT_DIFF_SH1 = 21, OUT_SPEC_SH0 = 22, OUT_SPEC_SH1 = 23, OUT_VALIDATION = 29, TRANSIENT_POOL = 30, PERMANENT_POOL = 31;
 // Prepare storage bindings and Composite texture bindings per mode (NrdPasses.slang).
 const PREPARE: Record<NrdMode, [number, number][]> = {
 	radiance: [[4, IN_MV], [5, IN_NORMAL_ROUGHNESS], [6, IN_VIEWZ], [7, IN_DIFF], [8, IN_SPEC]],
@@ -40,42 +38,12 @@ const COMPOSITE: Record<NrdMode, [number, number][]> = {
 	radiance: [[9, OUT_DIFF], [10, OUT_SPEC]],
 	sh: [[9, OUT_DIFF_SH0], [10, OUT_SPEC_SH0], [14, OUT_DIFF_SH1], [15, OUT_SPEC_SH1]],
 };
-const ACCUMULATION_CONTINUE = 0, ACCUMULATION_CLEAR_AND_RESTART = 2;
 const CONSTANT_STRIDE = 1024;
-// Sky and other surfaceless pixels are written beyond the denoising range (NrdPasses.slang).
-const DENOISING_RANGE = 1e6;
-const HIT_DISTANCE = [3, 0.1, 20] as const; // REBLUR defaults (A, B, C), shared with Prepare
-
-// nrd::Format -> [exact format, core WebGPU storage fallback]. Fallbacks only widen precision; normalized
-// formats without a WebGPU storage equivalent are stored as floats (NRD writes values in range).
-const FORMATS: Record<number, [GPUTextureFormat, GPUTextureFormat]> = {
-	0: ['r8unorm', 'rgba8unorm'], 1: ['r8snorm', 'r32float'], 2: ['r8uint', 'r32uint'], 3: ['r8sint', 'r32sint'],
-	4: ['rg8unorm', 'rgba8unorm'], 5: ['rg8snorm', 'rg32float'], 6: ['rg8uint', 'rg32uint'], 7: ['rg8sint', 'rg32sint'],
-	8: ['rgba8unorm', 'rgba8unorm'], 9: ['rgba8snorm', 'rgba8snorm'], 10: ['rgba8uint', 'rgba8uint'], 11: ['rgba8sint', 'rgba8sint'], 12: ['rgba8unorm', 'rgba8unorm'],
-	13: ['r16float', 'r32float'], 14: ['r16float', 'r32float'], 15: ['r16uint', 'r32uint'], 16: ['r16sint', 'r32sint'], 17: ['r16float', 'r32float'],
-	18: ['rg16float', 'rg32float'], 19: ['rg16float', 'rg32float'], 20: ['rg16uint', 'rg32uint'], 21: ['rg16sint', 'rg32sint'], 22: ['rg16float', 'rgba16float'],
-	23: ['rgba32float', 'rgba32float'], 24: ['rgba32float', 'rgba32float'], 25: ['rgba16uint', 'rgba16uint'], 26: ['rgba16sint', 'rgba16sint'], 27: ['rgba16float', 'rgba16float'],
-	28: ['r32uint', 'r32uint'], 29: ['r32sint', 'r32sint'], 30: ['r32float', 'r32float'],
-	31: ['rg32uint', 'rg32uint'], 32: ['rg32sint', 'rg32sint'], 33: ['rg32float', 'rg32float'],
-	37: ['rgba32uint', 'rgba32uint'], 38: ['rgba32sint', 'rgba32sint'], 39: ['rgba32float', 'rgba32float'],
-	40: ['rgb10a2unorm', 'rgba16float'], 41: ['rgb10a2uint', 'rgba32uint'], 42: ['rg11b10ufloat', 'rgba16float'], 43: ['rgba16float', 'rgba16float'],
-};
-const USER_FORMAT: Record<number, GPUTextureFormat> = { [IN_VIEWZ]: 'r32float', [OUT_VALIDATION]: 'rgba8unorm' };
-const userFormat = (type: number): GPUTextureFormat => USER_FORMAT[type] ?? 'rgba16float';
 const BYTES: Partial<Record<GPUTextureFormat, number>> = { r8unorm: 1, r8snorm: 1, r8uint: 1, r8sint: 1, rg8unorm: 2, rg8snorm: 2, rg8uint: 2, rg8sint: 2,
 	rgba8unorm: 4, rgba8snorm: 4, rgba8uint: 4, rgba8sint: 4, r16uint: 2, r16sint: 2, r16float: 2, rg16uint: 4, rg16sint: 4, rg16float: 4,
 	rgba16uint: 8, rgba16sint: 8, rgba16float: 8, r32uint: 4, r32sint: 4, r32float: 4, rg32uint: 8, rg32sint: 8, rg32float: 8,
 	rgba32uint: 16, rgba32sint: 16, rgba32float: 16, rgb10a2unorm: 4, rgb10a2uint: 4, rg11b10ufloat: 4 };
 
-interface InstanceDesc {
-	constantBufferMaxDataSize: number;
-	samplers: number[];
-	permanentPool: [number, number][];
-	transientPool: [number, number][];
-	pipelines: { shader: string; hasConstantData: boolean; ranges: [number, number][] }[];
-}
-interface Resource { descriptor: number; type: number; index: number }
-interface Dispatch { pipeline: number; width: number; height: number; constants: Uint8Array; resources: Resource[]; name: string }
 interface Declaration { binding: number; group: number; kind: 'texture' | 'storage' | 'sampler' | 'uniform'; sample: GPUTextureSampleType; format: string; access: GPUStorageTextureAccess }
 
 /** Parses the WGSL resource declarations emitted by slangc. */
@@ -134,20 +102,10 @@ export class NrdDenoiser {
 		this.passes = passes;
 		this.stats = { active: false, reason: 'not-rendered', mode, dispatches: 0, frames: 0, bytes: 0 };
 		this.exact = device.features.has('texture-formats-tier1' as GPUFeatureName);
-		const list = module._nrd_malloc(DENOISERS[mode].length * 4);
-		module.HEAPU32.set(DENOISERS[mode], list >> 2);
-		this.context = module._nrd_create(list, DENOISERS[mode].length);
-		module._nrd_free(list);
-		if (!this.context) throw new Error('NRD instance creation failed');
-		this.desc = JSON.parse(module.UTF8ToString(module._nrd_instance_desc(this.context))) as InstanceDesc;
+		({ context: this.context, desc: this.desc } = createInstance(module, mode));
 		this.samplers = this.desc.samplers.map(kind => device.createSampler({ label: `nrd.sampler${kind}`, magFilter: kind ? 'linear' : 'nearest', minFilter: kind ? 'linear' : 'nearest' }));
 		this.params = device.createBuffer({ label: 'nrd.params', size: 32, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
-		this.scratch = module._nrd_malloc(4 * (64 + 11 + 7));
-		const reblur = module._nrd_malloc(4 * 18);
-		module.HEAPF32.set([...HIT_DISTANCE, 2, 30, 50, 1, 30, 0.15, 0.15, 0.02], reblur >> 2);
-		module.HEAPU32.set([30, 6, 63, 3, 0, 0, 1], (reblur >> 2) + 11);
-		if (module._nrd_set_reblur(this.context, reblur, reblur + 44) !== 0) throw new Error('NRD REBLUR settings rejected');
-		module._nrd_free(reblur);
+		this.scratch = module._nrd_malloc(PLAN_SCRATCH_BYTES);
 	}
 
 	/** Requires float32-filterable (32-bit float pools are sampled with linear filtering) and 7 storage / 15 sampled textures. */
@@ -168,20 +126,12 @@ export class NrdDenoiser {
 			...PREPARE[mode].map(([binding, type]) => ({ binding, visibility: C, storageTexture: { access: 'write-only' as const, format: userFormat(type) } }))] });
 		const composite = device.createBindGroupLayout({ label: 'nrd.composite', entries: [buffer(0, 'uniform'), buffer(1, 'uniform'), buffer(2, 'read-only-storage'),
 			...COMPOSITE[mode].map(([binding]) => ({ binding, visibility: C, texture: { sampleType: 'float' as const } })), buffer(11, 'storage')] });
-		const formats = new Map<number, string>(PREPARE[mode].map(([binding, type]) => [binding, userFormat(type)]));
 		const suffix = mode === 'sh' ? 'Sh' : '';
 		const compile = async (entry: 'Prepare' | 'Composite', layout: GPUBindGroupLayout) => ({ layout, pipeline: await device.createComputePipelineAsync({ label: `nrd.${entry}${suffix}`,
 			layout: device.createPipelineLayout({ bindGroupLayouts: [layout] }),
-			compute: { module: device.createShaderModule({ label: `nrd.${entry}${suffix}`, code: NrdDenoiser.specialize(nrdPasses[`${entry}${suffix}`], 0, formats) }), entryPoint: 'main' } }) });
+			compute: { module: device.createShaderModule({ label: `nrd.${entry}${suffix}`, code: nrdPasses[`${entry}${suffix}`] }), entryPoint: entry } }) });
 		const [Prepare, Composite] = await Promise.all([compile('Prepare', prepare), compile('Composite', composite)]);
 		return new NrdDenoiser(device, module, { Prepare, Composite }, mode);
-	}
-
-	/** Substitutes storage texture formats (by binding in the group) and renames the entry point to main. */
-	private static specialize(code: string, group: number, formats: Map<number, string>): string {
-		return code.replace(/@binding\((\d+)\) @group\((\d+)\) var (\w+) : texture_storage_2d<(\w+), (\w+)>/g, (match, binding, g, name, _format, access) =>
-			+g === group && formats.has(+binding) ? `@binding(${binding}) @group(${g}) var ${name} : texture_storage_2d<${formats.get(+binding)}, ${access}>` : match)
-			.replace(/fn (Prepare|Composite)\(/, 'fn main(');
 	}
 
 	/** Returns the resolve input for TAA (same three-float4 layout as the accumulation image), or null to bypass. */
@@ -222,31 +172,13 @@ export class NrdDenoiser {
 	}
 
 	private plan(input: NrdFrame, reset: boolean): Dispatch[] {
-		const m = this.module, base = this.scratch >> 2;
 		const current = nrdMatrices(input.camera), previous = this.previous && !reset ? nrdMatrices(this.previous.camera) : current;
-		m.HEAPF32.set(current.viewToClip, base); m.HEAPF32.set(previous.viewToClip, base + 16);
-		m.HEAPF32.set(current.worldToView, base + 32); m.HEAPF32.set(previous.worldToView, base + 48);
 		const jitter = input.jitter.map(v => v - 0.5), previousJitter = this.previous && !reset ? this.previous.jitter.map(v => v - 0.5) : jitter;
-		m.HEAPF32.set([1 / input.width, 1 / input.height, 0, ...jitter, ...previousJitter, DENOISING_RANGE, 0.01, 1, 0], base + 64);
-		m.HEAPU32.set([input.width, input.height, this.previous?.width ?? input.width, this.previous?.height ?? input.height,
-			this.frameIndex, reset ? ACCUMULATION_CLEAR_AND_RESTART : ACCUMULATION_CONTINUE, 0], base + 75);
-		if (m._nrd_set_common(this.context, this.scratch, this.scratch + 256, this.scratch + 300) !== 0) throw new Error('NRD common settings rejected');
-		const pointer = m._nrd_dispatches(this.context);
-		if (!pointer) throw new Error('NRD GetComputeDispatches failed');
-		const words = m.HEAPU32, bytes = m.HEAPU8;
-		let at = pointer >> 2;
-		const count = words[at++];
-		const dispatches: Dispatch[] = [];
-		for (let i = 0; i < count; i++) {
-			const [pipeline, width, height, resourceCount, constantBytes, name] = words.subarray(at, at + 6);
-			at += 6;
-			const constants = bytes.slice(at * 4, at * 4 + constantBytes);
-			at += Math.ceil(constantBytes / 4);
-			const resources: Resource[] = [];
-			for (let r = 0; r < resourceCount; r++, at += 3) resources.push({ descriptor: words[at], type: words[at + 1], index: words[at + 2] });
-			dispatches.push({ pipeline, width, height, constants, resources, name: name ? m.UTF8ToString(name) : `nrd${pipeline}` });
-		}
-		return dispatches;
+		return planDispatches(this.module, this.context, this.scratch,
+			[...current.viewToClip, ...previous.viewToClip, ...current.worldToView, ...previous.worldToView],
+			[1 / input.width, 1 / input.height, 0, ...jitter, ...previousJitter, DENOISING_RANGE, 0.01, 1, 0],
+			[input.width, input.height, this.previous?.width ?? input.width, this.previous?.height ?? input.height,
+				this.frameIndex, reset ? ACCUMULATION_CLEAR_AND_RESTART : ACCUMULATION_CONTINUE, 0]);
 	}
 
 	private texture(resource: Resource): GPUTexture {
@@ -255,19 +187,21 @@ export class NrdDenoiser {
 		return texture;
 	}
 
-	// Storage formats are baked into WGSL; resolve them from the textures the dispatch binds.
+	// scripts/build-nrd.mjs generates one WGSL variant per combination of storage formats a dispatch binds.
 	private pipelineFor(dispatch: Dispatch): { pipeline: GPUComputePipeline; layouts: GPUBindGroupLayout[]; declarations: Declaration[] } | null {
 		const desc = this.desc.pipelines[dispatch.pipeline];
-		const formats = new Map<number, string>();
-		let storage = 0;
-		for (const resource of dispatch.resources) if (resource.descriptor !== DESCRIPTOR_TEXTURE) formats.set(SHIFT.storage + storage++, this.texture(resource).format);
-		const key = `${dispatch.pipeline}:${[...formats.values()].join(',')}`;
+		const variant = nrdVariantKey(dispatch.resources.filter(r => r.descriptor !== DESCRIPTOR_TEXTURE).map(r => this.texture(r).format));
+		const key = `${dispatch.pipeline}:${variant}`;
 		const entry = this.pipelines.get(key);
 		if (entry === 'failed') throw new Error(`NRD pipeline ${desc.shader} failed to compile`);
 		if (entry && entry !== 'pending') return entry;
 		if (!entry) {
+			const code = nrdShaders[desc.shader]?.[variant];
+			if (!code) {
+				this.pipelines.set(key, 'failed');
+				throw new Error(`NRD pipeline ${desc.shader} has no generated variant for storage formats ${variant}; run npm run build:nrd`);
+			}
 			this.pipelines.set(key, 'pending');
-			const code = NrdDenoiser.specialize(nrdShaders[desc.shader], 0, formats);
 			const decls = declarations(code);
 			const layouts = [0, 1].map(group => this.device.createBindGroupLayout({ label: `nrd.${dispatch.name}.${group}`, entries: decls.filter(d => d.group === group).map(d => ({
 				binding: d.binding, visibility: GPUShaderStage.COMPUTE,
@@ -326,13 +260,8 @@ export class NrdDenoiser {
 		const usage = GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.STORAGE_BINDING;
 		const create = (label: string, format: GPUTextureFormat, downsample = 1) => this.device.createTexture({ label, format, usage,
 			size: [Math.max(1, Math.ceil(width / downsample)), Math.max(1, Math.ceil(height / downsample))] });
-		const format = (nrd: number) => {
-			const pair = FORMATS[nrd];
-			if (!pair) throw new Error(`NRD texture format ${nrd} has no WebGPU mapping`);
-			return pair[this.exact ? 0 : 1];
-		};
-		this.permanent = this.desc.permanentPool.map(([f, d], i) => create(`nrd.permanent${i}`, format(f), d));
-		this.transient = this.desc.transientPool.map(([f, d], i) => create(`nrd.transient${i}`, format(f), d));
+		this.permanent = this.desc.permanentPool.map(([f, d], i) => create(`nrd.permanent${i}`, poolFormat(f, this.exact), d));
+		this.transient = this.desc.transientPool.map(([f, d], i) => create(`nrd.transient${i}`, poolFormat(f, this.exact), d));
 		const types = new Set([...PREPARE[this.mode], ...COMPOSITE[this.mode]].map(([, type]) => type));
 		this.user = new Map([...types].map(type => [type, create(`nrd.user${type}`, userFormat(type))]));
 		this.composite = this.device.createBuffer({ label: 'nrd.composite', size: width * height * 48, usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC });

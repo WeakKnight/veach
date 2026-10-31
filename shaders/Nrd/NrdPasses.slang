@@ -14,18 +14,19 @@ struct NrdParams
 // Accumulation image (three float4 per pixel) and the NRD region written by Wavefront Finalize.
 [[vk::binding(2, 0)]] StructuredBuffer<float4> gAccum;
 [[vk::binding(3, 0)]] StructuredBuffer<float4> gMotion;
-[[vk::binding(4, 0)]] RWTexture2D<float4> gOutMv;
-[[vk::binding(5, 0)]] RWTexture2D<float4> gOutNormalRoughness;
-[[vk::binding(6, 0)]] RWTexture2D<float> gOutViewZ;
-[[vk::binding(7, 0)]] RWTexture2D<float4> gOutDiff;
-[[vk::binding(8, 0)]] RWTexture2D<float4> gOutSpec;
+// Prepare writes NRD's user inputs in the formats NrdConfig.mjs userFormat() creates them with.
+[[vk::binding(4, 0)]] [format("rgba16f")] WTexture2D<float4> gOutMv;
+[[vk::binding(5, 0)]] [format("rgba16f")] WTexture2D<float4> gOutNormalRoughness;
+[[vk::binding(6, 0)]] [format("r32f")] WTexture2D<float> gOutViewZ;
+[[vk::binding(7, 0)]] [format("rgba16f")] WTexture2D<float4> gOutDiff;
+[[vk::binding(8, 0)]] [format("rgba16f")] WTexture2D<float4> gOutSpec;
 [[vk::binding(9, 0)]] Texture2D<float4> gDiff;
 [[vk::binding(10, 0)]] Texture2D<float4> gSpec;
 [[vk::binding(11, 0)]] RWStructuredBuffer<float4> gComposite;
 #if NRD_PASS_SH
 // SH mode: gOutDiff/gOutSpec/gDiff/gSpec hold SH0; these hold SH1.
-[[vk::binding(12, 0)]] RWTexture2D<float4> gOutDiffSh1;
-[[vk::binding(13, 0)]] RWTexture2D<float4> gOutSpecSh1;
+[[vk::binding(12, 0)]] [format("rgba16f")] WTexture2D<float4> gOutDiffSh1;
+[[vk::binding(13, 0)]] [format("rgba16f")] WTexture2D<float4> gOutSpecSh1;
 [[vk::binding(14, 0)]] Texture2D<float4> gDiffSh1;
 [[vk::binding(15, 0)]] Texture2D<float4> gSpecSh1;
 #endif

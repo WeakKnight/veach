@@ -12,3 +12,6 @@ dist-nrd/
 .tools/
 public/samples/
 *.log
+
+# slangc module cache next to the committed toolchain
+tools/slang/bin/*.bin

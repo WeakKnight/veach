@@ -2,6 +2,8 @@
 // that the noisy diffuse/specular split recomposes the raw radiance, finite output and no GPU/console
 // errors, and saves screenshots plus a report to .tools/nrd. Runs in SH mode (default) and compares, from
 // the same camera start, SH + re-jitter, SH without re-jitter, radiance mode and TAA only, static and in motion.
+// --core-formats withholds texture-formats-tier1/tier2 from the device, so NRD runs its core WebGPU storage
+// format variants; output goes to .tools/nrd/core.
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -9,7 +11,8 @@ import puppeteer from 'puppeteer-core';
 import { createServer } from 'vite';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const outDir = join(root, '.tools', 'nrd');
+const coreFormats = process.argv.includes('--core-formats');
+const outDir = join(root, '.tools', 'nrd', ...(coreFormats ? ['core'] : []));
 mkdirSync(outDir, { recursive: true });
 const chrome = [process.env.CHROME_PATH, 'C:/Program Files/Google/Chrome/Application/chrome.exe', '/usr/bin/google-chrome'].find(p => p && existsSync(p));
 const scenes = {
@@ -20,7 +23,7 @@ const scenes = {
 	transmission: 'model=/samples/TransmissionTest.glb&env=/samples/studio_small_09_1k.hdr',
 	megakernel: 'model=/samples/DamagedHelmet.glb&integrator=megakernel',
 };
-const only = process.argv.slice(2);
+const only = process.argv.slice(2).filter(arg => !arg.startsWith('--'));
 
 const server = await createServer({ root, server: { port: 5201, strictPort: false }, logLevel: 'warn' });
 await server.listen();
@@ -33,6 +36,13 @@ try {
 	for (const [name, query] of Object.entries(scenes)) {
 		if (only.length && !only.includes(name)) continue;
 		const page = await browser.newPage();
+		if (coreFormats) await page.evaluateOnNewDocument(() => {
+			const requestDevice = GPUAdapter.prototype.requestDevice;
+			GPUAdapter.prototype.requestDevice = function (descriptor = {}) {
+				const requiredFeatures = [...(descriptor.requiredFeatures ?? [])].filter(f => f !== 'texture-formats-tier1' && f !== 'texture-formats-tier2');
+				return requestDevice.call(this, { ...descriptor, requiredFeatures });
+			};
+		});
 		await page.setViewport({ width: 960, height: 640, deviceScaleFactor: 1 });
 		const errors = [];
 		page.on('pageerror', e => errors.push(String(e)));

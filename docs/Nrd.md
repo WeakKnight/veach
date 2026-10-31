@@ -24,8 +24,14 @@ wavefront trace (NRD split region) -> taa.motion -> nrd.prepare -> REBLUR
 ## Build
 
 `npm run build:nrd` needs the NRD SDK and NVIDIA MathLib checkouts (not vendored): set `NRD_SDK`
-and `NRD_MATHLIB`, or place them in `.tools/nrd/NRD` and `.tools/nrd/MathLib`. It also needs
-emsdk (as `build:wasm`) and slangc (as `build:shaders`). The script:
+and `NRD_MATHLIB`, or place them in `.tools/nrd/NRD` and `.tools/nrd/MathLib` (NRD-Sample carries both,
+as `External/NRD` and `External/NRIFramework/External/MathLib`). It also needs emsdk (as `build:wasm`;
+`npm run build:nrd -- --skip-wasm` reuses the committed runtime) and a slangc that emits WGSL
+`texture-formats-tier1` storage formats. Slang 2026.20 does not: it writes `rgba32float` for them. Until
+[shader-slang/slang#13778](https://github.com/shader-slang/slang/pull/13778) ships in a release, the
+script uses the committed Windows build in `tools/slang` (master plus that PR; source and rebuild steps
+in `tools/slang/README.md`). `SLANGC` overrides it, for example on other platforms. The script checks
+this first. The script:
 
 1. Stages `Include/`, `Source/`, `Shaders/` and MathLib into `.tools/nrd/build` and patches the copy:
    - `NRDConfig.hlsli`: `NRD_NORMAL_ENCODING = RGBA16_SNORM` (writable `rgba16float` without
@@ -35,17 +41,32 @@ emsdk (as `build:wasm`) and slangc (as `build:shaders`). The script:
    - `REBLUR_ClassifyTiles`: groupshared `InterlockedAdd` -> Slang `Atomic<int>` (WGSL atomics).
    - MathLib: Emscripten uses `<nmmintrin.h>` (SSE4.2 on wasm SIMD); `Timer.cpp` accepts Emscripten.
    - An empty `ShaderMake/ShaderBlob.h`: no shader blobs are embedded (`NRD_EMBEDS_*_SHADERS = 0`).
+   - `NRD.hlsli` (Slang branch): constants, inputs, outputs and samplers bind explicitly with
+     `[[vk::binding(register + shift, space)]]`, using NRD's own SPIR-V shifts (samplers 0+, constants 2,
+     storage textures 3+, textures 20+; resources in group 0, constants and samplers in group 1).
+     slangc's `-fvk-*-shift` options are not used: they override an explicit `[[vk::binding]]` of
+     the same register class. Each output's type comes from a `NRD_STORAGE_<name>` macro (step 3), and
+     `shaders/Nrd/WriteOnlyTexture.hlsli` adds subscript stores to `WTexture2D`. The Slang core module
+     gives write-only textures no subscript, while NRD writes `gOut[ p ] = value`.
 2. Compiles the runtime and `wasm/nrd_wasm.cpp` (C ABI over contexts: create with a denoiser list,
    instance description as JSON, common/REBLUR settings, flattened dispatches of all denoisers) into
    `src/generated/nrd/nrd.{mjs,wasm}`.
-3. Loads that module in Node, asks it for the pipelines of both modes' instances and compiles each
-   `shaderIdentifier` (`file|MACRO=value...`) with slangc to WGSL, using NRD's own SPIR-V register
-   shifts (samplers 0+, constants 2, storage textures 3+, textures 20+; resources in group 0,
-   constants and samplers in group 1) and column-major matrices -> `NrdShaders.ts`.
-   Storage textures only loaded become `read`, only stored become `write`; `read_write` remains
-   only for r32 formats. The exception is REBLUR's validation overlay, which Veach never enables.
+3. Loads that module in Node and plans both modes' dispatches with Veach's settings
+   (`src/render/denoise/NrdConfig.mjs`, shared with `NrdDenoiser`) over history resets, steady frames
+   and a resize. That gives every pipeline's bound storage formats for both pool format sets
+   (`texture-formats-tier1` and core). A pipeline can run on several format combinations: `Clear`, for
+   example, clears pools of different formats. Pipelines never dispatched with these settings
+   (hit distance reconstruction, split screen, validation, post-blur without stabilization) are not
+   compiled. Each `shaderIdentifier` (`file|MACRO=value...`) is compiled twice with slangc to WGSL
+   (column-major matrices). The first pass, with NRD's `RWTexture2D` outputs, only reports which
+   storage textures the shader loads and stores. The second pass declares each used output as
+   `[format(...)] WTexture2D` (stored only), `Texture2D` (loaded only, sampled: `gInOut_Mv` in
+   temporal stabilization) or `[format(...)] RWTexture2D` (both, r32 formats only). It runs once
+   per format combination -> `NrdShaders.ts` (shader -> `nrdVariantKey` -> WGSL). The emitted WGSL
+   is not edited. The build verifies each declaration against the expected format and access.
 4. Compiles `shaders/Nrd/NrdPasses.slang` (Veach front/back end, includes `NRD.hlsli`) -> `NrdPasses.ts`,
-   once per mode (`NRD_PASS_SH=0/1`: `Prepare`, `Composite`, `PrepareSh`, `CompositeSh`).
+   once per mode (`NRD_PASS_SH=0/1`: `Prepare`, `Composite`, `PrepareSh`, `CompositeSh`). Prepare
+   declares its outputs as formatted `WTexture2D` in the user texture formats (`userFormat`).
 
 All outputs are committed generated code. Run `build:nrd` after editing `shaders/Nrd`, `wasm/nrd_wasm.cpp`
 or the NRD-dependent parts of `Wavefront.slang` that `NrdPasses.slang` reads (layout below).
@@ -57,8 +78,10 @@ with linear filtering), at least 7 storage textures and 15 sampled textures per 
 `Renderer.create`
 requests `float32-filterable`, `texture-formats-tier1` and up to 8 storage textures when the adapter
 offers them. Without tier 1, `r8unorm`/`rg8unorm`/`r16float`/`r16uint`/`rgb10a2unorm` pool textures fall
-back to wider formats (`rgba8unorm`, `r32float`, `r32uint`, `rgba16float`); storage formats are
-substituted into the WGSL per pipeline from the bound textures, so both paths share one build.
+back to wider formats (`rgba8unorm`, `r32float`, `r32uint`, `rgba16float`). `NrdDenoiser` selects the
+generated variant matching the formats a dispatch binds; a missing variant is an error that asks for
+`build:nrd`. `node scripts/nrd-check.mjs --core-formats` withholds the tier features to test the
+fallback (output in `.tools/nrd/core`).
 The eight-storage-buffer budget of the path tracer is unaffected: NRD uses only textures plus the
 Prepare/Composite buffers in their own layouts.
 

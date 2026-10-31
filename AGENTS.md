@@ -14,6 +14,7 @@ src/         TypeScript host: accel (tinybvh wrapper), loaders (glTF, HDR, blend
 wasm/        tinybvh C ABI for Emscripten
 ThirdParty/  Vendored tinybvh and openpbr-bsdf (see VERSION.txt)
 examples/    view (demo of <veach-view>)
+tools/       Committed temporary toolchain: slangc with WGSL tier1 storage formats for build:nrd (tools/slang/README.md)
 tests/       vitest (Node)
 scripts/     Build, sample fetching, headless smoke renders
 docs/        Design docs (below)
@@ -44,7 +45,7 @@ Read the relevant doc before changing a subsystem, and update it with the change
 - Exposure and tone mapping settings are presentation settings and must never reset accumulation.
 - The package is `@tianyuliwiwo/veach` (`npm run build:lib` -> `dist-lib/`): `src/index.ts` must stay free of DOM side effects; DOM code goes in `src/view` (`@tianyuliwiwo/veach/view`).
 - Generated code is committed. After editing `shaders/` run `npm run build:shaders`; `wasm/` or tinybvh: `npm run build:wasm`;
-  `shaders/Nrd` or `wasm/nrd_wasm.cpp`: `npm run build:nrd` (needs the NRD SDK, see docs/Nrd.md); `shaders/Materials/BSDF`, `shaders/Common` or `tests/bsdf`: `npm run build:bsdf-harness`.
+  `shaders/Nrd` or `wasm/nrd_wasm.cpp`: `npm run build:nrd` (needs the NRD SDK; uses tools/slang, see docs/Nrd.md); `shaders/Materials/BSDF`, `shaders/Common` or `tests/bsdf`: `npm run build:bsdf-harness`.
 
 ## Commands
 
@@ -60,7 +61,7 @@ npm run fetch-samples       # Khronos samples + HDR -> public/samples (gitignore
 npm run smoke               # headless Chrome renders -> .tools/smoke/*.png; fails on GPU/console errors
 ```
 
-Toolchains live in `.tools/` (gitignored): `slang/`, `emsdk/`.
+Toolchains live in `.tools/` (gitignored): `slang/`, `emsdk/`. `tools/slang` is the exception, committed until Slang ships shader-slang/slang#13778.
 
 ## Conventions
 
