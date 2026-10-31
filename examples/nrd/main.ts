@@ -158,7 +158,7 @@ async function initLive() {
 	try {
 		renderer = await Renderer.create(canvas, { denoiser: null, onProgress: p => progress(p.message, p.progress * 0.5) });
 		Object.assign(globalThis, { veach: renderer });
-		renderer.settings.accumulation = false; // real-time: 1 spp per frame, TAA history
+		renderer.settings.renderMode = 'realtime'; // 1 spp per frame, TAA history
 		applyResolution();
 		progress('加载 NRD（WASM + REBLUR 管线）…', 0.5);
 		await renderer.setNrd(true, 'sh');

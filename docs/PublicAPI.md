@@ -31,10 +31,11 @@ progress or unsupported hardware. The viewer/game UI binds Ctrl+Shift+Comma. See
 
 ## Temporal anti-aliasing
 
-`settings.taaEnabled` defaults to true. TAA runs for host frames, and for the static viewer
-when `settings.accumulation = false`; progressive accumulation defaults to true in the static
-viewer and bypasses TAA. `taaNewFrameWeight` (0.1), `taaColorClampingFactor` (2), and
-`taaMaximumRadiance` (100) control feedback. `renderer.resetTaa()` discards history;
+`settings.taaEnabled` defaults to true. TAA runs in realtime mode: host frames,
+and the static viewer when `settings.renderMode = 'realtime'`. The viewer defaults to
+`renderMode: 'offline'` (progressive accumulation, OIDN when converged), which bypasses TAA.
+`taaNewFrameWeight` (0.1), `taaColorClampingFactor` (2), and `taaMaximumRadiance` (100) control
+feedback. `renderer.resetTaa()` discards history;
 `renderer.taaStats` reports execution, last reset reason and allocation. For host teleports,
 pass `cameraCut: true` in `renderFrame`. See [TemporalAA.md](TemporalAA.md).
 

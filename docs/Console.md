@@ -25,7 +25,7 @@ r.SHARC.Enabled 0
 r.SHARC.Enabled 1
 r.SHARC.VoxelSize 0.2
 r.SHARC.Stats
-r.Accumulation.Enabled 0
+r.RenderMode realtime
 r.TAA.Enabled 1
 r.TAA.NewFrameWeight 0.1
 r.TAA.ColorClampingFactor 2

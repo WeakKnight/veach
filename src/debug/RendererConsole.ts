@@ -15,8 +15,8 @@ const curve: ConsoleValueType<CurveKeys | null> = {
 interface SettingDescriptor { name: string; help: string; type: ConsoleValueType<unknown> }
 // Exhaustive: adding a RenderSettings field requires a console binding here.
 export const renderConsoleSettings = {
-	accumulation: { name: 'r.Accumulation.Enabled', help: 'Static viewer progressive accumulation. Host game frames always remain independent.', type: consoleBoolean },
-	taaEnabled: { name: 'r.TAA.Enabled', help: 'TAA when progressive accumulation is off; enabled by default for host games.', type: consoleBoolean },
+	renderMode: { name: 'r.RenderMode', help: 'offline: progressive accumulation; realtime: 1 spp per frame with TAA and NRD. Host game frames are always realtime.', type: consoleEnum({ offline: 'offline', realtime: 'realtime' } as const) },
+	taaEnabled: { name: 'r.TAA.Enabled', help: 'TAA in realtime mode; enabled by default.', type: consoleBoolean },
 	taaNewFrameWeight: { name: 'r.TAA.NewFrameWeight', help: 'Current-frame weight (higher is more responsive).', type: consoleNumber(0.001, 1) },
 	taaColorClampingFactor: { name: 'r.TAA.ColorClampingFactor', help: 'PQ neighborhood standard-deviation multiplier; lower rejects history more strongly.', type: consoleNumber(0.01, 10) },
 	taaMaximumRadiance: { name: 'r.TAA.MaximumRadiance', help: 'Scene-linear PQ range, independent of presentation exposure.', type: consoleNumber(1, 1e8) },

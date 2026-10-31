@@ -1,8 +1,8 @@
 # Temporal anti-aliasing without progressive accumulation
 
-TAA defaults on for host frames, including the aim/racing examples, and for the viewer when
-`settings.accumulation = false`. It is bypassed while progressive cross-frame accumulation
-is enabled. Real-time rendering always traces exactly 1 spp; the raw current-frame HDR and
+TAA defaults on for realtime frames: host frames, including the aim/racing examples, and the
+viewer when `settings.renderMode = 'realtime'`. It is bypassed in offline mode (progressive
+cross-frame accumulation, the viewer default). Real-time rendering always traces exactly 1 spp; the raw current-frame HDR and
 material guides remain available separately from TAA's presentation result. This renderer
 does not have a standalone progressive accumulation pass: static cross-frame averaging lives in the
 path finalization shaders. TAA adds `taa.motion` followed by `taa.resolve` compute passes.
@@ -102,7 +102,7 @@ the device's per-buffer limits. This is not a total VRAM-budget estimator.
 ## Runtime controls
 
 ```text
-r.Accumulation.Enabled 0
+r.RenderMode realtime
 r.TAA.Enabled 1
 r.TAA.NewFrameWeight 0.1
 r.TAA.ColorClampingFactor 2
@@ -113,8 +113,8 @@ r.TAA.MotionVectors 0
 r.TAA.Reset
 ```
 
-The accumulation switch controls the static viewer. Host frames remain independent regardless
-of that preference, and the game explicitly selects false. `taaStats` reports actual mode,
+The render mode controls the static viewer. Host frames are realtime regardless of that
+preference, and the game explicitly selects realtime. `taaStats` reports actual mode,
 history-frame count, last reset reason and allocated bytes. The frame count is not a claim
 that every pixel accepted history. TAA reduces temporal edge noise but is not an indirect-light
 denoiser. Reflection/transmission motion uses the visible primary surface; variance clipping

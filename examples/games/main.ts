@@ -267,7 +267,7 @@ async function init() {
 	});
 	if (closed) { renderer.destroy(); return; }
 	renderer.settings.maxBounces = 3; renderer.settings.resolutionScale = 0.5; renderer.settings.localExposureMethod = LocalExposureMethod.None;
-	renderer.settings.accumulation = false;
+	renderer.settings.renderMode = 'realtime';
 	renderer.sun.elevation = 55; renderer.sun.azimuth = 20;
 	adapter = new ThreeAdapter(renderer); await adapter.sync(scene, camera);
 	gpuProfilerPanel = new GpuProfilerPanel(renderer.gpuProfiler, { onOpenChange: () => keys.clear() });

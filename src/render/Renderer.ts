@@ -52,9 +52,15 @@ export enum LocalExposureMethod {
 // Unreal's Exposure Weight sigma (hardcoded in PostProcessLocalExposure.usf).
 const FUSION_SIGMA = 0.2;
 
+/**
+ * 'offline': the static viewer accumulates samples progressively (OIDN when converged).
+ * 'realtime': one sample per frame resolved by TAA (and NRD when enabled). Host frames are always realtime.
+ */
+export type RenderMode = 'offline' | 'realtime';
+
 export interface RenderSettings {
-	/** Progressive cross-frame accumulation. Host frames always render independently. */
-	accumulation: boolean;
+	/** Static viewer render mode; host frames always render in realtime mode. */
+	renderMode: RenderMode;
 	taaEnabled: boolean;
 	taaNewFrameWeight: number;
 	taaColorClampingFactor: number;
@@ -112,7 +118,7 @@ export interface RenderSettings {
 
 export function defaultRenderSettings(): RenderSettings {
 	return {
-		accumulation: true,
+		renderMode: 'offline',
 		taaEnabled: true,
 		taaNewFrameWeight: 0.1,
 		taaColorClampingFactor: 2,
@@ -840,7 +846,7 @@ export class Renderer {
 			width: this.tracer.width,
 			height: this.tracer.height,
 			frameIndex: this.frameIndex,
-			seed: Math.imul(this.frameIndex + 1, 0x9e3779b9) ^ (this.activeHost ? Math.imul(this.hostFrameIndex + 1, 0x85ebca6b) : !s.accumulation ? Math.imul(this.temporalFrame + 1, 0x85ebca6b) : 0),
+			seed: Math.imul(this.frameIndex + 1, 0x9e3779b9) ^ (this.activeHost ? Math.imul(this.hostFrameIndex + 1, 0x85ebca6b) : s.renderMode === 'realtime' ? Math.imul(this.temporalFrame + 1, 0x85ebca6b) : 0),
 			maxBounces: s.maxBounces,
 			debugMode: s.debugMode,
 			flags,
@@ -873,7 +879,7 @@ export class Renderer {
 	}
 
 	get converged(): boolean {
-		if (this.activeHost || !this.settings.accumulation) return false;
+		if (this.activeHost || this.settings.renderMode === 'realtime') return false;
 		return this.settings.maxSamples > 0 && this.frameIndex >= this.settings.maxSamples;
 	}
 
@@ -896,10 +902,10 @@ export class Renderer {
 		this.gpuProfiler.beginFrame({ width: this.tracer.width, height: this.tracer.height, samples: 0, integrator: this.integrator });
 		this.gpuProfiler.scope('Sky', () => this.updateSky());
 		this.updateStreaming();
-		const s = this.settings, progressive = !frame && s.accumulation;
+		const s = this.settings, progressive = !frame && s.renderMode === 'offline';
 		if (this.progressiveMode !== progressive) { this.resetAccumulation(); this.taa.reset('mode-change'); this.progressiveMode = progressive; }
 		if (!progressive) { this.frameIndex = 0; this.temporalFrame++; }
-		const taaReason = !s.taaEnabled ? 'disabled' : progressive ? 'progressive-accumulation' : s.debugMode !== DebugMode.None ? 'debug-view' : !frame && this.camera.lensRadius > 0 ? 'depth-of-field' : null;
+		const taaReason = !s.taaEnabled ? 'disabled' : progressive ? 'offline' : s.debugMode !== DebugMode.None ? 'debug-view' : !frame && this.camera.lensRadius > 0 ? 'depth-of-field' : null;
 		this.taaActive = false;
 		if (taaReason) { this.taa.suspend(taaReason); if (!progressive || !this.denoisedBuffer) this.tracer.setPresentationBuffer(null); }
 		else {

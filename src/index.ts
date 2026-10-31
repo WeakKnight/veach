@@ -10,6 +10,7 @@ export {
 	isPresentationSetting,
 	type InitProgress,
 	type InitStage,
+	type RenderMode,
 	type RenderSettings,
 	type RendererCreateOptions,
 	type RendererStats,
