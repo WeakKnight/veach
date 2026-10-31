@@ -3,9 +3,9 @@
 // errors, and saves screenshots plus a report to .tools/nrd. Runs in SH mode (default) and compares, from
 // the same camera start, SH + re-jitter, SH without re-jitter, radiance mode and TAA only, static and in motion.
 // --core-formats withholds texture-formats-tier1/tier2 from the device, so NRD runs its core WebGPU storage
-// format variants; output goes to .tools/nrd/core. --planner ts|both plans with the TypeScript port, or with
-// the wasm runtime checked against it every frame (a divergence is a console error, so the scene fails);
-// output goes to .tools/nrd/<planner>.
+// format variants; output goes to .tools/nrd/core. --planner wasm|both plans with the wasm runtime, alone or
+// checked against the TypeScript planner (default) every frame (a divergence is a console error, so the
+// scene fails); output goes to .tools/nrd/<planner>.
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -14,9 +14,9 @@ import { createServer } from 'vite';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const coreFormats = process.argv.includes('--core-formats');
-const plannerAt = process.argv.indexOf('--planner'), planner = plannerAt >= 0 ? process.argv[plannerAt + 1] : 'wasm';
+const plannerAt = process.argv.indexOf('--planner'), planner = plannerAt >= 0 ? process.argv[plannerAt + 1] : 'ts';
 if (!['wasm', 'ts', 'both'].includes(planner)) throw new Error('--planner must be wasm, ts or both');
-const outDir = join(root, '.tools', 'nrd', ...(coreFormats ? ['core'] : []), ...(planner !== 'wasm' ? [planner] : []));
+const outDir = join(root, '.tools', 'nrd', ...(coreFormats ? ['core'] : []), ...(planner !== 'ts' ? [planner] : []));
 mkdirSync(outDir, { recursive: true });
 const chrome = [process.env.CHROME_PATH, 'C:/Program Files/Google/Chrome/Application/chrome.exe', '/usr/bin/google-chrome'].find(p => p && existsSync(p));
 const scenes = {

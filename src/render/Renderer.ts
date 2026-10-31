@@ -271,11 +271,11 @@ export class Renderer {
 	private readonly nrds = new Map<NrdMode, NrdDenoiser>();
 	private get nrd(): NrdDenoiser | null { return this.nrds.get(this.settings.nrdMode) ?? null; }
 	/**
-	 * Internal, for the NRD planner migration (docs/Nrd.md): 'wasm' (default) plans with the NRD runtime,
-	 * 'ts' with its TypeScript port, 'both' renders with wasm and reports frames where the port differs.
+	 * Internal, for the NRD planner migration (docs/Nrd.md): 'ts' (default) plans with the TypeScript port,
+	 * 'wasm' with the NRD runtime, 'both' renders with wasm and reports frames where the port differs.
 	 * Applies to the next setNrd(true, ...).
 	 */
-	nrdPlanner: NrdPlannerKind = 'wasm';
+	nrdPlanner: NrdPlannerKind = 'ts';
 	private nrdRequest = 0;
 	private nrdActive = false;
 	private nrdError: string | null = null;

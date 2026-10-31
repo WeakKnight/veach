@@ -169,7 +169,7 @@ never sets keep NRD's defaults; unported denoisers throw. The DiffuseSh pass nam
 `DENOISER_NAME` prefix (its header does not define the macro).
 
 `Planners.ts` selects the planner: `Renderer.nrdPlanner` (internal; viewer `?nrdPlanner=`, `nrd-check
---planner`) is `'wasm'` (default), `'ts'`, or `'both'`, which renders with wasm, gives the TypeScript timer
+--planner`) is `'ts'` (default), `'wasm'`, or `'both'`, which renders with wasm, gives the TypeScript timer
 the `Date.now` values the wasm timer read, and reports any frame whose dispatches or constant words differ
 as a console error (one ulp is allowed for the cosf/sinf rotators). `build:nrd` runs through vite-node
 and sweeps formats with the TypeScript planner; the wasm runtime is still built as the reference.
@@ -182,7 +182,7 @@ rejected by both; the wasm build aborts on NRD's asserts, the TypeScript planner
 
 ## Validation
 
-`npm run check:nrd` (headless Chrome, `.tools/nrd/`; `-- --planner ts|both` for the planner migration): helmet (HDR and low sun), metal/rough spheres,
+`npm run check:nrd` (headless Chrome, `.tools/nrd/`; `-- --planner wasm|both` for the planner migration): helmet (HDR and low sun), metal/rough spheres,
 alpha blend modes and transmission, plus the megakernel fallback. For each it checks both modes' state
 (SH 14, radiance 7 REBLUR dispatches per frame), that the noisy split recomposes the raw radiance (max
 relative error about 2e-7), finite output and no GPU/console errors, captures a GPU profile, and saves

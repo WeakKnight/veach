@@ -123,7 +123,7 @@ export class NrdDenoiser {
 		this.params = device.createBuffer({ label: 'nrd.params', size: 32, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
 	}
 
-	/** Which planner produces the dispatches: 'wasm' (default), 'ts', or 'both' (wasm, checked against 'ts'). */
+	/** Which planner produces the dispatches: 'ts' (default), 'wasm', or 'both' (wasm, checked against 'ts'). */
 	get plannerKind(): NrdPlannerKind { return this.planner.kind; }
 
 	/** Requires float32-filterable (32-bit float pools are sampled with linear filtering) and 7 storage / 15 sampled textures. */
@@ -134,7 +134,7 @@ export class NrdDenoiser {
 		return null;
 	}
 
-	static async create(device: GPUDevice, mode: NrdMode = 'radiance', plannerKind: NrdPlannerKind = 'wasm'): Promise<NrdDenoiser> {
+	static async create(device: GPUDevice, mode: NrdMode = 'radiance', plannerKind: NrdPlannerKind = 'ts'): Promise<NrdDenoiser> {
 		const reason = NrdDenoiser.unsupportedReason(device);
 		if (reason) throw new Error(`NRD is unsupported on this device: ${reason}`);
 		const planner = await createPlanner(plannerKind, mode);
