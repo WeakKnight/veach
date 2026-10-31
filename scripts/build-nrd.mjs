@@ -3,8 +3,8 @@
 //   2. Every pipeline the runtime dispatches for REBLUR_DIFFUSE_SPECULAR(_SH) -> WGSL (slangc), one variant per
 //      combination of bound storage formats (texture-formats-tier1 and core WebGPU pools)
 //   3. Veach's NRD front/back-end passes (shaders/Nrd) -> NrdPasses.wgsl
-// The NRD SDK is not vendored. Set NRD_SDK (NRD checkout) and NRD_MATHLIB (MathLib checkout), or place them in
-// .tools/nrd/NRD and .tools/nrd/MathLib. Staged, patched copies are written to .tools/nrd/build.
+// NRD and MathLib come from ThirdParty/NRD and ThirdParty/MathLib (unmodified upstream, see VERSION.txt);
+// NRD_SDK / NRD_MATHLIB override them with other checkouts. Staged, patched copies go to .tools/nrd/build.
 // slangc must emit WGSL texture-formats-tier1 storage formats (shader-slang/slang#13778): SLANGC, else tools/slang.
 // --skip-wasm reuses the committed runtime (src/generated/nrd/nrd.mjs) and needs no emsdk.
 import { spawnSync } from 'node:child_process';
@@ -44,15 +44,15 @@ const SLANG_FORMATS = {
 	rgb10a2unorm: 'rgb10_a2', rgb10a2uint: 'rgb10_a2ui', rg11b10ufloat: 'r11f_g11f_b10f',
 };
 
-const sdk = locate(process.env.NRD_SDK, join(root, '.tools', 'nrd', 'NRD'), 'Include/NRD.h', 'NRD_SDK');
-const mathlib = locate(process.env.NRD_MATHLIB, join(root, '.tools', 'nrd', 'MathLib'), 'ml.h', 'NRD_MATHLIB');
+const sdk = locate(process.env.NRD_SDK, join(root, 'ThirdParty', 'NRD'), 'Include/NRD.h', 'NRD_SDK');
+const mathlib = locate(process.env.NRD_MATHLIB, join(root, 'ThirdParty', 'MathLib'), 'ml.h', 'NRD_MATHLIB');
 const version = readFileSync(join(sdk, 'Include', 'NRD.h'), 'utf8');
 const found = ['MAJOR', 'MINOR', 'BUILD'].map(part => version.match(new RegExp(`NRD_VERSION_${part} (\\d+)`))?.[1]).join('.');
 if (found !== NRD_VERSION) console.warn(`[build-nrd] expected NRD ${NRD_VERSION}, found ${found}`);
 
 function locate(override, fallback, marker, variable) {
 	for (const dir of [override, fallback]) if (dir && existsSync(join(dir, marker))) return resolve(dir);
-	console.error(`[build-nrd] ${marker} not found. Set ${variable} or check out the sources into ${fallback}`);
+	console.error(`[build-nrd] ${marker} not found in ${variable} or ${fallback}`);
 	process.exit(1);
 }
 
@@ -138,6 +138,8 @@ const emArgs = [
 	'-I', join(stage, 'Include'), '-I', join(stage, 'Source'), '-I', stage, '-I', join(stage, 'MathLib'),
 	...defines,
 	'-O3', '-std=c++17', '-msimd128', '-msse4.2', '-fno-exceptions', '-Wno-#warnings', '-Wno-unused-command-line-argument',
+	// NRD asserts embed __FILE__; a fixed prefix keeps the committed wasm independent of the checkout path.
+	`-fmacro-prefix-map=${stage}=nrd`, `-fmacro-prefix-map=${root}=veach`,
 	'-sMODULARIZE=1', '-sEXPORT_ES6=1', '-sEXPORT_NAME=createNRDModule',
 	'-sENVIRONMENT=web,worker,node', '-sALLOW_MEMORY_GROWTH=1', '-sFILESYSTEM=0',
 	`-sEXPORTED_FUNCTIONS=${exported.map(f => `_${f}`).join(',')}`,

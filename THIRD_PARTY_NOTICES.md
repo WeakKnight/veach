@@ -33,7 +33,10 @@ runtime code or data is embedded in JavaScript or WebAssembly.
 - Upstream: https://github.com/NVIDIA-RTX/NRD
 - Version: 4.18.0 (NRD SDK date 9 October 2026), with NVIDIA MathLib v11.
 - Copyright (c) NVIDIA Corporation. This software contains source code provided by NVIDIA Corporation.
-- License: NVIDIA RTX SDKs License (`LICENSE.txt` in the NRD repository); not covered by Veach's MIT license.
+- License: NVIDIA RTX SDKs License (`ThirdParty/NRD/LICENSE.txt`); not covered by Veach's MIT license.
+  MathLib: MIT (`ThirdParty/MathLib/LICENSE.txt`).
+- Source: vendored unmodified in `ThirdParty/NRD` and `ThirdParty/MathLib` for team-internal use
+  (revisions in `VERSION.txt`).
 - Use: `scripts/build-nrd.mjs` compiles the NRD runtime into a WebAssembly module and NRD's REBLUR
   shaders into WGSL (`src/generated/nrd`), loaded as a lazy chunk only when NRD is enabled.
 - Modifications: WGSL compatibility patches (texel-offset loads, groupshared atomics, MathLib and

@@ -23,9 +23,11 @@ wavefront trace (NRD split region) -> taa.motion -> nrd.prepare -> REBLUR
 
 ## Build
 
-`npm run build:nrd` needs the NRD SDK and NVIDIA MathLib checkouts (not vendored): set `NRD_SDK`
-and `NRD_MATHLIB`, or place them in `.tools/nrd/NRD` and `.tools/nrd/MathLib` (NRD-Sample carries both,
-as `External/NRD` and `External/NRIFramework/External/MathLib`). It also needs emsdk (as `build:wasm`;
+`npm run build:nrd` compiles the vendored, unmodified NRD SDK and NVIDIA MathLib in `ThirdParty/NRD` and
+`ThirdParty/MathLib` (revisions in their `VERSION.txt`; to update, replace the copied directories from
+upstream). `NRD_SDK` and `NRD_MATHLIB` override them with other checkouts. Veach is team-internal for now:
+the vendored source is meant to be replaced gradually by Veach's own denoiser before any release, which
+must then revisit the NVIDIA license. The build also needs emsdk (as `build:wasm`;
 `npm run build:nrd -- --skip-wasm` reuses the committed runtime) and a slangc that emits WGSL
 `texture-formats-tier1` storage formats. Slang 2026.20 does not: it writes `rgba32float` for them. Until
 [shader-slang/slang#13778](https://github.com/shader-slang/slang/pull/13778) ships in a release, the
@@ -50,7 +52,8 @@ this first. The script:
      gives write-only textures no subscript, while NRD writes `gOut[ p ] = value`.
 2. Compiles the runtime and `wasm/nrd_wasm.cpp` (C ABI over contexts: create with a denoiser list,
    instance description as JSON, common/REBLUR settings, flattened dispatches of all denoisers) into
-   `src/generated/nrd/nrd.{mjs,wasm}`.
+   `src/generated/nrd/nrd.{mjs,wasm}`. `-fmacro-prefix-map` replaces the checkout path in the
+   `__FILE__` strings of NRD's asserts, so the committed wasm is reproducible from any directory.
 3. Loads that module in Node and plans both modes' dispatches with Veach's settings
    (`src/render/denoise/NrdConfig.mjs`, shared with `NrdDenoiser`) over history resets, steady frames
    and a resize. That gives every pipeline's bound storage formats for both pool format sets

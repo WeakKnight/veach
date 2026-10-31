@@ -1,0 +1,2 @@
+MathLib v11 - https://github.com/NVIDIA-RTX/MathLib @ 294c8f2eb9f2c094ac69b690e16c1ad5f0676ff1 (v11-7)
+Copied: Guts, ml.h, ml.hlsli, LICENSE.txt, README.md (unmodified).

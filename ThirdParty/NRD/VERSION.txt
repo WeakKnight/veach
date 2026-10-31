@@ -1,0 +1,2 @@
+NRD 4.18.0 - https://github.com/NVIDIA-RTX/NRD @ 8f12a22fc90e6a3c7f5da4c9c3103633c842963a (v4.18.0-7)
+Copied: Include, Source, Shaders, Resources, LICENSE.txt, README.md (unmodified; scripts/build-nrd.mjs patches a staged copy).
