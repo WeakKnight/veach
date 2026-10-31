@@ -77,6 +77,24 @@ export function nrdMatrices(camera: NrdCamera): { worldToView: Float32Array; vie
 	return { worldToView, viewToClip };
 }
 
+export interface NrdFrameState { camera: NrdCamera; jitter: [number, number]; width: number; height: number }
+
+/**
+ * NRD common settings for one frame, in planDispatches' layout (NrdConfig.mjs). `previous` is the last
+ * denoised frame; it is ignored for matrices and jitter on a history reset. `timeDelta` 0 lets NRD measure
+ * the time between frames itself (production); tests pass a fixed value for deterministic constants.
+ */
+export function nrdCommonInputs(current: NrdFrameState, previous: NrdFrameState | null, frameIndex: number, reset: boolean, timeDelta = 0) {
+	const now = nrdMatrices(current.camera), prev = previous && !reset ? nrdMatrices(previous.camera) : now;
+	const jitter = current.jitter.map(v => v - 0.5), previousJitter = previous && !reset ? previous.jitter.map(v => v - 0.5) : jitter;
+	return {
+		matrices: [...now.viewToClip, ...prev.viewToClip, ...now.worldToView, ...prev.worldToView],
+		params: [1 / current.width, 1 / current.height, 0, ...jitter, ...previousJitter, DENOISING_RANGE, 0.01, 1, timeDelta],
+		ints: [current.width, current.height, previous?.width ?? current.width, previous?.height ?? current.height,
+			frameIndex, reset ? ACCUMULATION_CLEAR_AND_RESTART : ACCUMULATION_CONTINUE, 0],
+	};
+}
+
 export class NrdDenoiser {
 	stats: NrdStats;
 	private readonly context: number;
@@ -93,7 +111,7 @@ export class NrdDenoiser {
 	private composite: GPUBuffer | null = null;
 	private width = 0;
 	private height = 0;
-	private previous: { camera: NrdCamera; jitter: [number, number]; width: number; height: number } | null = null;
+	private previous: NrdFrameState | null = null;
 	private frameIndex = 0;
 	private needsReset = true;
 	private readonly exact: boolean;
@@ -172,13 +190,8 @@ export class NrdDenoiser {
 	}
 
 	private plan(input: NrdFrame, reset: boolean): Dispatch[] {
-		const current = nrdMatrices(input.camera), previous = this.previous && !reset ? nrdMatrices(this.previous.camera) : current;
-		const jitter = input.jitter.map(v => v - 0.5), previousJitter = this.previous && !reset ? this.previous.jitter.map(v => v - 0.5) : jitter;
-		return planDispatches(this.module, this.context, this.scratch,
-			[...current.viewToClip, ...previous.viewToClip, ...current.worldToView, ...previous.worldToView],
-			[1 / input.width, 1 / input.height, 0, ...jitter, ...previousJitter, DENOISING_RANGE, 0.01, 1, 0],
-			[input.width, input.height, this.previous?.width ?? input.width, this.previous?.height ?? input.height,
-				this.frameIndex, reset ? ACCUMULATION_CLEAR_AND_RESTART : ACCUMULATION_CONTINUE, 0]);
+		const c = nrdCommonInputs(input, this.previous, this.frameIndex, reset);
+		return planDispatches(this.module, this.context, this.scratch, c.matrices, c.params, c.ints);
 	}
 
 	private texture(resource: Resource): GPUTexture {
