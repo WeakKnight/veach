@@ -3,7 +3,9 @@
 // errors, and saves screenshots plus a report to .tools/nrd. Runs in SH mode (default) and compares, from
 // the same camera start, SH + re-jitter, SH without re-jitter, radiance mode and TAA only, static and in motion.
 // --core-formats withholds texture-formats-tier1/tier2 from the device, so NRD runs its core WebGPU storage
-// format variants; output goes to .tools/nrd/core.
+// format variants; output goes to .tools/nrd/core. --planner ts|both plans with the TypeScript port, or with
+// the wasm runtime checked against it every frame (a divergence is a console error, so the scene fails);
+// output goes to .tools/nrd/<planner>.
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -12,7 +14,9 @@ import { createServer } from 'vite';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const coreFormats = process.argv.includes('--core-formats');
-const outDir = join(root, '.tools', 'nrd', ...(coreFormats ? ['core'] : []));
+const plannerAt = process.argv.indexOf('--planner'), planner = plannerAt >= 0 ? process.argv[plannerAt + 1] : 'wasm';
+if (!['wasm', 'ts', 'both'].includes(planner)) throw new Error('--planner must be wasm, ts or both');
+const outDir = join(root, '.tools', 'nrd', ...(coreFormats ? ['core'] : []), ...(planner !== 'wasm' ? [planner] : []));
 mkdirSync(outDir, { recursive: true });
 const chrome = [process.env.CHROME_PATH, 'C:/Program Files/Google/Chrome/Application/chrome.exe', '/usr/bin/google-chrome'].find(p => p && existsSync(p));
 const scenes = {
@@ -23,7 +27,7 @@ const scenes = {
 	transmission: 'model=/samples/TransmissionTest.glb&env=/samples/studio_small_09_1k.hdr',
 	megakernel: 'model=/samples/DamagedHelmet.glb&integrator=megakernel',
 };
-const only = process.argv.slice(2).filter(arg => !arg.startsWith('--'));
+const only = process.argv.slice(2).filter((arg, i, all) => !arg.startsWith('--') && all[i - 1] !== '--planner');
 
 const server = await createServer({ root, server: { port: 5201, strictPort: false }, logLevel: 'warn' });
 await server.listen();
@@ -57,7 +61,7 @@ try {
 			return file;
 		};
 		try {
-			await page.goto(`${base}?${query}&nrd=1`, { waitUntil: 'load' });
+			await page.goto(`${base}?${query}&nrd=1&nrdPlanner=${planner}`, { waitUntil: 'load' });
 			if (name === 'megakernel') await page.waitForFunction(() => globalThis.veach?.taaStats.historyFrames >= 30, { timeout: 240000 });
 			else await page.waitForFunction(() => globalThis.veach?.nrdStats.frames >= 60, { timeout: 240000 });
 			const device = await page.evaluate(() => ({ features: [...globalThis.veach.device.features].filter(f => /float32|tier1|f16/.test(f)),
@@ -148,9 +152,11 @@ try {
 			await orbit({ nrd: true, mode: 'radiance', reJitter: false }, 'radiance');
 			const radiance = await page.evaluate(() => globalThis.veach.nrdStats);
 			await orbit({ nrd: false, mode: 'sh', reJitter: true }, 'taa');
+			const plannerKind = await page.evaluate(() => globalThis.veach.nrdPlanner);
+			if (plannerKind !== planner) errors.push(`planner ${plannerKind}, expected ${planner}`);
 			const ok = stats.active && stats.reason === null && stats.mode === 'sh' && stats.dispatches > 0 && radiance.active && radiance.mode === 'radiance'
 				&& identity.finite && identity.maxRelativeError < 1e-2 && finite && errors.length === 0;
-			report[name] = { ok, device, stats, radiance, identity, finite, profile, errors };
+			report[name] = { ok, planner: plannerKind, device, stats, radiance, identity, finite, profile, errors };
 			console.log(`${ok ? 'ok  ' : 'FAIL'} ${name} ${JSON.stringify({ stats, radiance, identity, finite, errors })}`);
 			if (!ok) failures++;
 		} catch (error) {

@@ -2,7 +2,7 @@ import type { PrimaryVisibilityMode, PrimaryVisibilityStats } from './PrimaryVis
 import type { SharcSettings, SharcStats } from './SharcCache';
 import { TemporalAA, type TaaStats } from './TemporalAA';
 import { GpuProfiler } from './GpuProfiler';
-import type { NrdDenoiser, NrdMode, NrdStats } from './denoise/NrdDenoiser';
+import type { NrdDenoiser, NrdMode, NrdPlannerKind, NrdStats } from './denoise/NrdDenoiser';
 // Public entry point: owns the WebGPU device, the scene and the progressive render loop.
 import { BuildQuality, TinyBVH } from '../accel/TinyBVH';
 import type { HDRImage } from '../loaders/HDRLoader';
@@ -270,6 +270,12 @@ export class Renderer {
 	// One instance per loaded mode, so switching keeps textures and pipelines (each restarts its history).
 	private readonly nrds = new Map<NrdMode, NrdDenoiser>();
 	private get nrd(): NrdDenoiser | null { return this.nrds.get(this.settings.nrdMode) ?? null; }
+	/**
+	 * Internal, for the NRD planner migration (docs/Nrd.md): 'wasm' (default) plans with the NRD runtime,
+	 * 'ts' with its TypeScript port, 'both' renders with wasm and reports frames where the port differs.
+	 * Applies to the next setNrd(true, ...).
+	 */
+	nrdPlanner: NrdPlannerKind = 'wasm';
 	private nrdRequest = 0;
 	private nrdActive = false;
 	private nrdError: string | null = null;
@@ -421,8 +427,10 @@ export class Renderer {
 			const { NrdDenoiser } = await import('./denoise/NrdDenoiser');
 			const reason = NrdDenoiser.unsupportedReason(this.device);
 			if (reason) throw new Error(`NRD is unsupported on this device: ${reason}`);
-			const nrd = this.nrds.get(mode) ?? await NrdDenoiser.create(this.device, mode);
+			const cached = this.nrds.get(mode);
+			const nrd = cached?.plannerKind === this.nrdPlanner ? cached : await NrdDenoiser.create(this.device, mode, this.nrdPlanner);
 			if (this.destroyed || request !== this.nrdRequest) { if (nrd !== this.nrds.get(mode)) nrd.destroy(); return false; }
+			if (cached && cached !== nrd) cached.destroy();
 			this.nrds.set(mode, nrd);
 			this.settings.nrdMode = mode;
 			this.settings.nrdEnabled = true;

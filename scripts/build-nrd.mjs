@@ -10,10 +10,12 @@
 import { spawnSync } from 'node:child_process';
 import { cpSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
-import { fileURLToPath, pathToFileURL } from 'node:url';
+import { fileURLToPath } from 'node:url';
 import { requireEmsdk } from './emsdk.mjs';
-import { ACCUMULATION_CLEAR_AND_RESTART, ACCUMULATION_CONTINUE, DENOISERS, DENOISING_RANGE, DESCRIPTOR_TEXTURE, PLAN_SCRATCH_BYTES, SHIFT,
-	createInstance, nrdVariantKey, planDispatches, resourceFormat } from '../src/render/denoise/NrdConfig.mjs';
+import { ACCUMULATION_CLEAR_AND_RESTART, ACCUMULATION_CONTINUE, DENOISERS, DENOISING_RANGE, DESCRIPTOR_TEXTURE, REBLUR_FLOATS, REBLUR_INTS, SHIFT,
+	nrdVariantKey, resourceFormat } from '../src/render/denoise/NrdConfig.mjs';
+// Run through vite-node (package.json build:nrd), which resolves the TypeScript planner.
+import { NrdPlanner } from '../src/render/denoise/nrd/Planner.ts';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const skipWasm = process.argv.includes('--skip-wasm');
@@ -157,20 +159,18 @@ if (skipWasm) {
 }
 
 // 3. Pipelines -> WGSL.
-const { default: createNRDModule } = await import(pathToFileURL(join(outDir, 'nrd.mjs')).href);
-const module = await createNRDModule();
 const slangc = findSlangc();
 checkSlangc();
 // Storage format combinations per shader (binding -> format), from the dispatches NrdDenoiser issues with
-// either format set. A pipeline can run on textures of different formats (Clear, for example).
+// either format set, planned by the TypeScript planner (equal to the wasm runtime's, tests/nrd). A pipeline can run on textures of different formats (Clear, for example).
 const variants = new Map(), undispatched = new Set();
 let resourcesSpace = null;
 for (const mode of Object.keys(DENOISERS)) {
-	const { context, desc } = createInstance(module, mode);
+	const planner = new NrdPlanner(DENOISERS[mode]), desc = planner.desc;
+	planner.setReblur(REBLUR_FLOATS, REBLUR_INTS);
 	if (resourcesSpace !== null && resourcesSpace !== desc.resourcesSpace) throw new Error('[build-nrd] resource spaces differ between modes');
 	resourcesSpace = desc.resourcesSpace;
-	const scratch = module._nrd_malloc(PLAN_SCRATCH_BYTES);
-	for (const dispatch of sweepDispatches(context, scratch)) {
+	for (const dispatch of sweepDispatches(planner)) {
 		const shader = desc.pipelines[dispatch.pipeline].shader;
 		if (!variants.has(shader)) variants.set(shader, new Map());
 		const storage = dispatch.resources.filter(resource => resource.descriptor !== DESCRIPTOR_TEXTURE);
@@ -180,8 +180,6 @@ for (const mode of Object.keys(DENOISERS)) {
 		}
 	}
 	for (const { shader } of desc.pipelines) if (!variants.has(shader)) undispatched.add(shader);
-	module._nrd_free(scratch);
-	module._nrd_destroy(context);
 }
 // With Veach's REBLUR settings, e.g. hit distance reconstruction, split screen and validation stay off.
 for (const shader of undispatched) console.log(`[build-nrd] ${shader}: never dispatched, not compiled`);
@@ -226,7 +224,7 @@ function compile(source, macros, entry, includes = [], nrd = true) {
 }
 
 // Topologies NrdDenoiser can reach: history resets, steady frames and a resize, at small resolutions.
-function sweepDispatches(context, scratch) {
+function sweepDispatches(planner) {
 	const identity = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1];
 	const viewToClip = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 1, 0, 0, -0.01, 0];
 	const matrices = [...viewToClip, ...viewToClip, ...identity, ...identity];
@@ -234,9 +232,9 @@ function sweepDispatches(context, scratch) {
 	const dispatches = [];
 	let previous = frames[0];
 	frames.forEach(([width, height, reset], frameIndex) => {
-		const params = [1 / width, 1 / height, 0, 0, 0, 0, 0, DENOISING_RANGE, 0.01, 1, 0];
+		const params = [1 / width, 1 / height, 0, 0, 0, 0, 0, DENOISING_RANGE, 0.01, 1, 16.66];
 		const ints = [width, height, previous[0], previous[1], frameIndex, reset ? ACCUMULATION_CLEAR_AND_RESTART : ACCUMULATION_CONTINUE, 0];
-		dispatches.push(...planDispatches(module, context, scratch, matrices, params, ints));
+		dispatches.push(...planner.plan(matrices, params, ints));
 		previous = [width, height];
 	});
 	return dispatches;

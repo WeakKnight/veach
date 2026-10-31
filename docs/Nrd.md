@@ -156,9 +156,33 @@ Settings: `nrdEnabled` and `nrdMode` (via `setNrd`), `nrdReJitter` (SH, presenta
 log2 mapped to [0, 1], R diffuse, G specular, gray = unchanged). REBLUR settings are NRD defaults with `maxAccumulatedFrameNum = 30`,
 `maxFastAccumulatedFrameNum = 6`, `maxStabilizedFrameNum = 63`, anti-firefly on.
 
+## Dispatch planner (TypeScript migration)
+
+NRD's CPU side (instance description, per-frame dispatches, constant buffers) is being moved from the
+WebAssembly runtime into TypeScript, without changing behavior. `src/render/denoise/nrd/` ports exactly
+what Veach uses: `Instance.ts` (InstanceImpl::Create and the three REBLUR denoiser definitions, in call
+order), `Planner.ts` (SetCommonSettings, GetComputeDispatches, Update_Reblur, AddSharedConstants_Reblur,
+NRD's wall-clock timer) and `Math32.ts` (the MathLib float32 operations as the wasm build computes them:
+Emscripten's exact rcp/rsqrt plus MathLib's Newton-Raphson step, FMA emulated as multiply then add,
+`_mm_dp_ps` summation order, signed zeros, every operation rounded with `Math.fround`). Settings Veach
+never sets keep NRD's defaults; unported denoisers throw. The DiffuseSh pass names keep upstream's literal
+`DENOISER_NAME` prefix (its header does not define the macro).
+
+`Planners.ts` selects the planner: `Renderer.nrdPlanner` (internal; viewer `?nrdPlanner=`, `nrd-check
+--planner`) is `'wasm'` (default), `'ts'`, or `'both'`, which renders with wasm, gives the TypeScript timer
+the `Date.now` values the wasm timer read, and reports any frame whose dispatches or constant words differ
+as a console error (one ulp is allowed for the cosf/sinf rotators). `build:nrd` runs through vite-node
+and sweeps formats with the TypeScript planner; the wasm runtime is still built as the reference.
+
+Tests (`tests/nrd`) drive scripted frame sequences through NrdDenoiser's reset and frame-index logic
+(steady, motion, resets, resize, 1080p, frame index past 2^32) with a fixed time delta, and the timer
+path with a scripted clock. The TypeScript description, dispatches and every constant word equal the
+wasm runtime's in both modes, bit for bit (the rotator allowance is unused). Invalid common settings are
+rejected by both; the wasm build aborts on NRD's asserts, the TypeScript planner throws.
+
 ## Validation
 
-`npm run check:nrd` (headless Chrome, `.tools/nrd/`): helmet (HDR and low sun), metal/rough spheres,
+`npm run check:nrd` (headless Chrome, `.tools/nrd/`; `-- --planner ts|both` for the planner migration): helmet (HDR and low sun), metal/rough spheres,
 alpha blend modes and transmission, plus the megakernel fallback. For each it checks both modes' state
 (SH 14, radiance 7 REBLUR dispatches per frame), that the noisy split recomposes the raw radiance (max
 relative error about 2e-7), finite output and no GPU/console errors, captures a GPU profile, and saves
