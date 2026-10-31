@@ -28,12 +28,22 @@ float DiffuseOnlyPdf(float3 n, float3 wi)
 	return max(dot(n, wi), 0.0) * INV_PI;
 }
 
-// Next event estimation at a diffuse-only vertex: the diffuse part, with MIS against the cosine
-// continuation of SampleDiffuseOnly.
-void DiffuseOnlyLight(float3 n, float3 wi, inout DiffuseSpecular f, inout float pdf)
+// Next event estimation at a diffuse-only vertex, with MIS against the cosine continuation of
+// SampleDiffuseOnly. The sun and analytic lights keep their specular part: they are neither in the
+// environment map nor in the screen-space color, so SSSR cannot reflect them. Other lights keep the
+// diffuse part only; SSSR provides their reflections.
+void DiffuseOnlyLight(float3 n, float3 wi, bool analytic, inout DiffuseSpecular f, inout float pdf)
 {
-	f.specular = float3(0.0);
+	if (!analytic) f.specular = float3(0.0);
 	pdf = DiffuseOnlyPdf(n, wi);
+}
+
+// The cosine continuation cannot sample the specular part, so only the diffuse part takes the MIS
+// weight; the specular part is the light sample alone (weight 1). Folds the weight into f.
+void DiffuseOnlyLightWeight(inout float weight, inout DiffuseSpecular f)
+{
+	f.diffuse *= weight;
+	weight = 1.0;
 }
 
 // Continuation of a diffuse-only vertex: cosine hemisphere, weighted by the diffuse part of the BSDF

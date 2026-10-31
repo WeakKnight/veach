@@ -18,6 +18,7 @@ struct LightSample
 	float solidAnglePdf;
 	bool delta; // a point light without radius: no MIS
 	bool shadow; // false: the shadow ray is skipped
+	bool analytic; // the sun or an analytic light: not in the environment map or the scene geometry
 };
 
 // ---- environment ----
@@ -91,6 +92,7 @@ LightSample SampleEnvironment(inout RandomSequence rng)
 	s.position = float3(0.0);
 	s.delta = false;
 	s.shadow = true;
+	s.analytic = false;
 	float2 u = rng.Next2D();
 	float3 dir;
 	if ((gFrame.settings.z & FRAME_FLAG_ENV_IMPORTANCE) == 0u)
@@ -156,6 +158,7 @@ LightSample SampleSun(inout RandomSequence rng)
 	s.solidAnglePdf = 1.0 / gFrame.sunRadiance.w;
 	s.delta = false;
 	s.shadow = true;
+	s.analytic = true;
 	return s;
 }
 
@@ -260,6 +263,7 @@ LightSample SampleAnalytic(EmissiveTriangle light, float3 viewer, inout RandomSe
 	LightSample s;
 	s.delta = false;
 	s.shadow = true;
+	s.analytic = true;
 	s.radiance = float3(0.0);
 	s.solidAnglePdf = 0.0;
 	s.shadow = (AnalyticFlags(light) & LIGHT_NO_SHADOW) == 0u;
@@ -396,6 +400,7 @@ LightSample SampleEmissive(float3 viewer, float2 cone, inout RandomSequence rng)
 	LightSample s;
 	s.delta = false;
 	s.shadow = true;
+	s.analytic = false;
 	uint index = SelectLight(rng.Next());
 	EmissiveTriangle light = gLights[index];
 	if ((AnalyticFlags(light) & LIGHT_ANALYTIC) != 0u)
@@ -437,7 +442,7 @@ LightSample SampleEmissiveGeometry(float3 viewer, inout RandomSequence rng, out 
 	if ((AnalyticFlags(light) & LIGHT_ANALYTIC) != 0u) return SampleAnalytic(light, viewer, rng);
 	bary = SampleTriangle(rng.Next2D());
 	LightSample s;
-	s.delta = false; s.shadow = true;
+	s.delta = false; s.shadow = true; s.analytic = false;
 	s.position = light.p0.xyz * bary.x + light.p1.xyz * bary.y + light.p2.xyz * bary.z;
 	s.normal = light.n.xyz;
 	MaterialHeader material = LoadMaterialHeader(asuint(light.n.w));

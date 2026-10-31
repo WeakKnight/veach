@@ -1,7 +1,8 @@
 # NVIDIA NRD (REBLUR) for real-time frames
 
 Optional NVIDIA NRD 4.18 REBLUR denoising for the real-time path: wavefront integrator, one sample
-per pixel, TAA active (host frames or `settings.renderMode = 'realtime'`). It is off by default.
+per pixel, TAA active (host frames or `settings.renderMode = 'realtime'`). It is off by default, and
+SSSR frames (the realtime default, [Sssr.md](Sssr.md)) take precedence: set `settings.sssrEnabled = false` to use it.
 `renderer.setNrd(true, mode)` (viewer `?nrd=1&nrdMode=sh|radiance`, console `r.NRD.Enabled 1`,
 `r.NRD.Mode`) loads a lazy chunk with NRD's dispatch planner (TypeScript) and the generated WGSL.
 Progressive accumulation, OIDN and the megakernel are unchanged. Modes:

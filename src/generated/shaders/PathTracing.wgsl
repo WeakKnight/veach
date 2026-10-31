@@ -5725,6 +5725,7 @@ struct LightSample_0
      solidAnglePdf_0 : f32,
      delta_0 : bool,
      shadow_0 : bool,
+     analytic_0 : bool,
 };
 
 fn EnvironmentEnabled_0() -> bool
@@ -5829,6 +5830,7 @@ fn SampleEnvironment_0( rng_0 : ptr<function, RandomSequence_0>) -> LightSample_
     s_16.position_2 = vec3<f32>(0.0f);
     s_16.delta_0 = false;
     s_16.shadow_0 = true;
+    s_16.analytic_0 = false;
     var u_26 : vec2<f32> = RandomSequence_Next2D_0(&((*rng_0)));
     var dir_2 : vec3<f32>;
     if((((gFrame_0.settings_0.z) & (u32(4)))) == u32(0))
@@ -6104,6 +6106,7 @@ fn SampleAnalytic_0( light_3 : ptr<function, EmissiveTriangle_std430_0>,  viewer
 {
     var s_18 : LightSample_0;
     s_18.delta_0 = false;
+    s_18.analytic_0 = true;
     s_18.radiance_0 = vec3<f32>(0.0f);
     s_18.solidAnglePdf_0 = 0.0f;
     var _S292 : u32 = AnalyticFlags_0(&((*light_3)));
@@ -6243,6 +6246,7 @@ fn SampleEmissive_0( viewer_2 : vec3<f32>,  cone_0 : vec2<f32>,  rng_2 : ptr<fun
     var s_19 : LightSample_0;
     s_19.delta_0 = false;
     s_19.shadow_0 = true;
+    s_19.analytic_0 = false;
     var _S308 : f32 = RandomSequence_Next_1(&((*rng_2)));
     var _S309 : EmissiveTriangle_std430_0 = gLights_0[SelectLight_0(_S308)];
     var _S310 : u32 = AnalyticFlags_0(&(_S309));
@@ -6338,6 +6342,7 @@ fn SampleSun_0( rng_3 : ptr<function, RandomSequence_0>) -> LightSample_0
     s_20.solidAnglePdf_0 = 1.0f / gFrame_0.sunRadiance_0.w;
     s_20.delta_0 = false;
     s_20.shadow_0 = true;
+    s_20.analytic_0 = true;
     return s_20;
 }
 

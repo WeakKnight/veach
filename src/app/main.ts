@@ -83,8 +83,10 @@ async function main(): Promise<void> {
 	if (params.get('sharc') === '0') await renderer.setSharc(false);
 	// Realtime frames (TAA, one sample per frame) instead of progressive accumulation.
 	if (params.get('mode') === 'realtime') renderer.settings.renderMode = 'realtime';
-	if (params.get('nrd') === '1') { renderer.settings.renderMode = 'realtime'; await renderer.setNrd(true, params.get('nrdMode') === 'radiance' ? 'radiance' : 'sh'); }
+	if (params.get('nrd') === '1') { renderer.settings.renderMode = 'realtime'; renderer.settings.sssrEnabled = false; await renderer.setNrd(true, params.get('nrdMode') === 'radiance' ? 'radiance' : 'sh'); }
 	// Realtime diffuse ray traced lighting plus FidelityFX SSSR reflections.
+	// Realtime frames default to diffuse ray traced lighting plus FidelityFX SSSR reflections; sssr=0 keeps path-traced reflections.
+	if (params.get('sssr') === '0') renderer.settings.sssrEnabled = false;
 	if (params.get('sssr') === '1') { renderer.settings.renderMode = 'realtime'; await renderer.setSssr(true); }
 	if (params.has('sssrDebug')) renderer.settings.sssrDebug = Number(params.get('sssrDebug'));
 	if (params.has('nrdDebug')) renderer.settings.nrdDebug = Number(params.get('nrdDebug'));

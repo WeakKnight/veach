@@ -113,10 +113,11 @@ float3 NrdDiffuseFraction(DiffuseSpecular v)
 	return float3(total.x > 0.0 ? v.diffuse.x / total.x : 0.5, total.y > 0.0 ? v.diffuse.y / total.y : 0.5, total.z > 0.0 ? v.diffuse.z / total.z : 0.5);
 }
 // Shadow flags: bit 0 tests visibility, bit 1 marks a primary NRD vertex, bit 2 bypasses NRD
-// (sun: a single sample is nearly noise-free and REBLUR would soften its shadows), bits 3.. hold the diffuse fraction.
-uint ShadowFlags(bool shadow, bool primary, bool bypass, DiffuseSpecular eval)
+// (sun: a single sample is nearly noise-free and REBLUR would soften its shadows), bits 3..29 hold the diffuse
+// fraction, bit 30 marks the sun or an analytic light (realtime SSSR frames keep its specular, WavefrontRealtime.slang).
+uint ShadowFlags(bool shadow, bool primary, bool bypass, bool analytic, DiffuseSpecular eval)
 {
-	return uint(shadow) | (primary && NrdEnabled() ? 2u | (bypass ? 4u : 0u) | (NrdPackFraction(NrdDiffuseFraction(eval)) << 3u) : 0u);
+	return uint(shadow) | (primary && NrdEnabled() ? 2u | (bypass ? 4u : 0u) | (NrdPackFraction(NrdDiffuseFraction(eval)) << 3u) | (analytic ? 1u << 30u : 0u) : 0u);
 }
 // Per source split of visible primary direct light (unclamped): (diffuse, specular, bypass).
 void NrdSplitDirect(uint flags, float3 contribution, out float3 diffuse, out float3 specular, out float3 bypass)
@@ -125,6 +126,8 @@ void NrdSplitDirect(uint flags, float3 contribution, out float3 diffuse, out flo
 	diffuse = skip ? float3(0.0) : contribution * NrdUnpackFraction(flags >> 3u);
 	specular = skip ? float3(0.0) : contribution - diffuse;
 	bypass = skip ? contribution : float3(0.0);
+	// Realtime SSSR frames: SSSR replaces the specular signal, except direct specular of analytic lights.
+	if (DiffuseOnlyFrame() && (flags & (1u << 30u)) != 0u) { bypass += specular; specular = float3(0.0); }
 }
 void NrdAddDirect(uint base, uint flags, float3 contribution, float3 direction)
 {
@@ -445,14 +448,15 @@ void QueueDirectLighting<let SEPARATE_LIGHT : bool>(uint base, SurfaceInteractio
 		}
 		DiffuseSpecular eval; float pdf;
 		bsdf.EvalPdf(dir, eval, pdf);
-		if (diffuseOnly) DiffuseOnlyLight(normal, dir, eval, pdf);
+		if (diffuseOnly) DiffuseOnlyLight(normal, dir, ls.analytic, eval, pdf);
 		float3 f = eval.diffuse + eval.specular;
 		if (any(f > 0.0))
 		{
 			float weight = mis ? EvalMISRobust(ls.solidAnglePdf, pdf) : 1.0;
+			if (diffuseOnly) { DiffuseOnlyLightWeight(weight, eval); f = eval.diffuse + eval.specular; }
 			uint offset = 12u + source * 3u;
 			gAccum[Field(base, offset)] = float4(origin, maxDistance);
-			gAccum[Field(base, offset + 1u)] = float4(dir, asfloat(ShadowFlags(shadow, primary, source == 2u, eval)));
+			gAccum[Field(base, offset + 1u)] = float4(dir, asfloat(ShadowFlags(shadow, primary, source == 2u, ls.analytic, eval)));
 			gAccum[Field(base, offset + 2u)] = pendingLight ? float4(f, weight)
 				: float4(weight * ls.radiance * f / ls.solidAnglePdf, 0.0);
 			mask |= 1u << source;

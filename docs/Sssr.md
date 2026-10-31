@@ -1,11 +1,14 @@
 # Realtime reflections: FidelityFX SSSR
 
 Realtime rendering splits lighting between the path tracer and screen space: **diffuse ray traced
-lighting plus AMD FidelityFX Stochastic Screen Space Reflections (SSSR 1.5) for all specular
-reflection**, each with its own denoiser. Offline (progressive) rendering, OIDN and the megakernel
-are unchanged. SSSR is optional and off by default: `await renderer.setSssr(true)` (viewer `?sssr=1`,
-console `r.SSSR.Enabled 1`) loads a lazy chunk and applies to realtime wavefront frames with TAA
-(host frames or `settings.renderMode = 'realtime'`); it takes precedence over `settings.nrdEnabled`.
+lighting and analytic-light specular, plus AMD FidelityFX Stochastic Screen Space Reflections (SSSR 1.5)
+for reflections**, each with its own denoiser. Offline (progressive) rendering, OIDN and the megakernel
+are unchanged. SSSR is the realtime default (`settings.sssrEnabled = true`): the first realtime frame
+(host frames or `settings.renderMode = 'realtime'`) loads its lazy chunk, and until it is ready, or on
+devices without `subgroups` / `float32-filterable`, realtime frames keep path-traced reflections
+(`sssrStats.reason` reports the error). `setSssr(false)`, viewer `?sssr=0` or `r.SSSR.Enabled 0` turn
+it off. It applies to wavefront frames with TAA and takes precedence over `settings.nrdEnabled`.
+Reflection rays that miss the screen fall back to the sky / environment map.
 
 ```
 wavefront trace, diffuse only at the primary vertex (NRD split region)
@@ -27,8 +30,12 @@ without the denoiser. `settings.sssrRoughnessThreshold` is FidelityFX's `roughne
 `FRAME_FLAG_DIFFUSE_ONLY` is set only for SSSR frames. `shaders/Passes/WavefrontRealtime.slang`
 holds everything it changes; Wavefront.slang calls it at four points, all no-ops without the flag:
 
-- **Primary NEE** keeps the diffuse part of the BSDF (`eval.specular = 0`), with MIS against the
-  cosine pdf of the continuation, for every light source (the sun included; it stays in the bypass).
+- **Primary NEE** of the environment and emissive triangles keeps the diffuse part of the BSDF; SSSR
+  (screen-space hits, environment fallback) provides their reflections. The sun and analytic lights
+  (`LightSample.analytic`) keep the full BSDF: they are neither in the environment map nor in the
+  screen-space color, so their specular highlights are computed as direct lighting. Only the diffuse
+  part takes the MIS weight against the cosine continuation, which cannot sample the specular part
+  (weight 1). Shadow flag bit 30 marks these samples; their direct specular goes to the bypass, not NRD.
 - **Primary continuation** samples the cosine hemisphere around the shading normal, weighted by the
   diffuse part of `EvalPdf` (`f * |cos|`, coat and fuzz attenuation included). Later bounces keep the
   full BSDF: the diffuse lighting of the primary surface integrates all incident radiance.
@@ -111,8 +118,9 @@ interiors are lit indirectly, and the unoccluded environment fallback leaks ther
 
 - Screen space: reflections of off-screen or occluded geometry fall back to the unoccluded environment,
   which leaks light indoors (e.g. the upper side of a range hood reflecting the ceiling).
-- Specular highlights of lights come only from SSSR: emissive surfaces on screen reflect, but the sun
-  and analytic lights (not in the color buffer or the environment) produce no glossy highlights.
+- Emissive triangles reflect only through SSSR: off-screen emitters produce no glossy highlights.
+  Highlights of the sun and analytic lights are direct lighting; on near-mirror surfaces (no NEE below
+  `NEAR_SPECULAR_ALPHA`) they are missing, since the continuation does not sample the specular lobe.
 - One GGX lobe per pixel: coat, sheen and specular color are approximated by the base roughness and
   F0 = lerp(0.04, albedo, metalness). Transmission stays path traced and is not denoised by NRD.
 - The environment fallback is a box-filtered mip chain, not a GGX-prefiltered cubemap.

@@ -78,8 +78,9 @@ export interface RenderSettings {
 	/** 0 denoised, 1 noisy split (bypasses NRD), 2 diffuse, 3 specular, 4 guides, 5 re-jitter scale (SH). Presentation only. */
 	nrdDebug: number;
 	/**
-	 * Realtime wavefront frames: the path tracer provides diffuse lighting only (denoised by NRD REBLUR_DIFFUSE_SH)
-	 * and AMD FidelityFX SSSR all specular reflection; see setSssr(). Takes precedence over nrdEnabled.
+	 * Realtime wavefront frames: the path tracer provides diffuse lighting and analytic-light specular (diffuse
+	 * denoised by NRD REBLUR_DIFFUSE_SH) and AMD FidelityFX SSSR the reflections; default. Loads on the first
+	 * realtime frame (or setSssr()); takes precedence over nrdEnabled. Offline frames are unaffected.
 	 */
 	sssrEnabled: boolean;
 	/** SSSR view: 0 final, 1 reflections only, 2 color input (bypass + denoised diffuse), 3 camera reconstruction error, 4 raw intersection. Presentation only. */
@@ -140,7 +141,7 @@ export function defaultRenderSettings(): RenderSettings {
 		nrdMode: 'sh',
 		nrdReJitter: true,
 		nrdDebug: 0,
-		sssrEnabled: false,
+		sssrEnabled: true,
 		sssrDebug: 0,
 		sssrRoughnessThreshold: SSSR_DEFAULTS.roughnessThreshold,
 		maxBounces: 8,
@@ -299,6 +300,7 @@ export class Renderer {
 	private sssrRequest = 0;
 	private sssrActive = false;
 	private sssrError: string | null = null;
+	private sssrLoading: Promise<unknown> | null = null;
 	private temporalCamera: { position: Vec3; right: Vec3; up: Vec3; forward: Vec3 } | null = null;
 	private temporalFrame = 0;
 	private progressiveMode: boolean | null = null;
@@ -462,7 +464,8 @@ export class Renderer {
 			this.tracer.setNrd(true);
 			return true;
 		} catch (error) {
-			if (request === this.sssrRequest) { this.sssrError = String(error); this.settings.sssrEnabled = false; }
+			// Unsupported or failed: realtime frames keep path-traced reflections; sssrStats reports the error.
+			if (request === this.sssrRequest) this.sssrError = String(error);
 			throw error;
 		}
 	}
@@ -963,6 +966,11 @@ export class Renderer {
 		const s = this.settings, progressive = !frame && s.renderMode === 'offline';
 		if (this.progressiveMode !== progressive) { this.resetAccumulation(); this.taa.reset('mode-change'); this.progressiveMode = progressive; }
 		if (!progressive) { this.frameIndex = 0; this.temporalFrame++; }
+		// SSSR is the realtime default: load it on the first realtime frame. Until it is ready, and if the device
+		// cannot run it, frames keep path-traced reflections.
+		if (!progressive && s.sssrEnabled && !this.sssr && !this.sssrLoading && !this.sssrError) {
+			this.sssrLoading = this.setSssr(true).catch(() => undefined).finally(() => { this.sssrLoading = null; });
+		}
 		const taaReason = !s.taaEnabled ? 'disabled' : progressive ? 'offline' : s.debugMode !== DebugMode.None ? 'debug-view' : !frame && this.camera.lensRadius > 0 ? 'depth-of-field' : null;
 		this.taaActive = false;
 		if (taaReason) { this.taa.suspend(taaReason); if (!progressive || !this.denoisedBuffer) this.tracer.setPresentationBuffer(null); }

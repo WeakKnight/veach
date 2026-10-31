@@ -164,9 +164,12 @@ async function applyDenoiser() {
 	if (!renderer) return;
 	const value = denoiser.value;
 	try {
-		// Each mode loads once; switching back and forth keeps its resources.
-		if (value !== 'taa') await renderer.setNrd(true, value === 'radiance' ? 'radiance' : 'sh');
-		renderer.settings.nrdEnabled = value !== 'taa';
+		// Each mode loads once; switching back and forth keeps its resources. SSSR (the realtime default, diffuse
+		// ray traced lighting + FidelityFX reflections) takes precedence over NRD, so the other modes disable it.
+		const nrd = value !== 'taa' && value !== 'sssr';
+		if (nrd) await renderer.setNrd(true, value === 'radiance' ? 'radiance' : 'sh');
+		renderer.settings.sssrEnabled = value === 'sssr';
+		renderer.settings.nrdEnabled = nrd;
 		renderer.settings.nrdDebug = value === 'noisy' ? 1 : 0;
 	} catch (error) { denoiser.value = 'taa'; toast(`NRD UNAVAILABLE: ${String(error).replace(/^Error: /, '')}`); }
 }

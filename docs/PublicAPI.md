@@ -58,12 +58,14 @@ dispatches per frame and texture memory. `settings.nrdDebug` (presentation only)
 0 denoised, 1 noisy, 2 diffuse, 3 specular, 4 guides or 5 the re-jitter scale. NRD is NVIDIA-licensed, not MIT;
 see [Nrd.md](Nrd.md).
 
-## Realtime reflections: SSSR (optional)
+## Realtime reflections: SSSR (default)
 
-`await renderer.setSssr(true)` loads AMD FidelityFX SSSR and its own NRD `REBLUR_DIFFUSE_SH` instance
-(a lazy chunk); realtime wavefront frames then trace diffuse lighting only and take all specular
-reflection from SSSR, before TAA. `setSssr(false)` releases them; offline frames are unchanged. It
-takes precedence over `settings.nrdEnabled` and throws without `subgroups` or `float32-filterable`.
+`settings.sssrEnabled` (default true) makes realtime wavefront frames trace diffuse lighting and
+analytic-light specular only and take reflections from AMD FidelityFX SSSR, before TAA; the first
+realtime frame loads it with its own NRD `REBLUR_DIFFUSE_SH` instance (a lazy chunk), and until then
+or without `subgroups` / `float32-filterable` frames keep path-traced reflections. `await
+renderer.setSssr(true)` loads it explicitly (and throws when unsupported); `setSssr(false)` releases
+it. Offline frames are unchanged. It takes precedence over `settings.nrdEnabled`.
 `renderer.sssrStats` reports whether it ran and the fallback reason. `settings.sssrDebug`
 (presentation only): 0 final, 1 reflections, 2 color input, 3 camera reconstruction error, 4 raw
 intersection; `settings.sssrRoughnessThreshold` limits screen-space rays. See [Sssr.md](Sssr.md).
