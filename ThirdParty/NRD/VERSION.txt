@@ -1,2 +1,5 @@
 NRD 4.18.0 - https://github.com/NVIDIA-RTX/NRD @ 8f12a22fc90e6a3c7f5da4c9c3103633c842963a (v4.18.0-7)
-Copied: Include, Source, Shaders, Resources, LICENSE.txt, README.md (unmodified; scripts/build-nrd.mjs patches a staged copy).
+Copied: Include, Source, Shaders, Resources, LICENSE.txt, README.md; scripts/build-nrd.mjs patches a staged copy.
+Stripped: the RELAX denoiser (Shaders/RELAX_*, Source/Relax.cpp, Source/Denoisers/Relax_*.hpp, the RELAX
+entries of nrd::Denoiser, RelaxSettings, the RELAX front/back-end functions in NRD.hlsli, Shaders.cfg, and
+the README). nrd::ResourceType and the REBLUR, SIGMA and REFERENCE code are otherwise as upstream.

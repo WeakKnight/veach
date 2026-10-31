@@ -155,7 +155,6 @@ inline uint16_t AsUint(T x) {
 
 union Settings {
     ReblurSettings reblur;
-    RelaxSettings relax;
     SigmaSettings sigma;
     ReferenceSettings reference;
 };
@@ -224,16 +223,6 @@ public:
     void Update_Reblur(const DenoiserData& denoiserData);
     void Update_ReblurOcclusion(const DenoiserData& denoiserData);
     void AddSharedConstants_Reblur(const ReblurSettings& settings, void* data);
-
-    // Relax
-    void Add_RelaxDiffuse(DenoiserData& denoiserData);
-    void Add_RelaxDiffuseSh(DenoiserData& denoiserData);
-    void Add_RelaxSpecular(DenoiserData& denoiserData);
-    void Add_RelaxSpecularSh(DenoiserData& denoiserData);
-    void Add_RelaxDiffuseSpecular(DenoiserData& denoiserData);
-    void Add_RelaxDiffuseSpecularSh(DenoiserData& denoiserData);
-    void Update_Relax(const DenoiserData& denoiserData);
-    void AddSharedConstants_Relax(const RelaxSettings& settings, void* data);
 
     // Sigma
     void Add_SigmaShadow(DenoiserData& denoiserData);

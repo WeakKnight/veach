@@ -35,8 +35,8 @@ runtime code or data is embedded in JavaScript or WebAssembly.
 - Copyright (c) NVIDIA Corporation. This software contains source code provided by NVIDIA Corporation.
 - License: NVIDIA RTX SDKs License (`ThirdParty/NRD/LICENSE.txt`); not covered by Veach's MIT license.
   MathLib: MIT (`ThirdParty/MathLib/LICENSE.txt`).
-- Source: vendored unmodified in `ThirdParty/NRD` and `ThirdParty/MathLib` for team-internal use
-  (revisions in `VERSION.txt`).
+- Source: vendored in `ThirdParty/NRD` and `ThirdParty/MathLib` for team-internal use (revisions in
+  `VERSION.txt`); MathLib is unmodified, NRD has the unused RELAX denoiser removed.
 - Use: `src/render/denoise/nrd` is a TypeScript port of the NRD runtime's REBLUR dispatch planning, and
   `scripts/build-nrd.mjs` compiles NRD's REBLUR shaders into WGSL (`src/generated/nrd`); both load as a lazy
   chunk only when NRD is enabled. The runtime compiled to WebAssembly (`tests/generated/nrd`) is a test

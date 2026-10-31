@@ -23,9 +23,10 @@ wavefront trace (NRD split region) -> taa.motion -> nrd.prepare -> REBLUR
 
 ## Build
 
-`npm run build:nrd` compiles the vendored, unmodified NRD SDK and NVIDIA MathLib in `ThirdParty/NRD` and
-`ThirdParty/MathLib` (revisions in their `VERSION.txt`; to update, replace the copied directories from
-upstream). `NRD_SDK` and `NRD_MATHLIB` override them with other checkouts. Veach is team-internal for now:
+`npm run build:nrd` compiles the vendored NRD SDK and NVIDIA MathLib in `ThirdParty/NRD` and
+`ThirdParty/MathLib` (revisions in their `VERSION.txt`). The NRD copy is upstream with the unused RELAX
+denoiser stripped (VERSION.txt lists what); updating means replacing the copied directories and stripping
+RELAX again. The generated REBLUR WGSL is unaffected by the strip. `NRD_SDK` and `NRD_MATHLIB` override them with other checkouts. Veach is team-internal for now:
 the vendored source is meant to be replaced gradually by Veach's own denoiser before any release, which
 must then revisit the NVIDIA license. The build also needs emsdk (as `build:wasm`;
 `npm run build:nrd -- --skip-wasm` reuses the committed runtime) and a slangc that emits WGSL

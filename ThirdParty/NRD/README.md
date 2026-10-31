@@ -12,12 +12,9 @@ While NRD is not natively designed for volumetrics or transparency, the *[NRD sa
 
 *NRD* includes the following denoisers:
 - *REBLUR* - recurrent blur based denoiser
-- *RELAX* - A-trous based denoiser, has been designed for *[RTXDI (RTX Direct Illumination)](https://developer.nvidia.com/rtxdi)*
 - *SIGMA* - per-light shadow-only denoiser
 
 Supported signal types:
-- *RELAX*:
-  - Diffuse & specular radiance (+Spherical Harmonics "SH" variants, actually Spherical Gaussian "SG")
 - *REBLUR*:
   - Diffuse & specular radiance (+Spherical Harmonics "SH" variants, actually Spherical Gaussian "SG")
   - Diffuse (ambient) & specular occlusion ("OCCLUSION" variants)
@@ -29,8 +26,6 @@ Supported signal types:
 Performance on RTX 4080 @ 1440p (native) with the following settings - default denoiser settings, `NormalEncoding::R10_G10_B10_A2_UNORM`, `HitDistanceReconstructionMode::AREA_3X3` (common for probabilistic lobe selection at the primary/PSR hit):
 - *REBLUR_DIFFUSE_SPECULAR* - 2.55 ms (3.40 ms in "SH" mode)
   - `enableAntifirefly = true` - +0-2% overhead
-- *RELAX_DIFFUSE_SPECULAR* - 3.25 ms (4.80 ms in "SH" mode)
-  - `enableAntifirefly = true` - +7-10% overhead
 - *SIGMA_SHADOW* - 0.40 ms
 - *SIGMA_SHADOW_TRANSLUCENCY* - 0.45 ms
 
@@ -51,9 +46,9 @@ NRD is easy to use:
   - on each frame call `NewFrame`, `SetCommonSettings`, `SetDenoiserSettings` and `Denoise`
 - SHADER code - use [NRD.hlsli](https://github.com/NVIDIA-RTX/NRD/blob/master/Shaders/NRD.hlsli)
   - use `NRD_FrontEnd_Spec*` and `NRD_FrontEnd_TrimHitDistance` helpers in your path tracer (see [example](#integration))
-  - use `[RELAX/REBLUR/SIGMA]_FrontEnd_Pack*` and `REBLUR_FrontEnd_GetNormHitDist` functions in the shader code to pack data for [noisy inputs](#noisy-inputs)
+  - use `[REBLUR/SIGMA]_FrontEnd_Pack*` and `REBLUR_FrontEnd_GetNormHitDist` functions in the shader code to pack data for [noisy inputs](#noisy-inputs)
     - use `NRD_MaterialFactors` to convert noisy irradiance into radiance before "packing" data (remove materials)
-  - use `[RELAX/REBLUR/SIGMA]_BackEnd_Unpack*` functions from `NRD.hlsli` to unpack data from outputs
+  - use `[REBLUR/SIGMA]_BackEnd_Unpack*` functions from `NRD.hlsli` to unpack data from outputs
     - for "SH" denoisers apply SG/SH resolve and re-jittering (see [Interaction with upscalers](#interaction-with-upscaling-dlssfsrxesstaau))
     - use `NRD_MaterialFactors` to convert denoised radiance back to irradiance after "unpacking" data (add materials back)
 
@@ -393,31 +388,15 @@ float4 outSpec = 0.0;
 float4 outDiffSh = 0.0;
 float4 outSpecSh = 0.0;
 
-if (RELAX)
+if (SH)
 {
-    if (SH)
-    {
-        outDiff = RELAX_FrontEnd_PackSh( out.diffRadiance, out.diffHitDist, out.diffDirection, outDiffSh, USE_SANITIZATION );
-        outSpec = RELAX_FrontEnd_PackSh( out.specRadiance, out.specHitDist, out.specDirection, outSpecSh, USE_SANITIZATION );
-    }
-    else
-    {
-        outDiff = RELAX_FrontEnd_PackRadianceAndHitDist( out.diffRadiance, out.diffHitDist, USE_SANITIZATION );
-        outSpec = RELAX_FrontEnd_PackRadianceAndHitDist( out.specRadiance, out.specHitDist, USE_SANITIZATION );
-    }
+    outDiff = REBLUR_FrontEnd_PackSh( out.diffRadiance, out.diffHitDist, out.diffDirection, outDiffSh, USE_SANITIZATION );
+    outSpec = REBLUR_FrontEnd_PackSh( out.specRadiance, out.specHitDist, out.specDirection, outSpecSh, USE_SANITIZATION );
 }
 else
 {
-    if (SH)
-    {
-        outDiff = REBLUR_FrontEnd_PackSh( out.diffRadiance, out.diffHitDist, out.diffDirection, outDiffSh, USE_SANITIZATION );
-        outSpec = REBLUR_FrontEnd_PackSh( out.specRadiance, out.specHitDist, out.specDirection, outSpecSh, USE_SANITIZATION );
-    }
-    else
-    {
-        outDiff = REBLUR_FrontEnd_PackRadianceAndNormHitDist( out.diffRadiance, out.diffHitDist, USE_SANITIZATION );
-        outSpec = REBLUR_FrontEnd_PackRadianceAndNormHitDist( out.specRadiance, out.specHitDist, USE_SANITIZATION );
-    }
+    outDiff = REBLUR_FrontEnd_PackRadianceAndNormHitDist( out.diffRadiance, out.diffHitDist, USE_SANITIZATION );
+    outSpec = REBLUR_FrontEnd_PackRadianceAndNormHitDist( out.specRadiance, out.specHitDist, USE_SANITIZATION );
 }
 ```
 </details>
@@ -468,7 +447,7 @@ else
 
 * **IN\_DIFF/SPEC\_CONFIDENCE** - (optional, but highly recommended) confidence of the accumulated history represented in `[0; 1]` range
 
-  These inputs are optional and are used only if `CommonSettings::isHistoryConfidenceAvailable = true` and `NRD_SUPPORTS_HISTORY_CONFIDENCE = 1`. *REBLUR* and *RELAX* have embedded anti-lag techniques, but if properly computed, using confidence inputs is the best way to mitigate temporal lags. They are easy and cheap to compute. Moreover, separation into diffuse and specular confidence is not mandatory. Same "lighting" confidence may be used for both inputs. See this [section](#history-confidence) for more details.
+  These inputs are optional and are used only if `CommonSettings::isHistoryConfidenceAvailable = true` and `NRD_SUPPORTS_HISTORY_CONFIDENCE = 1`. *REBLUR* has embedded anti-lag techniques, but if properly computed, using confidence inputs is the best way to mitigate temporal lags. They are easy and cheap to compute. Moreover, separation into diffuse and specular confidence is not mandatory. Same "lighting" confidence may be used for both inputs. See this [section](#history-confidence) for more details.
 
 * **IN\_DISOCCLUSION\_THRESHOLD\_MIX** - (optional) disocclusion threshold selector in `[0; 1]` range
 
@@ -498,7 +477,7 @@ Radiance:
 - Radiance must be separated into diffuse and specular at primary hit (or secondary hit in case of *PSR*)
 - Direct emission from primary surfaces should be decoupled from incoming radiance to keep sharp emissive details (like text on in-game screens) from getting blurred
 
-Hit distance (*REBLUR* and *RELAX*):
+Hit distance (*REBLUR*):
 - NRD expects *in-lobe* `hitT`, i.e. `hitT` must represent the distance to a hit that resides within the specific *BRDF* lobe being denoised:
   - use [*cos-weighted*](https://github.com/NVIDIA-RTX/MathLib/blob/main/ml.hlsli#L2386) sampler for diffuse (Monte-Carlo filtering can be applied on top)
   - use [*VNDF v3*](https://github.com/NVIDIA-RTX/MathLib/blob/main/ml.hlsli#L2451) sampler for specular, which doesn't cast rays inside the surface (Monte-Carlo filtering can be applied on top)
@@ -540,7 +519,7 @@ Denoising is not a panacea or miracle. Denoising works best with ray tracing res
 
 ![Validation](Images/Validation.png)
 
-If `CommonSettings::enableValidation = true` *REBLUR* & *RELAX* denoisers render debug information into `OUT_VALIDATION` output. Alpha channel contains layer transparency to allow easy mix with the final image on the application side. The following viewport layout is used on the screen:
+If `CommonSettings::enableValidation = true` *REBLUR* denoisers render debug information into `OUT_VALIDATION` output. Alpha channel contains layer transparency to allow easy mix with the final image on the application side. The following viewport layout is used on the screen:
 
 | 0 | 1 | 2 | 3 |
 |---|---|---|---|
@@ -654,7 +633,7 @@ Implementation details:
 
 Two capabilities should be considered together:
 
-- *SH-mode* radiance denoising in *REBLUR* or *RELAX* adds overhead over the corresponding non-SH denoiser, but should be treated as a must-have when *NRD* produces a lower-resolution output. Its output enables an application-side *SG/SH resolve* at *full* render resolution against *full*-resolution guides, restoring detail and suppressing artifacts introduced by lower-resolution processing. See [`NRD.hlsli`](https://github.com/NVIDIA-RTX/NRD/blob/master/Shaders/NRD.hlsli) and [Interaction with upscaling](#interaction-with-upscaling-dlssfsrxesstaau)
+- *SH-mode* radiance denoising in *REBLUR* adds overhead over the corresponding non-SH denoiser, but should be treated as a must-have when *NRD* produces a lower-resolution output. Its output enables an application-side *SG/SH resolve* at *full* render resolution against *full*-resolution guides, restoring detail and suppressing artifacts introduced by lower-resolution processing. See [`NRD.hlsli`](https://github.com/NVIDIA-RTX/NRD/blob/master/Shaders/NRD.hlsli) and [Interaction with upscaling](#interaction-with-upscaling-dlssfsrxesstaau)
 - *Reduced-resolution and checkerboard processing* can substantially improve performance: *NRD* can process a smaller image, reconstruct checkerboarded inputs on the fly, or combine both
 
 In short, reduced-resolution and checkerboard modes trade image quality for performance; *SG/SH* resolve is the quality-recovery step that makes those savings practical.
@@ -787,7 +766,7 @@ Frame generation (*FG*) techniques boost perceived *FPS* by generating intermedi
 
 ![Confidence](Images/Confidence.jpg)
 
-User-provided history confidence inputs (`IN_DIFF_CONFIDENCE` and `IN_SPEC_CONFIDENCE`) are essential to preserve the responsiveness of the denoised output. An application should not rely solely on the anti-lag provided by *REBLUR/RELAX*. History confidence is easy and fast to compute (less than 5% of the frame time).
+User-provided history confidence inputs (`IN_DIFF_CONFIDENCE` and `IN_SPEC_CONFIDENCE`) are essential to preserve the responsiveness of the denoised output. An application should not rely solely on the anti-lag provided by *REBLUR*. History confidence is easy and fast to compute (less than 5% of the frame time).
 
 Brief overview:
 - history confidence is a value in range `[0; 1]`, where `0` means "history reset" and `1` means "full confidence / no acceleration"
@@ -802,13 +781,10 @@ Brief overview:
 - prefer spatial blurring of gradients over temporal accumulation, as the latter makes calculations lag behind for a few frames
   - 5 passes of 5x5 blur with incremented by `1` strides work better than A-trous, which loses density when used with custom weights
   - geometry and normal weights are needed
-- in the very last step, a "gradient" gets converted to "confidence" for NRD consumption. *REBLUR/RELAX* use confidence differently, which implies custom tuning for each denoiser, but in general *RELAX* expects smaller values
+- in the very last step, a "gradient" gets converted to "confidence" for NRD consumption. *REBLUR* uses confidence as follows
   - usage in *REBLUR*:
     - `historyLength *= lerp( confidence, 1, 1 / ( 1 + historyLength ) )`
     - new `historyLength` goes through *all passes and the feedback loop*, i.e. on the next frame the accumulation will continue from this point
-  - usage in *RELAX*:
-    - `historyLength = min( historyLength, maxAccumulatedFrameNum * confidence )`
-    - new `historyLength` is used *only in the "Temporal Accumulation" pass*, i.e. gets applied "here and now"
 
 Tips and tricks:
 - `0.5 / maxAccumulatedFrameNum` dithering may be applied to avoid banding in history length (visible in the validation layer)
@@ -839,7 +815,7 @@ Hair strands tangent vectors *can't* be used as "normals guide" for *NRD* due to
 
 ## COMBINED DENOISING OF DIRECT AND INDIRECT LIGHTING
 
-Denoising process is driven by hit distances (with the exception that *RELAX* uses hit distances only in the Pre-Pass and for specular tracking). Denoising of combined direct and indirect lighting implies mixing corresponding hit distances into one value for NRD. Here are some suggestions:
+Denoising process is driven by hit distances. Denoising of combined direct and indirect lighting implies mixing corresponding hit distances into one value for NRD. Here are some suggestions:
 
 1. For specular signal use indirect `hitT` for both direct and indirect lighting
 
@@ -877,7 +853,7 @@ float hitDist = lerp( indirectDiffuseHitDist, directDiffuseHitDist, directHitDis
 
 **[NRD]** Functions `NRD.hlsli/XXX_FrontEnd_PackRadianceAndHitDist` perform optional `NAN/INF` clearing of the input signal. There is a boolean to skip these checks.
 
-**[NRD]** All denoisers work with positive RGB inputs (some denoisers can change color space in *front end* functions). For better image quality, HDR color inputs need to be in a sane range [0; 250], because the internal pipeline uses FP16 and *RELAX* tracks second moments of the input signal, i.e. `x^2` must fit into FP16 range. If the color input is in a wider range, any form of non-aggressive color compression can be applied (linear scaling, pow-based or log-based methods). *REBLUR* supports wider HDR ranges, because it doesn't track second moments. Passing pre-exposured colors (i.e. `color * exposure`) is not recommended, because a significant momentary change in exposure is hard to react to in this case.
+**[NRD]** All denoisers work with positive RGB inputs (some denoisers can change color space in *front end* functions). For better image quality, HDR color inputs need to be in a sane range [0; 250], because the internal pipeline uses FP16. If the color input is in a wider range, any form of non-aggressive color compression can be applied (linear scaling, pow-based or log-based methods). *REBLUR* supports wider HDR ranges, because it doesn't track second moments. Passing pre-exposured colors (i.e. `color * exposure`) is not recommended, because a significant momentary change in exposure is hard to react to in this case.
 
 **[NRD]** *NRD* can track camera motion internally. For the first time pass all MVs set to 0 (you can use `CommonSettings::motionVectorScale = {0}` and `CommonSettings::motionVectorBias = {0}` for this) and set `CommonSettings::isMotionVectorInWorldSpace = true`, it will allow you to simplify the initial integration. Enable application-provided MVs after getting denoising working on static objects.
 
@@ -935,9 +911,7 @@ maxAccumulatedFrameNum > maxFastAccumulatedFrameNum > historyFixFrameNum
 
 **[REBLUR]** *REBLUR* expects hit distances in a normalized form. To avoid mismatching, `NRD.hlsli/REBLUR_FrontEnd_GetNormHitDist` must be used for normalization. Normalization parameters should be passed into *NRD* as `HitDistanceParameters` for internal hit distance denormalization. Some tweaking can be needed here, but in most cases default `HitDistanceParameters` works well. *REBLUR* outputs denoised normalized hit distance, which can be used by the application as ambient or specular occlusion (AO & SO) (see unpacking functions from `NRD.hlsli`).
 
-**[REBLUR/RELAX]** Antilag parameters need to be carefully tuned. Initial integration should be done with disabled antilag.
-
-**[RELAX]** *RELAX* works well with signals produced by *RTXDI* or very clean high RPP signals. The Sweet Home of *RELAX* is *RTXDI* sample.
+**[REBLUR]** Antilag parameters need to be carefully tuned. Initial integration should be done with disabled antilag.
 
 **[SIGMA]** Using "blue" noise helps to minimize shadow shimmering and flickering. It works best if the pattern has a limited number of animated frames (4-8) or it is static on the screen.
 
@@ -1017,12 +991,6 @@ The *Persistent* column (matches *NRD Permanent pool*) indicates how much of the
 |            |    REBLUR_DIFFUSE_SPECULAR_OCCLUSION |            59.44 |            42.38 |            17.06 |
 |            |           REBLUR_DIFFUSE_SPECULAR_SH |           232.50 |           122.62 |           109.88 |
 |            | REBLUR_DIFFUSE_DIRECTIONAL_OCCLUSION |            71.94 |            48.62 |            23.31 |
-|            |                        RELAX_DIFFUSE |            90.81 |            54.88 |            35.94 |
-|            |                     RELAX_DIFFUSE_SH |           158.31 |            88.62 |            69.69 |
-|            |                       RELAX_SPECULAR |           101.44 |            63.38 |            38.06 |
-|            |                    RELAX_SPECULAR_SH |           168.94 |            97.12 |            71.81 |
-|            |               RELAX_DIFFUSE_SPECULAR |           168.94 |            97.12 |            71.81 |
-|            |            RELAX_DIFFUSE_SPECULAR_SH |           303.94 |           164.62 |           139.31 |
 |            |                         SIGMA_SHADOW |            31.88 |             8.44 |            23.44 |
 |            |            SIGMA_SHADOW_TRANSLUCENCY |            50.81 |             8.44 |            42.38 |
 |            |                            REFERENCE |            33.75 |            33.75 |             0.00 |
@@ -1037,12 +1005,6 @@ The *Persistent* column (matches *NRD Permanent pool*) indicates how much of the
 |            |    REBLUR_DIFFUSE_SPECULAR_OCCLUSION |           105.06 |            75.00 |            30.06 |
 |            |           REBLUR_DIFFUSE_SPECULAR_SH |           412.56 |           217.50 |           195.06 |
 |            | REBLUR_DIFFUSE_DIRECTIONAL_OCCLUSION |           127.56 |            86.25 |            41.31 |
-|            |                        RELAX_DIFFUSE |           161.31 |            97.50 |            63.81 |
-|            |                     RELAX_DIFFUSE_SH |           281.31 |           157.50 |           123.81 |
-|            |                       RELAX_SPECULAR |           180.06 |           112.50 |            67.56 |
-|            |                    RELAX_SPECULAR_SH |           300.06 |           172.50 |           127.56 |
-|            |               RELAX_DIFFUSE_SPECULAR |           300.06 |           172.50 |           127.56 |
-|            |            RELAX_DIFFUSE_SPECULAR_SH |           540.06 |           292.50 |           247.56 |
 |            |                         SIGMA_SHADOW |            56.38 |            15.00 |            41.38 |
 |            |            SIGMA_SHADOW_TRANSLUCENCY |            90.12 |            15.00 |            75.12 |
 |            |                            REFERENCE |            60.00 |            60.00 |             0.00 |
@@ -1057,12 +1019,6 @@ The *Persistent* column (matches *NRD Permanent pool*) indicates how much of the
 |            |    REBLUR_DIFFUSE_SPECULAR_OCCLUSION |           223.31 |           159.44 |            63.88 |
 |            |           REBLUR_DIFFUSE_SPECULAR_SH |           876.62 |           462.19 |           414.44 |
 |            | REBLUR_DIFFUSE_DIRECTIONAL_OCCLUSION |           271.12 |           183.31 |            87.81 |
-|            |                        RELAX_DIFFUSE |           342.81 |           207.25 |           135.56 |
-|            |                     RELAX_DIFFUSE_SH |           597.81 |           334.75 |           263.06 |
-|            |                       RELAX_SPECULAR |           382.69 |           239.12 |           143.56 |
-|            |                    RELAX_SPECULAR_SH |           637.69 |           366.62 |           271.06 |
-|            |               RELAX_DIFFUSE_SPECULAR |           637.69 |           366.62 |           271.06 |
-|            |            RELAX_DIFFUSE_SPECULAR_SH |          1147.69 |           621.62 |           526.06 |
 |            |                         SIGMA_SHADOW |           119.94 |            31.88 |            88.06 |
 |            |            SIGMA_SHADOW_TRANSLUCENCY |           191.56 |            31.88 |           159.69 |
 |            |                            REFERENCE |           127.50 |           127.50 |             0.00 |

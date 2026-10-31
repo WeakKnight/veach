@@ -769,7 +769,6 @@ void NRD_MaterialFactors( float3 N, float3 V, float3 albedo, float3 Rf0, float r
 // NRD uses hit distances:
 // - to guide denoising
 //   - REBLUR: throughout the entire pipeline
-//   - RELAX: in the "Pre Pass" only
 // - to compute specular motion
 // To compute specular motion "Pre Pass" outputs "min hit distance in some area" to the "Temporal Accumulation" pass for further processing.
 // This information dosn't affect the original hit distances, which are needed for denoising guidance. This works as expected.
@@ -914,68 +913,6 @@ NRD_SG REBLUR_BackEnd_UnpackDirectionalOcclusion( float4 data )
     sg.normHitDist = data.w;
     sg.c1 = data.xyz;
     sg.sharpness = 0.0; // computed in resolve
-
-    return sg;
-}
-
-//=================================================================================================================================
-// RELAX
-//=================================================================================================================================
-
-// FRONT-END
-
-// X => IN_DIFF_RADIANCE_HITDIST
-// X => IN_SPEC_RADIANCE_HITDIST
-float4 RELAX_FrontEnd_PackRadianceAndHitDist( float3 radiance, float hitDist, bool sanitize )
-{
-    if( sanitize )
-    {
-        radiance = _NRD_IsInvalid( radiance ) ? float3( 0, 0, 0 ) : clamp( radiance, 0, NRD_FP16_MAX );
-        hitDist = _NRD_IsInvalid( hitDist ) ? 0 : clamp( hitDist, 0, NRD_FP16_MAX );
-    }
-
-    return float4( radiance, hitDist );
-}
-
-// X => IN_DIFF_SH0 and IN_DIFF_SH1
-// X => IN_SPEC_SH0 and IN_SPEC_SH1
-float4 RELAX_FrontEnd_PackSh( float3 radiance, float hitDist, float3 direction, out float4 out1, bool sanitize )
-{
-    if( sanitize )
-    {
-        radiance = _NRD_IsInvalid( radiance ) ? float3( 0, 0, 0 ) : clamp( radiance, 0, NRD_FP16_MAX );
-        hitDist = _NRD_IsInvalid( hitDist ) ? 0 : clamp( hitDist, 0, NRD_FP16_MAX );
-        direction = _NRD_IsInvalid( direction ) ? float3( 0, 0, 0 ) : clamp( direction, -1.0, 1.0 );
-    }
-
-    // IN_DIFF_SH0 / IN_SPEC_SH0
-    float4 out0 = float4( radiance, hitDist );
-
-    // IN_DIFF_SH1 / IN_SPEC_SH1
-    out1 = float4( direction * _NRD_Luminance( radiance ), 0 );
-
-    return out0;
-}
-
-// BACK-END
-
-// OUT_DIFF_RADIANCE_HITDIST => X
-// OUT_SPEC_RADIANCE_HITDIST => X
-float4 RELAX_BackEnd_UnpackRadiance( float4 color )
-{
-    return color;
-}
-
-// OUT_DIFF_SH0 and OUT_DIFF_SH1 => X
-// OUT_SPEC_SH0 and OUT_SPEC_SH1 => X
-NRD_SG RELAX_BackEnd_UnpackSh( float4 sh0, float3 sh1 )
-{
-    NRD_SG sg;
-    sg.c0 = sh0.x;
-    sg.chroma = sh0.yz;
-    sg.normHitDist = sh0.w;
-    sg.c1 = sh1;
-    sg.sharpness = 0.0;
 
     return sg;
 }

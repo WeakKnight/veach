@@ -70,7 +70,6 @@ namespace nrd
 
         // Radiance and hit distance (RGBA16f+)
         //      REBLUR: use "REBLUR_FrontEnd_PackRadianceAndNormHitDist" for encoding
-        //      RELAX: use "RELAX_FrontEnd_PackRadianceAndHitDist" for encoding
         IN_DIFF_RADIANCE_HITDIST,
         IN_SPEC_RADIANCE_HITDIST,
 
@@ -85,7 +84,6 @@ namespace nrd
 
         // SH data (2x RGBA16f+)
         //      REBLUR: use "REBLUR_FrontEnd_PackSh" for encoding
-        //      RELAX: use "RELAX_FrontEnd_PackSh" for encoding
         IN_DIFF_SH0,
         IN_DIFF_SH1,
         IN_SPEC_SH0,
@@ -109,7 +107,6 @@ namespace nrd
         // Radiance and normalized hit distance (occlusion) or history length
         //      REBLUR: use "REBLUR_BackEnd_UnpackRadianceAndNormHitDist" for decoding (R11G11B10f+)
         //          .w = diffuse or specular occlusion (default) or history length in frames if "ReblurSettings::returnHistoryLengthInsteadOfOcclusion = true"
-        //      RELAX: use "RELAX_BackEnd_UnpackRadiance" for decoding (R11G11B10f+)
         //          .w = diffuse history length in frames
         OUT_DIFF_RADIANCE_HITDIST,
         OUT_SPEC_RADIANCE_HITDIST,
@@ -117,7 +114,6 @@ namespace nrd
         // SH data
         //      REBLUR: use "REBLUR_BackEnd_UnpackSh" for decoding (2x RGBA16f+)
         //          .normHitDist = diffuse or specular occlusion (default) or history length in frames if "ReblurSettings::returnHistoryLengthInsteadOfOcclusion = true"
-        //      RELAX: use "RELAX_BackEnd_UnpackSh" for decoding (2x RGBA16f+)
         //          .normHitDist = diffuse history length in frames
         OUT_DIFF_SH0,
         OUT_DIFF_SH1,
@@ -139,7 +135,7 @@ namespace nrd
         // Denoised signal (R8+)
         OUT_SIGNAL,
 
-        // (Optional) REBLUR / RELAX debug layer (RGBA8+), .w = transparency
+        // (Optional) REBLUR debug layer (RGBA8+), .w = transparency
         // - required and accessed only if "CommonSettings::enableValidation = true"
         // - "mini" visualizations accumulate in place, therefore contents must be preserved between frames to be useful
         OUT_VALIDATION,
@@ -210,34 +206,6 @@ namespace nrd
         // INPUTS - IN_DIFF_DIRECTION_HITDIST (IN_DIFF_CONFIDENCE, IN_DISOCCLUSION_THRESHOLD_MIX)
         // OUTPUTS - OUT_DIFF_DIRECTION_HITDIST
         REBLUR_DIFFUSE_DIRECTIONAL_OCCLUSION,
-
-        //=============================================================================================================================
-        // RELAX
-        //=============================================================================================================================
-
-        // INPUTS - IN_DIFF_RADIANCE_HITDIST (IN_DIFF_CONFIDENCE, IN_DISOCCLUSION_THRESHOLD_MIX)
-        // OUTPUTS - OUT_DIFF_RADIANCE_HITDIST
-        RELAX_DIFFUSE,
-
-        // INPUTS - IN_DIFF_SH0, IN_DIFF_SH1 (IN_DIFF_CONFIDENCE, IN_DISOCCLUSION_THRESHOLD_MIX)
-        // OUTPUTS - OUT_DIFF_SH0, OUT_DIFF_SH1
-        RELAX_DIFFUSE_SH,
-
-        // INPUTS - IN_SPEC_RADIANCE_HITDIST (IN_SPEC_CONFIDENCE, IN_DISOCCLUSION_THRESHOLD_MIX)
-        // OUTPUTS - OUT_SPEC_RADIANCE_HITDIST
-        RELAX_SPECULAR,
-
-        // INPUTS - IN_SPEC_SH0, IN_SPEC_SH1 (IN_SPEC_CONFIDENCE, IN_DISOCCLUSION_THRESHOLD_MIX)
-        // OUTPUTS - OUT_SPEC_SH0, OUT_SPEC_SH1
-        RELAX_SPECULAR_SH,
-
-        // INPUTS - IN_DIFF_RADIANCE_HITDIST, IN_SPEC_RADIANCE_HITDIST (IN_DIFF_CONFIDENCE, IN_SPEC_CONFIDENCE, IN_DISOCCLUSION_THRESHOLD_MIX)
-        // OUTPUTS - OUT_DIFF_RADIANCE_HITDIST, OUT_SPEC_RADIANCE_HITDIST
-        RELAX_DIFFUSE_SPECULAR,
-
-        // INPUTS - IN_DIFF_SH0, IN_DIFF_SH1, IN_SPEC_SH0, IN_SPEC_SH1 (IN_DIFF_CONFIDENCE, IN_SPEC_CONFIDENCE, IN_DISOCCLUSION_THRESHOLD_MIX)
-        // OUTPUTS - OUT_DIFF_SH0, OUT_DIFF_SH1, OUT_SPEC_SH0, OUT_SPEC_SH1
-        RELAX_DIFFUSE_SPECULAR_SH,
 
         //=============================================================================================================================
         // SIGMA

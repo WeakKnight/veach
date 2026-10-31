@@ -203,7 +203,7 @@ namespace nrd
         // If "true" "IN_DISOCCLUSION_THRESHOLD_MIX" is available
         bool isDisocclusionThresholdMixAvailable = false;
 
-        // Enables REBLUR / RELAX debug overlay (see "ResourceType::OUT_VALIDATION")
+        // Enables REBLUR debug overlay (see "ResourceType::OUT_VALIDATION")
         bool enableValidation = false;
     };
 
@@ -296,7 +296,7 @@ namespace nrd
         uint32_t historyFixAlternatePixelStride = 14; // see "historyFixAlternatePixelStrideMaterialID"
 
         // [1; 3] - standard deviation scale of the color box for clamping slow "main" history to responsive "fast" history
-        // REBLUR clamps the spatially processed "main" history to the spatially unprocessed "fast" history. It implies using smaller variance scaling than in RELAX.
+        // REBLUR clamps the spatially processed "main" history to the spatially unprocessed "fast" history.
         // A bit smaller values (> 1) may be used with clean signals. The implementation will adjust this under the hood if spatial sampling is disabled
         float fastHistoryClampingSigmaScale = 2.0f; // 2 is old default, 1.5 works well even for dirty signals, 1.1 is a safe value for occlusion denoising
 
@@ -350,119 +350,6 @@ namespace nrd
         // Diffuse history length shows disocclusions, specular history length is more complex and includes accelerations of various kinds caused by specular tracking.
         // History length is measured in frames, it can be in "[0; maxAccumulatedFrameNum]" range
         bool returnHistoryLengthInsteadOfOcclusion = false;
-    };
-
-    //====================================================================================================================================================
-    // RELAX
-    //====================================================================================================================================================
-
-    const uint32_t RELAX_MAX_HISTORY_FRAME_NUM = 255;
-    const float RELAX_DEFAULT_ACCUMULATION_TIME = 0.5f; // sec
-
-    struct RelaxAntilagSettings
-    {
-        // [0; 1] - amount of history acceleration if history clamping happened in pixel
-        float accelerationAmount = 0.3f;
-
-        // (> 0) - history is being reset if delta between history and raw input is larger than spatial sigma + temporal sigma
-        float spatialSigmaScale = 4.5f;
-        float temporalSigmaScale = 0.5f;
-
-        // [0; 1] - amount of history reset, 0.0 - no reset, 1.0 - full reset
-        float resetAmount = 0.5f;
-    };
-
-    struct RelaxSettings
-    {
-        RelaxAntilagSettings antilagSettings = {};
-
-        // [0; RELAX_MAX_HISTORY_FRAME_NUM] - maximum number of linearly accumulated frames
-        // Always accumulate in "seconds" not in "frames", use "GetMaxAccumulatedFrameNum" for conversion
-        uint32_t diffuseMaxAccumulatedFrameNum = 30;
-        uint32_t specularMaxAccumulatedFrameNum = 30;
-
-        // [0; diffuseMaxAccumulatedFrameNum/specularMaxAccumulatedFrameNum) - maximum number of linearly accumulated frames for fast history
-        // Values ">= diffuseMaxAccumulatedFrameNum/specularMaxAccumulatedFrameNum" disable fast history
-        // Usually 5x-7x times shorter than the main history (casting more rays, using SHARC or other signal improving techniques help to accumulate less)
-        uint32_t diffuseMaxFastAccumulatedFrameNum = 6;
-        uint32_t specularMaxFastAccumulatedFrameNum = 6;
-
-        // [0; 3] - number of reconstructed frames after history reset (less than "maxFastAccumulatedFrameNum")
-        uint32_t historyFixFrameNum = 3;
-
-        // (> 0) - base stride between pixels in 5x5 history reconstruction kernel
-        uint32_t historyFixBasePixelStride = 14;
-        uint32_t historyFixAlternatePixelStride = 14; // see "historyFixAlternatePixelStrideMaterialID"
-
-        // (> 0) - normal edge stopper for history reconstruction pass
-        float historyFixEdgeStoppingNormalPower = 8.0f;
-
-        // [1; 3] - standard deviation scale of the color box for clamping slow "main" history to responsive "fast" history
-        float fastHistoryClampingSigmaScale = 2.0f;
-
-        // (pixels) - pre-accumulation spatial reuse pass blur radius (0 = disabled, must be used in case of probabilistic sampling)
-        float diffusePrepassBlurRadius = 30.0f;
-        float specularPrepassBlurRadius = 50.0f;
-
-        // (0; 0.2] - bigger values reduce sensitivity to shadows in spatial passes, smaller values are recommended for signals with relatively clean hit distance (like RTXDI/RESTIR)
-        float minHitDistanceWeight = 0.1f;
-
-        // (>= 0) - history length threshold below which spatial variance estimation will be executed
-        uint32_t spatialVarianceEstimationHistoryThreshold = 3;
-
-        // A-trous edge stopping luminance sensitivity
-        float diffusePhiLuminance = 2.0f;
-        float specularPhiLuminance = 1.0f;
-
-        // (normalized %) - base fraction of diffuse or specular lobe angle used to drive normal based rejection
-        float lobeAngleFraction = 0.5f;
-
-        // (normalized %) - base fraction of center roughness used to drive roughness based rejection
-        float roughnessFraction = 0.15f;
-
-        // (>= 0) - how much variance we inject to specular if reprojection confidence is low
-        float specularVarianceBoost = 0.0f;
-
-        // (degrees) - slack for the specular lobe angle used in normal based rejection of specular during A-Trous passes
-        float specularLobeAngleSlack = 0.15f;
-
-        // [2; 8] - number of iterations for A-Trous wavelet transform
-        uint32_t atrousIterationNum = 5;
-
-        // [0; 1] - A-trous edge stopping Luminance weight minimum
-        float diffuseMinLuminanceWeight = 0.0f;
-        float specularMinLuminanceWeight = 0.0f;
-
-        // (normalized %) - depth threshold for spatial passes
-        float depthThreshold = 0.003f;
-
-        // Confidence inputs can affect spatial blurs, relaxing some weights in areas with low confidence
-        float confidenceDrivenRelaxationMultiplier = 0.0f;
-        float confidenceDrivenLuminanceEdgeStoppingRelaxation = 0.0f;
-        float confidenceDrivenNormalEdgeStoppingRelaxation = 0.0f;
-
-        // How much we relax roughness based rejection for spatial filter in areas where specular reprojection is low
-        float luminanceEdgeStoppingRelaxation = 0.5f;
-        float normalEdgeStoppingRelaxation = 0.3f;
-
-        // How much we relax rejection for spatial filter based on roughness and view vector
-        float roughnessEdgeStoppingRelaxation = 1.0f;
-
-        // If not OFF and used for DIFFUSE_SPECULAR, defines diffuse orientation, specular orientation is the opposite. Used only if "NRD_SUPPORTS_CHECKERBOARD = 1"
-        CheckerboardMode checkerboardMode = CheckerboardMode::OFF;
-
-        // Must be used only in case of probabilistic sampling (not checkerboarding), when a pixel can be skipped and have "0" (invalid) hit distance
-        HitDistanceReconstructionMode hitDistanceReconstructionMode = HitDistanceReconstructionMode::OFF;
-
-        // (Optional) material ID comparison: max(m0, minMaterial) == max(m1, minMaterial) (requires "NormalEncoding::R10_G10_B10_A2_UNORM")
-        float minMaterialForDiffuse = 4.0f;
-        float minMaterialForSpecular = 4.0f;
-
-        // Firefly suppression
-        bool enableAntiFirefly = false;
-
-        // Roughness based rejection
-        bool enableRoughnessEdgeStopping = true;
     };
 
     //====================================================================================================================================================

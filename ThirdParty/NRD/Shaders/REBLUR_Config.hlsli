@@ -23,7 +23,7 @@ license agreement from NVIDIA CORPORATION is strictly prohibited.
 
 // TODO: better add a generic CMake option, like:
 //      option(NRD_OWNS_PREV_GBUFFER "NRD copies and stores 'IN_VIEWZ' and 'IN_NORMAL_ROUGHNESS' for the next frame, otherwise previous data must be fed via 'IN_PREV_VIEWZ' and 'IN_PREV_NORMAL_ROUGHNESS' inputs" ON)
-// but currently the implementation would require a lot of changes in RELAX, so keep this one hidden and undocumented
+// but keep this one hidden and undocumented for now
 #ifndef REBLUR_COPY_GBUFFER
     #define REBLUR_COPY_GBUFFER                                 1 // doesn't affect C++ code
 #endif

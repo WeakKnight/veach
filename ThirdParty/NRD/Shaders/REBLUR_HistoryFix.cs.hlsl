@@ -96,7 +96,7 @@ NRD_EXPORT void NRD_CS_MAIN( NRD_CS_MAIN_ARGS )
     float invHistoryFixFrameNum = 1.0 / max( gHistoryFixFrameNum, NRD_EPS );
     float2 frameNumAvgNorm = saturate( frameNum * invHistoryFixFrameNum );
 
-    stride /= 1.0 + 1.0; // to match RELAX, where "frameNum" after "TemporalAccumulation" is "1", not "0"
+    stride /= 1.0 + 1.0; // "frameNum" after "TemporalAccumulation" is "1", not "0"
     stride *= 2.0 / REBLUR_HISTORY_FIX_FILTER_RADIUS; // preserve blur radius in pixels ( default blur radius is 2 taps )
     stride *= materialID == gHistoryFixAlternatePixelStrideMaterialID ? gHistoryFixAlternatePixelStride : gHistoryFixBasePixelStride;
 

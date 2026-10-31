@@ -140,18 +140,6 @@ nrd::Result nrd::InstanceImpl::Create(const InstanceCreationDesc& instanceCreati
             Add_ReblurDiffuseSpecularSh(denoiserData);
         else if (denoiserDesc.denoiser == Denoiser::REBLUR_DIFFUSE_DIRECTIONAL_OCCLUSION)
             Add_ReblurDiffuseDirectionalOcclusion(denoiserData);
-        else if (denoiserDesc.denoiser == Denoiser::RELAX_DIFFUSE)
-            Add_RelaxDiffuse(denoiserData);
-        else if (denoiserDesc.denoiser == Denoiser::RELAX_DIFFUSE_SH)
-            Add_RelaxDiffuseSh(denoiserData);
-        else if (denoiserDesc.denoiser == Denoiser::RELAX_SPECULAR)
-            Add_RelaxSpecular(denoiserData);
-        else if (denoiserDesc.denoiser == Denoiser::RELAX_SPECULAR_SH)
-            Add_RelaxSpecularSh(denoiserData);
-        else if (denoiserDesc.denoiser == Denoiser::RELAX_DIFFUSE_SPECULAR)
-            Add_RelaxDiffuseSpecular(denoiserData);
-        else if (denoiserDesc.denoiser == Denoiser::RELAX_DIFFUSE_SPECULAR_SH)
-            Add_RelaxDiffuseSpecularSh(denoiserData);
         else if (denoiserDesc.denoiser == Denoiser::SIGMA_SHADOW)
             Add_SigmaShadow(denoiserData);
         else if (denoiserDesc.denoiser == Denoiser::SIGMA_SHADOW_TRANSLUCENCY)
@@ -488,10 +476,6 @@ nrd::Result nrd::InstanceImpl::SetDenoiserSettings(Identifier identifier, const 
                 const ReblurSettings& settings = *(ReblurSettings*)denoiserSettings;
                 enableAntiFirefly = settings.enableAntiFirefly;
                 checkerboardMode = settings.checkerboardMode;
-            } else if ((uint32_t)denoiserData.desc.denoiser <= (uint32_t)Denoiser::RELAX_DIFFUSE_SPECULAR_SH) {
-                const RelaxSettings& settings = *(RelaxSettings*)denoiserSettings;
-                enableAntiFirefly = settings.enableAntiFirefly;
-                checkerboardMode = settings.checkerboardMode;
             } else if (denoiserData.desc.denoiser == Denoiser::SIGMA_SHADOW || denoiserData.desc.denoiser == Denoiser::SIGMA_SHADOW_TRANSLUCENCY) {
                 const SigmaSettings& settings = *(SigmaSettings*)denoiserSettings;
                 checkerboardMode = settings.checkerboardMode;
@@ -560,8 +544,6 @@ nrd::Result nrd::InstanceImpl::GetComputeDispatches(const Identifier* identifier
             Update_Reblur(denoiserData);
         else if (denoiserData.desc.denoiser == Denoiser::REBLUR_DIFFUSE_OCCLUSION || denoiserData.desc.denoiser == Denoiser::REBLUR_SPECULAR_OCCLUSION || denoiserData.desc.denoiser == Denoiser::REBLUR_DIFFUSE_SPECULAR_OCCLUSION)
             Update_ReblurOcclusion(denoiserData);
-        else if (denoiserData.desc.denoiser == Denoiser::RELAX_DIFFUSE || denoiserData.desc.denoiser == Denoiser::RELAX_DIFFUSE_SH || denoiserData.desc.denoiser == Denoiser::RELAX_SPECULAR || denoiserData.desc.denoiser == Denoiser::RELAX_SPECULAR_SH || denoiserData.desc.denoiser == Denoiser::RELAX_DIFFUSE_SPECULAR || denoiserData.desc.denoiser == Denoiser::RELAX_DIFFUSE_SPECULAR_SH)
-            Update_Relax(denoiserData);
         else if (denoiserData.desc.denoiser == Denoiser::SIGMA_SHADOW || denoiserData.desc.denoiser == Denoiser::SIGMA_SHADOW_TRANSLUCENCY)
             Update_SigmaShadow(denoiserData);
         else if (denoiserData.desc.denoiser == Denoiser::REFERENCE)
