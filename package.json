@@ -58,6 +58,7 @@
     "build:shaders": "node scripts/build-shaders.mjs",
     "build:wasm": "node scripts/build-wasm.mjs",
     "build:nrd": "vite-node scripts/build-nrd.mjs",
+    "build:sssr": "node scripts/build-sssr.mjs",
     "check:nrd": "node scripts/nrd-check.mjs",
     "dev:nrd": "vite --config examples/nrd/vite.config.ts",
     "build:bsdf-tables": "node scripts/build-bsdf-tables.mjs",
