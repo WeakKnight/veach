@@ -351,42 +351,4 @@ namespace nrd
         // History length is measured in frames, it can be in "[0; maxAccumulatedFrameNum]" range
         bool returnHistoryLengthInsteadOfOcclusion = false;
     };
-
-    //====================================================================================================================================================
-    // SIGMA
-    //====================================================================================================================================================
-
-    const uint32_t SIGMA_MAX_HISTORY_FRAME_NUM = 7;
-    const float SIGMA_DEFAULT_ACCUMULATION_TIME = 0.084f; // sec
-
-    struct SigmaSettings
-    {
-        // Direction to the light source
-        // IMPORTANT: it is needed only for directional light sources (sun)
-        float lightDirection[3] = {0.0f, 0.0f, 0.0f};
-
-        // (normalized %) - represents maximum allowed deviation from the local tangent plane
-        float planeDistanceSensitivity = 0.02f;
-
-        // [0; SIGMA_MAX_HISTORY_FRAME_NUM] - maximum number of linearly accumulated frames
-        // 0 - disables the stabilization pass
-        // Always accumulate in "seconds" not in "frames", use "GetMaxAccumulatedFrameNum" for conversion
-        uint32_t maxStabilizedFrameNum = 5;
-
-        // Defines the orientation of valid input samples. Used only if "NRD_SUPPORTS_CHECKERBOARD = 1"
-        CheckerboardMode checkerboardMode = CheckerboardMode::OFF;
-    };
-
-    //====================================================================================================================================================
-    // REFERENCE
-    //====================================================================================================================================================
-
-    const uint32_t REFERENCE_MAX_HISTORY_FRAME_NUM = 4095;
-    const float REFERENCE_DEFAULT_ACCUMULATION_TIME = 2.0f; // sec
-
-    struct ReferenceSettings
-    {
-        // (>= 0) - maximum number of linearly accumulated frames
-        uint32_t maxAccumulatedFrameNum = 120;
-    };
 }

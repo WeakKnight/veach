@@ -4,7 +4,7 @@
 //   2. Every pipeline the planner dispatches for REBLUR_DIFFUSE_SPECULAR(_SH) -> WGSL (slangc), one variant per
 //      combination of bound storage formats (texture-formats-tier1 and core WebGPU pools)
 //   3. Veach's NRD front/back-end passes (shaders/Nrd) -> NrdPasses.wgsl
-// NRD and MathLib come from ThirdParty/NRD (upstream without RELAX) and ThirdParty/MathLib (see VERSION.txt);
+// NRD and MathLib come from ThirdParty/NRD (upstream reduced to REBLUR) and ThirdParty/MathLib (see VERSION.txt);
 // NRD_SDK / NRD_MATHLIB override them with other checkouts. Staged, patched copies go to .tools/nrd/build.
 // slangc must emit WGSL texture-formats-tier1 storage formats (shader-slang/slang#13778): SLANGC, else tools/slang.
 // --skip-wasm keeps the committed reference runtime (tests/generated/nrd) and needs no emsdk.
@@ -135,7 +135,7 @@ const defines = [
 	`-DSPIRV_SREG_OFFSET=${SHIFTS.s}`, `-DSPIRV_BREG_OFFSET=${SHIFTS.b}`, `-DSPIRV_UREG_OFFSET=${SHIFTS.u}`, `-DSPIRV_TREG_OFFSET=${SHIFTS.t}`,
 	'-DNRD_API=extern "C"',
 ];
-const sources = ['InstanceImpl.cpp', 'Reblur.cpp', 'Sigma.cpp', 'Reference.cpp', 'Wrapper.cpp', 'Timer.cpp'].map(f => join(stage, 'Source', f));
+const sources = ['InstanceImpl.cpp', 'Reblur.cpp', 'Wrapper.cpp', 'Timer.cpp'].map(f => join(stage, 'Source', f));
 const exported = ['nrd_version', 'nrd_create', 'nrd_destroy', 'nrd_instance_desc', 'nrd_set_common', 'nrd_set_reblur', 'nrd_dispatches', 'nrd_malloc', 'nrd_free'];
 const emArgs = [
 	join(root, 'wasm', 'nrd_wasm.cpp'), ...sources,

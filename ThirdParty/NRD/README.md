@@ -12,22 +12,16 @@ While NRD is not natively designed for volumetrics or transparency, the *[NRD sa
 
 *NRD* includes the following denoisers:
 - *REBLUR* - recurrent blur based denoiser
-- *SIGMA* - per-light shadow-only denoiser
 
 Supported signal types:
 - *REBLUR*:
   - Diffuse & specular radiance (+Spherical Harmonics "SH" variants, actually Spherical Gaussian "SG")
   - Diffuse (ambient) & specular occlusion ("OCCLUSION" variants)
   - Diffuse (ambient) directional occlusion ("DIRECTIONAL_OCCLUSION" variant)
-- *SIGMA*:
-  - Shadows from an infinite light source (sun, moon) or a local light source (omni, spot)
-  - Shadows with translucency
 
 Performance on RTX 4080 @ 1440p (native) with the following settings - default denoiser settings, `NormalEncoding::R10_G10_B10_A2_UNORM`, `HitDistanceReconstructionMode::AREA_3X3` (common for probabilistic lobe selection at the primary/PSR hit):
 - *REBLUR_DIFFUSE_SPECULAR* - 2.55 ms (3.40 ms in "SH" mode)
   - `enableAntifirefly = true` - +0-2% overhead
-- *SIGMA_SHADOW* - 0.40 ms
-- *SIGMA_SHADOW_TRANSLUCENCY* - 0.45 ms
 
 Memory usage:
 - see [table](#memory-usage)
@@ -46,9 +40,9 @@ NRD is easy to use:
   - on each frame call `NewFrame`, `SetCommonSettings`, `SetDenoiserSettings` and `Denoise`
 - SHADER code - use [NRD.hlsli](https://github.com/NVIDIA-RTX/NRD/blob/master/Shaders/NRD.hlsli)
   - use `NRD_FrontEnd_Spec*` and `NRD_FrontEnd_TrimHitDistance` helpers in your path tracer (see [example](#integration))
-  - use `[REBLUR/SIGMA]_FrontEnd_Pack*` and `REBLUR_FrontEnd_GetNormHitDist` functions in the shader code to pack data for [noisy inputs](#noisy-inputs)
+  - use `REBLUR_FrontEnd_Pack*` and `REBLUR_FrontEnd_GetNormHitDist` functions in the shader code to pack data for [noisy inputs](#noisy-inputs)
     - use `NRD_MaterialFactors` to convert noisy irradiance into radiance before "packing" data (remove materials)
-  - use `[REBLUR/SIGMA]_BackEnd_Unpack*` functions from `NRD.hlsli` to unpack data from outputs
+  - use `REBLUR_BackEnd_Unpack*` functions from `NRD.hlsli` to unpack data from outputs
     - for "SH" denoisers apply SG/SH resolve and re-jittering (see [Interaction with upscalers](#interaction-with-upscaling-dlssfsrxesstaau))
     - use `NRD_MaterialFactors` to convert denoised radiance back to irradiance after "unpacking" data (add materials back)
 
@@ -472,7 +466,7 @@ See `NRDDescs.h` and `NRD.hlsli` for more details and descriptions of other inpu
 NRD sample is a good start to familiarize yourself with input requirements and best practices, but main requirements can be summarized to:
 
 Radiance:
-- Since *NRD* denoisers accumulate signals for a limited number of frames, the input signal must converge *reasonably* well for this number of frames. `REFERENCE` denoiser can be used to estimate temporal signal quality
+- Since *NRD* denoisers accumulate signals for a limited number of frames, the input signal must converge *reasonably* well for this number of frames.
 - Since *NRD* denoisers process signals spatially, high-energy fireflies in the input signal should be avoided. Some of them can be removed by enabling anti-firefly filter in *NRD*, but it will only work if the "background" signal is confident. The worst case is having a single pixel with a high energy divided by a very small PDF to represent the lack of energy in neighboring non-representative (black) pixels. Probabilistic diffuse / specular split for the 1st bounce requires special treatment described in `HitDistanceReconstructionMode`. In case of probabilistic split for 2nd+ bounces, it's still recommended to clamp diffuse / specular probabilities to a sane range to avoid division by a very small value, leading to a high energy firefly, difficult to get rid of in a short amount of time. Energy increase should not be more than 20x-30x, what corresponds to around `0.05` min probability. `0` and `1` probabilities are absolutely acceptable (for example, metals don't have diffuse component)
 - Radiance must be separated into diffuse and specular at primary hit (or secondary hit in case of *PSR*)
 - Direct emission from primary surfaces should be decoupled from incoming radiance to keep sharp emissive details (like text on in-game screens) from getting blurred
@@ -499,15 +493,6 @@ Hit distance (*REBLUR*):
 - for *REBLUR* hits distance must be normalized using `NRD.hlsli/REBLUR_FrontEnd_GetNormHitDist`
 - when using advanced sampling techniques (like *RIS*, *MIS*, *RESTIR*) `hitT` of a chosen sample cannot be simply passed to *NRD*, because these methods often pick a single ray (e.g., to a specific light source) to represent multiple potential reflections. This `hitT` must be probabilistically "filtered" (accepted or rejected) "through the lens" of the actual BRDF lobes. It may be done using *BRDF terms* and *PDF*. If such `hitT` is rejected, *in-lobe* hit distance must be used as the fallback
 - always ignore `0 hitT` produced by *RESTIR* in disocclusions
-
-Distance to occluder (*SIGMA*):
-- visibility ray must be cast from the point of interest to a light source ( i.e. *not* from a light source )
-- `ACCEPT_FIRST_HIT_AND_END_SEARCH` ray flag can't be used to optimize tracing, because it can lead to wrong potentially very long hit distances from random distant occluders
-- `hit` means "occluder is hit"
-- `miss` means "light is hit"
-- `NoL <= 0` - 0 (it's very important!)
-- `NoL > 0, hit` - hit distance
-- `NoL > 0, miss` - >= NRD_FP16_MAX
 
 See `NRDDescs.h` and `NRD.hlsli` for more details and descriptions of other inputs and outputs.
 
@@ -571,7 +556,7 @@ Use `NRD.hlsli/NRD_MaterialFactors` helper to compute material demodulation fact
 
 *NRD* is designed to handle "white" noise as the baseline. To suppress residual boiling with "white" noise, *NRD* history length can be bumped up to 60 frames relatively safely, if [History Confidence](#history-confidence) is provided.
 
-However, using "blue" noise can improve results by ensuring high-frequency error that is easier for spatial kernels to resolve. The only exception is *SIGMA* which works better with "blue" noise.
+However, using "blue" noise can improve results by ensuring high-frequency error that is easier for spatial kernels to resolve.
 
 Best practices:
 - the sequence length `spp` should ideally match or be a bit below the NRD max history length (`32 spp` is a solid baseline). Ensure that noise in the reference accumulation settles down or almost stops after `spp` frames
@@ -876,7 +861,7 @@ float hitDist = lerp( indirectDiffuseHitDist, directDiffuseHitDist, directHitDis
 
 **[NRD]** Hit distances should come from an importance sampling method. But if denoising of AO/SO is needed, AO/SO must come from cos-weighted (or *VNDF v3*) sampling in a tradeoff of IQ.
 
-**[NRD]** Low discrepancy sampling (blue noise) helps to get more stable output in 0.5-1 rpp mode. It's a must for REBLUR-based Ambient and Specular Occlusion denoisers and SIGMA.
+**[NRD]** Low discrepancy sampling (blue noise) helps to get more stable output in 0.5-1 rpp mode. It's a must for REBLUR-based Ambient and Specular Occlusion denoisers.
 
 **[NRD]** It's recommended to set `CommonSettings::accumulationMode` to `RESTART` for a single frame, if a history reset is needed. If history buffers are recreated or contain garbage, it's recommended to use `CLEAR_AND_RESTART` for a single frame. `CLEAR_AND_RESTART` is not free because clearing is done in a compute shader. Render target clears on the application side should be prioritized over this solution, if possible.
 
@@ -913,68 +898,6 @@ maxAccumulatedFrameNum > maxFastAccumulatedFrameNum > historyFixFrameNum
 
 **[REBLUR]** Antilag parameters need to be carefully tuned. Initial integration should be done with disabled antilag.
 
-**[SIGMA]** Using "blue" noise helps to minimize shadow shimmering and flickering. It works best if the pattern has a limited number of animated frames (4-8) or it is static on the screen.
-
-**[SIGMA]** *SIGMA* can be used for multi-light shadow denoising if applied "per light". `maxStabilizedFrameNum` can be set to `0` to disable temporal history. It provides the following benefits:
- - light count independent memory usage
- - no need to manage history buffers for lights
-
-**[SIGMA]** In theory *SIGMA_TRANSLUCENT_SHADOW* can be used as a "single-pass" shadow denoiser for shadows from multiple light sources:
-
-*L[i]* - unshadowed analytical lighting from a single light source (**not noisy**)<br/>
-*S[i]* - stochastically sampled light visibility for *L[i]* (**noisy**)<br/>
-*&Sigma;( L[i] )* - unshadowed analytical lighting, typically a result of tiled lighting (HDR, not in range [0; 1])<br/>
-*&Sigma;( L[i] &times; S[i] )* - final lighting (what we need to get)
-
-The idea:<br/>
-*L1 &times; S1 + L2 &times; S2 + L3 &times; S3 = ( L1 + L2 + L3 ) &times; [ ( L1 &times; S1 + L2 &times; S2 + L3 &times; S3 ) / ( L1 + L2 + L3 ) ]*
-
-Or:<br/>
-*&Sigma;( L[i] &times; S[i] ) = &Sigma;( L[i] ) &times; [ &Sigma;( L[i] &times; S[i] ) / &Sigma;( L[i] ) ]*<br/>
-*&Sigma;( L[i] &times; S[i] ) / &Sigma;( L[i] )* - normalized weighted sum, i.e. pseudo translucency (LDR, in range [0; 1])
-
-Input data preparation example:
-```cpp
-float3 Lsum = 0;
-float3 LSsum = 0.0;
-float Wsum = 0.0;
-float Psum = 0.0;
-
-for( uint i = 0; i < N; i++ )
-{
-    float3 L = ComputeLighting( i );
-    Lsum += L;
-
-    // "distanceToOccluder" should respect rules described in NRD.hlsli in "INPUT PARAMETERS" section
-    float distanceToOccluder = SampleShadow( i );
-    float shadow = !IsOccluded( distanceToOccluder );
-    LSsum += L * shadow;
-
-    // The weight should be zero if a pixel is not in the penumbra, but it is not trivial to compute...
-    float weight = ...;
-    weight *= Luminance( L );
-    Wsum += weight;
-
-    float penumbraRadius = SIGMA_FrontEnd_PackPenumbra( ... ).x;
-    Psum += penumbraRadius * weight;
-}
-
-float3 translucency = LSsum / max( Lsum, NRD_EPS );
-float penumbraRadius = Psum / max( Wsum, NRD_EPS );
-```
-
-After denoising the final result can be computed as:
-
-*&Sigma;( L[i] &times; S[i] )* = *&Sigma;( L[i] )* &times; *OUT_SHADOW_TRANSLUCENCY.yzw*
-
-Is this a biased solution? If spatial filtering is off - no, because we just reorganized the math equation. If spatial filtering is on - yes, because denoising will be driven by most important light in a given pixel.
-
-**This solution is limited** and hard to use:
-- obviously, can be used "as is" if shadows don't overlap (*weight* = 1)
-- if shadows overlap, a separate pass is needed to analyze noisy input and classify pixels as *umbra* - *penumbra* (and optionally *empty space*). Raster shadow maps can be used for this if available
-- it is not recommended to mix 1 cd and 100000 cd lights, since FP32 texture will be needed for a weighted sum.
-In this case, it's better to process the sun and other bright light sources separately.
-
 # MEMORY USAGE
 
 The *Persistent* column (matches *NRD Permanent pool*) indicates how much of the *Working set* is required to be left intact for subsequent frames of the application. This memory stores the history resources consumed by NRD. The *Aliasable* column (matches *NRD Transient pool*) shows how much of the *Working set* may be aliased by textures or other resources used by the application outside of the operating boundaries of NRD.
@@ -991,9 +914,6 @@ The *Persistent* column (matches *NRD Permanent pool*) indicates how much of the
 |            |    REBLUR_DIFFUSE_SPECULAR_OCCLUSION |            59.44 |            42.38 |            17.06 |
 |            |           REBLUR_DIFFUSE_SPECULAR_SH |           232.50 |           122.62 |           109.88 |
 |            | REBLUR_DIFFUSE_DIRECTIONAL_OCCLUSION |            71.94 |            48.62 |            23.31 |
-|            |                         SIGMA_SHADOW |            31.88 |             8.44 |            23.44 |
-|            |            SIGMA_SHADOW_TRANSLUCENCY |            50.81 |             8.44 |            42.38 |
-|            |                            REFERENCE |            33.75 |            33.75 |             0.00 |
 |            |                                      |                  |                  |                  |
 |      1440p |                       REBLUR_DIFFUSE |           135.06 |            90.00 |            45.06 |
 |            |             REBLUR_DIFFUSE_OCCLUSION |            63.81 |            48.75 |            15.06 |
@@ -1005,9 +925,6 @@ The *Persistent* column (matches *NRD Permanent pool*) indicates how much of the
 |            |    REBLUR_DIFFUSE_SPECULAR_OCCLUSION |           105.06 |            75.00 |            30.06 |
 |            |           REBLUR_DIFFUSE_SPECULAR_SH |           412.56 |           217.50 |           195.06 |
 |            | REBLUR_DIFFUSE_DIRECTIONAL_OCCLUSION |           127.56 |            86.25 |            41.31 |
-|            |                         SIGMA_SHADOW |            56.38 |            15.00 |            41.38 |
-|            |            SIGMA_SHADOW_TRANSLUCENCY |            90.12 |            15.00 |            75.12 |
-|            |                            REFERENCE |            60.00 |            60.00 |             0.00 |
 |            |                                      |                  |                  |                  |
 |      2160p |                       REBLUR_DIFFUSE |           287.00 |           191.25 |            95.75 |
 |            |             REBLUR_DIFFUSE_OCCLUSION |           135.62 |           103.62 |            32.00 |
@@ -1019,6 +936,3 @@ The *Persistent* column (matches *NRD Permanent pool*) indicates how much of the
 |            |    REBLUR_DIFFUSE_SPECULAR_OCCLUSION |           223.31 |           159.44 |            63.88 |
 |            |           REBLUR_DIFFUSE_SPECULAR_SH |           876.62 |           462.19 |           414.44 |
 |            | REBLUR_DIFFUSE_DIRECTIONAL_OCCLUSION |           271.12 |           183.31 |            87.81 |
-|            |                         SIGMA_SHADOW |           119.94 |            31.88 |            88.06 |
-|            |            SIGMA_SHADOW_TRANSLUCENCY |           191.56 |            31.88 |           159.69 |
-|            |                            REFERENCE |           127.50 |           127.50 |             0.00 |

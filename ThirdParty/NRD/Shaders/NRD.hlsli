@@ -918,52 +918,6 @@ NRD_SG REBLUR_BackEnd_UnpackDirectionalOcclusion( float4 data )
 }
 
 //=================================================================================================================================
-// SIGMA
-//=================================================================================================================================
-
-// FRONT-END
-
-// Infinite ( directional ) light source
-// X => IN_PENUMBRA
-float SIGMA_FrontEnd_PackPenumbra( float distanceToOccluder, float tanOfLightAngularRadius )
-{
-    float penumbraSize = distanceToOccluder * tanOfLightAngularRadius;
-    float penumbraRadius = penumbraSize * 0.5;
-
-    return distanceToOccluder >= NRD_FP16_MAX ? NRD_FP16_MAX : min( penumbraRadius, 32768.0 );
-}
-
-// Local light source
-// X => IN_PENUMBRA
-// "lightSize" must be an acceptable projection to the plane perpendicular to the light direction
-float SIGMA_FrontEnd_PackPenumbra( float distanceToOccluder, float distanceToLight, float lightSize )
-{
-    float penumbraSize = lightSize * distanceToOccluder / max( distanceToLight - distanceToOccluder, NRD_EPS );
-    float penumbraRadius = penumbraSize * 0.5;
-
-    return distanceToOccluder >= NRD_FP16_MAX ? NRD_FP16_MAX : min( penumbraRadius, 32768.0 );
-}
-
-// X => IN_TRANSLUCENCY
-float4 SIGMA_FrontEnd_PackTranslucency( float distanceToOccluder, float3 translucency )
-{
-    float4 r;
-    r.x = float( distanceToOccluder >= NRD_FP16_MAX );
-    r.yzw = saturate( translucency );
-
-    return r;
-}
-
-// BACK-END
-
-// OUT_SHADOW_TRANSLUCENCY => X
-//   SIGMA_SHADOW / SIGMA_SHADOW_TRANSLUCENCY:
-//      float shadow = SIGMA_BackEnd_UnpackShadow( OUT_SHADOW_TRANSLUCENCY ).x;
-//   SIGMA_SHADOW_TRANSLUCENCY:
-//      float3 translucentShadow = SIGMA_BackEnd_UnpackShadow( OUT_SHADOW_TRANSLUCENCY ).yzw;
-#define SIGMA_BackEnd_UnpackShadow( shadow ) ( shadow * shadow )
-
-//=================================================================================================================================
 // HIGH QUALITY RESOLVE ( SPHERICAL GAUSSIAN )
 //=================================================================================================================================
 

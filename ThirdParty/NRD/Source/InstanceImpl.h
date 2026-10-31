@@ -155,8 +155,6 @@ inline uint16_t AsUint(T x) {
 
 union Settings {
     ReblurSettings reblur;
-    SigmaSettings sigma;
-    ReferenceSettings reference;
 };
 
 struct DenoiserData {
@@ -223,16 +221,6 @@ public:
     void Update_Reblur(const DenoiserData& denoiserData);
     void Update_ReblurOcclusion(const DenoiserData& denoiserData);
     void AddSharedConstants_Reblur(const ReblurSettings& settings, void* data);
-
-    // Sigma
-    void Add_SigmaShadow(DenoiserData& denoiserData);
-    void Add_SigmaShadowTranslucency(DenoiserData& denoiserData);
-    void Update_SigmaShadow(const DenoiserData& denoiserData);
-    void AddSharedConstants_Sigma(const SigmaSettings& settings, void* data);
-
-    // Other
-    void Add_Reference(DenoiserData& denoiserData);
-    void Update_Reference(const DenoiserData& denoiserData);
 
     // Internal
 public:

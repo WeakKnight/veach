@@ -140,12 +140,6 @@ nrd::Result nrd::InstanceImpl::Create(const InstanceCreationDesc& instanceCreati
             Add_ReblurDiffuseSpecularSh(denoiserData);
         else if (denoiserDesc.denoiser == Denoiser::REBLUR_DIFFUSE_DIRECTIONAL_OCCLUSION)
             Add_ReblurDiffuseDirectionalOcclusion(denoiserData);
-        else if (denoiserDesc.denoiser == Denoiser::SIGMA_SHADOW)
-            Add_SigmaShadow(denoiserData);
-        else if (denoiserDesc.denoiser == Denoiser::SIGMA_SHADOW_TRANSLUCENCY)
-            Add_SigmaShadowTranslucency(denoiserData);
-        else if (denoiserDesc.denoiser == Denoiser::REFERENCE)
-            Add_Reference(denoiserData);
         else // Should not be here
             return Result::INVALID_ARGUMENT;
 
@@ -476,9 +470,6 @@ nrd::Result nrd::InstanceImpl::SetDenoiserSettings(Identifier identifier, const 
                 const ReblurSettings& settings = *(ReblurSettings*)denoiserSettings;
                 enableAntiFirefly = settings.enableAntiFirefly;
                 checkerboardMode = settings.checkerboardMode;
-            } else if (denoiserData.desc.denoiser == Denoiser::SIGMA_SHADOW || denoiserData.desc.denoiser == Denoiser::SIGMA_SHADOW_TRANSLUCENCY) {
-                const SigmaSettings& settings = *(SigmaSettings*)denoiserSettings;
-                checkerboardMode = settings.checkerboardMode;
             }
 
             bool isAntifireflyValid = NRD_SUPPORTS_ANTIFIREFLY || !enableAntiFirefly;
@@ -544,10 +535,6 @@ nrd::Result nrd::InstanceImpl::GetComputeDispatches(const Identifier* identifier
             Update_Reblur(denoiserData);
         else if (denoiserData.desc.denoiser == Denoiser::REBLUR_DIFFUSE_OCCLUSION || denoiserData.desc.denoiser == Denoiser::REBLUR_SPECULAR_OCCLUSION || denoiserData.desc.denoiser == Denoiser::REBLUR_DIFFUSE_SPECULAR_OCCLUSION)
             Update_ReblurOcclusion(denoiserData);
-        else if (denoiserData.desc.denoiser == Denoiser::SIGMA_SHADOW || denoiserData.desc.denoiser == Denoiser::SIGMA_SHADOW_TRANSLUCENCY)
-            Update_SigmaShadow(denoiserData);
-        else if (denoiserData.desc.denoiser == Denoiser::REFERENCE)
-            Update_Reference(denoiserData);
     }
 
     // Maximize CB reuse

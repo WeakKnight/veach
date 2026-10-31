@@ -24,9 +24,9 @@ wavefront trace (NRD split region) -> taa.motion -> nrd.prepare -> REBLUR
 ## Build
 
 `npm run build:nrd` compiles the vendored NRD SDK and NVIDIA MathLib in `ThirdParty/NRD` and
-`ThirdParty/MathLib` (revisions in their `VERSION.txt`). The NRD copy is upstream with the unused RELAX
-denoiser stripped (VERSION.txt lists what); updating means replacing the copied directories and stripping
-RELAX again. The generated REBLUR WGSL is unaffected by the strip. `NRD_SDK` and `NRD_MATHLIB` override them with other checkouts. Veach is team-internal for now:
+`ThirdParty/MathLib` (revisions in their `VERSION.txt`). The NRD copy is upstream reduced to REBLUR: the
+unused RELAX, SIGMA and REFERENCE denoisers are stripped (VERSION.txt lists what); updating means replacing
+the copied directories and stripping them again. The generated REBLUR WGSL is unaffected by the strip. `NRD_SDK` and `NRD_MATHLIB` override them with other checkouts. Veach is team-internal for now:
 the vendored source is meant to be replaced gradually by Veach's own denoiser before any release, which
 must then revisit the NVIDIA license. The build also needs emsdk (as `build:wasm`;
 `npm run build:nrd -- --skip-wasm` reuses the committed runtime) and a slangc that emits WGSL
@@ -211,8 +211,8 @@ links to the games (`npm run dev:games`, which accept `?nrd=1` and have a denois
 
 - No primary surface replacement: smooth glass/mirror refraction and reflection are denoised as the
   primary surface's specular signal and lose detail. Transmission is a visible example.
-- REBLUR radiance and SH only; no occlusion, RELAX or SIGMA. RELAX's temporal accumulation needs
-  20 sampled textures, beyond the WebGPU default of 16.
+- REBLUR radiance and SH only; no occlusion. RELAX, SIGMA and REFERENCE are not vendored (RELAX's temporal
+  accumulation also needed 20 sampled textures, beyond the WebGPU default of 16).
 - Dominant directions are luminance-weighted means of primary NEE and one BSDF sample, not a full SH
   projection of the gathered light; strongly bimodal lighting resolves toward the mean.
 - (De)modulation uses an analytic environment term, not Veach's layered BSDF albedo; coat, sheen,

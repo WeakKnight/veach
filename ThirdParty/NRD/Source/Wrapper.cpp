@@ -29,9 +29,6 @@ constexpr std::array<nrd::Denoiser, (size_t)nrd::Denoiser::MAX_NUM> g_NrdSupport
     nrd::Denoiser::REBLUR_DIFFUSE_SPECULAR_OCCLUSION,
     nrd::Denoiser::REBLUR_DIFFUSE_SPECULAR_SH,
     nrd::Denoiser::REBLUR_DIFFUSE_DIRECTIONAL_OCCLUSION,
-    nrd::Denoiser::SIGMA_SHADOW,
-    nrd::Denoiser::SIGMA_SHADOW_TRANSLUCENCY,
-    nrd::Denoiser::REFERENCE,
 };
 
 constexpr nrd::LibraryDesc g_NrdLibraryDesc = {
@@ -93,11 +90,6 @@ const char* g_NrdDenoiserNames[] = {
     "REBLUR_DIFFUSE_SPECULAR_OCCLUSION",
     "REBLUR_DIFFUSE_SPECULAR_SH",
     "REBLUR_DIFFUSE_DIRECTIONAL_OCCLUSION",
-
-    "SIGMA_SHADOW",
-    "SIGMA_SHADOW_TRANSLUCENCY",
-
-    "REFERENCE",
 };
 static_assert(nrd::GetCountOf(g_NrdDenoiserNames) == (uint32_t)nrd::Denoiser::MAX_NUM);
 

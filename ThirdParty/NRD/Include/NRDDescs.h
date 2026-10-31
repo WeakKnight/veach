@@ -90,8 +90,6 @@ namespace nrd
         IN_SPEC_SH1,
 
         // Penumbra and optional translucency (R16f+ and RGBA8+ for translucency)
-        //      SIGMA: use "SIGMA_FrontEnd_PackPenumbra" for penumbra properties encoding
-        //      SIGMA: use "SIGMA_FrontEnd_PackTranslucency" for translucency encoding
         IN_PENUMBRA,
         IN_TRANSLUCENCY,
 
@@ -129,7 +127,6 @@ namespace nrd
         OUT_DIFF_DIRECTION_HITDIST,
 
         // Shadow and optional transcluceny (R8+ or RGBA8+)
-        //      SIGMA: use "SIGMA_BackEnd_UnpackShadow" for decoding
         OUT_SHADOW_TRANSLUCENCY, // IMPORTANT: used as history if "stabilizationStrength != 0"
 
         // Denoised signal (R8+)
@@ -157,9 +154,7 @@ namespace nrd
     {
         /*
         IMPORTANT:
-          - IN_MV, IN_NORMAL_ROUGHNESS, IN_VIEWZ are used by any denoiser, but these denoisers DON'T use:
-            - SIGMA_SHADOW & SIGMA_SHADOW_TRANSLUCENCY - IN_MV, if "stabilizationStrength = 0"
-            - REFERENCE - IN_MV, IN_NORMAL_ROUGHNESS, IN_VIEWZ
+          - IN_MV, IN_NORMAL_ROUGHNESS, IN_VIEWZ are used by any denoiser
           - Optional inputs are in ()
         */
 
@@ -206,26 +201,6 @@ namespace nrd
         // INPUTS - IN_DIFF_DIRECTION_HITDIST (IN_DIFF_CONFIDENCE, IN_DISOCCLUSION_THRESHOLD_MIX)
         // OUTPUTS - OUT_DIFF_DIRECTION_HITDIST
         REBLUR_DIFFUSE_DIRECTIONAL_OCCLUSION,
-
-        //=============================================================================================================================
-        // SIGMA
-        //=============================================================================================================================
-
-        // INPUTS - IN_PENUMBRA, OUT_SHADOW_TRANSLUCENCY
-        // OUTPUTS - OUT_SHADOW_TRANSLUCENCY
-        SIGMA_SHADOW,
-
-        // INPUTS - IN_PENUMBRA, IN_TRANSLUCENCY, OUT_SHADOW_TRANSLUCENCY
-        // OUTPUTS - OUT_SHADOW_TRANSLUCENCY
-        SIGMA_SHADOW_TRANSLUCENCY,
-
-        //=============================================================================================================================
-        // REFERENCE
-        //=============================================================================================================================
-
-        // INPUTS - IN_SIGNAL
-        // OUTPUTS - OUT_SIGNAL
-        REFERENCE,
 
         MAX_NUM
     };
