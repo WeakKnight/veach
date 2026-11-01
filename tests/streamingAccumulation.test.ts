@@ -9,7 +9,7 @@ function harness(samples = 1, maxSamples = 0) {
 	const renderer = Object.assign(Object.create(Renderer.prototype), {
 		settings: { ...defaultRenderSettings(), maxSamples }, frameIndex: samples,
 		streamedCoverage: 0, quietFeedbackFrames: 0,
-		tracer: { setPresentationBuffer: vi.fn() }, denoiseRevision: 0,
+		tracer: { setPresentationBuffer: vi.fn(), resetSharc: vi.fn() }, denoiseRevision: 0,
 		vt: { update: () => update, stats },
 	}) as {
 		frameIndex: number;
