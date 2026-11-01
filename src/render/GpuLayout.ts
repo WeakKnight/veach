@@ -61,6 +61,7 @@ export const FRAME_FLAG_ENV_IMPORTANCE = 4;
 export const FRAME_FLAG_ENV_VISIBLE = 8;
 export const FRAME_FLAG_SHARED_JITTER = 16;
 export const FRAME_FLAG_DIFFUSE_ONLY = 32; // realtime SSSR frames: the path tracer provides diffuse lighting only
+export const FRAME_FLAG_REALTIME = 64; // realtime frames: the last bounce ends in the screen cache or SHARC
 
 export enum DebugMode {
 	None = 0,

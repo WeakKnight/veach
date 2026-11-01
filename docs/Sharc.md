@@ -54,6 +54,23 @@ metalness below 0.1, and no transmission, subsurface or coat. Queries additional
 the segment to exceed the voxel diagonal, the hit ray-cone width to exceed the voxel size,
 and cone spread at least 0.05. Glossy, transmission and ineligible surfaces continue tracing.
 
+## Realtime bounce budget and terminal queries
+
+Realtime frames trace `settings.realtimeMaxBounces` (default 3, bounces 0 to 3) instead of `maxBounces` (8, offline).
+`FRAME_FLAG_REALTIME` makes the last vertex of a realtime path end in a cache instead of being dropped, as NRD-Sample does
+at `bounce == gBounceNum`:
+
+1. the screen cache lookup ([ScreenCache.md](ScreenCache.md));
+2. then a SHARC query, without the segment, footprint and cone gates;
+3. then the path terminates, found or not.
+
+Update paths take the cached tail too, so their training targets include the bounces beyond the budget and the cache
+keeps propagating multi-bounce light. Offline frames stop at the last bounce as before and stay bit-identical.
+
+Kitchen, realtime: path tracing goes from 6.9 ms (8 bounces) to 4.6 ms. Mean luma against 32 bounces without either cache
+(0-255 scale): -8.4 for a plain cutoff at 3 bounces, -3.8 when terminating in SHARC. The rest is last vertices SHARC does
+not cover: glossy, metal and coated surfaces, which it never trains on, and cells below the minimum sample count.
+
 ## Cache keys and GPU synchronization
 
 Keys include full integer world voxel coordinates, distance level, quantized geometric

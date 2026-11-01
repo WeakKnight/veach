@@ -58,6 +58,13 @@ dispatches per frame and texture memory. `settings.nrdDebug` (presentation only)
 0 denoised, 1 noisy, 2 diffuse, 3 specular, 4 guides or 5 the re-jitter scale. NRD is NVIDIA-licensed, not MIT;
 see [Nrd.md](Nrd.md).
 
+## Realtime bounce budget
+
+Realtime frames trace `settings.realtimeMaxBounces` (default 3) continuation bounces, offline frames
+`settings.maxBounces` (8). On realtime frames the last vertex ends in the screen cache or SHARC instead of dropping the
+rest of the path ([Sharc.md](Sharc.md)). `renderer.traceBounces` is the budget of the current mode; the viewer's B / N
+keys and `r.PathTracing.RealtimeMaxBounces` change the realtime one.
+
 ## Realtime upscaling: FSR 3 (default)
 
 Realtime frames render `settings.upscaleRenderScale` (0.7) of the presentation resolution and upscale with AMD

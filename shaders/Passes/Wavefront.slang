@@ -527,7 +527,11 @@ void ShadePath<let DEFERRED : bool, let ALPHA : bool, let PHASE : uint = 0u, let
 		gAccum[r].xyz = s.path.radiance;
 		if (any(s.path.radiance > 0.0)) gAccum[r].w = asfloat(asuint(gAccum[r].w) | NRD_EMISSIVE);
 	}
-	if (bounce == gFrame.settings.x) return;
+	// Realtime frames end a path at its last vertex in the screen cache or SHARC instead of dropping the rest of it
+	// (docs/Sharc.md): a short bounce budget keeps the multi-bounce energy. Offline frames stop as before.
+	bool lastBounce = bounce == gFrame.settings.x;
+	bool terminalCache = lastBounce && !primary && (gFrame.settings.z & FRAME_FLAG_REALTIME) != 0u;
+	if (lastBounce && !terminalCache) return;
 	RandomSequence rng = RandomSequence(0u, 0u);
 	rng.seed = s.randomSeed;
 	// Screen cache hit lookup (docs/ScreenCache.md), before SHARC as NRD-Sample's L1 before its L2: the previous frame's
@@ -553,6 +557,17 @@ void ShadePath<let DEFERRED : bool, let ALPHA : bool, let PHASE : uint = 0u, let
 		uint index = base - WorkBase(0u);
 		if (SharcMakeKey(si.position, normal, V, si.materialIndex, si.instanceIndex, key, voxelSize))
 		{
+			if (terminalCache)
+			{
+				// Without the segment and footprint gates: the path ends here either way. Update paths take the cached
+				// tail too, so their training targets carry the bounces beyond the budget.
+				uint state = asuint(gAccum[Field(base, 6u)].w) + 65536u;
+				float3 cached;
+				bool found = SharcQuery(key, cached);
+				gAccum[Field(base, 6u)].w = asfloat(state | (found ? 256u : 0u));
+				if (found) s.path.radiance += s.path.throughput * cached;
+				return;
+			}
 			if (SharcUpdatePath(index, gWavefront.tileStart)) SharcRecord(index, bounce, key, s.path.radiance, s.path.throughput);
 			else if (hit.t > voxelSize * sqrt(3.0) && hitConeWidth > voxelSize && s.path.coneSpread >= 0.05)
 			{
@@ -564,6 +579,7 @@ void ShadePath<let DEFERRED : bool, let ALPHA : bool, let PHASE : uint = 0u, let
 			}
 		}
 	}
+	if (terminalCache) return;
 	bool diffuseOnly = DiffuseOnlyVertex(primary, ms);
 	s.path.lightsSampled = bsdf.MaxActiveAlpha() >= NEAR_SPECULAR_ALPHA;
 	if (s.path.lightsSampled)

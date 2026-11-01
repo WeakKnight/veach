@@ -29,6 +29,7 @@ import {
 	FRAME_FLAG_SUN,
 	FRAME_FLAG_SHARED_JITTER,
 	FRAME_FLAG_DIFFUSE_ONLY,
+	FRAME_FLAG_REALTIME,
 	FRAME_UNIFORM_BYTES,
 	Tonemapper,
 	packFrameUniforms,
@@ -116,7 +117,13 @@ export interface RenderSettings {
 	screenCacheThickness: number;
 	/** Hierarchical march steps of the screen trace. */
 	screenCacheIterations: number;
+	/** Continuation bounces of offline (progressive) frames. */
 	maxBounces: number;
+	/**
+	 * Continuation bounces of realtime frames. The last bounce ends in the screen cache or SHARC instead of dropping the
+	 * rest of the path (docs/Sharc.md), so a short budget keeps most multi-bounce energy.
+	 */
+	realtimeMaxBounces: number;
 	maxSamples: number; // 0 = unlimited
 	resolutionScale: number;
 	debugMode: DebugMode;
@@ -185,6 +192,7 @@ export function defaultRenderSettings(): RenderSettings {
 		screenCacheThickness: SCREEN_CACHE_DEFAULTS.thickness,
 		screenCacheIterations: SCREEN_CACHE_DEFAULTS.iterations,
 		maxBounces: 8,
+		realtimeMaxBounces: 3,
 		maxSamples: 128,
 		resolutionScale: 1,
 		debugMode: DebugMode.None,
@@ -525,6 +533,11 @@ export class Renderer {
 		if (key !== this.radianceCacheKey || identity !== this.radianceCacheScene) { cache.invalidate(encoder); this.radianceCacheKey = key; this.radianceCacheScene = identity; }
 		const camera = this.temporalCamera?.position ?? this.camera.position;
 		return this.gpuProfiler.scope('Radiance cache', () => cache.encode(encoder, scene!, camera, 0.25, 256));
+	}
+
+	/** Continuation bounces of the current frames: `realtimeMaxBounces` in realtime mode, otherwise `maxBounces`. */
+	get traceBounces(): number {
+		return Math.max(0, Math.floor(this.progressiveMode === false ? this.settings.realtimeMaxBounces : this.settings.maxBounces));
 	}
 
 	/** Whether the last traced frame used the screen cache (docs/ScreenCache.md), and why not. */
@@ -1007,10 +1020,11 @@ export class Renderer {
 		const primary = this.tracer.primaryVisibilityFrame(this.hostView ? 0 : this.camera.lensRadius, s.debugMode);
 		if (primary.sharedJitter || this.taaActive) flags |= FRAME_FLAG_SHARED_JITTER;
 		if (this.sssrActive) flags |= FRAME_FLAG_DIFFUSE_ONLY;
+		if (this.progressiveMode === false) flags |= FRAME_FLAG_REALTIME;
 		packFrameUniforms(this.uniformData, {
 			temporal: this.taaActive ? [this.taa.jitter[0], this.taa.jitter[1], 1, Number(s.taaMotionVectorDebug)] : [0, 0, 0, 0],
-			...this.tracer.sharcFrame(s.debugMode, s.maxBounces, s.fireflyClamp,
-				`${this.currentSkyKey()}/${this.sun.enabled}/${this.sun.angularDiameter}/${s.environmentIntensity}/${this.environment.importance}/${s.maxBounces}/${s.textureMipBias}`, traceSample),
+			...this.tracer.sharcFrame(s.debugMode, this.traceBounces, s.fireflyClamp,
+				`${this.currentSkyKey()}/${this.sun.enabled}/${this.sun.angularDiameter}/${s.environmentIntensity}/${this.environment.importance}/${this.traceBounces}/${s.textureMipBias}`, traceSample),
 			primaryVisibility: primary.data,
 			nrdRegion: this.nrdActive || this.sssrActive ? this.tracer.nrdRegion : 0,
 			cameraPosition: this.hostView?.position ?? this.camera.position,
@@ -1023,7 +1037,7 @@ export class Renderer {
 			height: this.tracer.height,
 			frameIndex: this.frameIndex,
 			seed: Math.imul(this.frameIndex + 1, 0x9e3779b9) ^ (this.activeHost ? Math.imul(this.hostFrameIndex + 1, 0x85ebca6b) : s.renderMode === 'realtime' ? Math.imul(this.temporalFrame + 1, 0x85ebca6b) : 0),
-			maxBounces: s.maxBounces,
+			maxBounces: this.traceBounces,
 			debugMode: s.debugMode,
 			flags,
 			tonemapper: s.tonemapper,
@@ -1129,7 +1143,7 @@ export class Renderer {
 			this.writeUniforms(this.vt?.nextFeedbackJitter() ?? 0, true);
 			const encoder = this.gpuProfiler.createCommandEncoder({ label: 'trace' });
 			this.tracer.setScreenCache(this.screenCacheFrame());
-			this.gpuProfiler.scope('Path tracing', () => this.tracer.encodeTrace(encoder, this.settings.maxBounces, this.settings.debugMode));
+			this.gpuProfiler.scope('Path tracing', () => this.tracer.encodeTrace(encoder, this.traceBounces, this.settings.debugMode));
 			this.radianceCacheActive = this.encodeRadianceCache(encoder);
 			const feedback = this.tracer.feedback;
 			if (this.vt && feedback) {

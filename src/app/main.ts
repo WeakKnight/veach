@@ -113,7 +113,7 @@ async function main(): Promise<void> {
 			`Veach WebGPU path tracer  (tinybvh ${renderer.tinybvhVersion})`,
 			`${sceneName}${status ? '  ' + status : ''}`,
 			sc ? `${sc.triangles.toLocaleString()} tris  ${sc.instances} instances  ${sc.emissiveTriangles} emissive  BVH ${sc.bvhNodes.toLocaleString()} nodes (${sc.buildMs.toFixed(0)} ms)` : '',
-			`${s.width}x${s.height}  spp ${s.frameIndex}  ${s.frameMs.toFixed(1)} ms  view ${mode}  ${Tonemapper[renderer.settings.tonemapper]}  ${exposure}  ${localExposure}  bounces ${renderer.settings.maxBounces}  sun ${renderer.sun.enabled ? `${renderer.sun.elevation}° el ${renderer.sun.azimuth}° az` : 'off'}`,
+			`${s.width}x${s.height}  spp ${s.frameIndex}  ${s.frameMs.toFixed(1)} ms  view ${mode}  ${Tonemapper[renderer.settings.tonemapper]}  ${exposure}  ${localExposure}  bounces ${renderer.traceBounces}  sun ${renderer.sun.enabled ? `${renderer.sun.elevation}° el ${renderer.sun.azimuth}° az` : 'off'}`,
 			vt && vt.textures > 0 ? `VT ${vt.textures} textures  pages ${vt.residentPages}/${vt.physicalPages}  pending ${vt.pendingRequests}  uploads ${vt.totalUploads}  evictions ${vt.evictions}` : '',
 		].join('\n');
 	};
@@ -227,10 +227,10 @@ async function main(): Promise<void> {
 		}
 		if (e.key >= '0' && e.key <= '9') {
 			s.debugMode = Number(e.key) as DebugMode;
-		} else if (e.key === 'b' || e.key === 'B') {
-			s.maxBounces = Math.max(1, s.maxBounces - 1);
-		} else if (e.key === 'n' || e.key === 'N') {
-			s.maxBounces = Math.min(64, s.maxBounces + 1);
+		} else if (e.key === 'b' || e.key === 'B' || e.key === 'n' || e.key === 'N') {
+			// The bounce budget of the current mode.
+			const key = s.renderMode === 'realtime' ? 'realtimeMaxBounces' : 'maxBounces';
+			s[key] = e.key.toLowerCase() === 'b' ? Math.max(1, s[key] - 1) : Math.min(64, s[key] + 1);
 		} else if (e.key === 'e' || e.key === 'E') {
 			s.environmentVisible = !s.environmentVisible;
 		} else if (e.key === 's' || e.key === 'S') {
