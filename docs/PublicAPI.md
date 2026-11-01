@@ -83,6 +83,11 @@ SSSR misses read a world-space radiance cache, then the sky. `settings.radianceC
 `radianceCacheBounces` (2) control it; `renderer.radianceCacheStats` reports activity. See
 [RadianceCache.md](RadianceCache.md).
 
+SSSR frames also reuse the previous frame as an L1 radiance cache of the diffuse paths: `settings.screenCacheTrace`
+(default true) screen traces the primary diffuse continuation before the BVH, `settings.screenCacheHits` (default true)
+reads traced hits the previous frame saw; `screenCacheThickness` (0.03) and `screenCacheIterations` (48) tune the
+march, and `renderer.screenCacheStats` reports activity. See [ScreenCache.md](ScreenCache.md).
+
 ## Radiance cache
 
 ```ts

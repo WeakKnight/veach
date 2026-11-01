@@ -16,6 +16,7 @@ import shadowWgsl from '../generated/shaders/WavefrontShadow.wgsl?raw';
 import { specializeMaterialShader, type MaterialStackCapacity } from './MaterialShaderVariants';
 import { ALL_MATERIAL_OPCODES, materialPipelineKey, materialPipelineConstants, type MaterialOpcodeMask } from './MaterialProgramFeatures';
 import type { PipelineCompiler } from './PipelineCompiler';
+import { SCREEN_CACHE_CONSTANTS_BYTES, SCREEN_CACHE_TRACE, packScreenCacheConstants, type ScreenCacheFrame } from './ScreenCache';
 
 const RECORD_BYTES = 21 * 16; // WAVEFRONT_STRIDE in Wavefront.slang
 const TILE_CAPACITY = 262144;
@@ -23,7 +24,7 @@ const WORKGROUP_SIZE = 64;
 const METADATA_BYTES = 96 + 256 * 16;
 const LIGHT_RECORD_BYTES = 32;
 const ENTRIES = ['ResolvePrimaryVisibility', 'CompactPrimaryFallback', 'PrimaryTraceFallback', 'PrimaryTraceFallbackOpaque', 'PrimaryTraceFallbackSparse', 'PrimaryTraceFallbackSparseOpaque', 'PrimaryFallbackArguments', 'ShadowClassify', 'ShadowClassifyDirect', 'ShadowAlpha', 'CompactShadowAlpha', 'CompactShadowAlphaDirect',
-	'Initialize', 'Intersect', 'IntersectOpaque', 'Shade', 'Shadow', 'ShadowOpaque', 'Tail', 'TailOpaque', 'Finalize',
+	'Initialize', 'Intersect', 'IntersectOpaque', 'ScreenTrace', 'ScreenTraceIntersect', 'ScreenTraceIntersectOpaque', 'Shade', 'Shadow', 'ShadowOpaque', 'Tail', 'TailOpaque', 'Finalize',
 	'IntersectDirect', 'IntersectOpaqueDirect', 'ShadeDirect', 'ShadeBucket', 'ShadeBucketDirect', 'ShadeBucketCompact', 'ShadowDirect', 'ShadowOpaqueDirect',
 	'CountBuckets', 'PrefixBuckets', 'ScatterBuckets',
 	'CountMaterials', 'PrefixMaterials', 'ScatterMaterials',
@@ -107,11 +108,21 @@ export class Wavefront {
 	nrdBytes = 0;
 	private primaryTexture: GPUTexture | null = null;
 	private readonly dummyPrimaryTexture: GPUTexture;
+	// Screen cache (docs/ScreenCache.md): this frame's constants and the previous frame's SSSR textures, or dummies.
+	private readonly screenCacheConstants: GPUBuffer;
+	private readonly dummyScreenTextures: { depth: GPUTexture; color: GPUTexture };
+	private screenCache: ScreenCacheFrame | null = null;
+	private screenCacheTextures: readonly GPUTexture[] = [];
 
 	constructor(private readonly device: GPUDevice, sceneLayout: GPUBindGroupLayout, capacity: MaterialStackCapacity = 16, opcodes: MaterialOpcodeMask = ALL_MATERIAL_OPCODES, operandMode = 0, hasAlphaTested = true, private readonly compiler?: PipelineCompiler) {
 		this.hasAlphaTested = hasAlphaTested;
 		this.alignment = device.limits.minUniformBufferOffsetAlignment;
 		this.dummyPrimaryTexture = device.createTexture({ label: 'unusedPrimaryVisibility', size: [1, 1], format: 'rg32uint', usage: GPUTextureUsage.TEXTURE_BINDING });
+		this.screenCacheConstants = device.createBuffer({ label: 'wavefront.screenCache', size: SCREEN_CACHE_CONSTANTS_BYTES, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
+		this.dummyScreenTextures = {
+			depth: device.createTexture({ label: 'unusedScreenCacheDepth', size: [1, 1], format: 'r32float', usage: GPUTextureUsage.TEXTURE_BINDING }),
+			color: device.createTexture({ label: 'unusedScreenCacheColor', size: [1, 1], format: 'rgba16float', usage: GPUTextureUsage.TEXTURE_BINDING }),
+		};
 		this.indirect = device.createBuffer({ label: 'wavefrontDispatch', size: 176, usage: GPUBufferUsage.INDIRECT | GPUBufferUsage.COPY_DST, mappedAtCreation: true });
 		new Uint32Array(this.indirect.getMappedRange()).set([0, 1, 1, 0], 8);
 		this.indirect.unmap();
@@ -120,6 +131,10 @@ export class Wavefront {
 			{ binding: 1, visibility: GPUShaderStage.COMPUTE, storageTexture: { access: 'write-only', format: 'r32uint' } },
 			{ binding: 2, visibility: GPUShaderStage.COMPUTE, buffer: { type: 'uniform', hasDynamicOffset: true, minBindingSize: 32 } },
 			{ binding: 3, visibility: GPUShaderStage.COMPUTE, texture: { sampleType: 'uint' } },
+			{ binding: 4, visibility: GPUShaderStage.COMPUTE, buffer: { type: 'uniform' } },
+			{ binding: 5, visibility: GPUShaderStage.COMPUTE, texture: { sampleType: 'unfilterable-float' } },
+			{ binding: 6, visibility: GPUShaderStage.COMPUTE, texture: { sampleType: 'unfilterable-float' } },
+			{ binding: 7, visibility: GPUShaderStage.COMPUTE, texture: { sampleType: 'unfilterable-float' } },
 		] });
 		this.compactModule = device.createShaderModule({ label: 'WavefrontCompact', code: compactWgsl });
 		this.compactDenseModule = device.createShaderModule({ label: 'WavefrontCompactDense', code: compactDenseWgsl });
@@ -186,6 +201,8 @@ export class Wavefront {
 			return entry === `CompactIntersect${suffix}` || entry === (this.spatialQueues ? 'CompactShadeSpatial' : `CompactShade${suffix}`);
 		}
 		if (entry.startsWith('PrimaryTraceFallback')) return entry.endsWith('Opaque') !== this.hasAlphaTested;
+		if (entry === 'ScreenTrace') return direct !== 7;
+		if (entry.startsWith('ScreenTraceIntersect')) return direct !== 7 && entry.endsWith('Opaque') !== this.hasAlphaTested;
 		if (entry.startsWith('Intersect')) return entry === `Intersect${this.hasAlphaTested ? '' : 'Opaque'}${direct & 1 ? 'Direct' : ''}`;
 		if (entry.startsWith('Shadow')) {
 			const suffix = direct & 4 ? 'Direct' : '';
@@ -239,7 +256,7 @@ export class Wavefront {
 					: entryPoint.endsWith('Adaptive') ? this.compactAdaptiveModule
 					: entryPoint.endsWith('Spatial') ? this.compactSpatialModule
 					: entryPoint.endsWith('Subgroup') ? this.compactSubgroupModule! : compact ? this.compactModule : module;
-				const usesMaterial = entryPoint === 'PrimaryTraceFallback' || entryPoint === 'PrimaryTraceFallbackSparse' || entryPoint === 'ShadowAlpha' || entryPoint.startsWith('Shade') || ['Tail', 'TailOpaque', 'Intersect', 'IntersectDirect', 'Shadow', 'ShadowDirect'].includes(entryPoint);
+				const usesMaterial = entryPoint === 'PrimaryTraceFallback' || entryPoint === 'PrimaryTraceFallbackSparse' || entryPoint === 'ShadowAlpha' || entryPoint.startsWith('Shade') || ['Tail', 'TailOpaque', 'Intersect', 'IntersectDirect', 'ScreenTraceIntersect', 'Shadow', 'ShadowDirect'].includes(entryPoint);
 				const descriptor: GPUComputePipelineDescriptor = { label: `wavefront.${entryPoint}.stack${capacity}`, layout: this.pipelineLayout,
 					compute: { module: shader, entryPoint: sort ? entryPoint.replace(/64|256/g, '') : compact ? entryPoint.replace(/Dense|Subgroup|Adaptive|Packet|Spatial/g, '') : entryPoint,
 						constants: usesMaterial ? materialPipelineConstants(capacity, opcodes, operandMode) : undefined } };
@@ -283,6 +300,15 @@ export class Wavefront {
 
 	private get recordBytes(): number {
 		return RECORD_BYTES + (this.separateLight ? LIGHT_RECORD_BYTES : 0);
+	}
+
+	/**
+	 * The screen cache of the next encode (docs/ScreenCache.md), or null. Its textures must stay alive until then;
+	 * the screen trace needs queued intersection (not direct dispatch) and runs only at bounce 1.
+	 */
+	setScreenCache(frame: ScreenCacheFrame | null): void {
+		this.screenCache = frame;
+		this.device.queue.writeBuffer(this.screenCacheConstants, 0, packScreenCacheConstants(frame));
 	}
 
 	bind(accumulation: GPUBuffer, feedback: GPUTexture, primaryTexture: GPUTexture | null = null): void {
@@ -331,8 +357,10 @@ export class Wavefront {
 		const workItems = Math.ceil(width / 8) * Math.ceil(height / 8) * 64;
 		const tiles = Math.ceil(workItems / capacity), bounces = Math.max(0, Math.floor(maxBounces));
 		const key = `${width}/${height}/${bounces}/${capacity}/${this.tailThreshold}/${this.packetStages}/${sortGroupSize}/${materialCount}`;
-		if (key !== this.parameterKey) {
-			this.parameters?.destroy();
+		const screen = this.screenCache, screenTextures = screen ? [screen.depth, screen.normal, screen.color] : [this.dummyScreenTextures.depth, this.dummyScreenTextures.color, this.dummyScreenTextures.color];
+		if (screenTextures.some((texture, i) => texture !== this.screenCacheTextures[i])) { this.group = null; this.screenCacheTextures = screenTextures; }
+		if (key !== this.parameterKey || !this.group) {
+			if (key !== this.parameterKey) this.parameters?.destroy();
 			const data = new Uint32Array(tiles * (bounces + 1) * this.alignment / 4);
 			for (let tile = 0; tile < tiles; tile++) {
 				for (let bounce = 0; bounce <= bounces; bounce++) {
@@ -340,13 +368,17 @@ export class Wavefront {
 						(tile * (bounces + 1) + bounce) * this.alignment / 4);
 				}
 			}
-			this.parameters = this.device.createBuffer({ label: 'wavefrontParameters', size: data.byteLength, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
-			this.device.queue.writeBuffer(this.parameters, 0, data);
+			if (key !== this.parameterKey) {
+				this.parameters = this.device.createBuffer({ label: 'wavefrontParameters', size: data.byteLength, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
+				this.device.queue.writeBuffer(this.parameters, 0, data);
+			}
 			this.group = this.device.createBindGroup({ label: 'wavefront', layout: this.layout, entries: [
 				{ binding: 0, resource: { buffer: this.accumulation } },
 				{ binding: 1, resource: this.feedback.createView() },
-				{ binding: 2, resource: { buffer: this.parameters, size: 32 } },
+				{ binding: 2, resource: { buffer: this.parameters!, size: 32 } },
 				{ binding: 3, resource: (this.primaryTexture ?? this.dummyPrimaryTexture).createView() },
+				{ binding: 4, resource: { buffer: this.screenCacheConstants } },
+				...screenTextures.map((texture, i) => ({ binding: 5 + i, resource: texture.createView(i === 0 ? { baseMipLevel: 0 } : {}) })),
 			] });
 			this.parameterKey = key;
 		}
@@ -360,7 +392,7 @@ export class Wavefront {
 				const shadow = entry === 'Shadow' || entry === 'ShadeLight' || alphaShadow;
 				const directStage = entry !== 'ShadowAlpha' && (directStages & (entry === 'Intersect' ? 1 : entry === 'Shade' ? 2 : shadow ? 4 : 0)) !== 0;
 				let pipeline = spatial ? 'CompactShadeSpatial' as Entry : compact ? `${entry}${compactSuffix}` as Entry
-					: !hasAlphaTested && (entry === 'Intersect' || entry === 'Shadow' || entry === 'Tail' || entry === 'PrimaryTraceFallback' || entry === 'PrimaryTraceFallbackSparse') ? `${entry}Opaque` as Entry : entry;
+					: !hasAlphaTested && (entry === 'Intersect' || entry === 'ScreenTraceIntersect' || entry === 'Shadow' || entry === 'Tail' || entry === 'PrimaryTraceFallback' || entry === 'PrimaryTraceFallbackSparse') ? `${entry}Opaque` as Entry : entry;
 				if (pipeline === 'ShadowOpaque' && this.shadowMode !== 'serial')
 					pipeline = this.shadowMode === 'parallel-auto' && lightCount === 0 ? 'ShadowOpaqueParallelSky' : 'ShadowOpaqueParallel';
 				if (entry === 'Shade' && this.shadeMode !== 'unified')
@@ -412,6 +444,7 @@ export class Wavefront {
 				else pass.dispatchWorkgroups(Math.ceil(count / size));
 				pass.end();
 			};
+			const screenTrace = !!screen && (screen.mode & SCREEN_CACHE_TRACE) !== 0 && !direct && 1 < this.tailStart && bounces >= 1;
 			sharc?.beginTile(encoder);
 			dispatch('Initialize', 0);
 			if (!direct) copyArguments();
@@ -433,6 +466,11 @@ export class Wavefront {
 					encoder.copyBufferToBuffer(this.accumulation!, pixels * 48 + 32, this.indirect, 16, 16);
 					dispatch('PrimaryTraceFallback', 0);
 					dispatch('PrimaryTraceFallbackSparse', 0);
+				} else if (bounce === 1 && screenTrace) {
+					// Screen trace first; CompactIntersect queues the paths it left for the BVH (docs/ScreenCache.md).
+					dispatch('ScreenTrace', bounce);
+					compact(bounce, false);
+					dispatch('ScreenTraceIntersect', bounce);
 				} else dispatch('Intersect', bounce);
 				if (!direct) compact(bounce, false);
 				if (this.sort !== 'none') {
@@ -477,6 +515,8 @@ export class Wavefront {
 		this.entryCompiling.clear();
 		this.indirect.destroy();
 		this.dummyPrimaryTexture.destroy();
+		this.screenCacheConstants.destroy();
+		this.dummyScreenTextures.depth.destroy(); this.dummyScreenTextures.color.destroy();
 		this.parameters?.destroy();
 		this.group = null;
 		this.accumulation = null;

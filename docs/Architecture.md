@@ -164,7 +164,9 @@ The experimental wavefront integrator is described in [Wavefront.md](Wavefront.m
 It appends bounded tile work storage to the accumulation buffer (group 1 binding 0),
 retaining the eight-storage-buffer limit. Its group 1 adds a dynamic uniform at binding 2
 for tile origin, path count, bounce, capacity, experimental tail threshold, packet stage mask,
-and optional sort group size (seven uints in a 32-byte binding).
+and optional sort group size (seven uints in a 32-byte binding). Bindings 4-7 are the
+[screen cache](ScreenCache.md): a 160-byte uniform and the previous frame's SSSR depth hierarchy, normals and
+scene color (sampled textures, 1x1 dummies while unused).
 Presentation reads only the image prefix.
 Experimental shading entries select unified, primary/continuation split, delayed path loads,
 or both (`Wavefront.shadeMode`). The split continuation entry preserves AOVs in storage:

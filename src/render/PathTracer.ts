@@ -15,6 +15,7 @@ import { OIDNGuides } from './denoise/OIDNGuides';
 import type { Environment } from './Environment';
 import { ACCUM_BYTES_PER_PIXEL, FRAME_UNIFORM_BYTES } from './GpuLayout';
 import type { RadianceCacheScene } from './RadianceCache';
+import type { ScreenCacheFrame } from './ScreenCache';
 import type { GpuScene } from './GpuScene';
 import { VT_FEEDBACK_SHIFT } from './vt/VirtualTextureSystem';
 import type { SceneTextures } from './vt/SceneTextures';
@@ -437,6 +438,11 @@ export class PathTracer {
 		if (enabled === this.nrdRequested) return;
 		this.nrdRequested = enabled;
 		if (this.accumBuffer) this.resize(this.width, this.height);
+	}
+
+	/** Screen cache of the next wavefront trace (docs/ScreenCache.md); null disables it. */
+	setScreenCache(frame: ScreenCacheFrame | null): void {
+		this.wavefront?.setScreenCache(frame);
 	}
 
 	/** The bound scene for passes that trace with the path tracer's scene bindings (radiance cache), or null. */

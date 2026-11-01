@@ -37,6 +37,7 @@ Read the relevant doc before changing a subsystem, and update it with the change
 | [docs/Nrd.md](docs/Nrd.md) | Optional NVIDIA NRD REBLUR for real-time frames: build, split, host |
 | [docs/Fsr3.md](docs/Fsr3.md) | Realtime FidelityFX FSR 3 upscaling: resolution split, jitter, passes, native reference |
 | [docs/RadianceCache.md](docs/RadianceCache.md) | World-space probe clipmaps, the fallback of SSSR: layout, scheduling, probe trace, lookup |
+| [docs/ScreenCache.md](docs/ScreenCache.md) | The previous frame as an L1 radiance cache of realtime diffuse paths: screen trace, hit lookups |
 | [docs/Sssr.md](docs/Sssr.md) | Realtime diffuse ray traced lighting + FidelityFX SSSR reflections: path tracer split, passes, host |
 
 ## Rules

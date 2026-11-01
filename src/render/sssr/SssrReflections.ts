@@ -3,7 +3,8 @@
 // indirect dispatches, history copies), with Veach's input preparation, depth hierarchy (instead of SPD,
 // whose single-pass global atomics WebGPU cannot synchronize) and apply pass. Loaded lazily.
 import { sssrShaders } from '../../generated/sssr/SssrShaders';
-import { SSSR_CONSTANTS_BYTES, brdfLut, packSssrConstants, sssrDepthMips, sssrMatrices, type SssrCamera, type SssrMatrices, type SssrParameters } from './SssrConfig';
+import type { ScreenCacheHistory } from '../ScreenCache';
+import { SSSR_CONSTANTS_BYTES, SSSR_NEAR_PLANE, brdfLut, packSssrConstants, sssrDepthMips, sssrMatrices, type SssrCamera, type SssrMatrices, type SssrParameters } from './SssrConfig';
 
 export interface SssrStats { active: boolean; reason: string | null; frames: number; bytes: number }
 export interface SssrFrame {
@@ -230,6 +231,16 @@ export class SssrReflections {
 		this.frameIndex++;
 		this.stats = { active: true, reason: null, frames: this.stats.frames + 1, bytes: this.bytes() };
 		return this.output!;
+	}
+
+	/**
+	 * The previous frame's depth hierarchy, normals and linear scene color for the screen cache (docs/ScreenCache.md),
+	 * valid until this frame's encode; null without history or after a resize to `width` x `height`.
+	 */
+	history(width: number, height: number): ScreenCacheHistory | null {
+		if (this.frameIndex === 0 || !this.textures || !this.sceneColor || !this.previous || width !== this.width || height !== this.height) return null;
+		return { depth: this.textures.depth, normal: this.textures.normal, color: this.sceneColor[(this.frameIndex + 1) & 1],
+			previous: this.previous.viewProjection, near: SSSR_NEAR_PLANE };
 	}
 
 	/** Keeps the resources; the next frame restarts the history. */

@@ -6,7 +6,8 @@ import type { NrdDenoiser, NrdMode, NrdStats } from './denoise/NrdDenoiser';
 import type { SssrReflections, SssrStats } from './sssr/SssrReflections';
 import type { Fsr3Pass, Fsr3Stats } from './fsr3/Fsr3Pass';
 import { fsr3JitterOffset, fsr3JitterPhaseCount } from './fsr3/Fsr3Config';
-import { SSSR_DEFAULTS } from './sssr/SssrConfig';
+import { SSSR_DEFAULTS, sssrMatrices } from './sssr/SssrConfig';
+import { SCREEN_CACHE_DEFAULTS, SCREEN_CACHE_HITS, SCREEN_CACHE_TRACE, type ScreenCacheFrame } from './ScreenCache';
 import type { RadianceCache, RadianceCacheStats } from './RadianceCache';
 // Public entry point: owns the WebGPU device, the scene and the progressive render loop.
 import { BuildQuality, TinyBVH } from '../accel/TinyBVH';
@@ -107,6 +108,14 @@ export interface RenderSettings {
 	radianceCacheResolution: number;
 	/** Bounces of the probe paths. */
 	radianceCacheBounces: number;
+	/** SSSR frames: the primary diffuse continuation first ray marches the previous frame's depth, using its color on a hit. */
+	screenCacheTrace: boolean;
+	/** SSSR frames: traced hits the previous frame saw use its color instead of NEE and further bounces. */
+	screenCacheHits: boolean;
+	/** Screen trace hits up to this fraction of the view depth behind the depth buffer count. */
+	screenCacheThickness: number;
+	/** Hierarchical march steps of the screen trace. */
+	screenCacheIterations: number;
 	maxBounces: number;
 	maxSamples: number; // 0 = unlimited
 	resolutionScale: number;
@@ -171,6 +180,10 @@ export function defaultRenderSettings(): RenderSettings {
 		radianceCacheProbesPerFrame: 1024,
 		radianceCacheResolution: 24,
 		radianceCacheBounces: 2,
+		screenCacheTrace: SCREEN_CACHE_DEFAULTS.trace,
+		screenCacheHits: SCREEN_CACHE_DEFAULTS.hits,
+		screenCacheThickness: SCREEN_CACHE_DEFAULTS.thickness,
+		screenCacheIterations: SCREEN_CACHE_DEFAULTS.iterations,
 		maxBounces: 8,
 		maxSamples: 128,
 		resolutionScale: 1,
@@ -328,6 +341,7 @@ export class Renderer {
 	private radianceCacheKey = '';
 	private radianceCacheScene: object | null = null;
 	private radianceCacheActive = false;
+	private screenCacheReason: string | null = 'not-rendered';
 	private sssrRequest = 0;
 	private sssrActive = false;
 	private sssrError: string | null = null;
@@ -511,6 +525,21 @@ export class Renderer {
 		if (key !== this.radianceCacheKey || identity !== this.radianceCacheScene) { cache.invalidate(encoder); this.radianceCacheKey = key; this.radianceCacheScene = identity; }
 		const camera = this.temporalCamera?.position ?? this.camera.position;
 		return this.gpuProfiler.scope('Radiance cache', () => cache.encode(encoder, scene!, camera, 0.25, 256));
+	}
+
+	/** Whether the last traced frame used the screen cache (docs/ScreenCache.md), and why not. */
+	get screenCacheStats(): { active: boolean; reason: string | null } {
+		return { active: this.screenCacheReason === null, reason: this.screenCacheReason };
+	}
+
+	// The previous frame's SSSR inputs as this frame's screen cache (docs/ScreenCache.md).
+	private screenCacheFrame(): ScreenCacheFrame | null {
+		const s = this.settings, mode = (s.screenCacheTrace ? SCREEN_CACHE_TRACE : 0) | (s.screenCacheHits ? SCREEN_CACHE_HITS : 0);
+		const history = this.sssrActive && mode !== 0 && this.taa.stats.historyFrames > 0 ? this.sssr!.reflections.history(this.tracer.width, this.tracer.height) : null;
+		this.screenCacheReason = !this.sssrActive ? 'sssr-inactive' : mode === 0 ? 'disabled' : this.tracer.integrator !== 'wavefront' ? 'integrator' : !history ? 'no-history' : null;
+		if (!history || this.screenCacheReason) return null;
+		return { ...history, current: sssrMatrices(this.temporalCamera!, this.taa.jitter, this.tracer.width, this.tracer.height).viewProjection, mode,
+			settings: { ...SCREEN_CACHE_DEFAULTS, trace: s.screenCacheTrace, hits: s.screenCacheHits, thickness: s.screenCacheThickness, iterations: s.screenCacheIterations } };
 	}
 
 	get sssrStats(): SssrStats {
@@ -1099,6 +1128,7 @@ export class Renderer {
 		if (trace) {
 			this.writeUniforms(this.vt?.nextFeedbackJitter() ?? 0, true);
 			const encoder = this.gpuProfiler.createCommandEncoder({ label: 'trace' });
+			this.tracer.setScreenCache(this.screenCacheFrame());
 			this.gpuProfiler.scope('Path tracing', () => this.tracer.encodeTrace(encoder, this.settings.maxBounces, this.settings.debugMode));
 			this.radianceCacheActive = this.encodeRadianceCache(encoder);
 			const feedback = this.tracer.feedback;

@@ -97,7 +97,10 @@ Veach's own passes:
 
 - **Prepare** writes depth hierarchy mip 0 and normals. The projection is inverted and infinite
   (`depth = near / viewZ`, 0 without a surface, `FFX_SSSR_OPTION_INVERTED_DEPTH`), in NRD's view space
-  (X right, Y up, Z forward), and maps FidelityFX's pixel-center UVs to the path tracer's jittered rays.
+  (X right, Y up, Z forward), and maps FidelityFX's pixel-center UVs to the path tracer's jittered rays. Normal w
+  holds perceptual roughness (+2 for metals) or -1 for emissive pixels, for the next frame's
+  [screen cache](ScreenCache.md), which reads the depth hierarchy, normals and linear scene color before SSSR
+  overwrites them.
 - **Downsample** builds the closest-depth mips (max for inverted depth, odd sizes include the extra
   row/column) instead of FidelityFX's SPD, whose single-pass global atomic WebGPU cannot synchronize.
   FidelityFX's mip count: `min(7, ceil(log2(max(width, height))))`.

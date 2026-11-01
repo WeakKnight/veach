@@ -32,7 +32,7 @@ const programs = [
 	{ name: 'PathTracingOpaque', source: 'Passes/PathTracing.slang', defines: ['VEACH_OPAQUE_SCENE=1'], entries: [['main', 'compute']] },
 	{ name: 'PathTracingEmpty', source: 'Passes/PathTracing.slang', defines: ['VEACH_EMPTY_SCENE=1'], entries: [['main', 'compute']] },
 	{ name: 'RadianceCache', source: 'Passes/RadianceCache.slang', entries: [['TraceProbes', 'compute']] },
-	{ name: 'Wavefront', source: 'Passes/Wavefront.slang', entries: ['ResolvePrimaryVisibility', 'PrimaryTraceFallback', 'PrimaryTraceFallbackOpaque', 'PrimaryTraceFallbackSparse', 'PrimaryTraceFallbackSparseOpaque', 'Initialize', 'Intersect', 'IntersectOpaque', 'Shade', 'Shadow', 'ShadowOpaque', 'Tail', 'TailOpaque', 'Finalize',
+	{ name: 'Wavefront', source: 'Passes/Wavefront.slang', entries: ['ResolvePrimaryVisibility', 'PrimaryTraceFallback', 'PrimaryTraceFallbackOpaque', 'PrimaryTraceFallbackSparse', 'PrimaryTraceFallbackSparseOpaque', 'Initialize', 'Intersect', 'IntersectOpaque', 'ScreenTrace', 'ScreenTraceIntersect', 'ScreenTraceIntersectOpaque', 'Shade', 'Shadow', 'ShadowOpaque', 'Tail', 'TailOpaque', 'Finalize',
 		'IntersectDirect', 'IntersectOpaqueDirect', 'ShadeDirect', 'ShadeBucket', 'ShadeBucketDirect', 'ShadeBucketCompact', 'ShadowDirect', 'ShadowOpaqueDirect',
 		'ShadowClassify', 'ShadowClassifyDirect', 'ShadowAlpha',
 		'ShadeSurface', 'ShadeSurfaceDirect', 'ShadeSurfaceBucket', 'ShadeSurfaceCompact', 'ShadeLight', 'ShadeLightDirect',

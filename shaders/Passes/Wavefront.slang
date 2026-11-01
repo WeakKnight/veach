@@ -17,6 +17,7 @@ import Lights.Lights;
 import Passes.Sharc;
 import Passes.SharcCommon;
 import Passes.WavefrontRealtime;
+import Passes.WavefrontScreenCache;
 
 struct WavefrontUniforms
 {
@@ -101,6 +102,8 @@ float NrdPackSurface(float roughness, float metalness) { return saturate(roughne
 // Three 9-bit diffuse fractions; shadow flags keep the low three bits.
 // Bit 27 of the packed primary sample fraction: the sample crossed the surface (realtime SSSR frames only).
 static const uint NRD_TRANSMITTED = 1u << 27u;
+// Bit 28: the primary surface emits (or shows an analytic light); the screen cache never reads such pixels.
+static const uint NRD_EMISSIVE = 1u << 28u;
 uint NrdPackFraction(float3 f)
 {
 	uint3 q = uint3(round(saturate(f) * 511.0));
@@ -364,11 +367,12 @@ void PrimaryTraceFallbackSparse(uint3 tid : SV_DispatchThreadID) { PrimaryTraceF
 [numthreads(1, 1, 1)]
 void PrimaryTraceFallbackSparseOpaque(uint3 tid : SV_DispatchThreadID) { PrimaryTraceFallbackImpl<false>(tid); }
 
-void IntersectImpl<let ALPHA : bool, let DIRECT : bool>(uint3 tid)
+// SURVIVORS: the paths the screen trace left, compacted into the shade queue (docs/ScreenCache.md).
+void IntersectImpl<let ALPHA : bool, let DIRECT : bool, let SURVIVORS : bool = false>(uint3 tid)
 {
-	uint count = DIRECT ? gWavefront.pathCount : asuint(gAccum[HeaderBase()].x);
+	uint count = DIRECT ? gWavefront.pathCount : asuint(gAccum[HeaderBase()][SURVIVORS ? 2 : 0]);
 	if (tid.x >= count) return;
-	uint index = DIRECT ? tid.x : QueueIndex(MainQueueBase(), tid.x);
+	uint index = DIRECT ? tid.x : QueueIndex(SURVIVORS ? ShadeQueueBase() : MainQueueBase(), tid.x);
 	uint base = WorkBase(index);
 	WavefrontPath s = LoadPath(base);
 	if (s.active == 0u) return;
@@ -517,8 +521,31 @@ void ShadePath<let DEFERRED : bool, let ALPHA : bool, let PHASE : uint = 0u, let
 		if (clampValue > 0.0 && !primary) contribution = min(contribution, float3(clampValue));
 		s.path.radiance += contribution;
 	}
-	if (primary && NrdEnabled()) gAccum[NrdBase(base)].xyz = s.path.radiance;
+	if (primary && NrdEnabled())
+	{
+		uint r = NrdBase(base);
+		gAccum[r].xyz = s.path.radiance;
+		if (any(s.path.radiance > 0.0)) gAccum[r].w = asfloat(asuint(gAccum[r].w) | NRD_EMISSIVE);
+	}
 	if (bounce == gFrame.settings.x) return;
+	RandomSequence rng = RandomSequence(0u, 0u);
+	rng.seed = s.randomSeed;
+	// Screen cache hit lookup (docs/ScreenCache.md), before SHARC as NRD-Sample's L1 before its L2: the previous frame's
+	// color replaces NEE and the path suffix. SHARC update paths keep their full paths for training.
+	if (!primary && ScreenCacheMode(SCREEN_CACHE_HITS) && !(SharcEnabled() && SharcUpdatePath(base - WorkBase(0u), gWavefront.tileStart)) && !any(bsdf.emission > 0.0) && ms.inputs.transmissionWeight <= 0.0)
+	{
+		float3 cached;
+		float3 n = si.frontFacing ? ms.inputs.basis.n : -ms.inputs.basis.n;
+		float confidence = ScreenCacheLookup(si.position, n, WorkPixel(base - WorkBase(0u)), cached);
+		if (confidence > 0.0 && rng.Next() < confidence)
+		{
+			float3 contribution = s.path.throughput * cached;
+			float clampValue = gFrame.envParams.w / gFrame.envParams.z;
+			if (clampValue > 0.0) contribution = min(contribution, float3(clampValue));
+			s.path.radiance += contribution;
+			return;
+		}
+	}
 	if (SharcEnabled() && !primary && SharcSurface(ms))
 	{
 		SharcKey key; float voxelSize;
@@ -537,8 +564,6 @@ void ShadePath<let DEFERRED : bool, let ALPHA : bool, let PHASE : uint = 0u, let
 			}
 		}
 	}
-	RandomSequence rng = RandomSequence(0u, 0u);
-	rng.seed = s.randomSeed;
 	bool diffuseOnly = DiffuseOnlyVertex(primary, ms);
 	s.path.lightsSampled = bsdf.MaxActiveAlpha() >= NEAR_SPECULAR_ALPHA;
 	if (s.path.lightsSampled)
@@ -567,7 +592,7 @@ void ShadePath<let DEFERRED : bool, let ALPHA : bool, let PHASE : uint = 0u, let
 		float2 oct = NrdOctEncode(bs.wi);
 		// Realtime SSSR frames keep the indirect specular of a transmitted primary sample (Finalize).
 		bool transmitted = DiffuseOnlyFrame() && (dot(bs.wi, si.faceNormal) > 0.0) != si.frontFacing;
-		gAccum[r].w = asfloat(NrdPackFraction(NrdDiffuseFraction(bs.weight)) | (transmitted ? NRD_TRANSMITTED : 0u));
+		gAccum[r].w = asfloat(NrdPackFraction(NrdDiffuseFraction(bs.weight)) | (transmitted ? NRD_TRANSMITTED : 0u) | (asuint(gAccum[r].w) & NRD_EMISSIVE));
 		gAccum[r + 3u].w = oct.x; gAccum[r + 4u].w = oct.y;
 	}
 	float3 throughput = s.path.throughput * weight;
@@ -862,6 +887,44 @@ void ShadowClassifyDirect(uint3 tid : SV_DispatchThreadID) { ShadowClassifyImpl<
 [numthreads(64, 1, 1)]
 void Intersect(uint3 tid : SV_DispatchThreadID) { IntersectImpl<true, false>(tid); }
 
+// Screen trace of the primary diffuse continuation (bounce 1 of realtime SSSR frames, docs/ScreenCache.md): a confident
+// hit in the previous frame's depth takes its color and ends the path; CompactIntersect then queues the rest for
+// ScreenTraceIntersect. SHARC update paths keep their full paths; transmitted samples look through the surface.
+[shader("compute")]
+[numthreads(64, 1, 1)]
+void ScreenTrace(uint3 tid : SV_DispatchThreadID)
+{
+	if (tid.x >= asuint(gAccum[HeaderBase()].x)) return;
+	uint index = QueueIndex(MainQueueBase(), tid.x), base = WorkBase(index);
+	if (asuint(gAccum[base].w) == 0u || !ScreenCacheMode(SCREEN_CACHE_TRACE) || !NrdEnabled()) return;
+	if (SharcEnabled() && SharcUpdatePath(index, gWavefront.tileStart)) return;
+	uint r = NrdBase(base);
+	if ((asuint(gAccum[r].w) & NRD_TRANSMITTED) != 0u) return;
+	WavefrontPath s = LoadPath<false>(base);
+	if (any(s.path.absorption > 0.0)) return;
+	float3 cached; float hitDistance;
+	float confidence = ScreenCacheTrace(s.path.origin, s.path.direction, cached, hitDistance);
+	if (confidence <= 0.0) return;
+	RandomSequence rng = RandomSequence(0u, 0u);
+	rng.seed = s.randomSeed;
+	bool resolved = rng.Next() < confidence;
+	gAccum[Field(base, 1u)].w = asfloat(rng.seed);
+	if (!resolved) return;
+	float3 contribution = s.path.throughput * cached;
+	float clampValue = gFrame.envParams.w / gFrame.envParams.z;
+	if (clampValue > 0.0) contribution = min(contribution, float3(clampValue));
+	gAccum[base] = float4(s.path.radiance + contribution, asfloat(0u));
+	gAccum[r + 1u].w = hitDistance;
+}
+
+[shader("compute")]
+[numthreads(64, 1, 1)]
+void ScreenTraceIntersect(uint3 tid : SV_DispatchThreadID) { IntersectImpl<true, false, true>(tid); }
+
+[shader("compute")]
+[numthreads(64, 1, 1)]
+void ScreenTraceIntersectOpaque(uint3 tid : SV_DispatchThreadID) { IntersectImpl<false, false, true>(tid); }
+
 [shader("compute")]
 [numthreads(64, 1, 1)]
 void IntersectOpaque(uint3 tid : SV_DispatchThreadID) { IntersectImpl<false, false>(tid); }
@@ -946,7 +1009,7 @@ void Finalize(uint3 tid : SV_DispatchThreadID)
 		gAccum[r] = float4(valid ? d : float3(0.0), diffuse.w);
 		gAccum[r + 1u] = float4(valid ? sp : float3(0.0), specular.w);
 		gAccum[r + 2u] = float4(valid ? max(radiance - d - sp, 0.0) : radiance, valid ? 1.0 : 0.0);
-		gAccum[r + 3u] = float4(valid && all(isfinite(dDirection)) ? dDirection : float3(0.0), 0.0);
+		gAccum[r + 3u] = float4(valid && all(isfinite(dDirection)) ? dDirection : float3(0.0), (asuint(bypass.w) & NRD_EMISSIVE) != 0u ? 1.0 : 0.0);
 		gAccum[r + 4u] = float4(valid && all(isfinite(sDirection)) ? sDirection : float3(0.0), 0.0);
 	}
 }

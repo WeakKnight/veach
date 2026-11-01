@@ -214,7 +214,12 @@ void main(uint3 tid : SV_DispatchThreadID)
 	bool valid = PrimaryViewZ(pixel, viewZ, direction);
 	gOutDepth[pixel] = valid ? gSssr.nearPlane / viewZ : 0.0;
 	float3 n = gAccum[(pixel.y * size.x + pixel.x) * 3u + 2u].xyz;
-	gOutNormal[pixel] = float4(valid && dot(n, n) > 0.0 ? normalize(n) : float3(0.0, 0.0, 1.0), 0.0);
+	// w, for the next frame's screen cache (docs/ScreenCache.md): perceptual roughness, +2 for metals, -1 when emissive.
+	uint r = gSssr.region + (pixel.y * size.x + pixel.x) * SSSR_NRD_STRIDE;
+	float packed = max(gAccum[r + 1u].w, 0.0);
+	float metalness = floor(packed * 0.5);
+	float surface = saturate((packed - 2.0 * metalness) / 0.99) + (metalness >= 128.0 ? 2.0 : 0.0);
+	gOutNormal[pixel] = float4(valid && dot(n, n) > 0.0 ? normalize(n) : float3(0.0, 0.0, 1.0), gAccum[r + 3u].w > 0.5 ? -1.0 : surface);
 }
 
 #elif SSSR_PASS == SSSR_PASS_DOWNSAMPLE
