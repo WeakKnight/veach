@@ -120,8 +120,8 @@ interiors are lit indirectly, and screen-space rays are sharper than the radianc
 
 ## Limitations
 
-- Screen space: reflections of off-screen or occluded geometry fall back to the radiance cache, blurry and
-  without parallax ([RadianceCache.md](RadianceCache.md)); with it off, to the unoccluded environment, which leaks
+- Screen space: reflections of off-screen or occluded geometry fall back to the radiance cache, blurrier
+  than screen-space hits ([RadianceCache.md](RadianceCache.md)); with it off, to the unoccluded environment, which leaks
   light indoors (e.g. the upper side of a range hood reflecting the ceiling).
 - Emissive triangles reflect only through SSSR: off-screen emitters produce no glossy highlights.
   Highlights of the sun and analytic lights are direct lighting; on near-mirror surfaces (no NEE below

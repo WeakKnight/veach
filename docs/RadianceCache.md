@@ -64,10 +64,26 @@ history, over 16 updates per probe.
 ## Lookup
 
 `RadianceCacheSample(position, normal, direction)` takes the finest clipmap whose window contains the 8 probes around the
-position, biased 0.25 cells along the normal. Each probe's weight is trilinear × `(((dot(toProbe, n) + 1) / 2)² + 0.05)`,
-the DDGI backface weight; invalid, INSIDE and scrolled-out probes are skipped. A total weight ≤ 1e-4 moves on to the next
-clipmap; with no clipmap left the lookup returns false and the sky takes over. Texels are bilinear, with mirrored
-octahedral borders.
+position, biased 0.25 cells along the normal. Invalid, INSIDE and scrolled-out probes are skipped. Each remaining probe's
+weight is the product of:
+
+- the trilinear weight;
+- the DDGI backface term `((dot(toProbe, n) + 1) / 2)² + 0.05`;
+- visibility: the probe's mean hit distance toward the biased point, compared with the point's distance, fading the probe
+  out (to 0.02) over a quarter cell once something lies in between. This keeps probes on the far side of a cabinet door or
+  inside a wall cavity from leaking in.
+
+Each probe is read parallax corrected. Its mean hit distance t along `direction` places the reflected surface at
+`position + direction * t`, and the probe is sampled toward that point rather than along `direction`, so all 8 probes
+look at the same surface.
+
+Without visibility and parallax, interpolating probes that see different things showed as blocks and bands with the
+12 cm cell period, for example vertical bands on the kitchen's cabinet doors.
+
+The last 2 cells of a clipmap's window cross-fade into the next clipmap, so the level change has no seam. A total weight
+≤ 1e-4 moves on to the next clipmap; with no clipmap left the lookup returns false and the sky takes over. Texels are
+bilinear (radiance and mean hit distance), with mirrored octahedral borders. The lookup adds about 0.1 ms to SSSR in
+the kitchen (0.35 to 0.45 ms).
 
 ## Bindings
 
@@ -92,8 +108,8 @@ against a 512 spp offline reference: 6.61 with the cache, 12.05 with the sky fal
 ## Limitations
 
 - Probes are not relocated: one inside a wall stays INSIDE, and thin walls can leak.
-- Lookups have no parallax correction: a probe's radiance is read as if the reflected surface were infinitely far.
-  First hit distances are stored for this but not used yet.
+- Parallax and visibility use one mean hit distance per texel (8x8): at depth edges the mean blends both sides, and
+  thin occluders between texel directions are missed. DDGI's Chebyshev test would need the second moment as well.
 - Lookups do not prefilter by roughness: an 8×8 probe is too blurry for near mirrors, and rough lobes get the same
   bilinear read.
 - Updates are camera-centered, not view-driven: off-screen probes cost the same as visible ones.
