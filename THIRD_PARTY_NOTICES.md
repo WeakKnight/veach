@@ -46,16 +46,16 @@ runtime code or data is embedded in JavaScript or WebAssembly.
   timer platform detection) applied to a staged copy at build time; see `docs/Nrd.md`.
 - Redistribution under these terms has not been reviewed for the npm package; see `docs/Nrd.md`.
 
-## AMD FidelityFX SDK (SSSR and reflection denoiser)
+## AMD FidelityFX SDK (SSSR, reflection denoiser, FSR 3 upscaler)
 
 - Upstream: https://github.com/GPUOpen-LibrariesAndSDKs/FidelityFX-SDK
-- Version: SDK 1.1.4 (Stochastic Screen Space Reflections 1.5.0, Denoiser 1.3.0).
+- Version: SDK 1.1.4 (Stochastic Screen Space Reflections 1.5.0, Denoiser 1.3.0, FSR 3.1.4 upscaler).
 - Copyright (C) 2024 Advanced Micro Devices, Inc.
 - License: MIT; full text in `licenses/fidelityfx-MIT.txt`.
 - Source: a subset vendored unmodified in `ThirdParty/FidelityFX` (see `VERSION.txt`).
-- Use: `shaders/Sssr` compiles the SSSR and reflection denoiser shaders to WGSL with Veach's own
-  resource callbacks; `src/render/sssr` ports the host dispatch logic to TypeScript, and the blue
-  noise sampler tables are repacked as binary data.
+- Use: `shaders/Sssr` and `shaders/Fsr3` compile the SSSR, reflection denoiser and FSR 3 upscaler shaders to
+  WGSL with Veach's own resource callbacks; `src/render/sssr` and `src/render/fsr3` port the host dispatch logic
+  to TypeScript, and the SSSR blue noise sampler tables are repacked as binary data.
 
 ## Adobe OpenPBR BSDF
 
