@@ -5,7 +5,7 @@ export { MATERIAL_STACK_CAPACITIES, materialStackCapacity, type MaterialStackCap
 
 // Restore exact Slang output from generated edits, sharing the large common module in the bundle.
 // WGSL pipeline overrides cannot size function-scope arrays, so these are shader-module variants.
-export function specializeMaterialShader(code: string, program: 'PathTracing' | 'Wavefront', capacity: MaterialStackCapacity): string {
+export function specializeMaterialShader(code: string, program: 'PathTracing' | 'Wavefront' | 'RadianceCache', capacity: MaterialStackCapacity): string {
 	return restoreMaterialShaderVariant(code, capacity, materialStackVariants[program]);
 }
 

@@ -83,6 +83,7 @@ export interface SssrFrameConstants {
 	debug: number; // Apply: 0 final, 1 reflections only, 2 color input only, 3 camera reconstruction error
 	preExposure: number;
 	sceneColorHistory: boolean; // the previous frame's scene color is available
+	radianceCache: boolean; // misses and rough surfaces fall back to the radiance cache
 	jitterDelta: readonly [number, number]; // current minus previous film jitter, pixels
 }
 
@@ -97,7 +98,7 @@ export function packSssrConstants(c: SssrFrameConstants): ArrayBuffer {
 	f.set([p.depthBufferThickness, p.roughnessThreshold, p.varianceThreshold], 108); u[111] = c.frameIndex >>> 0;
 	u.set([p.maxTraversalIntersections, p.minTraversalOccupancy, p.mostDetailedMip, p.samplesPerQuad, Number(p.temporalVarianceGuidedTracingEnabled), c.region], 112);
 	f[118] = c.envRotation; u[119] = c.debug;
-	f[120] = SSSR_NEAR_PLANE; f[121] = c.preExposure; u[122] = Number(c.sceneColorHistory);
+	f[120] = SSSR_NEAR_PLANE; f[121] = c.preExposure; u[122] = Number(c.sceneColorHistory); u[123] = Number(c.radianceCache);
 	f.set(c.jitterDelta, 124);
 	return data;
 }

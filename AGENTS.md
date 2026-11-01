@@ -36,6 +36,7 @@ Read the relevant doc before changing a subsystem, and update it with the change
 | [docs/BlendImport.md](docs/BlendImport.md) | `.blend` loader conventions |
 | [docs/Nrd.md](docs/Nrd.md) | Optional NVIDIA NRD REBLUR for real-time frames: build, split, host |
 | [docs/Fsr3.md](docs/Fsr3.md) | Realtime FidelityFX FSR 3 upscaling: resolution split, jitter, passes, native reference |
+| [docs/RadianceCache.md](docs/RadianceCache.md) | World-space probe clipmaps, the fallback of SSSR: layout, scheduling, probe trace, lookup |
 | [docs/Sssr.md](docs/Sssr.md) | Realtime diffuse ray traced lighting + FidelityFX SSSR reflections: path tracer split, passes, host |
 
 ## Rules

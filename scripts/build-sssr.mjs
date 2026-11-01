@@ -33,6 +33,13 @@ patch(join(stage, 'gpu', 'sssr', 'ffx_sssr_classify_tiles.h'), [
 	['    g_TileCount = 0;', '    g_TileCount.store(0u);'],
 	['FFX_ATOMIC_ADD(g_TileCount, 1);', 'g_TileCount.add(1u);'],
 	['&& g_TileCount > 0)', '&& g_TileCount.load() > 0u)'],
+	// Veach's fallback takes the pixel's surface: the radiance cache, then the environment.
+	['intersection_output.xyz = FFX_SSSR_SampleEnvironmentMap(world_space_reflected_direction, sqrt(roughness));',
+		'intersection_output.xyz = FFX_SSSR_SampleFallback(FfxInt32x2(dispatch_thread_id), screen_uv_space_ray_origin, world_space_reflected_direction, sqrt(roughness));'],
+]);
+patch(join(stage, 'gpu', 'sssr', 'ffx_sssr_intersect.h'), [
+	['FfxFloat32x3 environment_lookup = FFX_SSSR_SampleEnvironmentMap(world_space_reflected_direction, 0.0f);',
+		'FfxFloat32x3 environment_lookup = FFX_SSSR_SampleFallback(FfxInt32x2(coords), screen_uv_space_ray_origin, world_space_reflected_direction, 0.0f);'],
 ]);
 
 const shaders = Object.fromEntries(Object.entries(PASSES).map(([name, pass]) => {

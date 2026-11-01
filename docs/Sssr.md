@@ -8,7 +8,8 @@ are unchanged. SSSR is the realtime default (`settings.sssrEnabled = true`): the
 devices without `subgroups` / `float32-filterable`, realtime frames keep path-traced reflections
 (`sssrStats.reason` reports the error). `setSssr(false)`, viewer `?sssr=0` or `r.SSSR.Enabled 0` turn
 it off. It applies to wavefront frames with TAA and takes precedence over `settings.nrdEnabled`.
-Reflection rays that miss the screen fall back to the sky / environment map.
+Reflection rays that miss the screen fall back to the world-space [radiance cache](RadianceCache.md), then the
+sky / environment map where no probe is valid.
 
 ```
 wavefront trace, diffuse only at the primary vertex (NRD split region)
@@ -31,7 +32,7 @@ without the denoiser. `settings.sssrRoughnessThreshold` is FidelityFX's `roughne
 holds everything it changes; Wavefront.slang calls it at four points, all no-ops without the flag:
 
 - **Primary NEE** of the environment and emissive triangles keeps the diffuse part of the BSDF; SSSR
-  (screen-space hits, environment fallback) provides their reflections. The sun and analytic lights
+  (screen-space hits, radiance cache and environment fallback) provides their reflections. The sun and analytic lights
   (`LightSample.analytic`) keep the full BSDF: they are neither in the environment map nor in the
   screen-space color, so their specular highlights are computed as direct lighting. Only the diffuse
   part takes the MIS weight against the cosine continuation, which cannot sample the specular part
@@ -112,18 +113,19 @@ Veach's own passes:
 The FidelityFX sample's defaults (`SSSR_DEFAULTS`): temporal stability 0.7, depth buffer thickness
 0.015 (view-space units), 128 traversal iterations, minimum occupancy 4, 1 sample per quad, variance
 guided tracing. The roughness threshold (squared roughness) defaults to 0.6 instead of 0.2: Veach's
-interiors are lit indirectly, and the unoccluded environment fallback leaks there.
+interiors are lit indirectly, and screen-space rays are sharper than the radiance cache there.
 
 ## Limitations
 
-- Screen space: reflections of off-screen or occluded geometry fall back to the unoccluded environment,
-  which leaks light indoors (e.g. the upper side of a range hood reflecting the ceiling).
+- Screen space: reflections of off-screen or occluded geometry fall back to the radiance cache, blurry and
+  without parallax ([RadianceCache.md](RadianceCache.md)); with it off, to the unoccluded environment, which leaks
+  light indoors (e.g. the upper side of a range hood reflecting the ceiling).
 - Emissive triangles reflect only through SSSR: off-screen emitters produce no glossy highlights.
   Highlights of the sun and analytic lights are direct lighting; on near-mirror surfaces (no NEE below
   `NEAR_SPECULAR_ALPHA`) they are missing, since the continuation does not sample the specular lobe.
 - One GGX lobe per pixel: coat, sheen and specular color are approximated by the base roughness and
   F0 = lerp(0.04, albedo, metalness). Transmission stays path traced and is not denoised by NRD.
-- The environment fallback is a box-filtered mip chain, not a GGX-prefiltered cubemap.
+- The environment fallback (past the radiance cache) is a box-filtered mip chain, not a GGX-prefiltered cubemap.
 
 ## Validation
 

@@ -49,7 +49,7 @@ struct SssrConstants
 	float nearPlane; // Prepare: depth = nearPlane / viewZ
 	float preExposure; // of this frame; the scene color history is scene-linear
 	uint sceneColorHistory; // 1 when gSceneColorHistory holds the previous frame's scene color
-	float padding0;
+	uint radianceCache; // 1: misses and rough surfaces fall back to the radiance cache, then the environment
 	float2 jitterDelta; // current minus previous film jitter, pixels (TemporalAA.slang history addressing)
 	float2 padding1;
 };
@@ -227,6 +227,27 @@ FfxFloat32x3 FFX_SSSR_SampleEnvironmentMap(FfxFloat32x3 direction, FfxFloat32 pr
 	FfxFloat32 azimuth = abs(d.y) < 1.0 ? atan2(d.z, d.x) : 0.0;
 	FfxFloat32x2 uv = FfxFloat32x2(azimuth * (0.5 * INV_PI) - 0.25, 0.5 - asin(clamp(d.y, -1.0, 1.0)) * INV_PI);
 	return r_input_environment_map.SampleLevel(s_EnvironmentMapSampler, uv, mip).xyz * IBLFactor();
+}
+
+// Radiance cache lookups (shaders/RadianceCache, docs/RadianceCache.md) for the environment fallback.
+#define RADIANCE_CACHE_GROUP 0
+#define RADIANCE_CACHE_BINDING_CONSTANTS 43
+#define RADIANCE_CACHE_BINDING_PROBES 44
+#define RADIANCE_CACHE_PROBES_RW 0
+#include "../RadianceCache/RadianceCacheCommon.hlsli"
+
+// The fallback of a reflection ray that leaves the screen (or of a surface too rough to trace): incoming radiance at
+// the pixel's surface from the radiance cache, else the environment. screenUv is FidelityFX's (uv, depth) of the pixel.
+FfxFloat32x3 FFX_SSSR_SampleFallback(FfxInt32x2 pixel, FfxFloat32x3 screenUv, FfxFloat32x3 direction, FfxFloat32 perceptualRoughness)
+{
+	if (gSssr.radianceCache != 0u)
+	{
+		FfxFloat32x4 world = FFX_MATRIX_MULTIPLY(InvViewProjection(), FfxFloat32x4(screenUv.x * 2.0 - 1.0, 1.0 - screenUv.y * 2.0, screenUv.z, 1.0));
+		FfxFloat32x3 radiance;
+		if (RadianceCacheSample(world.xyz / world.w, FFX_SSSR_LoadWorldSpaceNormal(pixel), normalize(direction), radiance))
+			return radiance * gSssr.preExposure;
+	}
+	return FFX_SSSR_SampleEnvironmentMap(direction, perceptualRoughness);
 }
 #endif
 

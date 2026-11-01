@@ -21,6 +21,8 @@ export interface SssrFrame {
 	iblFactor: number;
 	envRotation: number;
 	preExposure: number;
+	// Radiance cache for misses and rough surfaces (docs/RadianceCache.md); null falls back to the environment.
+	radianceCache: { constants: GPUBuffer; probes: GPUBuffer } | null;
 	parameters: SssrParameters;
 	debug: number;
 }
@@ -56,7 +58,7 @@ const B = {
 	extractedRoughness: 17, sobol: 18, scrambling: 19, blueNoise: 20, sampleCount: 21, averageRadiance: 22, reprojectedRadiance: 23,
 	depthHistory: 24, normalHistory: 25, roughnessHistory: 26, environment: 27, brdfLut: 28, source: 29,
 	rwRadiance: 30, rwVariance: 31, rwExtractedRoughness: 32, rwBlueNoise: 33, rwSampleCount: 34, rwAverageRadiance: 35,
-	rwReprojectedRadiance: 36, outDepth: 37, outNormal: 38, sourceColor: 39, outColor: 40, sceneColorHistory: 41, sceneColorOut: 42,
+	rwReprojectedRadiance: 36, outDepth: 37, outNormal: 38, sourceColor: 39, outColor: 40, sceneColorHistory: 41, sceneColorOut: 42, radianceCacheConstants: 43, radianceCacheProbes: 44,
 } as const;
 const BYTES: Partial<Record<GPUTextureFormat, number>> = { r32float: 4, rgba16float: 8, rgba8unorm: 4, r32uint: 4, rg32float: 8 };
 const BRDF_LUT_SIZE = 32;
@@ -72,6 +74,8 @@ export class SssrReflections {
 	private readonly blueNoise: GPUTexture;
 	private readonly rayCounter: GPUBuffer;
 	private readonly indirectArgs: GPUBuffer;
+	// Bound when there is no radiance cache (gSssr.radianceCache = 0 never reads them).
+	private readonly noRadianceCache: { constants: GPUBuffer; probes: GPUBuffer };
 	private textures: Textures | null = null;
 	private rayList: GPUBuffer | null = null;
 	private tileList: GPUBuffer | null = null;
@@ -103,6 +107,8 @@ export class SssrReflections {
 		this.blueNoise = device.createTexture({ label: 'sssr.blueNoise', size: [128, 128], format: 'rgba8unorm', usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.STORAGE_BINDING });
 		this.rayCounter = device.createBuffer({ label: 'sssr.rayCounter', size: 16, usage: GPUBufferUsage.STORAGE });
 		this.indirectArgs = device.createBuffer({ label: 'sssr.indirectArgs', size: 24, usage: GPUBufferUsage.STORAGE | GPUBufferUsage.INDIRECT });
+		this.noRadianceCache = { constants: device.createBuffer({ label: 'sssr.noRadianceCache', size: 176, usage: GPUBufferUsage.UNIFORM }),
+			probes: device.createBuffer({ label: 'sssr.noRadianceCacheProbes', size: 16, usage: GPUBufferUsage.STORAGE }) };
 	}
 
 	/** Requires subgroups (FidelityFX's wave intrinsics) and float32-filterable (r32float history is sampled linearly). */
@@ -145,7 +151,7 @@ export class SssrReflections {
 			current, previous: this.previous ?? current, width: input.width, height: input.height, frameIndex: this.frameIndex,
 			// Debug 4 shows the raw intersection output: reflections only, without the denoiser passes.
 			parameters: input.parameters, iblFactor: input.iblFactor, envRotation: input.envRotation, region: input.region, debug: input.debug === 4 ? 1 : input.debug,
-			preExposure: input.preExposure, sceneColorHistory: this.frameIndex > 0,
+			preExposure: input.preExposure, sceneColorHistory: this.frameIndex > 0, radianceCache: !!input.radianceCache,
 			jitterDelta: this.previousJitter ? [input.jitter[0] - this.previousJitter[0], input.jitter[1] - this.previousJitter[1]] : [0, 0],
 		}));
 		const view = (texture: GPUTexture, mip?: number) => mip === undefined ? texture.createView() : texture.createView({ baseMipLevel: mip, mipLevelCount: 1 });
@@ -154,7 +160,8 @@ export class SssrReflections {
 			[B.motion]: { buffer: input.motion }, [B.color]: { buffer: input.color }, [B.rayList]: { buffer: this.rayList! },
 			[B.tileList]: { buffer: this.tileList! }, [B.rayCounter]: { buffer: this.rayCounter }, [B.indirectArgs]: { buffer: this.indirectArgs },
 			[B.output]: { buffer: this.output! }, [B.sceneColorHistory]: view(this.sceneColor![(this.frameIndex + 1) & 1]),
-			[B.sceneColorOut]: view(this.sceneColor![this.frameIndex & 1]), [B.linearSampler]: this.linear, [B.environmentSampler]: this.environmentSampler,
+			[B.sceneColorOut]: view(this.sceneColor![this.frameIndex & 1]),
+			[B.radianceCacheConstants]: { buffer: (input.radianceCache ?? this.noRadianceCache).constants }, [B.radianceCacheProbes]: { buffer: (input.radianceCache ?? this.noRadianceCache).probes }, [B.linearSampler]: this.linear, [B.environmentSampler]: this.environmentSampler,
 			[B.depthHierarchy]: view(t.depth), [B.normal]: view(t.normal), [B.extractedRoughness]: view(t.extractedRoughness),
 			[B.sobol]: view(this.sobol), [B.scrambling]: view(this.scrambling), [B.blueNoise]: view(this.blueNoise),
 			[B.reprojectedRadiance]: view(t.reprojectedRadiance), [B.depthHistory]: view(t.depthHistory), [B.normalHistory]: view(t.normalHistory),
@@ -312,7 +319,7 @@ export class SssrReflections {
 		this.release();
 		this.environment?.texture.destroy();
 		this.environment = null;
-		for (const resource of [this.constants, this.rayCounter, this.indirectArgs]) resource.destroy();
+		for (const resource of [this.constants, this.rayCounter, this.indirectArgs, this.noRadianceCache.constants, this.noRadianceCache.probes]) resource.destroy();
 		for (const texture of [this.brdf, this.sobol, this.scrambling, this.blueNoise]) texture.destroy();
 	}
 }

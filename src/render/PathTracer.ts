@@ -14,6 +14,7 @@ import type { PipelineCompiler } from './PipelineCompiler';
 import { OIDNGuides } from './denoise/OIDNGuides';
 import type { Environment } from './Environment';
 import { ACCUM_BYTES_PER_PIXEL, FRAME_UNIFORM_BYTES } from './GpuLayout';
+import type { RadianceCacheScene } from './RadianceCache';
 import type { GpuScene } from './GpuScene';
 import { VT_FEEDBACK_SHIFT } from './vt/VirtualTextureSystem';
 import type { SceneTextures } from './vt/SceneTextures';
@@ -436,6 +437,12 @@ export class PathTracer {
 		if (enabled === this.nrdRequested) return;
 		this.nrdRequested = enabled;
 		if (this.accumBuffer) this.resize(this.width, this.height);
+	}
+
+	/** The bound scene for passes that trace with the path tracer's scene bindings (radiance cache), or null. */
+	get boundScene(): RadianceCacheScene | null {
+		if (!this.sceneBindGroup || !this.hasGeometry) return null;
+		return { layout: this.sceneLayout, bindGroup: this.sceneBindGroup, capacity: this.materialCapacity, opcodes: this.materialOpcodes, operandMode: this.boundMaterialOperandMode };
 	}
 
 	/** Float4 offset of the NRD split region in the accumulation buffer, or 0 when unavailable. */

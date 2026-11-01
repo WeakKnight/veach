@@ -7,6 +7,7 @@ import type { SssrReflections, SssrStats } from './sssr/SssrReflections';
 import type { Fsr3Pass, Fsr3Stats } from './fsr3/Fsr3Pass';
 import { fsr3JitterOffset, fsr3JitterPhaseCount } from './fsr3/Fsr3Config';
 import { SSSR_DEFAULTS } from './sssr/SssrConfig';
+import type { RadianceCache, RadianceCacheStats } from './RadianceCache';
 // Public entry point: owns the WebGPU device, the scene and the progressive render loop.
 import { BuildQuality, TinyBVH } from '../accel/TinyBVH';
 import type { HDRImage } from '../loaders/HDRLoader';
@@ -98,6 +99,14 @@ export interface RenderSettings {
 	sssrDebug: number;
 	/** Squared roughness above which SSSR uses the environment fallback instead of screen-space rays. */
 	sssrRoughnessThreshold: number;
+	/** SSSR frames: reflection misses and rough surfaces fall back to the world-space radiance cache, then the sky. */
+	radianceCacheEnabled: boolean;
+	/** Probes traced per frame (64 paths each), <= 1024. */
+	radianceCacheProbesPerFrame: number;
+	/** Probes per clipmap axis (4 clipmaps, each twice as coarse); changing it discards the cache. */
+	radianceCacheResolution: number;
+	/** Bounces of the probe paths. */
+	radianceCacheBounces: number;
 	maxBounces: number;
 	maxSamples: number; // 0 = unlimited
 	resolutionScale: number;
@@ -158,6 +167,10 @@ export function defaultRenderSettings(): RenderSettings {
 		sssrEnabled: true,
 		sssrDebug: 0,
 		sssrRoughnessThreshold: SSSR_DEFAULTS.roughnessThreshold,
+		radianceCacheEnabled: true,
+		radianceCacheProbesPerFrame: 1024,
+		radianceCacheResolution: 24,
+		radianceCacheBounces: 2,
 		maxBounces: 8,
 		maxSamples: 128,
 		resolutionScale: 1,
@@ -310,7 +323,11 @@ export class Renderer {
 	private nrdActive = false;
 	private nrdError: string | null = null;
 	// SSSR owns its diffuse-only NRD instance: the nrdEnabled / nrdMode selection is independent.
-	private sssr: { reflections: SssrReflections; nrd: NrdDenoiser } | null = null;
+	private sssr: { reflections: SssrReflections; nrd: NrdDenoiser; radianceCache: RadianceCache } | null = null;
+	// What the radiance cache's probes were traced for: a change discards them.
+	private radianceCacheKey = '';
+	private radianceCacheScene: object | null = null;
+	private radianceCacheActive = false;
 	private sssrRequest = 0;
 	private sssrActive = false;
 	private sssrError: string | null = null;
@@ -472,6 +489,30 @@ export class Renderer {
 			&& !s.taaMotionVectorDebug && (!!this.activeHost || this.camera.lensRadius <= 0);
 	}
 
+	get radianceCacheStats(): RadianceCacheStats {
+		return this.sssr ? { ...this.sssr.radianceCache.stats } : { active: false, reason: this.settings.radianceCacheEnabled ? 'sssr-not-loaded' : 'disabled', probes: 0, pending: 0, traced: 0, bytes: 0, cellSize: 0 };
+	}
+
+	// Traces this frame's radiance cache probes for SSSR frames (docs/RadianceCache.md).
+	private encodeRadianceCache(encoder: GPUCommandEncoder): boolean {
+		const cache = this.sssr?.radianceCache, s = this.settings, scene = this.tracer.boundScene;
+		const reason = !cache ? null : !s.radianceCacheEnabled ? 'disabled' : !this.sssrActive ? 'sssr-inactive' : !scene || !this.scene ? 'no-geometry' : null;
+		if (!cache) return false;
+		if (reason) { if (cache.stats.reason !== reason) cache.suspend(reason); return false; }
+		const resolution = Math.max(4, Math.min(64, Math.round(s.radianceCacheResolution / 2) * 2));
+		// Clipmap 0 cells: 1/96 of the scene's diagonal (radianceCacheCellSize), clipmap 3 spans ~2 diagonals at R = 24.
+		const diagonal = Math.hypot(...this.scene!.boundsMax.map((v, i) => v - this.scene!.boundsMin[i]));
+		cache.configure({ clipmaps: 4, resolution, cellSize: Number.isFinite(diagonal) && diagonal > 0 ? Math.max(diagonal / 96, 1e-3) : 0.25,
+			probesPerFrame: Math.max(1, Math.min(1024, Math.round(s.radianceCacheProbesPerFrame))), maxBounces: Math.max(0, Math.min(8, Math.round(s.radianceCacheBounces))) });
+		// Probes hold this scene's lighting: a new scene or lighting setup discards them.
+		const key = [resolution, this.currentSkyKey(), this.sun.enabled, this.sun.angularDiameter,
+			s.environmentIntensity, s.environmentRotation, this.environment.importance].join('/');
+		const identity = this.activeHost ?? this.scene;
+		if (key !== this.radianceCacheKey || identity !== this.radianceCacheScene) { cache.invalidate(encoder); this.radianceCacheKey = key; this.radianceCacheScene = identity; }
+		const camera = this.temporalCamera?.position ?? this.camera.position;
+		return this.gpuProfiler.scope('Radiance cache', () => cache.encode(encoder, scene!, camera, 0.25, 256));
+	}
+
 	get sssrStats(): SssrStats {
 		return this.sssr ? { ...this.sssr.reflections.stats } : { active: false, reason: this.sssrError ?? (this.settings.sssrEnabled ? 'loading' : 'disabled'), frames: 0, bytes: 0 };
 	}
@@ -486,19 +527,20 @@ export class Renderer {
 		this.sssrError = null;
 		if (!enabled) {
 			this.settings.sssrEnabled = false;
-			this.sssr?.reflections.destroy(); this.sssr?.nrd.destroy();
+			this.sssr?.reflections.destroy(); this.sssr?.nrd.destroy(); this.sssr?.radianceCache.destroy();
 			this.sssr = null;
+			this.radianceCacheKey = ''; this.radianceCacheScene = null;
 			this.tracer.setNrd(this.nrds.size > 0);
 			return true;
 		}
 		try {
 			if (!this.sssr) {
-				const [{ NrdDenoiser }, { SssrReflections }] = await Promise.all([import('./denoise/NrdDenoiser'), import('./sssr/SssrReflections')]);
+				const [{ NrdDenoiser }, { SssrReflections }, { RadianceCache }] = await Promise.all([import('./denoise/NrdDenoiser'), import('./sssr/SssrReflections'), import('./RadianceCache')]);
 				const reason = NrdDenoiser.unsupportedReason(this.device) ?? SssrReflections.unsupportedReason(this.device);
 				if (reason) throw new Error(`SSSR is unsupported on this device: ${reason}`);
 				const [reflections, nrd] = await Promise.all([SssrReflections.create(this.device), NrdDenoiser.create(this.device, 'diffuse-sh')]);
 				if (this.destroyed || request !== this.sssrRequest) { reflections.destroy(); nrd.destroy(); return false; }
-				this.sssr = { reflections, nrd };
+				this.sssr = { reflections, nrd, radianceCache: new RadianceCache(this.device, this.compiler) };
 			}
 			this.settings.sssrEnabled = true;
 			this.tracer.setNrd(true);
@@ -1058,6 +1100,7 @@ export class Renderer {
 			this.writeUniforms(this.vt?.nextFeedbackJitter() ?? 0, true);
 			const encoder = this.gpuProfiler.createCommandEncoder({ label: 'trace' });
 			this.gpuProfiler.scope('Path tracing', () => this.tracer.encodeTrace(encoder, this.settings.maxBounces, this.settings.debugMode));
+			this.radianceCacheActive = this.encodeRadianceCache(encoder);
 			const feedback = this.tracer.feedback;
 			if (this.vt && feedback) {
 				this.vt.recordFeedbackReadback(encoder, feedback);
@@ -1083,6 +1126,7 @@ export class Renderer {
 				environment: this.environment.texture, environmentKey: this.currentSkyKey(),
 				iblFactor: s.environmentIntensity * this.preExposure, envRotation: (s.environmentRotation * Math.PI) / 180, preExposure: this.preExposure,
 				parameters: { ...SSSR_DEFAULTS, roughnessThreshold: s.sssrRoughnessThreshold }, debug: s.sssrDebug,
+				radianceCache: this.radianceCacheActive && sssr.radianceCache.probeBuffer ? { constants: sssr.radianceCache.constants, probes: sssr.radianceCache.probeBuffer } : null,
 			}));
 		} : this.nrdActive ? (enc: GPUCommandEncoder, motion: GPUBuffer) => this.gpuProfiler.scope('NRD', () => this.nrd!.encode(enc, nrdInput(motion, s.nrdDebug)) ?? this.tracer.accumulation!) : undefined;
 		const fsr = this.taaActive && this.upscaling ? this.fsr! : null;
@@ -1288,7 +1332,7 @@ export class Renderer {
 		this.sky.destroy();
 		this.taa.destroy();
 		for (const nrd of this.nrds.values()) nrd.destroy();
-		this.sssr?.reflections.destroy(); this.sssr?.nrd.destroy();
+		this.sssr?.reflections.destroy(); this.sssr?.nrd.destroy(); this.sssr?.radianceCache.destroy();
 		this.fsr?.destroy();
 		this.gpuProfiler.destroy();
 		this.tracer.destroy();

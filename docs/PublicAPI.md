@@ -78,6 +78,11 @@ it. Offline frames are unchanged. It takes precedence over `settings.nrdEnabled`
 (presentation only): 0 final, 1 reflections, 2 color input, 3 camera reconstruction error, 4 raw
 intersection; `settings.sssrRoughnessThreshold` limits screen-space rays. See [Sssr.md](Sssr.md).
 
+SSSR misses read a world-space radiance cache, then the sky. `settings.radianceCacheEnabled` (default true),
+`radianceCacheProbesPerFrame` (1024), `radianceCacheResolution` (24 probes per axis, 4 clipmaps) and
+`radianceCacheBounces` (2) control it; `renderer.radianceCacheStats` reports activity. See
+[RadianceCache.md](RadianceCache.md).
+
 ## Radiance cache
 
 ```ts
