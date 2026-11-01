@@ -23,7 +23,7 @@ const materials = new Set<THREE.Material>(), geometries = new Set<THREE.BufferGe
 const pbr = (color: number, roughness = 0.8, metalness = 0) => {
 	const m = new THREE.MeshStandardMaterial({ color, roughness, metalness }); materials.add(m); return m;
 };
-const pale = pbr(0xd2d6bc), dark = pbr(0x233b41), green = pbr(0xb8df76), orange = pbr(0xff7546), black = pbr(0x17242a);
+const pale = pbr(0xd2d6bc), dark = pbr(0x233b41), green = pbr(0xb8df76), black = pbr(0x17242a);
 function mesh(geometry: THREE.BufferGeometry, material: THREE.Material, position: number[], scale: number[], parent: THREE.Object3D = scene): THREE.Mesh {
 	const m = new THREE.Mesh(geometry, material); m.position.fromArray(position); m.scale.fromArray(scale); parent.add(m); return m;
 }
@@ -40,6 +40,58 @@ function paintTexture(hits: number) {
 }
 paintTexture(0);
 const striped = pbr(0xffffff); striped.map = texture;
+
+// Procedural surface detail for the race (RGBA8 DataTextures): value-noise albedo, roughness (G) and tangent-space
+// normal maps, so surfaces are not flat diffuse color.
+const textures = new Set<THREE.Texture>();
+function noise(size: number, seed: number, octaves: number[]): Float32Array {
+	const out = new Float32Array(size * size);
+	let amplitude = 0;
+	for (const [o, cells] of octaves.entries()) {
+		const lattice = new Float32Array((cells + 1) * (cells + 1));
+		let s = seed * 9301 + o * 49297;
+		for (let i = 0; i < lattice.length; i++) { s = (s * 1664525 + 1013904223) >>> 0; lattice[i] = s / 4294967296; }
+		for (let i = 0; i <= cells; i++) { lattice[cells * (cells + 1) + i] = lattice[i]; lattice[i * (cells + 1) + cells] = lattice[i * (cells + 1)]; }
+		const weight = 1 / (o + 1);
+		for (let y = 0; y < size; y++) for (let x = 0; x < size; x++) {
+			const fx = x / size * cells, fy = y / size * cells, ix = Math.floor(fx), iy = Math.floor(fy);
+			const tx = (fx - ix) * (fx - ix) * (3 - 2 * (fx - ix)), ty = (fy - iy) * (fy - iy) * (3 - 2 * (fy - iy));
+			const at = (i: number, j: number) => lattice[j * (cells + 1) + i];
+			const top = at(ix, iy) + (at(ix + 1, iy) - at(ix, iy)) * tx, bottom = at(ix, iy + 1) + (at(ix + 1, iy + 1) - at(ix, iy + 1)) * tx;
+			out[y * size + x] += (top + (bottom - top) * ty) * weight;
+		}
+		amplitude += weight;
+	}
+	for (let i = 0; i < out.length; i++) out[i] /= amplitude;
+	return out;
+}
+function dataTexture(size: number, pixel: (i: number) => number[], repeat: number, srgb: boolean): THREE.DataTexture {
+	const data = new Uint8Array(size * size * 4);
+	for (let i = 0; i < size * size; i++) data.set([...pixel(i).map(v => Math.round(THREE.MathUtils.clamp(v, 0, 1) * 255)), 255], i * 4);
+	const t = new THREE.DataTexture(data, size, size);
+	t.colorSpace = srgb ? THREE.SRGBColorSpace : THREE.NoColorSpace;
+	t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(repeat, repeat); t.needsUpdate = true;
+	textures.add(t);
+	return t;
+}
+// Tangent-space normals of a tileable height field, `strength` scaling its slopes.
+function normalTexture(size: number, height: Float32Array, strength: number, repeat: number): THREE.DataTexture {
+	const h = (x: number, y: number) => height[((y + size) % size) * size + ((x + size) % size)];
+	return dataTexture(size, i => {
+		const x = i % size, y = Math.floor(i / size);
+		const n = new THREE.Vector3((h(x - 1, y) - h(x + 1, y)) * strength, (h(x, y - 1) - h(x, y + 1)) * strength, 1).normalize();
+		return [n.x * 0.5 + 0.5, n.y * 0.5 + 0.5, n.z * 0.5 + 0.5];
+	}, repeat, false);
+}
+// Surface: albedo noise around `color`, roughness `[min, max]` from a second noise, normals from the albedo noise.
+function surface(color: number, size: number, seed: number, cells: number[], contrast: number, roughness: [number, number], bump: number, repeat: number, metalness = 0): THREE.MeshStandardMaterial {
+	const base = new THREE.Color(color), detail = noise(size, seed, cells), wear = noise(size, seed + 17, [4, 9]);
+	const m = pbr(0xffffff, 1, metalness);
+	m.map = dataTexture(size, i => { const k = 1 + (detail[i] - 0.5) * contrast; return [base.r * k, base.g * k, base.b * k].map(v => Math.pow(v, 1 / 2.2)); }, repeat, true);
+	m.roughnessMap = dataTexture(size, i => [0, roughness[0] + (roughness[1] - roughness[0]) * wear[i], 0], repeat, false);
+	if (bump > 0) m.normalMap = normalTexture(size, detail, bump, repeat);
+	return m;
+}
 let renderer: Renderer, adapter: ThreeAdapter;
 let debugConsole: DebugConsole | undefined, consoleBusy = false;
 let gpuProfilerPanel: GpuProfilerPanel | undefined;
@@ -69,50 +121,84 @@ function buildAim() {
 	camera.position.set(0, 3.3, 11); camera.lookAt(0, 3, -5);
 	cube(pale, [0, -0.2, -2], [24, 0.4, 28]);
 	cube(dark, [0, 3, -6], [16, 6, 0.5]);
-	for (const x of [-8, 8]) { cube(pale, [x, 1.4, -2], [0.5, 2.8, 9]); cube(green, [x, 2.9, -2], [0.54, 0.14, 9]); }
+	// Trims and caps overhang what they sit on, and crossing grid lines stand at different depths: no coplanar faces.
+	for (const x of [-8, 8]) { cube(pale, [x, 1.4, -2], [0.5, 2.8, 9]); cube(green, [x, 2.9, -2], [0.54, 0.14, 9.04]); }
 	for (let i = -3; i <= 3; i++) cube(pale, [i * 2.3, 3, -5.7], [0.025, 5.7, 0.05]);
-	for (const y of [0.8, 3, 5.5]) cube(pale, [0, y, -5.7], [15.5, 0.025, 0.05]);
+	for (const y of [0.8, 3, 5.5]) cube(pale, [0, y, -5.705], [15.5, 0.025, 0.05]);
 	cube(striped, [0, 6.1, -5.7], [16, 0.35, 0.25]);
 	for (let z = 2; z > -5; z -= 2) cube(green, [0, 0.015, z], [0.12, 0.025, 0.7]);
-	for (const x of [-5.5, 5.5]) { cube(black, [x, 0.7, 4], [1.5, 1.4, 1.8]); cube(striped, [x, 1.42, 4], [1.5, 0.05, 1.8]); }
+	for (const x of [-5.5, 5.5]) { cube(black, [x, 0.7, 4], [1.5, 1.4, 1.8]); cube(striped, [x, 1.43, 4], [1.56, 0.06, 1.86]); }
 	for (let i = 0; i < 6; i++) spawnTarget();
 }
 
+// The active checkpoint glows; passed ones are glossy paint.
+const markerOn = pbr(0x9fe05a, 0.35), markerOff = pbr(0xff6a3a, 0.3);
+markerOn.emissive.setHex(0x7dff3a); markerOn.emissiveIntensity = 2.5;
 function buildRace() {
-	cube(pbr(0x839d77), [0, -0.3, 0], [160, 0.5, 160]);
-	const ring = new THREE.RingGeometry(14, 22, 96); ring.rotateX(-Math.PI / 2); geometries.add(ring);
-	mesh(ring, pbr(0x46545b), [0, 0, 0], [1, 1, 1]);
+	// Normal maps need tangents; the shared box and the track ring have indices and UVs.
+	box.computeTangents();
+	// Surfaces sit on distinct heights (grass top -0.05, asphalt 0, paint 0.012..0.04, markers to 0.09), so no two
+	// faces are coplanar: coplanar faces flicker between hits (z-fighting).
+	const grass = surface(0x5f7f45, 256, 1, [8, 24, 64], 0.45, [0.75, 0.98], 3, 80);
+	cube(grass, [0, -0.3, 0], [160, 0.5, 160]);
+	const ring = new THREE.RingGeometry(14, 22, 192, 4); ring.rotateX(-Math.PI / 2); ring.computeTangents(); geometries.add(ring);
+	// Asphalt: fine aggregate, a polished racing line (smoother, darker) and worn patches.
+	const asphalt = surface(0x34393d, 256, 2, [16, 48, 128], 0.3, [0.3, 0.75], 2.5, 48);
+	mesh(ring, asphalt, [0, 0, 0], [1, 1, 1]);
+	// Kerb barriers: alternating glossy red and white paint over a concrete base, bases sunk into the grass.
+	const kerbRed = pbr(0xc8202a, 0.3), kerbWhite = pbr(0xf2f2ec, 0.32);
 	for (const radius of [13.7, 22.3]) {
-		const barrier = new THREE.InstancedMesh(box, pale, 72);
+		const red = new THREE.InstancedMesh(box, kerbRed, 36), white = new THREE.InstancedMesh(box, kerbWhite, 36);
 		for (let i = 0; i < 72; i++) {
 			const a = i / 72 * Math.PI * 2;
-			const m = new THREE.Matrix4().compose(new THREE.Vector3(Math.cos(a) * radius, 0.25, Math.sin(a) * radius), new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), -a), new THREE.Vector3(0.35, 0.5, 1));
-			barrier.setMatrixAt(i, m);
+			const m = new THREE.Matrix4().compose(new THREE.Vector3(Math.cos(a) * radius, 0.2, Math.sin(a) * radius), new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), -a), new THREE.Vector3(0.35, 0.5, 1));
+			(i % 2 ? white : red).setMatrixAt(i >> 1, m);
 		}
-		scene.add(barrier);
+		scene.add(red, white);
 	}
-	const stripe = new THREE.InstancedMesh(box, pale, 48);
+	// Lane paint: slightly raised, semi-gloss.
+	const paint = pbr(0xeeeee6, 0.45);
+	const stripe = new THREE.InstancedMesh(box, paint, 48);
 	for (let i = 0; i < 48; i++) {
 		const a = i / 48 * Math.PI * 2;
-		stripe.setMatrixAt(i, new THREE.Matrix4().compose(new THREE.Vector3(Math.cos(a) * trackRadius, 0.025, Math.sin(a) * trackRadius), new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), -a), new THREE.Vector3(0.08, 0.025, 0.65)));
+		stripe.setMatrixAt(i, new THREE.Matrix4().compose(new THREE.Vector3(Math.cos(a) * trackRadius, 0.026, Math.sin(a) * trackRadius), new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), -a), new THREE.Vector3(0.1, 0.028, 0.65)));
 	}
 	scene.add(stripe);
 	for (let i = 0; i < 4; i++) {
 		const a = Math.PI + i * Math.PI / 2;
-		const marker = cube(i === 0 ? green : orange, [Math.cos(a) * 18, 0.05, Math.sin(a) * 18], [8, 0.08, 0.35]); marker.rotation.y = -a; checkpointMarkers.push(marker);
+		// Wider than the lane stripe under it and higher: the stripe stays inside, no shared faces.
+		const marker = cube(i === 0 ? markerOn : markerOff, [Math.cos(a) * 18, 0.05, Math.sin(a) * 18], [8, 0.08, 0.4]); marker.rotation.y = -a; checkpointMarkers.push(marker);
 	}
+	// Trees: rough bark, foliage with leafy albedo and normal variation; trunks start below the grass.
+	const bark = surface(0x5a4130, 128, 3, [6, 20], 0.6, [0.8, 0.95], 4, 2);
+	const leaves = pbr(0x5d8f3a, 0.6);
 	for (let i = 0; i < 12; i++) {
 		const a = i * 2.4, radius = 6 + (i % 3) * 1.5;
-		cube(dark, [Math.cos(a) * radius, 1, Math.sin(a) * radius], [0.35, 2, 0.35]);
-		mesh(sphere, green, [Math.cos(a) * radius, 2.5, Math.sin(a) * radius], [1.2, 1.6, 1.2]);
+		cube(bark, [Math.cos(a) * radius, 0.95, Math.sin(a) * radius], [0.35, 2.1, 0.35]);
+		mesh(sphere, leaves, [Math.cos(a) * radius, 2.5, Math.sin(a) * radius], [1.2, 1.6, 1.2]);
 	}
-	for (const x of [-26, 26]) { cube(pale, [x, 1.5, 0], [3, 3, 15]); cube(striped, [x, 3.05, 0], [3.1, 0.2, 15]); }
-	cube(pale, [-1, 3.8, 18], [0.35, 0.35, 9]);
-	for (const z of [13.5, 22.5]) cube(dark, [-1, 1.9, z], [0.35, 3.8, 0.35]);
-	scene.add(car); cube(orange, [0, 0.55, 0], [1.35, 0.45, 2.4], car); cube(black, [0, 0.95, -0.1], [1.1, 0.5, 1.1], car);
-	cube(green, [0, 0.79, 0.8], [0.16, 0.05, 0.7], car);
-	for (const x of [-0.7, 0.7]) for (const z of [-0.75, 0.75]) cube(black, [x, 0.35, z], [0.3, 0.55, 0.55], car);
-	cube(pale, [0, 0.6, 1.22], [1, 0.14, 0.06], car);
+	// Pit buildings: concrete with a glass window band (proud of the wall) and a cap that overhangs on every side.
+	const concrete = surface(0xc9cbc2, 256, 4, [12, 40], 0.12, [0.55, 0.9], 0.8, 2);
+	const glass = pbr(0x0e1a20, 0.04);
+	for (const x of [-26, 26]) {
+		cube(concrete, [x, 1.5, 0], [3, 3, 15]);
+		cube(striped, [x, 3.1, 0], [3.2, 0.2, 15.2]);
+		cube(glass, [x - Math.sign(x) * 1.52, 1.9, 0], [0.06, 0.9, 13]);
+	}
+	// Start gantry: brushed steel; the beam is narrower than the posts it rests in.
+	const steel = pbr(0xc9ccd1, 0.28, 1);
+	cube(steel, [-1, 3.8, 18], [0.3, 0.35, 9.4]);
+	for (const z of [13.5, 22.5]) cube(steel, [-1, 1.9, z], [0.4, 3.8, 0.4]);
+	// Car: metallic paint, dark glass cabin, rubber tires, chrome trim, head and tail lights.
+	const carPaint = pbr(0xff5a1f, 0.22, 0.45), carGlass = pbr(0x081014, 0.03), rubber = pbr(0x141618, 0.85);
+	const chrome = pbr(0xe8e8e8, 0.08, 1), headlight = pbr(0xffffff, 0.2), taillight = pbr(0x330000, 0.3);
+	headlight.emissive.setHex(0xfff1d6); headlight.emissiveIntensity = 6;
+	taillight.emissive.setHex(0xff1a10); taillight.emissiveIntensity = 3;
+	scene.add(car); cube(carPaint, [0, 0.55, 0], [1.35, 0.45, 2.4], car); cube(carGlass, [0, 0.95, -0.1], [1.1, 0.5, 1.1], car);
+	cube(kerbWhite, [0, 0.79, 0.82], [0.16, 0.05, 0.7], car);
+	for (const x of [-0.7, 0.7]) for (const z of [-0.75, 0.75]) cube(rubber, [x, 0.35, z], [0.3, 0.55, 0.55], car);
+	cube(chrome, [0, 0.6, 1.22], [1, 0.14, 0.06], car);
+	for (const x of [-0.45, 0.45]) { cube(headlight, [x, 0.66, 1.215], [0.22, 0.08, 0.04], car); cube(taillight, [x, 0.66, -1.215], [0.26, 0.08, 0.04], car); }
 	resetCar();
 }
 function resetCar() { car.position.set(0, 0, 18); yaw = -Math.PI / 2; speed = 0; car.rotation.y = yaw; updateRaceCamera(1); }
@@ -144,7 +230,7 @@ function restart() {
 		for (const t of targets) scene.remove(t.mesh); targets.length = 0; for (let i = 0; i < 6; i++) spawnTarget();
 		targetMaterial.color.setHex(0xff6c41); targetGeometry.getAttribute('position').array.set(targetPositions); targetGeometry.getAttribute('position').needsUpdate = true;
 	}
-	else { resetCar(); checkpointMarkers.forEach((m, i) => { m.material = i === 0 ? green : orange; }); }
+	else { resetCar(); checkpointMarkers.forEach((m, i) => { m.material = i === 0 ? markerOn : markerOff; }); }
 	paintTexture(0); begin();
 }
 function finish() {
@@ -180,7 +266,7 @@ window.addEventListener('keydown', e => {
 	if (debugConsole?.isOpen || gpuProfilerPanel?.isOpen || consoleBusy || (e.target instanceof HTMLElement && e.target.matches('input,textarea,select,[contenteditable]'))) return;
 	if (['Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.code)) e.preventDefault();
 	if (e.code === 'Space' && !e.repeat) pause();
-	if (e.code === 'KeyR' && !e.repeat && ready) { if (mode === 'race' && playing) { resetCar(); checkpoint = 0; lapStart = elapsed; checkpointMarkers.forEach((m, i) => { m.material = i === 0 ? green : orange; }); toast('BACK ON TRACK'); } else restart(); }
+	if (e.code === 'KeyR' && !e.repeat && ready) { if (mode === 'race' && playing) { resetCar(); checkpoint = 0; lapStart = elapsed; checkpointMarkers.forEach((m, i) => { m.material = i === 0 ? markerOn : markerOff; }); toast('BACK ON TRACK'); } else restart(); }
 	keys.add(e.code);
 });
 window.addEventListener('keyup', e => keys.delete(e.code));
@@ -228,10 +314,10 @@ function tick(dt: number) {
 			const targetAngle = Math.PI + checkpoint * Math.PI / 2;
 			const target = new THREE.Vector3(Math.cos(targetAngle) * 18, 0, Math.sin(targetAngle) * 18);
 			if (car.position.distanceTo(target) < 4.2 && speed > 1) {
-				checkpointMarkers[checkpoint].material = orange; checkpoint++;
+				checkpointMarkers[checkpoint].material = markerOff; checkpoint++;
 				if (checkpoint === 4) { checkpoint = 0; laps++; bestLap = Math.min(bestLap, elapsed - lapStart); lapStart = elapsed; paintTexture(laps); toast(`LAP ${laps} COMPLETE`); if (laps >= 3) finish(); }
 				else toast('CHECKPOINT', 0.5);
-				checkpointMarkers[checkpoint].material = green;
+				checkpointMarkers[checkpoint].material = markerOn;
 			}
 			updateRaceCamera(1 - Math.exp(-dt * 7));
 		}
@@ -270,9 +356,10 @@ async function init() {
 		onSceneProgress: p => { $('card-copy').textContent = p.message; $('load-progress').style.width = `${25 + p.progress * 75}%`; },
 	});
 	if (closed) { renderer.destroy(); return; }
-	renderer.settings.maxBounces = 3; renderer.settings.upscaleRenderScale = 0.5; renderer.settings.localExposureMethod = LocalExposureMethod.None;
+	renderer.settings.realtimeMaxBounces = 3; renderer.settings.upscaleRenderScale = 0.5; renderer.settings.localExposureMethod = LocalExposureMethod.None;
 	renderer.settings.renderMode = 'realtime';
-	renderer.sun.elevation = 55; renderer.sun.azimuth = 20;
+	// A lower sun: longer shadows and grazing highlights on the glossy surfaces.
+	renderer.sun.elevation = mode === 'race' ? 38 : 55; renderer.sun.azimuth = mode === 'race' ? 35 : 20;
 	adapter = new ThreeAdapter(renderer); await adapter.sync(scene, camera);
 	gpuProfilerPanel = new GpuProfilerPanel(renderer.gpuProfiler, { onOpenChange: () => keys.clear() });
 	debugConsole = new DebugConsole(createRendererConsole(renderer, {
@@ -296,6 +383,6 @@ async function init() {
 	} });
 	lastTime = performance.now(); requestAnimationFrame(loop);
 }
-window.addEventListener('pagehide', () => { closed = true; gpuProfilerPanel?.dispose(); debugConsole?.dispose(); adapter?.dispose(); renderer?.destroy(); for (const g of geometries) g.dispose(); for (const m of materials) m.dispose(); texture.dispose(); });
+window.addEventListener('pagehide', () => { closed = true; gpuProfilerPanel?.dispose(); debugConsole?.dispose(); adapter?.dispose(); renderer?.destroy(); for (const g of geometries) g.dispose(); for (const m of materials) m.dispose(); texture.dispose(); for (const t of textures) t.dispose(); });
 window.addEventListener('pageshow', event => { if (event.persisted) location.reload(); });
 init().catch(showError);
