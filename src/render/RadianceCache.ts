@@ -24,19 +24,24 @@ export interface RadianceCacheOptions {
 
 // Share of the refresh budget (after newly covered probes) per clipmap: finer clipmaps change faster on screen.
 const REFRESH_SHARE = [0.4, 0.3, 0.2, 0.1];
+// A probe's first traces are one path per texel each: it is traced again on the next frames until it has this many,
+// before the round robin, so probes that just scrolled in are not noisy (black blocks in moving reflections).
+export const RADIANCE_CACHE_YOUNG_TRACES = 4;
 
 const posMod = (a: number, b: number) => ((a % b) + b) % b;
 
 /**
  * Which slots to trace: slots whose world cell is new (first frame, clipmap scroll, reset) first, interleaved over
- * clipmaps from the window center outward, then a per-clipmap round robin over every slot. A slot appears at most
- * once per frame.
+ * clipmaps from the window center outward, then young slots (fewer than RADIANCE_CACHE_YOUNG_TRACES traces since their
+ * cell became new), then a per-clipmap round robin over every slot. A slot appears at most once per frame.
  */
 export class RadianceCacheScheduler {
 	readonly origins: ([number, number, number] | null)[];
 	private readonly pending: number[][]; // per clipmap, slots whose world cell is new, nearest first
 	private readonly queued: Set<number>[];
 	private readonly cursors: number[];
+	private readonly young: number[] = []; // slots traced fewer than RADIANCE_CACHE_YOUNG_TRACES times, oldest first
+	private readonly traces: Uint8Array; // traces since the slot's cell became new, saturating
 
 	constructor(readonly clipmaps: number, readonly resolution: number, readonly cellSize: number) {
 		if (clipmaps < 1 || clipmaps > RADIANCE_CACHE_MAX_CLIPMAPS) throw new Error(`Radiance cache clipmaps must be 1..${RADIANCE_CACHE_MAX_CLIPMAPS}`);
@@ -45,6 +50,7 @@ export class RadianceCacheScheduler {
 		this.pending = Array.from({ length: clipmaps }, () => []);
 		this.queued = Array.from({ length: clipmaps }, () => new Set());
 		this.cursors = Array.from({ length: clipmaps }, () => 0);
+		this.traces = new Uint8Array(clipmaps * resolution ** 3);
 	}
 
 	get probesPerClipmap(): number { return this.resolution ** 3; }
@@ -77,6 +83,7 @@ export class RadianceCacheScheduler {
 			// Newly covered cells go before older pending ones, which may be off screen by now.
 			const queue = fresh.map(f => f.slot).filter(slot => !this.queued[c].has(slot));
 			for (const slot of queue) this.queued[c].add(slot);
+			for (const f of fresh) this.traces[f.slot] = 0;
 			this.pending[c] = [...queue, ...this.pending[c]];
 			this.origins[c] = origin;
 		}
@@ -85,14 +92,24 @@ export class RadianceCacheScheduler {
 	/** Every slot's history is gone (new scene, cleared storage): all slots pending again. */
 	invalidate(): void {
 		for (let c = 0; c < this.clipmaps; c++) { this.origins[c] = null; this.pending[c] = []; this.queued[c].clear(); }
+		this.young.length = 0;
+		this.traces.fill(0);
 	}
 
 	/** Number of slots still waiting for their first trace. */
 	get pendingCount(): number { return this.pending.reduce((sum, p) => sum + p.length, 0); }
 
+	/** Number of slots that have been traced but not yet RADIANCE_CACHE_YOUNG_TRACES times. */
+	get youngCount(): number { return this.young.length; }
+
 	/** Slots to trace this frame, at most `budget`. */
 	next(budget: number): number[] {
 		const out: number[] = [], taken = new Set<number>();
+		const traced = (slot: number) => {
+			out.push(slot); taken.add(slot);
+			const count = this.traces[slot] = Math.min(255, this.traces[slot] + 1);
+			if (count < RADIANCE_CACHE_YOUNG_TRACES) this.young.push(slot);
+		};
 		// Pending slots, interleaved over clipmaps so coarse clipmaps cover the camera early.
 		for (let progress = true; out.length < budget && progress;) {
 			progress = false;
@@ -100,8 +117,15 @@ export class RadianceCacheScheduler {
 				const slot = this.pending[c].shift();
 				if (slot === undefined) continue;
 				this.queued[c].delete(slot);
-				out.push(slot); taken.add(slot); progress = true;
+				traced(slot); progress = true;
 			}
+		}
+		// Young slots, oldest first; one that scrolled out and back in since is pending again and skipped here.
+		for (let n = this.young.length; n > 0 && out.length < budget; n--) {
+			const slot = this.young.shift()!;
+			const c = Math.floor(slot / this.probesPerClipmap);
+			if (taken.has(slot) || this.queued[c].has(slot) || this.traces[slot] >= RADIANCE_CACHE_YOUNG_TRACES || this.traces[slot] === 0) continue;
+			traced(slot);
 		}
 		// Round robin refresh with the rest.
 		const rest = budget - out.length, perClipmap = this.probesPerClipmap;
@@ -114,7 +138,7 @@ export class RadianceCacheScheduler {
 				for (let i = 0; i < count && i < perClipmap; i++) {
 					const slot = c * perClipmap + this.cursors[c];
 					this.cursors[c] = (this.cursors[c] + 1) % perClipmap;
-					if (!taken.has(slot) && !this.queued[c].has(slot)) { out.push(slot); taken.add(slot); }
+					if (!taken.has(slot) && !this.queued[c].has(slot)) traced(slot);
 				}
 			}
 		}

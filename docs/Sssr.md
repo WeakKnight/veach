@@ -77,6 +77,9 @@ module per pass (`src/generated/sssr/SssrShaders.ts`), and repacks the 1 spp blu
   (first frame, resize, suspension) or off screen it falls back to this frame's NRD composite (bypass +
   denoised diffuse). Storage textures use core WebGPU formats (variance, sample count and roughness `r32float`,
   blue noise `rgba8unorm`, average radiance `rgba16float`), all write-only.
+- Intersect (staged patch in `build-sssr.mjs`): with Veach's inverted infinite depth, a march that ends at or past
+  infinity reconstructs to an infinite or NaN world position. Its confidence is forced to 0, and misses store a far ray
+  length (1e4, finite in half) for the denoiser's hit reprojection, instead of inf or NaN.
 - WGSL atomics need `atomic<T>` storage: the ray counter is `Atomic<uint>` in the callbacks, and the
   build stages the GPU headers to `.tools/sssr/gpu`, patching classify's groupshared tile counter.
 - The build needs slangc with WGSL `WaveActiveCountBits` / `WavePrefixCountBits` (#13649), bool lane

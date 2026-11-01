@@ -41,7 +41,10 @@ scene-linear, not pre-exposed; lookups multiply by `gSssr.preExposure`.
 `RadianceCacheScheduler` (pure, `tests/radianceCache.test.ts`) picks at most `radianceCacheProbesPerFrame` (1024) slots:
 
 1. Newly covered slots (first frame, scroll, invalidation), nearest the window center first, interleaved over clipmaps.
-2. The rest: a round robin per clipmap, with shares 0.4 / 0.3 / 0.2 / 0.1.
+2. Young slots: traced since their cell became new, but fewer than `RADIANCE_CACHE_YOUNG_TRACES` (4) times, oldest
+   first. A probe's first trace is one path per texel: used alone, a texel whose path found nothing bright is black.
+   Before this step, probes that scrolled in during camera motion showed as cell-sized black blocks in reflections.
+3. The rest: a round robin per clipmap, with shares 0.4 / 0.3 / 0.2 / 0.1.
 
 A slot is traced at most once per frame. The first fill takes 54 frames at the default budget; a full refresh of the
 finest clipmap takes about 34.
@@ -80,8 +83,15 @@ look at the same surface.
 Without visibility and parallax, interpolating probes that see different things showed as blocks and bands with the
 12 cm cell period, for example vertical bands on the kitchen's cabinet doors.
 
-The last 2 cells of a clipmap's window cross-fade into the next clipmap, so the level change has no seam. A total weight
-≤ 1e-4 moves on to the next clipmap; with no clipmap left the lookup returns false and the sky takes over. Texels are
+Probes also weigh by maturity, their trace count over 8 (plus 0.02), and each clipmap's lookup returns its confidence:
+the maturity averaged with the other weights. The next, coarser clipmap takes over:
+
+- over the last 2 cells of a clipmap's window, so the level change has no seam;
+- where the clipmap's probes are younger than its own, since a coarser level scrolls less and its probes have more
+  traces.
+
+The weights are `inside * max(confidence, 0.05)` for this level and `(1 - inside) + inside * (1 - confidence) *
+coarseConfidence` for the next. A total weight ≤ 1e-6 moves on to the next clipmap; with no clipmap left the lookup returns false and the sky takes over. Texels are
 bilinear (radiance and mean hit distance), with mirrored octahedral borders. The lookup adds about 0.1 ms to SSSR in
 the kitchen (0.35 to 0.45 ms).
 
@@ -101,6 +111,10 @@ console `r.RadianceCache.Enabled | ProbesPerFrame | Resolution | Bounces | Stats
 created with SSSR and only traces while SSSR is active. The GPU profiler has a `Radiance cache` scope.
 
 ## Measurements
+
+Camera motion (dolly test: 40 frames at 0.8% of the distance per frame, the presented frame against the
+converged one at the same position): young re-traces and the maturity weight took the share of pixels below 30% of
+their converged brightness from 0.65% to 0.16%, and the mean error from 3.7% to 3.05%.
 
 Kitchen, realtime, 896×560 render size: 0.85 ms per frame at 1024 probes, 13.6 ms total. Mean luma error of a 16×8 grid
 against a 512 spp offline reference: 6.61 with the cache, 12.05 with the sky fallback.

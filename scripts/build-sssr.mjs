@@ -40,6 +40,14 @@ patch(join(stage, 'gpu', 'sssr', 'ffx_sssr_classify_tiles.h'), [
 patch(join(stage, 'gpu', 'sssr', 'ffx_sssr_intersect.h'), [
 	['FfxFloat32x3 environment_lookup = FFX_SSSR_SampleEnvironmentMap(world_space_reflected_direction, 0.0f);',
 		'FfxFloat32x3 environment_lookup = FFX_SSSR_SampleFallback(FfxInt32x2(coords), screen_uv_space_ray_origin, world_space_reflected_direction, 0.0f);'],
+	// Inverted infinite depth: a march that ends at or past infinity (depth <= 0) reconstructs to an infinite, NaN or
+	// flipped world position. Its confidence can be NaN (NaN radiance, which the denoiser's spatial passes spread into
+	// black 8x8 blocks), and its length (the denoiser's hit reprojection, stored as half) inf or wrong, which smears
+	// reflections in motion. Misses reflect the far distance (the fallback); lengths stay finite in half.
+	['FfxFloat32 confidence = valid_hit ? FFX_SSSR_ValidateHit(hit, uv, world_space_ray, screen_size, DepthBufferThickness()) : 0;\n    FfxFloat32 world_ray_length = max(0, length(world_space_ray));',
+		'FfxFloat32 confidence = valid_hit && hit.z > 0.0f ? FFX_SSSR_ValidateHit(hit, uv, world_space_ray, screen_size, DepthBufferThickness()) : 0;\n' +
+		'    confidence = isfinite(confidence) ? confidence : 0.0f;\n' +
+		'    FfxFloat32 world_ray_length = confidence > 0.0f && all(isfinite(world_space_ray)) ? min(length(world_space_ray), 1.0e4f) : 1.0e4f;'],
 ]);
 
 const shaders = Object.fromEntries(Object.entries(PASSES).map(([name, pass]) => {

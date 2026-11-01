@@ -1,6 +1,6 @@
 // Radiance cache scheduling (docs/RadianceCache.md): toroidal slots, scroll invalidation and the per-frame budget.
 import { describe, expect, it } from 'vitest';
-import { RadianceCacheScheduler, radianceCacheCellSize, radianceCacheProbeWords } from '../src/render/RadianceCache';
+import { RADIANCE_CACHE_YOUNG_TRACES, RadianceCacheScheduler, radianceCacheCellSize, radianceCacheProbeWords } from '../src/render/RadianceCache';
 
 describe('radiance cache scheduler', () => {
 	it('centers each window on the camera with doubling cell sizes', () => {
@@ -45,11 +45,33 @@ describe('radiance cache scheduler', () => {
 	it('spends the rest of the budget on a per-clipmap round robin without duplicates', () => {
 		const s = new RadianceCacheScheduler(2, 4, 1);
 		s.follow([0, 0, 0]);
-		while (s.pendingCount) s.next(1000);
+		while (s.pendingCount || s.youngCount) s.next(1000);
 		const frame = s.next(10);
 		expect(new Set(frame).size).toBe(frame.length);
 		expect(frame.length).toBe(10);
 		expect(frame.filter(slot => slot < 64).length).toBe(Math.floor(10 * 0.4 / 0.7));
+	});
+
+	it('traces newly covered slots again until they are no longer young, before the round robin', () => {
+		const s = new RadianceCacheScheduler(1, 4, 1);
+		s.follow([0, 0, 0]);
+		const counts = new Map<number, number>();
+		const frames: number[][] = [];
+		for (let f = 0; f < RADIANCE_CACHE_YOUNG_TRACES; f++) {
+			const frame = s.next(64);
+			frames.push(frame);
+			for (const slot of frame) counts.set(slot, (counts.get(slot) ?? 0) + 1);
+		}
+		// Every slot gets its young traces in the first frames, each frame without duplicates.
+		for (const frame of frames) expect(new Set(frame).size).toBe(frame.length);
+		expect([...counts.values()].every(c => c === RADIANCE_CACHE_YOUNG_TRACES)).toBe(true);
+		expect(counts.size).toBe(64);
+		expect(s.youngCount).toBe(0);
+		// A scroll makes the uncovered slab young again; other slots are not re-traced early.
+		s.follow([1, 0, 0]);
+		const slab = s.next(16);
+		expect(s.youngCount).toBe(16);
+		expect(s.next(16).sort()).toEqual([...slab].sort());
 	});
 
 	it('sizes clipmap 0 from the scene and probes from the octahedral resolution', () => {
