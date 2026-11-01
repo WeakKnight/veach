@@ -50,7 +50,7 @@ float3 TraceProbeRay(float3 origin, float3 direction, inout RandomSequence rng, 
 	{
 		Ray ray = Ray(path.origin, path.direction);
 		gRayCone = float2(path.coneWidth, path.coneSpread);
-		HitRecord hit = TraceClosest<true>(ray);
+		HitRecord hit = TraceClosest<true, true>(ray);
 		if (bounce > 0u && AnalyticLightCount() > 0u)
 		{
 			float3 lightRadiance;
@@ -93,7 +93,7 @@ float3 TraceProbeRay(float3 origin, float3 direction, inout RandomSequence rng, 
 		if (bounce == maxBounces) break;
 		path.lightsSampled = bsdf.MaxActiveAlpha() >= NEAR_SPECULAR_ALPHA;
 		if (path.lightsSampled)
-			path.radiance += min(path.throughput * NextEventEstimation<true>(si, bsdf, float2(hitConeWidth, path.coneSpread), rng), float3(maxRadiance));
+			path.radiance += min(path.throughput * NextEventEstimation<true, true>(si, bsdf, float2(hitConeWidth, path.coneSpread), rng), float3(maxRadiance));
 		float2 u = rng.Next2D();
 		LobeSample bs = bsdf.Sample(float3(u, rng.Next()));
 		float3 weight = bs.weight.diffuse + bs.weight.specular;

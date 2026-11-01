@@ -1,5 +1,5 @@
 // Flattens a SceneDesc into the storage buffers bound by shaders/Scene/SceneBindings.slang:
-//   gNodes     [TLAS nodes][BLAS 0 nodes][BLAS 1 nodes]...
+//   gNodes     float4 blocks: [TLAS BVH_GPU nodes][BLAS 0 CWBVH nodes][BLAS 1 CWBVH nodes]...
 //   gTris      per-BLAS reordered triangles (3 float4 each)
 //   gIndices   [mesh indices...][TLAS prim indices]
 //   gVertices, gInstances, gLights
@@ -9,7 +9,7 @@ import { BVH_NODE_BYTES, BVH_TRI_FLOATS, BuildQuality, type BLASData, type TinyB
 import type { CompiledMaterial } from '../material/Compile';
 import { luminance, mat4, vec3, type Mat4, type Vec3 } from '../math/Math';
 import type { SceneDesc } from '../scene/Scene';
-import { INSTANCE_BYTES, INSTANCE_FLAG_ALPHA_TESTED, INSTANCE_FLAG_EMISSIVE, LIGHT_BYTES, VERTEX_BYTES, packAnalyticLight, packInstance, packMaterialData, packVertices } from './GpuLayout';
+import { INSTANCE_BYTES, INSTANCE_FLAG_ALPHA_TESTED, INSTANCE_FLAG_EMISSIVE, INSTANCE_FLAG_MERGED, LIGHT_BYTES, VERTEX_BYTES, packAnalyticLight, packInstance, packMaterialData, packVertices } from './GpuLayout';
 import { emissionLuminance, sceneShadeCapacities } from './SceneMaterials';
 import { materialStackCapacity, materialLightCapacity, type MaterialStackCapacity } from './MaterialCapacity';
 import { materialOpcodeMask, type MaterialOpcodeMask } from './MaterialProgramFeatures';
@@ -99,19 +99,26 @@ export class GpuScene {
 
 		// ---- per-mesh geometry and BLAS, only for meshes that are instanced ----
 		const used = new Set(scene.instances.map((i) => i.mesh));
+		// Meshes placed once go into one world-space BLAS instead of a BLAS each: one tree over the whole static
+		// scene, without the overlapping instance bounds a TLAS would have to visit (docs/Architecture.md, BVH format).
+		const uses = new Map<number, number>();
+		for (const inst of scene.instances) uses.set(inst.mesh, (uses.get(inst.mesh) ?? 0) + 1);
+		const mergedInstances = scene.instances.flatMap((inst, i) => (uses.get(inst.mesh) === 1 ? [i] : []));
+		const merging = mergedInstances.length >= 2;
+		const isMerged = (mesh: number) => merging && uses.get(mesh) === 1;
 		interface MeshGpu {
-			blas: BLASData;
-			nodeOffset: number; // local, before the TLAS shift
+			blas: BLASData | null; // null when merged
+			nodeOffset: number; // float4 blocks, local, before the TLAS shift
 			triOffset: number;
 			indexOffset: number;
 			vertexOffset: number;
 			triCount: number;
 		}
 		const meshGpu = new Map<number, MeshGpu>();
-		let nodeTotal = 0, triRefTotal = 0, indexTotal = 0, vertexTotal = 0;
+		let nodeTotal = 0, nodeCountTotal = 0, triRefTotal = 0, indexTotal = 0, vertexTotal = 0;
 		for (const meshIndex of used) {
 			const mesh = scene.meshes[meshIndex];
-			const blas = bvh.buildBLAS(mesh.positions, mesh.indices, quality);
+			const blas = isMerged(meshIndex) ? null : bvh.buildBLAS(mesh.positions, mesh.indices, quality);
 			meshGpu.set(meshIndex, {
 				blas,
 				nodeOffset: nodeTotal,
@@ -120,28 +127,85 @@ export class GpuScene {
 				vertexOffset: vertexTotal,
 				triCount: mesh.indices.length / 3,
 			});
-			nodeTotal += blas.nodeCount;
-			triRefTotal += blas.primRefCount;
+			nodeTotal += blas?.nodeBlocks ?? 0;
+			nodeCountTotal += blas?.nodeCount ?? 0;
+			triRefTotal += blas?.primRefCount ?? 0;
 			indexTotal += mesh.indices.length;
 			vertexTotal += mesh.positions.length / 3;
 		}
 
-		// ---- instances + TLAS ----
+		// ---- merged world-space BLAS: its triangle records carry their instance (e1.w) and alpha test flag (e2.w) ----
 		const instanceCount = scene.instances.length;
-		const aabbs = new Float32Array(instanceCount * 8);
+		let merged: { blas: BLASData; nodeOffset: number; triOffset: number } | null = null;
+		if (merging) {
+			let vertexCount = 0, triCount = 0;
+			for (const i of mergedInstances) {
+				const mesh = scene.meshes[scene.instances[i].mesh];
+				vertexCount += mesh.positions.length / 3;
+				triCount += mesh.indices.length / 3;
+			}
+			const positions = new Float32Array(vertexCount * 3), indices = new Uint32Array(triCount * 3);
+			const triInstance = new Uint32Array(triCount), triLocal = new Uint32Array(triCount), instanceAlpha = new Uint8Array(instanceCount);
+			let v = 0, t = 0;
+			for (const i of mergedInstances) {
+				const inst = scene.instances[i], mesh = scene.meshes[inst.mesh];
+				const m = inst.transform, p = mesh.positions;
+				for (let k = 0; k < p.length; k += 3) {
+					const x = p[k], y = p[k + 1], z = p[k + 2];
+					positions[v * 3 + k] = m[0] * x + m[4] * y + m[8] * z + m[12];
+					positions[v * 3 + k + 1] = m[1] * x + m[5] * y + m[9] * z + m[13];
+					positions[v * 3 + k + 2] = m[2] * x + m[6] * y + m[10] * z + m[14];
+				}
+				for (let k = 0; k < mesh.indices.length; k++) indices[t * 3 + k] = mesh.indices[k] + v;
+				triInstance.fill(i, t, t + mesh.indices.length / 3);
+				for (let k = 0; k < mesh.indices.length / 3; k++) triLocal[t + k] = k;
+				instanceAlpha[i] = materials[materialOf(inst.mesh)].alphaTested ? 1 : 0;
+				v += p.length / 3;
+				t += mesh.indices.length / 3;
+			}
+			const blas = bvh.buildBLAS(positions, indices, quality);
+			const u = new Uint32Array(blas.tris.buffer, blas.tris.byteOffset, blas.tris.length);
+			for (let r = 0; r < blas.primRefCount; r++) {
+				const c = u[r * BVH_TRI_FLOATS + 3];
+				u[r * BVH_TRI_FLOATS + 3] = triLocal[c];
+				u[r * BVH_TRI_FLOATS + 7] = triInstance[c];
+				u[r * BVH_TRI_FLOATS + 11] = instanceAlpha[triInstance[c]];
+			}
+			merged = { blas, nodeOffset: nodeTotal, triOffset: triRefTotal };
+			nodeTotal += blas.nodeBlocks;
+			nodeCountTotal += blas.nodeCount;
+			triRefTotal += blas.primRefCount;
+		}
+
+		// ---- instances + TLAS: unmerged instances and the merged BLAS's entry (instance slot instanceCount) ----
+		const tlasInstances = scene.instances.flatMap((inst, i) => (isMerged(inst.mesh) ? [] : [i]));
+		if (merged) tlasInstances.push(instanceCount);
+		const aabbs = new Float32Array(tlasInstances.length * 8);
 		const worldToObject: Mat4[] = [];
 		let boundsMin: Vec3 = [Infinity, Infinity, Infinity];
 		let boundsMax: Vec3 = [-Infinity, -Infinity, -Infinity];
+		const meshBounds = (mesh: number): { min: Vec3; max: Vec3 } => {
+			const g = meshGpu.get(mesh)!;
+			if (g.blas) return { min: g.blas.boundsMin, max: g.blas.boundsMax };
+			const p = scene.meshes[mesh].positions, min: Vec3 = [Infinity, Infinity, Infinity], max: Vec3 = [-Infinity, -Infinity, -Infinity];
+			for (let k = 0; k < p.length; k += 3) for (let c = 0; c < 3; c++) { min[c] = Math.min(min[c], p[k + c]); max[c] = Math.max(max[c], p[k + c]); }
+			return { min, max };
+		};
+		const instanceBoxes = scene.instances.map((inst) => {
+			const local = meshBounds(inst.mesh);
+			return mat4.transformAABB(inst.transform, local.min, local.max);
+		});
 		scene.instances.forEach((inst, i) => {
-			const g = meshGpu.get(inst.mesh)!;
-			const box = mat4.transformAABB(inst.transform, g.blas.boundsMin, g.blas.boundsMax);
-			aabbs.set([...box.min, 0, ...box.max, 0], i * 8);
-			boundsMin = vec3.min(boundsMin, box.min);
-			boundsMax = vec3.max(boundsMax, box.max);
+			boundsMin = vec3.min(boundsMin, instanceBoxes[i].min);
+			boundsMax = vec3.max(boundsMax, instanceBoxes[i].max);
 			worldToObject.push(mat4.invert(inst.transform) ?? mat4.identity());
 		});
-		const tlas = instanceCount > 0 ? bvh.buildTLAS(aabbs) : null;
-		const tlasNodeCount = tlas?.nodeCount ?? 0;
+		tlasInstances.forEach((i, k) => {
+			const box = i === instanceCount ? { min: merged!.blas.boundsMin, max: merged!.blas.boundsMax } : instanceBoxes[i];
+			aabbs.set([...box.min, 0, ...box.max, 0], k * 8);
+		});
+		const tlas = tlasInstances.length > 0 ? bvh.buildTLAS(aabbs) : null;
+		const tlasNodeCount = tlas?.nodeBlocks ?? 0;
 
 		// ---- emissive triangles ----
 		interface PendingLight {
@@ -242,7 +306,7 @@ export class GpuScene {
 		}
 
 		// ---- pack instances ----
-		const instanceBuffer = new ArrayBuffer(Math.max(instanceCount, 1) * INSTANCE_BYTES);
+		const instanceBuffer = new ArrayBuffer(Math.max(instanceCount + (merged ? 1 : 0), 1) * INSTANCE_BYTES);
 		scene.instances.forEach((inst, i) => {
 			const g = meshGpu.get(inst.mesh)!;
 			const materialIndex = materialOf(inst.mesh);
@@ -255,8 +319,9 @@ export class GpuScene {
 			packInstance(instanceBuffer, i, {
 				objectToWorld: inst.transform,
 				worldToObject: worldToObject[i],
-				blasNodeOffset: tlasNodeCount + g.nodeOffset,
-				blasTriOffset: g.triOffset,
+				// Merged instances are never TLAS entries; their offsets point at the merged BLAS.
+				blasNodeOffset: tlasNodeCount + (g.blas ? g.nodeOffset : merged!.nodeOffset),
+				blasTriOffset: g.blas ? g.triOffset : merged!.triOffset,
 				indexOffset: g.indexOffset,
 				vertexOffset: g.vertexOffset,
 				materialIndex,
@@ -265,6 +330,14 @@ export class GpuScene {
 				triCount: g.triCount,
 			});
 		});
+
+		if (merged) {
+			packInstance(instanceBuffer, instanceCount, {
+				objectToWorld: mat4.identity(), worldToObject: mat4.identity(),
+				blasNodeOffset: tlasNodeCount + merged.nodeOffset, blasTriOffset: merged.triOffset,
+				indexOffset: 0, vertexOffset: 0, materialIndex: defaultMaterialIndex, flags: INSTANCE_FLAG_MERGED, lightOffset: 0, triCount: 0,
+			});
+		}
 
 		// ---- nodes / tris / indices / vertices ----
 		const nodes = new Uint8Array((tlasNodeCount + nodeTotal) * BVH_NODE_BYTES);
@@ -275,12 +348,19 @@ export class GpuScene {
 		const vertices = new Float32Array(vertexTotal * (VERTEX_BYTES / 4));
 		for (const [meshIndex, g] of meshGpu) {
 			const mesh = scene.meshes[meshIndex];
-			nodes.set(new Uint8Array(g.blas.nodes), (tlasNodeCount + g.nodeOffset) * BVH_NODE_BYTES);
-			tris.set(g.blas.tris, g.triOffset * BVH_TRI_FLOATS);
+			if (g.blas) {
+				nodes.set(new Uint8Array(g.blas.nodes), (tlasNodeCount + g.nodeOffset) * BVH_NODE_BYTES);
+				tris.set(g.blas.tris, g.triOffset * BVH_TRI_FLOATS);
+			}
 			indices.set(mesh.indices, g.indexOffset);
 			packVertices(vertices, g.vertexOffset, mesh.positions, mesh.normals, mesh.tangents, mesh.uv0, mesh.uv1);
 		}
-		if (tlas) indices.set(tlas.primIndices, tlasPrimOffset);
+		if (merged) {
+			nodes.set(new Uint8Array(merged.blas.nodes), (tlasNodeCount + merged.nodeOffset) * BVH_NODE_BYTES);
+			tris.set(merged.blas.tris, merged.triOffset * BVH_TRI_FLOATS);
+		}
+		// TLAS leaves index its input boxes; map them to instance slots.
+		if (tlas) indices.set(Array.from(tlas.primIndices, (k) => tlasInstances[k]), tlasPrimOffset);
 
 		out.nodes = createBuffer(device, 'bvhNodes', nodes, BVH_NODE_BYTES);
 		out.tris = createBuffer(device, 'bvhTris', tris);
@@ -324,7 +404,7 @@ export class GpuScene {
 			triangles: scene.instances.reduce((s, i) => s + meshGpu.get(i.mesh)!.triCount, 0),
 			emissiveTriangles: triangleCount > 0 ? pending.filter((l) => l.power > 0).length : 0,
 			analyticLights: analyticCount,
-			bvhNodes: tlasNodeCount + nodeTotal,
+			bvhNodes: (tlas?.nodeCount ?? 0) + nodeCountTotal,
 			buildMs: performance.now() - start,
 		};
 		return out;

@@ -15,6 +15,7 @@ export const ACCUM_BYTES_PER_PIXEL = 48; // radiance, albedo, normal (float4 eac
 
 export const INSTANCE_FLAG_ALPHA_TESTED = 1;
 export const INSTANCE_FLAG_EMISSIVE = 2;
+export const INSTANCE_FLAG_MERGED = 4;
 
 export const LIGHT_ANALYTIC = 0x80000000;
 export const LIGHT_HIDDEN_FROM_CAMERA = 0x100;

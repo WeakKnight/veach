@@ -1,5 +1,5 @@
 // Validates the tinybvh WASM output against brute force, using a TypeScript mirror of the
-// Slang traversal in shaders/RayTracing/Traversal.slang.
+// Slang traversal in shaders/RayTracing/Traversal.slang (CWBVH BLAS, BVH_GPU TLAS).
 import { beforeAll, describe, expect, it } from 'vitest';
 import { BuildQuality, TinyBVH, type BLASData } from '../src/accel/TinyBVH';
 import { mat4, type Mat4, type Vec3 } from '../src/math/Math';
@@ -62,7 +62,7 @@ interface Hit {
 	instance: number;
 }
 
-// Mirrors TraverseBLAS / TraceScene.
+// Mirrors the TLAS loop of TraceScene: BVH_GPU nodes, 4 float4 blocks each.
 function traverse(nodes: ArrayBuffer, nodeOffset: number, o: Vec3, d: Vec3, hit: Hit, leaf: (first: number, count: number) => void) {
 	const f = new Float32Array(nodes);
 	const u = new Uint32Array(nodes);
@@ -76,7 +76,7 @@ function traverse(nodes: ArrayBuffer, nodeOffset: number, o: Vec3, d: Vec3, hit:
 			ref = stack.pop()!;
 			continue;
 		}
-		const at = (nodeOffset + ref) * 16;
+		const at = (nodeOffset + ref * 4) * 4;
 		let d1 = intersectBox(f, at, o, rd, hit.t);
 		let d2 = intersectBox(f, at + 8, o, rd, hit.t);
 		let near = u[at + 3] >>> 0;
@@ -95,12 +95,64 @@ function traverse(nodes: ArrayBuffer, nodeOffset: number, o: Vec3, d: Vec3, hit:
 	}
 }
 
+const popcount = (v: number) => { let c = 0; for (v >>>= 0; v; v &= v - 1) c++; return c; };
+const bfind = (v: number) => 31 - Math.clz32(v);
+const f32 = new Float32Array(1), u32 = new Uint32Array(f32.buffer);
+const asFloat = (bits: number) => { u32[0] = bits >>> 0; return f32[0]; };
+
+// Mirrors TraverseBLAS: CWBVH nodes (5 float4 blocks), node and triangle groups, octant-ordered child slots.
 function traceBLAS(blas: BLASData, o: Vec3, d: Vec3, hit: Hit, instance: number) {
+	const f = new Float32Array(blas.nodes), u = new Uint32Array(blas.nodes);
 	const tris = blas.tris;
 	const triU32 = new Uint32Array(tris.buffer, tris.byteOffset, tris.length);
-	traverse(blas.nodes, 0, o, d, hit, (first, count) => {
-		for (let i = 0; i < count; i++) {
-			const b = (first + i) * 12;
+	// SafeRcp: a zero component would turn the quantized planes into 0 * Infinity.
+	const rd = d.map(v => 1 / (Math.abs(v) < 1e-20 ? (v < 0 ? -1e-20 : 1e-20) : v)) as Vec3;
+	const octinv = Math.imul(7 - ((d[0] < 0 ? 4 : 0) | (d[1] < 0 ? 2 : 0) | (d[2] < 0 ? 1 : 0)), 0x01010101) >>> 0;
+	const stack: [number, number][] = [];
+	let node: [number, number] = [0, 0x80000000], tri: [number, number] = [0, 0];
+	const childHits = (meta4: number, lo: number[], hi: number[], scale: number[], origin: number[]) => {
+		const isInner4 = (meta4 & (meta4 << 1)) & 0x10101010;
+		const innerMask4 = Math.imul(((isInner4 << 3) >>> 7) & 0x01010101, 0xff) >>> 0;
+		const bitIndex4 = ((meta4 ^ (octinv & innerMask4)) & 0x1f1f1f1f) >>> 0;
+		const childBits4 = (meta4 >>> 5) & 0x07070707;
+		let mask = 0;
+		for (let i = 0; i < 4; i++) {
+			const s = i * 8;
+			const tn = [0, 1, 2].map(k => Math.fround(((lo[k] >>> s) & 0xff) * scale[k] + origin[k]));
+			const tf = [0, 1, 2].map(k => Math.fround(((hi[k] >>> s) & 0xff) * scale[k] + origin[k]));
+			if (Math.max(...tn, 0) <= Math.min(...tf, hit.t)) mask |= ((childBits4 >>> s) & 0xff) << ((bitIndex4 >>> s) & 0xff);
+		}
+		return mask >>> 0;
+	};
+	for (;;) {
+		if (node[1] > 0x00ffffff) {
+			const hits = node[1], childBit = bfind(hits);
+			node = [node[0], (node[1] & ~(1 << childBit)) >>> 0];
+			if (node[1] > 0x00ffffff) stack.push([...node]);
+			const slot = (childBit - 24) ^ (octinv & 0xff);
+			const at = (node[0] + popcount(hits & ~(0xffffffff << slot))) * 20;
+			const e4 = u[at + 3];
+			const scale = [0, 8, 16].map((s, k) => asFloat(((e4 >>> s) & 0xff) << 23) * rd[k]);
+			const origin = [0, 1, 2].map(k => (f[at + k] - o[k]) * rd[k]);
+			// Blocks 2..4 as words: lo x (8, 9), lo y (10, 11), lo z (12, 13), hi x (14, 15), hi y (16, 17), hi z (18, 19).
+			const w = (i: number) => u[at + i];
+			const swap = (k: number, half: number) => {
+				const lo = w(8 + k * 2 + half), hi = w(14 + k * 2 + half);
+				return rd[k] < 0 ? [hi, lo] : [lo, hi];
+			};
+			const q0 = [0, 1, 2].map(k => swap(k, 0)), q1 = [0, 1, 2].map(k => swap(k, 1));
+			const mask = (childHits(u[at + 6], q0.map(q => q[0]), q0.map(q => q[1]), scale, origin)
+				| childHits(u[at + 7], q1.map(q => q[0]), q1.map(q => q[1]), scale, origin)) >>> 0;
+			node = [u[at + 4], ((mask & 0xff000000) | (e4 >>> 24)) >>> 0];
+			tri = [u[at + 5], mask & 0x00ffffff];
+		} else {
+			tri = node;
+			node = [0, 0];
+		}
+		while (tri[1] !== 0) {
+			const bit = bfind(tri[1]);
+			tri[1] = (tri[1] & ~(1 << bit)) >>> 0;
+			const b = ((tri[0] >>> 2) + bit) * 12;
 			const t = intersectTri(o, d, [tris[b], tris[b + 1], tris[b + 2]], [tris[b + 4], tris[b + 5], tris[b + 6]], [tris[b + 8], tris[b + 9], tris[b + 10]], hit.t);
 			if (t < hit.t) {
 				hit.t = t;
@@ -108,7 +160,11 @@ function traceBLAS(blas: BLASData, o: Vec3, d: Vec3, hit: Hit, instance: number)
 				hit.instance = instance;
 			}
 		}
-	});
+		if (node[1] <= 0x00ffffff) {
+			if (!stack.length) break;
+			node = stack.pop()!;
+		}
+	}
 }
 
 function bruteForce(positions: Float32Array, indices: Uint32Array, o: Vec3, d: Vec3, hit: Hit, instance: number) {
@@ -160,6 +216,22 @@ describe('tinybvh BLAS', () => {
 				}
 			}
 			expect(hits).toBeGreaterThan(500);
+		});
+	}
+
+	for (const count of [2, 3, 4, 5, 9]) {
+		it(`handles ${count} triangles`, () => {
+			const random = rng(77 + count);
+			const mesh = randomMesh(random, count);
+			const blas = tinybvh.buildBLAS(mesh.positions, mesh.indices, BuildQuality.High);
+			for (let i = 0; i < 400; i++) {
+				const { o, d } = randomRay(random);
+				const a: Hit = { t: FAR, prim: -1, instance: -1 };
+				const b: Hit = { t: FAR, prim: -1, instance: -1 };
+				traceBLAS(blas, o, d, a, 0);
+				bruteForce(mesh.positions, mesh.indices, o, d, b, 0);
+				expect(a.prim).toBe(b.prim);
+			}
 		});
 	}
 

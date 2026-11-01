@@ -87,7 +87,7 @@ the ignored `dist-view-demo/` directory.
 shaders/            Slang sources (compiled by scripts/build-shaders.mjs)
   Common/           Math.slang (constants, frames, sampling, equirect), Random.slang
   Scene/            SceneTypes.slang (GPU structs), SceneBindings.slang (group 0), SceneAccess.slang
-  RayTracing/       Traversal.slang: TLAS + BLAS stack traversal over tinybvh BVH_GPU nodes
+  RayTracing/       Traversal.slang: single-loop TLAS (BVH_GPU) + BLAS (CWBVH) traversal
   Materials/        MaterialProgram (bytecode interpreter -> BSDFInputs), MaterialSample (hit reconstruction, shading frames),
                     BSDF/ (layered BSDF: BSDF, Layers, Lobes, EnergyTables, ...), Textures, VirtualTexture, AlphaTest,
                     Procedural.slang (Blender Noise (fBM), Magic, Checker; mirrors src/material/Procedural.ts)
@@ -242,10 +242,31 @@ WebGPU guarantees only 8 storage buffers per stage, so do not add buffers; pack 
 
 ## BVH format
 
-tinybvh `BVH_GPU` 64-byte nodes. A child reference with bit 31 set is a leaf: count in bits
-24–30, offset in bits 0–23. Triangles are 3 float4 per primitive reference:
-`v0 | asfloat(primIdx)`, `e1`, `e2`. The node buffer is `[TLAS][BLAS...]`; TLAS leaf offsets
-index the TLAS prim indices, which are appended to `gIndices` at `counts.z`.
+`gNodes` is addressed in float4 blocks: `[TLAS][BLAS...]`, the TLAS at `envInfo.z`, each BLAS at its instance's
+`blasNodeOffset`.
+
+- **TLAS**: tinybvh `BVH_GPU` (Aila & Laine), 4 blocks per node, child bounds in the parent. A child reference with
+  bit 31 set is a leaf: count in bits 24–30, offset in bits 0–23. Leaf offsets index the TLAS prim indices, appended to
+  `gIndices` at `counts.z`, which map to instance slots.
+- **BLAS**: tinybvh `BVH8_CWBVH` (Ylitie et al. 2017, "Efficient Incoherent Ray Traversal on GPUs Through Compressed
+  Wide BVHs"), 5 blocks per node: origin, exponents and imask; child base, triangle base and 8 meta bytes; 8 child boxes
+  quantized to bytes. It is built from a binned SAH or SBVH tree with at most 3 triangles per leaf.
+  `wasm/tinybvh_wasm.cpp` writes one node itself for meshes of at most 3 triangles, which tinybvh cannot convert.
+- **Triangles**: 3 float4 per CWBVH triangle slot, in slot order: `v0 | asfloat(primIdx)`, `e1`, `e2`. Leaves address
+  them in units of tinybvh's 4-block compressed triangles, so slot = index / 4.
+
+Static scenes (`GpuScene`) put the triangles of every mesh placed exactly once into one world-space BLAS, when there
+are at least two such instances. One tree over the static scene removes the overlapping instance boxes the TLAS
+would otherwise visit (the kitchen: 299 instances, closest hit 6.9 to 4.8 ms). Its triangles carry their instance in
+`e1.w` and their alpha test flag in `e2.w`; elsewhere both are 0. The TLAS references it through an extra instance slot
+after the scene's instances, with an identity transform, `triCount` 0 and `INSTANCE_FLAG_MERGED`, which is never a
+hit's instance. Instanced meshes keep their own BLAS. `HostGpuScene` (host-driven scenes) does not merge.
+
+`TraceScene` walks both levels in one loop with one stack. A lane that finishes a BLAS continues with TLAS steps in
+the same iteration as lanes still inside theirs, instead of waiting at the end of a nested loop. The stack lives at
+module scope, because WGSL zero-initializes array variables where they are declared. The megakernels pass
+`TRIANGLE_STEPS`: one triangle per iteration instead of a triangle group in an inner loop, which is faster in those
+register-bound kernels and slower in the wavefront ones.
 
 ### Optional light and alpha-shadow stages
 

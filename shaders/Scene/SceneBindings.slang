@@ -3,7 +3,7 @@
 import Scene.SceneTypes;
 
 [[vk::binding(0, 0)]] ConstantBuffer<FrameUniforms> gFrame;
-[[vk::binding(1, 0)]] StructuredBuffer<BVHNode> gNodes;			// TLAS at 0, then every BLAS
+[[vk::binding(1, 0)]] StructuredBuffer<float4> gNodes;			// float4 blocks: TLAS (BVH_GPU), then every BLAS (CWBVH)
 [[vk::binding(2, 0)]] StructuredBuffer<float4> gTris;			// BVH-ordered triangles: v0|primIdx, e1, e2
 [[vk::binding(3, 0)]] StructuredBuffer<Instance> gInstances;
 [[vk::binding(4, 0)]] StructuredBuffer<Vertex> gVertices;

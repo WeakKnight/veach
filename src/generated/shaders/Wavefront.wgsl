@@ -95,19 +95,7 @@ struct EmissiveTriangle_std430_0
 
 @binding(11) @group(0) var gVTPhysical_0 : texture_2d<f32>;
 
-struct BVHNode_std430_0
-{
-    @align(16) lmin_0 : vec3<f32>,
-    @align(4) left_0 : u32,
-    @align(16) lmax_0 : vec3<f32>,
-    @align(4) right_0 : u32,
-    @align(16) rmin_0 : vec3<f32>,
-    @align(4) triCount_1 : u32,
-    @align(16) rmax_0 : vec3<f32>,
-    @align(4) firstTri_0 : u32,
-};
-
-@binding(1) @group(0) var<storage, read> gNodes_0 : array<BVHNode_std430_0>;
+@binding(1) @group(0) var<storage, read> gNodes_0 : array<vec4<f32>>;
 
 struct ScreenCacheConstants_std140_0
 {
@@ -4835,19 +4823,56 @@ fn SafeRcp_0( d_6 : vec3<f32>) -> vec3<f32>
     return rcp_0(select(d_6, select(vec3<f32>(9.99999968265522539e-21f), vec3<f32>(-9.99999968265522539e-21f), (d_6 < vec3<f32>(0.0f))), ((abs(d_6)) < vec3<f32>(9.99999968265522539e-21f))));
 }
 
-fn InverseTransformVector_0( _S239 : u32,  _S240 : vec3<f32>) -> vec3<f32>
+fn firstbithigh_0( value_3 : u32) -> u32
 {
-    return vec3<f32>(dot(gInstances_0[_S239].worldToObject_0[i32(0)].xyz, _S240), dot(gInstances_0[_S239].worldToObject_0[i32(1)].xyz, _S240), dot(gInstances_0[_S239].worldToObject_0[i32(2)].xyz, _S240));
+    var _S239 : u32 = firstLeadingBit(value_3);
+    return _S239;
 }
 
+var<private> gTraversalStack_0 : array<vec2<u32>, i32(32)>;
+
 var<private> gTraversalCost_0 : u32;
+
+fn SignExtendS8x4_0( i_5 : u32) -> u32
+{
+    return ((((i_5 >> (u32(7)))) & (u32(16843009)))) * u32(255);
+}
+
+fn CwbvhChildHits_0( meta4_0 : u32,  lo_2 : vec3<u32>,  hi_2 : vec3<u32>,  scale_4 : vec3<f32>,  origin_1 : vec3<f32>,  tMin_1 : f32,  tMax_1 : f32,  octinv_0 : u32) -> u32
+{
+    var _S240 : u32 = (((meta4_0 ^ (((octinv_0 & ((SignExtendS8x4_0((((((meta4_0 & (((meta4_0 << (u32(1))))))) & (u32(269488144)))) << (u32(3))))))))))) & (u32(522133279)));
+    var _S241 : u32 = (((meta4_0 >> (u32(5)))) & (u32(117901063)));
+    var i_6 : u32 = u32(0);
+    var hitmask_0 : u32 = u32(0);
+    loop
+    {
+        if((i_6 < u32(4)))
+        {
+        }
+        else
+        {
+            break;
+        }
+        var shift_0 : u32 = i_6 * u32(8);
+        var _S242 : vec3<u32> = vec3<u32>(shift_0);
+        var _S243 : vec3<u32> = vec3<u32>(u32(255));
+        var tNear_0 : vec3<f32> = vec3<f32>((((lo_2 >> (_S242))) & (_S243))) * scale_4 + origin_1;
+        var tFar_0 : vec3<f32> = vec3<f32>((((hi_2 >> (_S242))) & (_S243))) * scale_4 + origin_1;
+        if(((max(max(max(tNear_0.x, tNear_0.y), tNear_0.z), tMin_1)) <= (min(min(min(tFar_0.x, tFar_0.y), tFar_0.z), tMax_1))))
+        {
+            hitmask_0 = (hitmask_0 | (((((((_S241 >> (shift_0))) & (u32(255)))) << (((((_S240 >> (shift_0))) & (u32(255)))))))));
+        }
+        i_6 = i_6 + u32(1);
+    }
+    return hitmask_0;
+}
 
 fn rcp_1( x_23 : f32) -> f32
 {
     return 1.0f / x_23;
 }
 
-fn IntersectTriangle_0( o_9 : vec3<f32>,  d_7 : vec3<f32>,  v0_0 : vec3<f32>,  e1_0 : vec3<f32>,  e2_0 : vec3<f32>,  tMin_1 : f32,  tMax_1 : f32,  t_7 : ptr<function, f32>,  bary_1 : ptr<function, vec2<f32>>) -> bool
+fn IntersectTriangle_0( o_9 : vec3<f32>,  d_7 : vec3<f32>,  v0_0 : vec3<f32>,  e1_0 : vec3<f32>,  e2_0 : vec3<f32>,  tMin_2 : f32,  tMax_2 : f32,  t_7 : ptr<function, f32>,  bary_1 : ptr<function, vec2<f32>>) -> bool
 {
     (*t_7) = 0.0f;
     (*bary_1) = vec2<f32>(0.0f);
@@ -4860,16 +4885,16 @@ fn IntersectTriangle_0( o_9 : vec3<f32>,  d_7 : vec3<f32>,  v0_0 : vec3<f32>,  e
     var f_8 : f32 = rcp_1(a_13);
     var s_12 : vec3<f32> = o_9 - v0_0;
     var u_9 : f32 = f_8 * dot(s_12, h_10);
-    var _S241 : bool;
+    var _S244 : bool;
     if((u_9 < 0.0f))
     {
-        _S241 = true;
+        _S244 = true;
     }
     else
     {
-        _S241 = (u_9 > 1.0f);
+        _S244 = (u_9 > 1.0f);
     }
-    if(_S241)
+    if(_S244)
     {
         return false;
     }
@@ -4877,289 +4902,548 @@ fn IntersectTriangle_0( o_9 : vec3<f32>,  d_7 : vec3<f32>,  v0_0 : vec3<f32>,  e
     var v_11 : f32 = f_8 * dot(d_7, q_0);
     if((v_11 < 0.0f))
     {
-        _S241 = true;
+        _S244 = true;
     }
     else
     {
-        _S241 = ((u_9 + v_11) > 1.0f);
+        _S244 = ((u_9 + v_11) > 1.0f);
     }
-    if(_S241)
+    if(_S244)
     {
         return false;
     }
     (*t_7) = f_8 * dot(e2_0, q_0);
     (*bary_1) = vec2<f32>(u_9, v_11);
-    if(((*t_7) > tMin_1))
+    if(((*t_7) > tMin_2))
     {
-        _S241 = ((*t_7) < tMax_1);
+        _S244 = ((*t_7) < tMax_2);
     }
     else
     {
-        _S241 = false;
+        _S244 = false;
     }
-    return _S241;
+    return _S244;
 }
 
-fn IntersectBox_0( bmin_0 : vec3<f32>,  bmax_0 : vec3<f32>,  o_10 : vec3<f32>,  rD_0 : vec3<f32>,  tMin_2 : f32,  tMax_2 : f32) -> f32
+fn IntersectSlot_0( slot_2 : u32,  instanceIndex_3 : u32,  blasTriOffset_1 : u32,  merged_0 : bool,  alphaTested_0 : bool,  o_10 : vec3<f32>,  d_8 : vec3<f32>,  tMin_3 : f32,  hit_0 : ptr<function, HitRecord_0>) -> bool
 {
-    var t1_0 : vec3<f32> = (bmin_0 - o_10) * rD_0;
-    var t2_0 : vec3<f32> = (bmax_0 - o_10) * rD_0;
-    var _S242 : vec3<f32> = min(t1_0, t2_0);
-    var _S243 : vec3<f32> = max(t1_0, t2_0);
-    var _S244 : f32 = max(max(_S242.x, _S242.y), max(_S242.z, tMin_2));
-    var _S245 : f32;
-    if((_S244 <= (min(min(_S243.x, _S243.y), min(_S243.z, tMax_2)))))
+    gTraversalCost_0 = gTraversalCost_0 + u32(1);
+    var base_2 : u32 = (blasTriOffset_1 + slot_2) * u32(3);
+    var v0_1 : vec4<f32> = gTris_0[base_2];
+    var e1_1 : vec4<f32> = gTris_0[base_2 + u32(1)];
+    var t_8 : f32;
+    var bary_2 : vec2<f32>;
+    var _S245 : bool = IntersectTriangle_0(o_10, d_8, v0_1.xyz, e1_1.xyz, gTris_0[base_2 + u32(2)].xyz, tMin_3, (*hit_0).t_6, &(t_8), &(bary_2));
+    if(!_S245)
     {
-        _S245 = _S244;
+        return false;
+    }
+    var primitiveIndex_2 : u32 = (bitcast<u32>((v0_1.w)));
+    var _S246 : u32;
+    if(merged_0)
+    {
+        _S246 = (bitcast<u32>((e1_1.w)));
     }
     else
     {
-        _S245 = 1.00000001504746622e+30f;
+        _S246 = instanceIndex_3;
     }
-    return _S245;
+    (*hit_0).t_6 = t_8;
+    (*hit_0).barycentrics_0 = bary_2;
+    (*hit_0).instanceIndex_2 = _S246;
+    (*hit_0).primitiveIndex_1 = primitiveIndex_2;
+    return true;
 }
 
-fn TraverseBLAS_0( _S246 : u32,  _S247 : u32,  _S248 : vec3<f32>,  _S249 : vec3<f32>,  _S250 : f32,  _S251 : bool,  _S252 : ptr<function, HitRecord_0>) -> bool
+fn InverseTransformVector_0( _S247 : u32,  _S248 : vec3<f32>) -> vec3<f32>
 {
-    var found_0 : bool;
-    var _S253 : vec3<f32> = SafeRcp_0(_S249);
-    var stack_1 : array<u32, i32(48)>;
-    var nodeRef_0 : u32 = u32(0);
-    var found_1 : bool = false;
-    var stackPtr_0 : u32 = u32(0);
-    loop
+    return vec3<f32>(dot(gInstances_0[_S247].worldToObject_0[i32(0)].xyz, _S248), dot(gInstances_0[_S247].worldToObject_0[i32(1)].xyz, _S248), dot(gInstances_0[_S247].worldToObject_0[i32(2)].xyz, _S248));
+}
+
+fn IntersectBox_0( bmin_0 : vec3<f32>,  bmax_0 : vec3<f32>,  o_11 : vec3<f32>,  rD_0 : vec3<f32>,  tMin_4 : f32,  tMax_3 : f32) -> f32
+{
+    var t1_0 : vec3<f32> = (bmin_0 - o_11) * rD_0;
+    var t2_0 : vec3<f32> = (bmax_0 - o_11) * rD_0;
+    var _S249 : vec3<f32> = min(t1_0, t2_0);
+    var _S250 : vec3<f32> = max(t1_0, t2_0);
+    var _S251 : f32 = max(max(_S249.x, _S249.y), max(_S249.z, tMin_4));
+    var _S252 : f32;
+    if((_S251 <= (min(min(_S250.x, _S250.y), min(_S250.z, tMax_3)))))
     {
-        var i_5 : u32;
-        if(((nodeRef_0 & (u32(2147483648)))) != u32(0))
-        {
-            var _S254 : u32 = (((nodeRef_0 >> (u32(24)))) & (u32(127)));
-            var _S255 : u32 = (nodeRef_0 & (u32(16777215)));
-            found_0 = found_1;
-            i_5 = u32(0);
-            loop
-            {
-                if((i_5 < _S254))
-                {
-                }
-                else
-                {
-                    break;
-                }
-                gTraversalCost_0 = gTraversalCost_0 + u32(1);
-                var base_2 : u32 = (gInstances_0[_S247].blasTriOffset_0 + _S255 + i_5) * u32(3);
-                var v0_1 : vec4<f32> = gTris_0[base_2];
-                var t_8 : f32;
-                var bary_2 : vec2<f32>;
-                var _S256 : bool = IntersectTriangle_0(_S248, _S249, v0_1.xyz, gTris_0[base_2 + u32(1)].xyz, gTris_0[base_2 + u32(2)].xyz, _S250, (*_S252).t_6, &(t_8), &(bary_2));
-                if(!_S256)
-                {
-                    i_5 = i_5 + u32(1);
-                    continue;
-                }
-                var primitiveIndex_2 : u32 = (bitcast<u32>((v0_1.w)));
-                (*_S252).t_6 = t_8;
-                (*_S252).barycentrics_0 = bary_2;
-                (*_S252).instanceIndex_2 = _S246;
-                (*_S252).primitiveIndex_1 = primitiveIndex_2;
-                if(_S251)
-                {
-                    return true;
-                }
-                found_0 = true;
-                i_5 = i_5 + u32(1);
-            }
-            if(stackPtr_0 == u32(0))
-            {
-                break;
-            }
-            var stackPtr_1 : u32 = stackPtr_0 - u32(1);
-            nodeRef_0 = stack_1[stackPtr_1];
-            found_1 = found_0;
-            stackPtr_0 = stackPtr_1;
-            continue;
-        }
-        gTraversalCost_0 = gTraversalCost_0 + u32(1);
-        var node_0 : BVHNode_std430_0 = gNodes_0[gInstances_0[_S247].blasNodeOffset_0 + nodeRef_0];
-        var dist1_0 : f32 = IntersectBox_0(node_0.lmin_0, node_0.lmax_0, _S248, _S253, _S250, (*_S252).t_6);
-        var dist2_0 : f32 = IntersectBox_0(node_0.rmin_0, node_0.rmax_0, _S248, _S253, _S250, (*_S252).t_6);
-        var far_0 : u32;
-        var dist1_1 : f32;
-        var dist2_1 : f32;
-        if((dist1_0 > dist2_0))
-        {
-            dist1_1 = dist2_0;
-            i_5 = node_0.right_0;
-            dist2_1 = dist1_0;
-            far_0 = node_0.left_0;
-        }
-        else
-        {
-            dist1_1 = dist1_0;
-            i_5 = node_0.left_0;
-            dist2_1 = dist2_0;
-            far_0 = node_0.right_0;
-        }
-        if(dist1_1 == 1.00000001504746622e+30f)
-        {
-            if(stackPtr_0 == u32(0))
-            {
-                found_0 = found_1;
-                break;
-            }
-            var stackPtr_2 : u32 = stackPtr_0 - u32(1);
-            nodeRef_0 = stack_1[stackPtr_2];
-            stackPtr_0 = stackPtr_2;
-        }
-        else
-        {
-            if(dist2_1 != 1.00000001504746622e+30f)
-            {
-                found_0 = (stackPtr_0 < u32(48));
-            }
-            else
-            {
-                found_0 = false;
-            }
-            var stackPtr_3 : u32;
-            if(found_0)
-            {
-                var _S257 : u32 = stackPtr_0 + u32(1);
-                stack_1[stackPtr_0] = far_0;
-                stackPtr_3 = _S257;
-            }
-            else
-            {
-                stackPtr_3 = stackPtr_0;
-            }
-            nodeRef_0 = i_5;
-            stackPtr_0 = stackPtr_3;
-        }
+        _S252 = _S251;
     }
-    return found_0;
+    else
+    {
+        _S252 = 1.00000001504746622e+30f;
+    }
+    return _S252;
 }
 
-fn TraceScene_0( ray_0 : Ray_0,  anyHit_0 : bool,  hit_0 : ptr<function, HitRecord_0>) -> bool
+fn TraceScene_0( ray_0 : Ray_0,  anyHit_0 : bool,  hit_1 : ptr<function, HitRecord_0>) -> bool
 {
-    var found_2 : bool;
-    (*hit_0).t_6 = ray_0.tMax_0;
-    (*hit_0).barycentrics_0 = vec2<f32>(0.0f);
-    (*hit_0).instanceIndex_2 = u32(4294967295);
-    (*hit_0).primitiveIndex_1 = u32(4294967295);
+    (*hit_1).t_6 = ray_0.tMax_0;
+    (*hit_1).barycentrics_0 = vec2<f32>(0.0f);
+    (*hit_1).instanceIndex_2 = u32(4294967295);
+    (*hit_1).primitiveIndex_1 = u32(4294967295);
     if((gFrame_0.counts_0.x) == u32(0))
     {
         return false;
     }
-    var _S258 : u32 = gFrame_0.counts_0.z;
-    var _S259 : vec3<f32> = SafeRcp_0(ray_0.direction_0);
-    var stack_2 : array<u32, i32(32)>;
-    var nodeRef_1 : u32 = u32(0);
-    var found_3 : bool = false;
-    var stackPtr_4 : u32 = u32(0);
+    var _S253 : u32 = gFrame_0.counts_0.z;
+    var worldRD_0 : vec3<f32> = SafeRcp_0(ray_0.direction_0);
+    var _S254 : vec2<u32> = vec2<u32>(u32(0));
+    var nodeGroup_0 : vec2<u32> = _S254;
+    var triGroup_0 : vec2<u32> = _S254;
+    var inBlas_0 : bool = false;
+    var instanceIndex_4 : u32 = u32(0);
+    var blasTriOffset_2 : u32 = u32(0);
+    var merged_1 : bool = false;
+    var o_12 : vec3<f32> = ray_0.origin_0;
+    var d_9 : vec3<f32> = ray_0.direction_0;
+    var octinv_1 : u32 = u32(0);
+    var blasNodeOffset_1 : u32 = u32(0);
+    var rD_1 : vec3<f32> = worldRD_0;
+    var nodeRef_0 : u32 = u32(0);
+    var found_0 : bool = false;
+    var stackPtr_0 : u32 = u32(0);
     loop
     {
-        var i_6 : u32;
-        if(((nodeRef_1 & (u32(2147483648)))) != u32(0))
+        var pop_0 : bool;
+        var inBlas_1 : bool;
+        var merged_2 : bool;
+        var instanceIndex_5 : u32;
+        var blasTriOffset_3 : u32;
+        var octinv_2 : u32;
+        var blasNodeOffset_2 : u32;
+        var nodeRef_1 : u32;
+        var stackPtr_1 : u32;
+        var o_13 : vec3<f32>;
+        var d_10 : vec3<f32>;
+        var rD_2 : vec3<f32>;
+        var dist1_0 : f32;
+        var dist2_0 : f32;
+        if(inBlas_0)
         {
-            var _S260 : u32 = (((nodeRef_1 >> (u32(24)))) & (u32(127)));
-            var _S261 : u32 = (nodeRef_1 & (u32(16777215)));
-            found_2 = found_3;
-            i_6 = u32(0);
+            if(((nodeGroup_0.y) > u32(16777215)))
+            {
+                var hits_0 : u32 = nodeGroup_0.y;
+                var childBit_0 : u32 = firstbithigh_0(hits_0);
+                nodeGroup_0[i32(1)] = ((nodeGroup_0[i32(1)]) & ((~((u32(1) << (childBit_0))))));
+                if(((nodeGroup_0.y) > u32(16777215)))
+                {
+                    pop_0 = (stackPtr_0 < u32(32));
+                }
+                else
+                {
+                    pop_0 = false;
+                }
+                if(pop_0)
+                {
+                    var _S255 : u32 = stackPtr_0 + u32(1);
+                    gTraversalStack_0[stackPtr_0] = nodeGroup_0;
+                    octinv_2 = _S255;
+                }
+                else
+                {
+                    octinv_2 = stackPtr_0;
+                }
+                var node_0 : u32 = blasNodeOffset_1 + (nodeGroup_0.x + countOneBits((hits_0 & ((~((u32(4294967295) << ((((childBit_0 - u32(24)) ^ (((octinv_1 & (u32(255))))))))))))))) * u32(5);
+                gTraversalCost_0 = gTraversalCost_0 + u32(1);
+                var n0_0 : vec4<f32> = gNodes_0[node_0];
+                var n1_0 : vec4<f32> = gNodes_0[node_0 + u32(1)];
+                var n2_0 : vec4<f32> = gNodes_0[node_0 + u32(2)];
+                var n3_0 : vec4<f32> = gNodes_0[node_0 + u32(3)];
+                var n4_0 : vec4<f32> = gNodes_0[node_0 + u32(4)];
+                var e4_0 : u32 = (bitcast<u32>((n0_0.w)));
+                var scale_5 : vec3<f32> = vec3<f32>((bitcast<f32>(((((e4_0 & (u32(255)))) << (u32(23)))))), (bitcast<f32>(((((((e4_0 >> (u32(8)))) & (u32(255)))) << (u32(23)))))), (bitcast<f32>(((((((e4_0 >> (u32(16)))) & (u32(255)))) << (u32(23))))))) * rD_1;
+                var origin_2 : vec3<f32> = (n0_0.xyz - o_12) * rD_1;
+                var negative_0 : vec3<bool> = (rD_1 < vec3<f32>(0.0f));
+                var _S256 : bool = negative_0.x;
+                if(_S256)
+                {
+                    dist1_0 = n3_0.z;
+                }
+                else
+                {
+                    dist1_0 = n2_0.x;
+                }
+                var _S257 : u32 = (bitcast<u32>((dist1_0)));
+                var _S258 : bool = negative_0.y;
+                if(_S258)
+                {
+                    dist2_0 = n4_0.x;
+                }
+                else
+                {
+                    dist2_0 = n2_0.z;
+                }
+                var _S259 : u32 = (bitcast<u32>((dist2_0)));
+                var _S260 : bool = negative_0.z;
+                var _S261 : f32;
+                if(_S260)
+                {
+                    _S261 = n4_0.z;
+                }
+                else
+                {
+                    _S261 = n3_0.x;
+                }
+                var lo0_0 : vec3<u32> = vec3<u32>(_S257, _S259, (bitcast<u32>((_S261))));
+                var _S262 : f32;
+                if(_S256)
+                {
+                    _S262 = n2_0.x;
+                }
+                else
+                {
+                    _S262 = n3_0.z;
+                }
+                var _S263 : u32 = (bitcast<u32>((_S262)));
+                var _S264 : f32;
+                if(_S258)
+                {
+                    _S264 = n2_0.z;
+                }
+                else
+                {
+                    _S264 = n4_0.x;
+                }
+                var _S265 : u32 = (bitcast<u32>((_S264)));
+                var _S266 : f32;
+                if(_S260)
+                {
+                    _S266 = n3_0.x;
+                }
+                else
+                {
+                    _S266 = n4_0.z;
+                }
+                var hi0_0 : vec3<u32> = vec3<u32>(_S263, _S265, (bitcast<u32>((_S266))));
+                var _S267 : f32;
+                if(_S256)
+                {
+                    _S267 = n3_0.w;
+                }
+                else
+                {
+                    _S267 = n2_0.y;
+                }
+                var _S268 : u32 = (bitcast<u32>((_S267)));
+                var _S269 : f32;
+                if(_S258)
+                {
+                    _S269 = n4_0.y;
+                }
+                else
+                {
+                    _S269 = n2_0.w;
+                }
+                var _S270 : u32 = (bitcast<u32>((_S269)));
+                var _S271 : f32;
+                if(_S260)
+                {
+                    _S271 = n4_0.w;
+                }
+                else
+                {
+                    _S271 = n3_0.y;
+                }
+                var lo1_0 : vec3<u32> = vec3<u32>(_S268, _S270, (bitcast<u32>((_S271))));
+                var _S272 : f32;
+                if(_S256)
+                {
+                    _S272 = n2_0.y;
+                }
+                else
+                {
+                    _S272 = n3_0.w;
+                }
+                var _S273 : u32 = (bitcast<u32>((_S272)));
+                var _S274 : f32;
+                if(_S258)
+                {
+                    _S274 = n2_0.w;
+                }
+                else
+                {
+                    _S274 = n4_0.y;
+                }
+                var _S275 : u32 = (bitcast<u32>((_S274)));
+                var _S276 : f32;
+                if(_S260)
+                {
+                    _S276 = n3_0.y;
+                }
+                else
+                {
+                    _S276 = n4_0.w;
+                }
+                var hitmask_1 : u32 = ((CwbvhChildHits_0((bitcast<u32>((n1_0.z))), lo0_0, hi0_0, scale_5, origin_2, ray_0.tMin_0, (*hit_1).t_6, octinv_1)) | ((CwbvhChildHits_0((bitcast<u32>((n1_0.w))), lo1_0, vec3<u32>(_S273, _S275, (bitcast<u32>((_S276)))), scale_5, origin_2, ray_0.tMin_0, (*hit_1).t_6, octinv_1))));
+                nodeGroup_0 = vec2<u32>((bitcast<u32>((n1_0.x))), (((hitmask_1 & (u32(4278190080)))) | (((e4_0 >> (u32(24)))))));
+                triGroup_0 = vec2<u32>((bitcast<u32>((n1_0.y))), (hitmask_1 & (u32(16777215))));
+            }
+            else
+            {
+                triGroup_0 = nodeGroup_0;
+                nodeGroup_0 = _S254;
+                octinv_2 = stackPtr_0;
+            }
+            pop_0 = found_0;
             loop
             {
-                if((i_6 < _S260))
+                if((triGroup_0.y) != u32(0))
                 {
                 }
                 else
                 {
                     break;
                 }
-                var instanceIndex_3 : u32 = gIndices_0[_S258 + _S261 + i_6];
-                var _S262 : bool = TraverseBLAS_0(instanceIndex_3, instanceIndex_3, InverseTransformPoint_0(instanceIndex_3, ray_0.origin_0), InverseTransformVector_0(instanceIndex_3, ray_0.direction_0), ray_0.tMin_0, anyHit_0, &((*hit_0)));
-                if(_S262)
+                var triangleBit_0 : u32 = firstbithigh_0(triGroup_0.y);
+                triGroup_0[i32(1)] = ((triGroup_0[i32(1)]) & ((~((u32(1) << (triangleBit_0))))));
+                var _S277 : bool = IntersectSlot_0((((triGroup_0.x) >> (u32(2)))) + triangleBit_0, instanceIndex_4, blasTriOffset_2, merged_1, false, o_12, d_9, ray_0.tMin_0, &((*hit_1)));
+                if(_S277)
                 {
                     if(anyHit_0)
                     {
                         return true;
                     }
-                    found_2 = true;
+                    pop_0 = true;
                 }
-                i_6 = i_6 + u32(1);
             }
-            if(stackPtr_4 == u32(0))
+            if((triGroup_0.y) == u32(0))
             {
-                break;
-            }
-            var stackPtr_5 : u32 = stackPtr_4 - u32(1);
-            nodeRef_1 = stack_2[stackPtr_5];
-            found_3 = found_2;
-            stackPtr_4 = stackPtr_5;
-            continue;
-        }
-        gTraversalCost_0 = gTraversalCost_0 + u32(1);
-        var node_1 : BVHNode_std430_0 = gNodes_0[gFrame_0.envInfo_0.z + nodeRef_1];
-        var dist1_2 : f32 = IntersectBox_0(node_1.lmin_0, node_1.lmax_0, ray_0.origin_0, _S259, ray_0.tMin_0, (*hit_0).t_6);
-        var dist2_2 : f32 = IntersectBox_0(node_1.rmin_0, node_1.rmax_0, ray_0.origin_0, _S259, ray_0.tMin_0, (*hit_0).t_6);
-        var far_1 : u32;
-        var dist1_3 : f32;
-        var dist2_3 : f32;
-        if((dist1_2 > dist2_2))
-        {
-            dist1_3 = dist2_2;
-            i_6 = node_1.right_0;
-            dist2_3 = dist1_2;
-            far_1 = node_1.left_0;
-        }
-        else
-        {
-            dist1_3 = dist1_2;
-            i_6 = node_1.left_0;
-            dist2_3 = dist2_2;
-            far_1 = node_1.right_0;
-        }
-        if(dist1_3 == 1.00000001504746622e+30f)
-        {
-            if(stackPtr_4 == u32(0))
-            {
-                found_2 = found_3;
-                break;
-            }
-            var stackPtr_6 : u32 = stackPtr_4 - u32(1);
-            nodeRef_1 = stack_2[stackPtr_6];
-            stackPtr_4 = stackPtr_6;
-        }
-        else
-        {
-            if(dist2_3 != 1.00000001504746622e+30f)
-            {
-                found_2 = (stackPtr_4 < u32(32));
+                inBlas_1 = ((nodeGroup_0.y) <= u32(16777215));
             }
             else
             {
-                found_2 = false;
+                inBlas_1 = false;
             }
-            var stackPtr_7 : u32;
-            if(found_2)
+            var _S278 : u32 = octinv_2;
+            var _S279 : bool = pop_0;
+            pop_0 = inBlas_1;
+            inBlas_1 = inBlas_0;
+            instanceIndex_5 = instanceIndex_4;
+            blasTriOffset_3 = blasTriOffset_2;
+            merged_2 = merged_1;
+            o_13 = o_12;
+            d_10 = d_9;
+            octinv_2 = octinv_1;
+            blasNodeOffset_2 = blasNodeOffset_1;
+            rD_2 = rD_1;
+            nodeRef_1 = nodeRef_0;
+            found_0 = _S279;
+            stackPtr_1 = _S278;
+        }
+        else
+        {
+            if(((nodeRef_0 & (u32(2147483648)))) != u32(0))
             {
-                var _S263 : u32 = stackPtr_4 + u32(1);
-                stack_2[stackPtr_4] = far_1;
-                stackPtr_7 = _S263;
+                var count_1 : u32 = (((nodeRef_0 >> (u32(24)))) & (u32(127)));
+                var first_0 : u32 = (nodeRef_0 & (u32(16777215)));
+                if(count_1 == u32(0))
+                {
+                    pop_0 = true;
+                    inBlas_1 = inBlas_0;
+                    instanceIndex_5 = instanceIndex_4;
+                    blasTriOffset_3 = blasTriOffset_2;
+                    merged_2 = merged_1;
+                    o_13 = o_12;
+                    d_10 = d_9;
+                    octinv_2 = octinv_1;
+                    blasNodeOffset_2 = blasNodeOffset_1;
+                    rD_2 = rD_1;
+                    nodeRef_1 = stackPtr_0;
+                }
+                else
+                {
+                    if((count_1 > u32(1)))
+                    {
+                        pop_0 = (stackPtr_0 < u32(32));
+                    }
+                    else
+                    {
+                        pop_0 = false;
+                    }
+                    if(pop_0)
+                    {
+                        var _S280 : u32 = stackPtr_0 + u32(1);
+                        gTraversalStack_0[stackPtr_0] = vec2<u32>((((u32(2147483648) | ((((count_1 - u32(1)) << (u32(24))))))) | ((first_0 + u32(1)))), u32(0));
+                        octinv_2 = _S280;
+                    }
+                    else
+                    {
+                        octinv_2 = stackPtr_0;
+                    }
+                    var instanceIndex_6 : u32 = gIndices_0[_S253 + first_0];
+                    var _S281 : u32 = gInstances_0[instanceIndex_6].blasNodeOffset_0;
+                    var _S282 : u32 = gInstances_0[instanceIndex_6].blasTriOffset_0;
+                    var _S283 : vec3<f32> = InverseTransformPoint_0(instanceIndex_6, ray_0.origin_0);
+                    var _S284 : vec3<f32> = InverseTransformVector_0(instanceIndex_6, ray_0.direction_0);
+                    var _S285 : vec3<f32> = SafeRcp_0(_S284);
+                    var _S286 : bool = (((gInstances_0[instanceIndex_6].flags_0) & (u32(4)))) != u32(0);
+                    if(((_S284.x) < 0.0f))
+                    {
+                        instanceIndex_5 = u32(4);
+                    }
+                    else
+                    {
+                        instanceIndex_5 = u32(0);
+                    }
+                    if(((_S284.y) < 0.0f))
+                    {
+                        blasTriOffset_3 = u32(2);
+                    }
+                    else
+                    {
+                        blasTriOffset_3 = u32(0);
+                    }
+                    var _S287 : u32 = (instanceIndex_5 | (blasTriOffset_3));
+                    if(((_S284.z) < 0.0f))
+                    {
+                        blasNodeOffset_2 = u32(1);
+                    }
+                    else
+                    {
+                        blasNodeOffset_2 = u32(0);
+                    }
+                    var _S288 : u32 = (u32(7) - ((_S287 | (blasNodeOffset_2)))) * u32(16843009);
+                    nodeGroup_0 = vec2<u32>(u32(0), u32(2147483648));
+                    var _S289 : u32 = octinv_2;
+                    pop_0 = false;
+                    inBlas_1 = true;
+                    instanceIndex_5 = instanceIndex_6;
+                    blasTriOffset_3 = _S282;
+                    merged_2 = _S286;
+                    o_13 = _S283;
+                    d_10 = _S284;
+                    octinv_2 = _S288;
+                    blasNodeOffset_2 = _S281;
+                    rD_2 = _S285;
+                    nodeRef_1 = _S289;
+                }
+                var _S290 : u32 = nodeRef_1;
+                nodeRef_1 = nodeRef_0;
+                stackPtr_1 = _S290;
             }
             else
             {
-                stackPtr_7 = stackPtr_4;
+                gTraversalCost_0 = gTraversalCost_0 + u32(1);
+                var node_1 : u32 = gFrame_0.envInfo_0.z + nodeRef_0 * u32(4);
+                var left_0 : vec4<f32> = gNodes_0[node_1];
+                var leftMax_0 : vec4<f32> = gNodes_0[node_1 + u32(1)];
+                var dist1_1 : f32 = IntersectBox_0(left_0.xyz, leftMax_0.xyz, ray_0.origin_0, worldRD_0, ray_0.tMin_0, (*hit_1).t_6);
+                var dist2_1 : f32 = IntersectBox_0(gNodes_0[node_1 + u32(2)].xyz, gNodes_0[node_1 + u32(3)].xyz, ray_0.origin_0, worldRD_0, ray_0.tMin_0, (*hit_1).t_6);
+                var near_0 : u32 = (bitcast<u32>((left_0.w)));
+                var far_0 : u32 = (bitcast<u32>((leftMax_0.w)));
+                if((dist1_1 > dist2_1))
+                {
+                    dist1_0 = dist2_1;
+                    instanceIndex_5 = far_0;
+                    dist2_0 = dist1_1;
+                    blasTriOffset_3 = near_0;
+                }
+                else
+                {
+                    dist1_0 = dist1_1;
+                    instanceIndex_5 = near_0;
+                    dist2_0 = dist2_1;
+                    blasTriOffset_3 = far_0;
+                }
+                if(dist1_0 == 1.00000001504746622e+30f)
+                {
+                    pop_0 = true;
+                    octinv_2 = nodeRef_0;
+                    blasNodeOffset_2 = stackPtr_0;
+                }
+                else
+                {
+                    if(dist2_0 != 1.00000001504746622e+30f)
+                    {
+                        pop_0 = (stackPtr_0 < u32(32));
+                    }
+                    else
+                    {
+                        pop_0 = false;
+                    }
+                    if(pop_0)
+                    {
+                        var _S291 : u32 = stackPtr_0 + u32(1);
+                        gTraversalStack_0[stackPtr_0] = vec2<u32>(blasTriOffset_3, u32(0));
+                        octinv_2 = _S291;
+                    }
+                    else
+                    {
+                        octinv_2 = stackPtr_0;
+                    }
+                    var _S292 : u32 = octinv_2;
+                    pop_0 = false;
+                    octinv_2 = instanceIndex_5;
+                    blasNodeOffset_2 = _S292;
+                }
+                var _S293 : u32 = octinv_2;
+                var _S294 : u32 = blasNodeOffset_2;
+                inBlas_1 = inBlas_0;
+                instanceIndex_5 = instanceIndex_4;
+                blasTriOffset_3 = blasTriOffset_2;
+                merged_2 = merged_1;
+                o_13 = o_12;
+                d_10 = d_9;
+                octinv_2 = octinv_1;
+                blasNodeOffset_2 = blasNodeOffset_1;
+                rD_2 = rD_1;
+                nodeRef_1 = _S293;
+                stackPtr_1 = _S294;
             }
-            nodeRef_1 = i_6;
-            stackPtr_4 = stackPtr_7;
         }
+        if(pop_0)
+        {
+            if(stackPtr_1 == u32(0))
+            {
+                break;
+            }
+            var stackPtr_2 : u32 = stackPtr_1 - u32(1);
+            var entry_1 : vec2<u32> = gTraversalStack_0[stackPtr_2];
+            var inBlas_2 : bool;
+            var nodeRef_2 : u32;
+            if((gTraversalStack_0[stackPtr_2].y) == u32(0))
+            {
+                var _S295 : u32 = entry_1.x;
+                inBlas_2 = false;
+                nodeRef_2 = _S295;
+            }
+            else
+            {
+                nodeGroup_0 = entry_1;
+                inBlas_2 = inBlas_1;
+                nodeRef_2 = nodeRef_1;
+            }
+            inBlas_0 = inBlas_2;
+            nodeRef_0 = nodeRef_2;
+            stackPtr_0 = stackPtr_2;
+        }
+        else
+        {
+            inBlas_0 = inBlas_1;
+            nodeRef_0 = nodeRef_1;
+            stackPtr_0 = stackPtr_1;
+        }
+        instanceIndex_4 = instanceIndex_5;
+        blasTriOffset_2 = blasTriOffset_3;
+        merged_1 = merged_2;
+        o_12 = o_13;
+        d_9 = d_10;
+        octinv_1 = octinv_2;
+        blasNodeOffset_1 = blasNodeOffset_2;
+        rD_1 = rD_2;
     }
-    return found_2;
+    return found_0;
 }
 
 fn TraceOcclusion_0( ray_1 : Ray_0) -> bool
 {
-    var hit_1 : HitRecord_0;
-    var _S264 : bool = TraceScene_0(ray_1, true, &(hit_1));
-    return _S264;
+    var hit_2 : HitRecord_0;
+    var _S296 : bool = TraceScene_0(ray_1, true, &(hit_2));
+    return _S296;
 }
 
 fn EvalMISRobust_0( pdf_6 : f32,  otherPdf_0 : f32) -> f32
@@ -5179,10 +5463,10 @@ fn EvalMISRobust_0( pdf_6 : f32,  otherPdf_0 : f32) -> f32
 
 fn NextEventEstimation_0( si_1 : SurfaceInteraction_0,  bsdf_0 : BSDF_0,  cone_1 : vec2<f32>,  rng_4 : ptr<function, RandomSequence_0>) -> vec3<f32>
 {
-    var _S265 : vec3<f32> = vec3<f32>(0.0f);
+    var _S297 : vec3<f32> = vec3<f32>(0.0f);
     gRayCone_0 = cone_1;
     var source_0 : u32 = u32(0);
-    var result_3 : vec3<f32> = _S265;
+    var result_3 : vec3<f32> = _S297;
     loop
     {
         if((source_0 < u32(3)))
@@ -5192,7 +5476,7 @@ fn NextEventEstimation_0( si_1 : SurfaceInteraction_0,  bsdf_0 : BSDF_0,  cone_1
         {
             break;
         }
-        var origin_1 : vec3<f32>;
+        var origin_3 : vec3<f32>;
         var dir_7 : vec3<f32>;
         var shadow_1 : bool;
         var mis_0 : bool;
@@ -5220,9 +5504,9 @@ fn NextEventEstimation_0( si_1 : SurfaceInteraction_0,  bsdf_0 : BSDF_0,  cone_1
                 continue;
             }
             var dir_8 : vec3<f32> = (vec3<f32>(0) - ls_1.normal_7);
-            var _S266 : vec3<f32> = ShadowOrigin_0(si_1, dir_8);
+            var _S298 : vec3<f32> = ShadowOrigin_0(si_1, dir_8);
             shadow_1 = true;
-            origin_1 = _S266;
+            origin_3 = _S298;
             maxDistance_0 = 1.00000001504746622e+30f;
             mis_0 = true;
             ls_0 = ls_1;
@@ -5252,15 +5536,15 @@ fn NextEventEstimation_0( si_1 : SurfaceInteraction_0,  bsdf_0 : BSDF_0,  cone_1
                     continue;
                 }
                 var lightPos_1 : vec3<f32> = ComputeOffsetOrigin_0(ls_2.position_1, ls_2.normal_7);
-                var origin_2 : vec3<f32> = ShadowOrigin_0(si_1, lightPos_1 - si_1.position_0);
-                var dir_9 : vec3<f32> = lightPos_1 - origin_2;
+                var origin_4 : vec3<f32> = ShadowOrigin_0(si_1, lightPos_1 - si_1.position_0);
+                var dir_9 : vec3<f32> = lightPos_1 - origin_4;
                 var maxDistance_1 : f32 = length(dir_9);
                 var dir_10 : vec3<f32> = dir_9 / vec3<f32>(maxDistance_1);
-                var _S267 : bool = !ls_2.delta_0;
+                var _S299 : bool = !ls_2.delta_0;
                 shadow_1 = ls_2.shadow_0;
-                origin_1 = origin_2;
+                origin_3 = origin_4;
                 maxDistance_0 = maxDistance_1;
-                mis_0 = _S267;
+                mis_0 = _S299;
                 ls_0 = ls_2;
                 dir_7 = dir_10;
             }
@@ -5273,9 +5557,9 @@ fn NextEventEstimation_0( si_1 : SurfaceInteraction_0,  bsdf_0 : BSDF_0,  cone_1
                 }
                 var ls_3 : LightSample_0 = SampleSun_0(&((*rng_4)));
                 var dir_11 : vec3<f32> = (vec3<f32>(0) - ls_3.normal_7);
-                var _S268 : vec3<f32> = ShadowOrigin_0(si_1, dir_11);
+                var _S300 : vec3<f32> = ShadowOrigin_0(si_1, dir_11);
                 shadow_1 = true;
-                origin_1 = _S268;
+                origin_3 = _S300;
                 maxDistance_0 = 1.00000001504746622e+30f;
                 mis_0 = false;
                 ls_0 = ls_3;
@@ -5286,25 +5570,25 @@ fn NextEventEstimation_0( si_1 : SurfaceInteraction_0,  bsdf_0 : BSDF_0,  cone_1
         var bsdfPdf_0 : f32;
         BSDF_EvalPdf_0(bsdf_0, dir_7, &(eval_0), &(bsdfPdf_0));
         var f_9 : vec3<f32> = eval_0.diffuse_1 + eval_0.specular_1;
-        var _S269 : bool;
+        var _S301 : bool;
         if((any(((f_9 > vec3<f32>(0.0f))))))
         {
             if(!shadow_1)
             {
-                _S269 = true;
+                _S301 = true;
             }
             else
             {
-                var _S270 : bool = TraceOcclusion_0(Ray_x24init_0(origin_1, dir_7, maxDistance_0));
-                _S269 = !_S270;
+                var _S302 : bool = TraceOcclusion_0(Ray_x24init_0(origin_3, dir_7, maxDistance_0));
+                _S301 = !_S302;
             }
         }
         else
         {
-            _S269 = false;
+            _S301 = false;
         }
         var result_4 : vec3<f32>;
-        if(_S269)
+        if(_S301)
         {
             var weight_0 : f32;
             if(mis_0)
@@ -5331,7 +5615,7 @@ struct PathState_0
 {
      radiance_1 : vec3<f32>,
      throughput_7 : vec3<f32>,
-     origin_3 : vec3<f32>,
+     origin_5 : vec3<f32>,
      direction_1 : vec3<f32>,
      scatterPdf_0 : f32,
      lobe_2 : u32,
@@ -5350,20 +5634,20 @@ struct WavefrontPath_0
      normal_11 : vec3<f32>,
 };
 
-fn LoadTriangleIndices_0( _S271 : u32,  _S272 : u32) -> vec3<u32>
+fn LoadTriangleIndices_0( _S303 : u32,  _S304 : u32) -> vec3<u32>
 {
-    var base_3 : u32 = gInstances_0[_S271].indexOffset_0 + _S272 * u32(3);
-    return vec3<u32>(gIndices_0[base_3], gIndices_0[base_3 + u32(1)], gIndices_0[base_3 + u32(2)]) + vec3<u32>(gInstances_0[_S271].vertexOffset_0);
+    var base_3 : u32 = gInstances_0[_S303].indexOffset_0 + _S304 * u32(3);
+    return vec3<u32>(gIndices_0[base_3], gIndices_0[base_3 + u32(1)], gIndices_0[base_3 + u32(2)]) + vec3<u32>(gInstances_0[_S303].vertexOffset_0);
 }
 
-fn TransformPoint_0( _S273 : u32,  _S274 : vec3<f32>) -> vec3<f32>
+fn TransformPoint_0( _S305 : u32,  _S306 : vec3<f32>) -> vec3<f32>
 {
-    return vec3<f32>(dot(gInstances_0[_S273].objectToWorld_0[i32(0)].xyz, _S274) + gInstances_0[_S273].objectToWorld_0[i32(0)].w, dot(gInstances_0[_S273].objectToWorld_0[i32(1)].xyz, _S274) + gInstances_0[_S273].objectToWorld_0[i32(1)].w, dot(gInstances_0[_S273].objectToWorld_0[i32(2)].xyz, _S274) + gInstances_0[_S273].objectToWorld_0[i32(2)].w);
+    return vec3<f32>(dot(gInstances_0[_S305].objectToWorld_0[i32(0)].xyz, _S306) + gInstances_0[_S305].objectToWorld_0[i32(0)].w, dot(gInstances_0[_S305].objectToWorld_0[i32(1)].xyz, _S306) + gInstances_0[_S305].objectToWorld_0[i32(1)].w, dot(gInstances_0[_S305].objectToWorld_0[i32(2)].xyz, _S306) + gInstances_0[_S305].objectToWorld_0[i32(2)].w);
 }
 
-fn TransformNormal_0( _S275 : u32,  _S276 : vec3<f32>) -> vec3<f32>
+fn TransformNormal_0( _S307 : u32,  _S308 : vec3<f32>) -> vec3<f32>
 {
-    return gInstances_0[_S275].worldToObject_0[i32(0)].xyz * vec3<f32>(_S276.x) + gInstances_0[_S275].worldToObject_0[i32(1)].xyz * vec3<f32>(_S276.y) + gInstances_0[_S275].worldToObject_0[i32(2)].xyz * vec3<f32>(_S276.z);
+    return gInstances_0[_S307].worldToObject_0[i32(0)].xyz * vec3<f32>(_S308.x) + gInstances_0[_S307].worldToObject_0[i32(1)].xyz * vec3<f32>(_S308.y) + gInstances_0[_S307].worldToObject_0[i32(2)].xyz * vec3<f32>(_S308.z);
 }
 
 fn VertexUV0_0( v_12 : ptr<function, Vertex_std430_0>) -> vec2<f32>
@@ -5371,69 +5655,69 @@ fn VertexUV0_0( v_12 : ptr<function, Vertex_std430_0>) -> vec2<f32>
     return vec2<f32>((*v_12).positionU_0.w, (*v_12).normalV_0.w);
 }
 
-fn TransformVector_0( _S277 : u32,  _S278 : vec3<f32>) -> vec3<f32>
+fn TransformVector_0( _S309 : u32,  _S310 : vec3<f32>) -> vec3<f32>
 {
-    return vec3<f32>(dot(gInstances_0[_S277].objectToWorld_0[i32(0)].xyz, _S278), dot(gInstances_0[_S277].objectToWorld_0[i32(1)].xyz, _S278), dot(gInstances_0[_S277].objectToWorld_0[i32(2)].xyz, _S278));
+    return vec3<f32>(dot(gInstances_0[_S309].objectToWorld_0[i32(0)].xyz, _S310), dot(gInstances_0[_S309].objectToWorld_0[i32(1)].xyz, _S310), dot(gInstances_0[_S309].objectToWorld_0[i32(2)].xyz, _S310));
 }
 
-fn GetSurfaceInteraction_0( rayDirection_0 : vec3<f32>,  hit_2 : HitRecord_0,  coneWidth_3 : f32) -> SurfaceInteraction_0
+fn GetSurfaceInteraction_0( rayDirection_0 : vec3<f32>,  hit_3 : HitRecord_0,  coneWidth_3 : f32) -> SurfaceInteraction_0
 {
-    var _S279 : vec3<u32> = LoadTriangleIndices_0(hit_2.instanceIndex_2, hit_2.primitiveIndex_1);
-    var _S280 : Vertex_std430_0 = gVertices_0[_S279.x];
-    var _S281 : Vertex_std430_0 = gVertices_0[_S279.y];
-    var _S282 : Vertex_std430_0 = gVertices_0[_S279.z];
-    var _S283 : f32 = hit_2.barycentrics_0.x;
-    var _S284 : f32 = hit_2.barycentrics_0.y;
-    var _S285 : f32 = 1.0f - _S283 - _S284;
-    var p0_1 : vec3<f32> = _S280.positionU_0.xyz;
-    var p1_1 : vec3<f32> = _S281.positionU_0.xyz;
-    var p2_1 : vec3<f32> = _S282.positionU_0.xyz;
+    var _S311 : vec3<u32> = LoadTriangleIndices_0(hit_3.instanceIndex_2, hit_3.primitiveIndex_1);
+    var _S312 : Vertex_std430_0 = gVertices_0[_S311.x];
+    var _S313 : Vertex_std430_0 = gVertices_0[_S311.y];
+    var _S314 : Vertex_std430_0 = gVertices_0[_S311.z];
+    var _S315 : f32 = hit_3.barycentrics_0.x;
+    var _S316 : f32 = hit_3.barycentrics_0.y;
+    var _S317 : f32 = 1.0f - _S315 - _S316;
+    var p0_1 : vec3<f32> = _S312.positionU_0.xyz;
+    var p1_1 : vec3<f32> = _S313.positionU_0.xyz;
+    var p2_1 : vec3<f32> = _S314.positionU_0.xyz;
     var si_2 : SurfaceInteraction_0;
-    si_2.instanceIndex_0 = hit_2.instanceIndex_2;
-    si_2.primitiveIndex_0 = hit_2.primitiveIndex_1;
-    si_2.materialIndex_1 = gInstances_0[hit_2.instanceIndex_2].materialIndex_0;
-    var _S286 : vec3<f32> = vec3<f32>(_S285);
-    var _S287 : vec3<f32> = vec3<f32>(_S283);
-    var _S288 : vec3<f32> = vec3<f32>(_S284);
-    var _S289 : vec3<f32> = p0_1 * _S286 + p1_1 * _S287 + p2_1 * _S288;
-    si_2.position_0 = TransformPoint_0(hit_2.instanceIndex_2, _S289);
-    var _S290 : vec3<f32> = p1_1 - p0_1;
-    var _S291 : vec3<f32> = p2_1 - p0_1;
-    si_2.faceNormal_0 = normalize(TransformNormal_0(hit_2.instanceIndex_2, cross(normalize(_S290), normalize(_S291))));
-    var n_8 : vec3<f32> = _S280.normalV_0.xyz * _S286 + _S281.normalV_0.xyz * _S287 + _S282.normalV_0.xyz * _S288;
+    si_2.instanceIndex_0 = hit_3.instanceIndex_2;
+    si_2.primitiveIndex_0 = hit_3.primitiveIndex_1;
+    si_2.materialIndex_1 = gInstances_0[hit_3.instanceIndex_2].materialIndex_0;
+    var _S318 : vec3<f32> = vec3<f32>(_S317);
+    var _S319 : vec3<f32> = vec3<f32>(_S315);
+    var _S320 : vec3<f32> = vec3<f32>(_S316);
+    var _S321 : vec3<f32> = p0_1 * _S318 + p1_1 * _S319 + p2_1 * _S320;
+    si_2.position_0 = TransformPoint_0(hit_3.instanceIndex_2, _S321);
+    var _S322 : vec3<f32> = p1_1 - p0_1;
+    var _S323 : vec3<f32> = p2_1 - p0_1;
+    si_2.faceNormal_0 = normalize(TransformNormal_0(hit_3.instanceIndex_2, cross(normalize(_S322), normalize(_S323))));
+    var n_8 : vec3<f32> = _S312.normalV_0.xyz * _S318 + _S313.normalV_0.xyz * _S319 + _S314.normalV_0.xyz * _S320;
     var t_9 : vec3<f32>;
     if(((dot(n_8, n_8)) > 0.0f))
     {
-        t_9 = normalize(TransformNormal_0(hit_2.instanceIndex_2, n_8));
+        t_9 = normalize(TransformNormal_0(hit_3.instanceIndex_2, n_8));
     }
     else
     {
         t_9 = si_2.faceNormal_0;
     }
     si_2.normal_0 = t_9;
-    var _S292 : vec2<f32> = VertexUV0_0(&(_S280));
-    var _S293 : vec2<f32> = VertexUV0_0(&(_S281));
-    var _S294 : vec2<f32> = VertexUV0_0(&(_S282));
-    var _S295 : vec2<f32> = vec2<f32>(_S285);
-    var _S296 : vec2<f32> = vec2<f32>(_S283);
-    var _S297 : vec2<f32> = vec2<f32>(_S284);
-    var _S298 : vec2<f32> = _S280.uv1_0.xy;
-    var _S299 : vec2<f32> = _S281.uv1_0.xy;
-    var _S300 : vec2<f32> = _S282.uv1_0.xy;
-    si_2.tex_0 = MakeTextureCoords_0(_S292 * _S295 + _S293 * _S296 + _S294 * _S297, _S298 * _S295 + _S299 * _S296 + _S300 * _S297, TransformVector_0(hit_2.instanceIndex_2, _S290), TransformVector_0(hit_2.instanceIndex_2, _S291), _S293 - _S292, _S294 - _S292, _S299 - _S298, _S300 - _S298, coneWidth_3, dot(si_2.faceNormal_0, rayDirection_0));
-    si_2.tex_0.objectPosition_0 = _S289;
+    var _S324 : vec2<f32> = VertexUV0_0(&(_S312));
+    var _S325 : vec2<f32> = VertexUV0_0(&(_S313));
+    var _S326 : vec2<f32> = VertexUV0_0(&(_S314));
+    var _S327 : vec2<f32> = vec2<f32>(_S317);
+    var _S328 : vec2<f32> = vec2<f32>(_S315);
+    var _S329 : vec2<f32> = vec2<f32>(_S316);
+    var _S330 : vec2<f32> = _S312.uv1_0.xy;
+    var _S331 : vec2<f32> = _S313.uv1_0.xy;
+    var _S332 : vec2<f32> = _S314.uv1_0.xy;
+    si_2.tex_0 = MakeTextureCoords_0(_S324 * _S327 + _S325 * _S328 + _S326 * _S329, _S330 * _S327 + _S331 * _S328 + _S332 * _S329, TransformVector_0(hit_3.instanceIndex_2, _S322), TransformVector_0(hit_3.instanceIndex_2, _S323), _S325 - _S324, _S326 - _S324, _S331 - _S330, _S332 - _S330, coneWidth_3, dot(si_2.faceNormal_0, rayDirection_0));
+    si_2.tex_0.objectPosition_0 = _S321;
     si_2.frontFacing_0 = ((dot(si_2.faceNormal_0, (vec3<f32>(0) - rayDirection_0))) > 0.0f);
-    var _S301 : vec4<f32> = _S280.tangent_0;
-    var t_10 : vec3<f32> = _S280.tangent_0.xyz * _S286 + _S281.tangent_0.xyz * _S287 + _S282.tangent_0.xyz * _S288;
+    var _S333 : vec4<f32> = _S312.tangent_0;
+    var t_10 : vec3<f32> = _S312.tangent_0.xyz * _S318 + _S313.tangent_0.xyz * _S319 + _S314.tangent_0.xyz * _S320;
     if(((dot(t_10, t_10)) > 0.0f))
     {
-        t_9 = normalize(TransformVector_0(hit_2.instanceIndex_2, t_10));
+        t_9 = normalize(TransformVector_0(hit_3.instanceIndex_2, t_10));
     }
     else
     {
         t_9 = vec3<f32>(0.0f);
     }
-    si_2.tangent_1 = vec4<f32>(t_9, _S301.w);
+    si_2.tangent_1 = vec4<f32>(t_9, _S333.w);
     return si_2;
 }
 
@@ -5448,71 +5732,71 @@ struct MaterialSample_0
 
 fn Bitangent_0( tangent_4 : vec4<f32>,  n_9 : vec3<f32>) -> vec3<f32>
 {
-    var _S302 : f32 = tangent_4.w;
-    var _S303 : bool;
-    if(_S302 == 0.0f)
+    var _S334 : f32 = tangent_4.w;
+    var _S335 : bool;
+    if(_S334 == 0.0f)
     {
-        _S303 = true;
+        _S335 = true;
     }
     else
     {
-        var _S304 : vec3<f32> = tangent_4.xyz;
-        _S303 = (dot(_S304, _S304)) == 0.0f;
+        var _S336 : vec3<f32> = tangent_4.xyz;
+        _S335 = (dot(_S336, _S336)) == 0.0f;
     }
-    if(_S303)
+    if(_S335)
     {
         return vec3<f32>(0.0f);
     }
-    var _S305 : vec3<f32> = tangent_4.xyz;
-    return cross(n_9, normalize(_S305 - n_9 * vec3<f32>(dot(_S305, n_9)))) * vec3<f32>(_S302);
+    var _S337 : vec3<f32> = tangent_4.xyz;
+    return cross(n_9, normalize(_S337 - n_9 * vec3<f32>(dot(_S337, n_9)))) * vec3<f32>(_S334);
 }
 
-fn ApplyNormalMap_0( tangent_5 : vec4<f32>,  n_10 : vec3<f32>,  texel_0 : vec3<f32>,  scale_4 : f32) -> vec3<f32>
+fn ApplyNormalMap_0( tangent_5 : vec4<f32>,  n_10 : vec3<f32>,  texel_0 : vec3<f32>,  scale_6 : f32) -> vec3<f32>
 {
-    var _S306 : f32 = tangent_5.w;
-    var _S307 : bool;
-    if(_S306 == 0.0f)
+    var _S338 : f32 = tangent_5.w;
+    var _S339 : bool;
+    if(_S338 == 0.0f)
     {
-        _S307 = true;
+        _S339 = true;
     }
     else
     {
-        var _S308 : vec3<f32> = tangent_5.xyz;
-        _S307 = (dot(_S308, _S308)) == 0.0f;
+        var _S340 : vec3<f32> = tangent_5.xyz;
+        _S339 = (dot(_S340, _S340)) == 0.0f;
     }
-    if(_S307)
+    if(_S339)
     {
         return n_10;
     }
-    var _S309 : vec2<f32> = (texel_0.xy * vec2<f32>(2.0f) - vec2<f32>(1.0f)) * vec2<f32>(scale_4);
+    var _S341 : vec2<f32> = (texel_0.xy * vec2<f32>(2.0f) - vec2<f32>(1.0f)) * vec2<f32>(scale_6);
     var local_2 : vec3<f32>;
-    local_2.x = _S309.x;
-    local_2.y = _S309.y;
-    var _S310 : f32 = texel_0.z;
-    var _S311 : f32;
-    if((_S310 <= 0.0f))
+    local_2.x = _S341.x;
+    local_2.y = _S341.y;
+    var _S342 : f32 = texel_0.z;
+    var _S343 : f32;
+    if((_S342 <= 0.0f))
     {
-        _S311 = sqrt(saturate(1.0f - dot(local_2.xy, local_2.xy)));
+        _S343 = sqrt(saturate(1.0f - dot(local_2.xy, local_2.xy)));
     }
     else
     {
-        _S311 = abs(_S310 * 2.0f - 1.0f);
+        _S343 = abs(_S342 * 2.0f - 1.0f);
     }
-    local_2[i32(2)] = _S311;
+    local_2[i32(2)] = _S343;
     if((dot(local_2, local_2)) == 0.0f)
     {
         return n_10;
     }
-    var _S312 : vec3<f32> = normalize(local_2);
-    local_2 = _S312;
-    var _S313 : vec3<f32> = tangent_5.xyz;
-    var t_11 : vec3<f32> = normalize(_S313 - n_10 * vec3<f32>(dot(_S313, n_10)));
-    return normalize(t_11 * vec3<f32>(_S312.x) + cross(n_10, t_11) * vec3<f32>(_S306) * vec3<f32>(_S312.y) + n_10 * vec3<f32>(_S312.z));
+    var _S344 : vec3<f32> = normalize(local_2);
+    local_2 = _S344;
+    var _S345 : vec3<f32> = tangent_5.xyz;
+    var t_11 : vec3<f32> = normalize(_S345 - n_10 * vec3<f32>(dot(_S345, n_10)));
+    return normalize(t_11 * vec3<f32>(_S344.x) + cross(n_10, t_11) * vec3<f32>(_S338) * vec3<f32>(_S344.y) + n_10 * vec3<f32>(_S344.z));
 }
 
 fn RunMaterialProgram_1( header_5 : MaterialHeader_0,  program_2 : u32,  ctx_4 : MaterialContext_0,  outputs_1 : ptr<function, MaterialOutputs_0>)
 {
-    var stack_3 : array<vec4<f32>, i32(16)>;
+    var stack_1 : array<vec4<f32>, i32(16)>;
     var n_11 : u32 = u32(0);
     var pc_2 : u32 = program_2;
     loop
@@ -5525,29 +5809,29 @@ fn RunMaterialProgram_1( header_5 : MaterialHeader_0,  program_2 : u32,  ctx_4 :
             break;
         }
         var ins_1 : vec4<u32> = gMaterialData_0[pc_2];
-        var _S314 : u32 = ins_1.x;
-        var op_1 : u32 = (_S314 & (u32(255)));
-        var dst_1 : u32 = (((_S314 >> (u32(8)))) & (u32(15)));
-        var imm_1 : u32 = (_S314 >> (u32(16)));
+        var _S346 : u32 = ins_1.x;
+        var op_1 : u32 = (_S346 & (u32(255)));
+        var dst_1 : u32 = (((_S346 >> (u32(8)))) & (u32(15)));
+        var imm_1 : u32 = (_S346 >> (u32(16)));
         if(op_1 == u32(0))
         {
             return;
         }
-        var _S315 : vec4<f32> = vec4<f32>(0.0f);
-        var _S316 : bool;
+        var _S347 : vec4<f32> = vec4<f32>(0.0f);
+        var _S348 : bool;
         if(((gMaterialOperandMode_0 & (u32(2)))) == u32(0))
         {
-            _S316 = true;
+            _S348 = true;
         }
         else
         {
-            _S316 = op_1 != u32(23);
+            _S348 = op_1 != u32(23);
         }
         var write_1 : bool;
         var a_14 : vec4<f32>;
         var b_13 : vec4<f32>;
         var c_11 : vec4<f32>;
-        if(_S316)
+        if(_S348)
         {
             if(((gMaterialOperandMode_0 & (u32(1)))) == u32(0))
             {
@@ -5561,7 +5845,7 @@ fn RunMaterialProgram_1( header_5 : MaterialHeader_0,  program_2 : u32,  ctx_4 :
             {
                 if(((gMaterialOperandMode_0 & (u32(4)))) == u32(0))
                 {
-                    a_14 = stack_3[((ins_1.y) & (u32(15)))];
+                    a_14 = stack_1[((ins_1.y) & (u32(15)))];
                 }
                 else
                 {
@@ -5569,94 +5853,94 @@ fn RunMaterialProgram_1( header_5 : MaterialHeader_0,  program_2 : u32,  ctx_4 :
                     {
                     case u32(0):
                         {
-                            a_14 = stack_3[i32(0)];
+                            a_14 = stack_1[i32(0)];
                         }
                     case u32(1):
                         {
-                            a_14 = stack_3[i32(1)];
+                            a_14 = stack_1[i32(1)];
                         }
                     case u32(2):
                         {
-                            a_14 = stack_3[i32(2)];
+                            a_14 = stack_1[i32(2)];
                         }
                     case u32(3):
                         {
-                            a_14 = stack_3[i32(3)];
+                            a_14 = stack_1[i32(3)];
                         }
                     case u32(4):
                         {
-                            a_14 = stack_3[i32(4)];
+                            a_14 = stack_1[i32(4)];
                         }
                     case u32(5):
                         {
-                            a_14 = stack_3[i32(5)];
+                            a_14 = stack_1[i32(5)];
                         }
                     case u32(6):
                         {
-                            a_14 = stack_3[i32(6)];
+                            a_14 = stack_1[i32(6)];
                         }
                     case u32(7):
                         {
-                            a_14 = stack_3[i32(7)];
+                            a_14 = stack_1[i32(7)];
                         }
                     case u32(8):
                         {
-                            a_14 = stack_3[i32(8)];
+                            a_14 = stack_1[i32(8)];
                         }
                     case u32(9):
                         {
-                            a_14 = stack_3[i32(9)];
+                            a_14 = stack_1[i32(9)];
                         }
                     case u32(10):
                         {
-                            a_14 = stack_3[i32(10)];
+                            a_14 = stack_1[i32(10)];
                         }
                     case u32(11):
                         {
-                            a_14 = stack_3[i32(11)];
+                            a_14 = stack_1[i32(11)];
                         }
                     case u32(12):
                         {
-                            a_14 = stack_3[i32(12)];
+                            a_14 = stack_1[i32(12)];
                         }
                     case u32(13):
                         {
-                            a_14 = stack_3[i32(13)];
+                            a_14 = stack_1[i32(13)];
                         }
                     case u32(14):
                         {
-                            a_14 = stack_3[i32(14)];
+                            a_14 = stack_1[i32(14)];
                         }
                     case u32(15):
                         {
-                            a_14 = stack_3[i32(15)];
+                            a_14 = stack_1[i32(15)];
                         }
                     default :
                         {
-                            a_14 = _S315;
+                            a_14 = _S347;
                         }
                     }
                 }
             }
             else
             {
-                a_14 = _S315;
+                a_14 = _S347;
             }
-            var _S317 : vec4<f32> = MaterialOperand_0(ins_1.y, a_14, header_5.constantBase_0);
-            var _S318 : bool;
+            var _S349 : vec4<f32> = MaterialOperand_0(ins_1.y, a_14, header_5.constantBase_0);
+            var _S350 : bool;
             if(((gMaterialOperandMode_0 & (u32(1)))) == u32(0))
             {
-                _S318 = true;
+                _S350 = true;
             }
             else
             {
-                _S318 = (((ins_1.z) & (u32(2147483648)))) == u32(0);
+                _S350 = (((ins_1.z) & (u32(2147483648)))) == u32(0);
             }
-            if(_S318)
+            if(_S350)
             {
                 if(((gMaterialOperandMode_0 & (u32(4)))) == u32(0))
                 {
-                    b_13 = stack_3[((ins_1.z) & (u32(15)))];
+                    b_13 = stack_1[((ins_1.z) & (u32(15)))];
                 }
                 else
                 {
@@ -5664,94 +5948,94 @@ fn RunMaterialProgram_1( header_5 : MaterialHeader_0,  program_2 : u32,  ctx_4 :
                     {
                     case u32(0):
                         {
-                            b_13 = stack_3[i32(0)];
+                            b_13 = stack_1[i32(0)];
                         }
                     case u32(1):
                         {
-                            b_13 = stack_3[i32(1)];
+                            b_13 = stack_1[i32(1)];
                         }
                     case u32(2):
                         {
-                            b_13 = stack_3[i32(2)];
+                            b_13 = stack_1[i32(2)];
                         }
                     case u32(3):
                         {
-                            b_13 = stack_3[i32(3)];
+                            b_13 = stack_1[i32(3)];
                         }
                     case u32(4):
                         {
-                            b_13 = stack_3[i32(4)];
+                            b_13 = stack_1[i32(4)];
                         }
                     case u32(5):
                         {
-                            b_13 = stack_3[i32(5)];
+                            b_13 = stack_1[i32(5)];
                         }
                     case u32(6):
                         {
-                            b_13 = stack_3[i32(6)];
+                            b_13 = stack_1[i32(6)];
                         }
                     case u32(7):
                         {
-                            b_13 = stack_3[i32(7)];
+                            b_13 = stack_1[i32(7)];
                         }
                     case u32(8):
                         {
-                            b_13 = stack_3[i32(8)];
+                            b_13 = stack_1[i32(8)];
                         }
                     case u32(9):
                         {
-                            b_13 = stack_3[i32(9)];
+                            b_13 = stack_1[i32(9)];
                         }
                     case u32(10):
                         {
-                            b_13 = stack_3[i32(10)];
+                            b_13 = stack_1[i32(10)];
                         }
                     case u32(11):
                         {
-                            b_13 = stack_3[i32(11)];
+                            b_13 = stack_1[i32(11)];
                         }
                     case u32(12):
                         {
-                            b_13 = stack_3[i32(12)];
+                            b_13 = stack_1[i32(12)];
                         }
                     case u32(13):
                         {
-                            b_13 = stack_3[i32(13)];
+                            b_13 = stack_1[i32(13)];
                         }
                     case u32(14):
                         {
-                            b_13 = stack_3[i32(14)];
+                            b_13 = stack_1[i32(14)];
                         }
                     case u32(15):
                         {
-                            b_13 = stack_3[i32(15)];
+                            b_13 = stack_1[i32(15)];
                         }
                     default :
                         {
-                            b_13 = _S315;
+                            b_13 = _S347;
                         }
                     }
                 }
             }
             else
             {
-                b_13 = _S315;
+                b_13 = _S347;
             }
-            var _S319 : vec4<f32> = MaterialOperand_0(ins_1.z, b_13, header_5.constantBase_0);
-            var _S320 : bool;
+            var _S351 : vec4<f32> = MaterialOperand_0(ins_1.z, b_13, header_5.constantBase_0);
+            var _S352 : bool;
             if(((gMaterialOperandMode_0 & (u32(1)))) == u32(0))
             {
-                _S320 = true;
+                _S352 = true;
             }
             else
             {
-                _S320 = (((ins_1.w) & (u32(2147483648)))) == u32(0);
+                _S352 = (((ins_1.w) & (u32(2147483648)))) == u32(0);
             }
-            if(_S320)
+            if(_S352)
             {
                 if(((gMaterialOperandMode_0 & (u32(4)))) == u32(0))
                 {
-                    c_11 = stack_3[((ins_1.w) & (u32(15)))];
+                    c_11 = stack_1[((ins_1.w) & (u32(15)))];
                 }
                 else
                 {
@@ -5759,110 +6043,110 @@ fn RunMaterialProgram_1( header_5 : MaterialHeader_0,  program_2 : u32,  ctx_4 :
                     {
                     case u32(0):
                         {
-                            c_11 = stack_3[i32(0)];
+                            c_11 = stack_1[i32(0)];
                         }
                     case u32(1):
                         {
-                            c_11 = stack_3[i32(1)];
+                            c_11 = stack_1[i32(1)];
                         }
                     case u32(2):
                         {
-                            c_11 = stack_3[i32(2)];
+                            c_11 = stack_1[i32(2)];
                         }
                     case u32(3):
                         {
-                            c_11 = stack_3[i32(3)];
+                            c_11 = stack_1[i32(3)];
                         }
                     case u32(4):
                         {
-                            c_11 = stack_3[i32(4)];
+                            c_11 = stack_1[i32(4)];
                         }
                     case u32(5):
                         {
-                            c_11 = stack_3[i32(5)];
+                            c_11 = stack_1[i32(5)];
                         }
                     case u32(6):
                         {
-                            c_11 = stack_3[i32(6)];
+                            c_11 = stack_1[i32(6)];
                         }
                     case u32(7):
                         {
-                            c_11 = stack_3[i32(7)];
+                            c_11 = stack_1[i32(7)];
                         }
                     case u32(8):
                         {
-                            c_11 = stack_3[i32(8)];
+                            c_11 = stack_1[i32(8)];
                         }
                     case u32(9):
                         {
-                            c_11 = stack_3[i32(9)];
+                            c_11 = stack_1[i32(9)];
                         }
                     case u32(10):
                         {
-                            c_11 = stack_3[i32(10)];
+                            c_11 = stack_1[i32(10)];
                         }
                     case u32(11):
                         {
-                            c_11 = stack_3[i32(11)];
+                            c_11 = stack_1[i32(11)];
                         }
                     case u32(12):
                         {
-                            c_11 = stack_3[i32(12)];
+                            c_11 = stack_1[i32(12)];
                         }
                     case u32(13):
                         {
-                            c_11 = stack_3[i32(13)];
+                            c_11 = stack_1[i32(13)];
                         }
                     case u32(14):
                         {
-                            c_11 = stack_3[i32(14)];
+                            c_11 = stack_1[i32(14)];
                         }
                     case u32(15):
                         {
-                            c_11 = stack_3[i32(15)];
+                            c_11 = stack_1[i32(15)];
                         }
                     default :
                         {
-                            c_11 = _S315;
+                            c_11 = _S347;
                         }
                     }
                 }
             }
             else
             {
-                c_11 = _S315;
+                c_11 = _S347;
             }
-            var _S321 : vec4<f32> = MaterialOperand_0(ins_1.w, c_11, header_5.constantBase_0);
-            a_14 = _S317;
-            b_13 = _S319;
-            c_11 = _S321;
+            var _S353 : vec4<f32> = MaterialOperand_0(ins_1.w, c_11, header_5.constantBase_0);
+            a_14 = _S349;
+            b_13 = _S351;
+            c_11 = _S353;
         }
         else
         {
-            a_14 = _S315;
-            b_13 = _S315;
-            c_11 = _S315;
+            a_14 = _S347;
+            b_13 = _S347;
+            c_11 = _S347;
         }
         var operands_1 : u32 = pc_2 * u32(4) + u32(1);
-        var _S322 : u32;
+        var _S354 : u32;
         if(op_1 == u32(23))
         {
-            _S322 = (((u32(351898) >> ((u32(2) * min(imm_1, u32(9)))))) & (u32(3)));
+            _S354 = (((u32(351898) >> ((u32(2) * min(imm_1, u32(9)))))) & (u32(3)));
         }
         else
         {
             if(op_1 == u32(17))
             {
-                _S322 = u32(1) + imm_1 / u32(4);
+                _S354 = u32(1) + imm_1 / u32(4);
             }
             else
             {
-                _S322 = u32(1);
+                _S354 = u32(1);
             }
         }
-        var pc_3 : u32 = pc_2 + _S322;
-        var r_8 : vec4<f32> = _S315;
-        var slot_2 : vec4<f32>;
+        var pc_3 : u32 = pc_2 + _S354;
+        var r_8 : vec4<f32> = _S347;
+        var slot_3 : vec4<f32>;
         switch(op_1)
         {
         case u32(1):
@@ -6035,101 +6319,101 @@ fn RunMaterialProgram_1( header_5 : MaterialHeader_0,  program_2 : u32,  ctx_4 :
                 r_8 = vec4<f32>(a_14.x, b_13.x, c_11.x, 0.0f);
                 if((imm_1 > u32(3)))
                 {
-                    var o_11 : u32 = MaterialWord_0(operands_1 + u32(3));
+                    var o_14 : u32 = MaterialWord_0(operands_1 + u32(3));
                     if(((gMaterialOperandMode_0 & (u32(1)))) == u32(0))
                     {
                         write_1 = true;
                     }
                     else
                     {
-                        write_1 = ((o_11 & (u32(2147483648)))) == u32(0);
+                        write_1 = ((o_14 & (u32(2147483648)))) == u32(0);
                     }
                     if(write_1)
                     {
                         if(((gMaterialOperandMode_0 & (u32(4)))) == u32(0))
                         {
-                            slot_2 = stack_3[(o_11 & (u32(15)))];
+                            slot_3 = stack_1[(o_14 & (u32(15)))];
                         }
                         else
                         {
-                            switch((o_11 & (u32(15))))
+                            switch((o_14 & (u32(15))))
                             {
                             case u32(0):
                                 {
-                                    slot_2 = stack_3[i32(0)];
+                                    slot_3 = stack_1[i32(0)];
                                 }
                             case u32(1):
                                 {
-                                    slot_2 = stack_3[i32(1)];
+                                    slot_3 = stack_1[i32(1)];
                                 }
                             case u32(2):
                                 {
-                                    slot_2 = stack_3[i32(2)];
+                                    slot_3 = stack_1[i32(2)];
                                 }
                             case u32(3):
                                 {
-                                    slot_2 = stack_3[i32(3)];
+                                    slot_3 = stack_1[i32(3)];
                                 }
                             case u32(4):
                                 {
-                                    slot_2 = stack_3[i32(4)];
+                                    slot_3 = stack_1[i32(4)];
                                 }
                             case u32(5):
                                 {
-                                    slot_2 = stack_3[i32(5)];
+                                    slot_3 = stack_1[i32(5)];
                                 }
                             case u32(6):
                                 {
-                                    slot_2 = stack_3[i32(6)];
+                                    slot_3 = stack_1[i32(6)];
                                 }
                             case u32(7):
                                 {
-                                    slot_2 = stack_3[i32(7)];
+                                    slot_3 = stack_1[i32(7)];
                                 }
                             case u32(8):
                                 {
-                                    slot_2 = stack_3[i32(8)];
+                                    slot_3 = stack_1[i32(8)];
                                 }
                             case u32(9):
                                 {
-                                    slot_2 = stack_3[i32(9)];
+                                    slot_3 = stack_1[i32(9)];
                                 }
                             case u32(10):
                                 {
-                                    slot_2 = stack_3[i32(10)];
+                                    slot_3 = stack_1[i32(10)];
                                 }
                             case u32(11):
                                 {
-                                    slot_2 = stack_3[i32(11)];
+                                    slot_3 = stack_1[i32(11)];
                                 }
                             case u32(12):
                                 {
-                                    slot_2 = stack_3[i32(12)];
+                                    slot_3 = stack_1[i32(12)];
                                 }
                             case u32(13):
                                 {
-                                    slot_2 = stack_3[i32(13)];
+                                    slot_3 = stack_1[i32(13)];
                                 }
                             case u32(14):
                                 {
-                                    slot_2 = stack_3[i32(14)];
+                                    slot_3 = stack_1[i32(14)];
                                 }
                             case u32(15):
                                 {
-                                    slot_2 = stack_3[i32(15)];
+                                    slot_3 = stack_1[i32(15)];
                                 }
                             default :
                                 {
-                                    slot_2 = _S315;
+                                    slot_3 = _S347;
                                 }
                             }
                         }
                     }
                     else
                     {
-                        slot_2 = _S315;
+                        slot_3 = _S347;
                     }
-                    r_8[i32(3)] = MaterialOperand_0(o_11, slot_2, header_5.constantBase_0).x;
+                    r_8[i32(3)] = MaterialOperand_0(o_14, slot_3, header_5.constantBase_0).x;
                 }
                 write_1 = true;
             }
@@ -6141,7 +6425,7 @@ fn RunMaterialProgram_1( header_5 : MaterialHeader_0,  program_2 : u32,  ctx_4 :
                     break;
                 }
                 var lanes_1 : vec4<bool> = LanesBelow_0(imm_1);
-                r_8 = vec4<f32>(dot(select(_S315, a_14, lanes_1), select(_S315, b_13, lanes_1)));
+                r_8 = vec4<f32>(dot(select(_S347, a_14, lanes_1), select(_S347, b_13, lanes_1)));
                 write_1 = true;
             }
         case u32(19):
@@ -6151,16 +6435,16 @@ fn RunMaterialProgram_1( header_5 : MaterialHeader_0,  program_2 : u32,  ctx_4 :
                     write_1 = true;
                     break;
                 }
-                var len_1 : f32 = length(select(_S315, a_14, LanesBelow_0(imm_1)));
+                var len_1 : f32 = length(select(_S347, a_14, LanesBelow_0(imm_1)));
                 if((len_1 > 0.0f))
                 {
-                    slot_2 = a_14 / vec4<f32>(len_1);
+                    slot_3 = a_14 / vec4<f32>(len_1);
                 }
                 else
                 {
-                    slot_2 = _S315;
+                    slot_3 = _S347;
                 }
-                r_8 = slot_2;
+                r_8 = slot_3;
                 write_1 = true;
             }
         case u32(20):
@@ -6225,14 +6509,14 @@ fn RunMaterialProgram_1( header_5 : MaterialHeader_0,  program_2 : u32,  ctx_4 :
                 var ref_9 : TextureRef_0 = LoadTextureRef_0(header_5, imm_1);
                 if(HasTexture_0(ref_9))
                 {
-                    var _S323 : vec4<f32> = SampleTexture_0(ref_9, ctx_4.tex_1);
-                    slot_2 = _S323;
+                    var _S355 : vec4<f32> = SampleTexture_0(ref_9, ctx_4.tex_1);
+                    slot_3 = _S355;
                 }
                 else
                 {
-                    slot_2 = vec4<f32>(1.0f);
+                    slot_3 = vec4<f32>(1.0f);
                 }
-                r_8 = slot_2;
+                r_8 = slot_3;
                 write_1 = true;
             }
         case u32(22):
@@ -6302,7 +6586,7 @@ fn RunMaterialProgram_1( header_5 : MaterialHeader_0,  program_2 : u32,  ctx_4 :
                     write_1 = true;
                     break;
                 }
-                r_8 = select(_S315, vec4<f32>(1.0f), (a_14 > b_13));
+                r_8 = select(_S347, vec4<f32>(1.0f), (a_14 > b_13));
                 write_1 = true;
             }
         case u32(30):
@@ -6322,16 +6606,16 @@ fn RunMaterialProgram_1( header_5 : MaterialHeader_0,  program_2 : u32,  ctx_4 :
                     write_1 = true;
                     break;
                 }
-                var _S324 : vec3<f32>;
+                var _S356 : vec3<f32>;
                 if(imm_1 == u32(1))
                 {
-                    _S324 = TransformVector_0(ctx_4.instanceIndex_1, a_14.xyz);
+                    _S356 = TransformVector_0(ctx_4.instanceIndex_1, a_14.xyz);
                 }
                 else
                 {
-                    _S324 = InverseTransformVector_0(ctx_4.instanceIndex_1, a_14.xyz);
+                    _S356 = InverseTransformVector_0(ctx_4.instanceIndex_1, a_14.xyz);
                 }
-                r_8 = vec4<f32>(_S324, 0.0f);
+                r_8 = vec4<f32>(_S356, 0.0f);
                 write_1 = true;
             }
         case u32(32):
@@ -6341,17 +6625,17 @@ fn RunMaterialProgram_1( header_5 : MaterialHeader_0,  program_2 : u32,  ctx_4 :
                     write_1 = true;
                     break;
                 }
-                var _S325 : bool = ((imm_1 & (u32(2)))) != u32(0);
-                var v_13 : vec3<f32> = BlenderNoise_0(a_14.xyz, b_13, ((imm_1 & (u32(1)))) != u32(0), _S325);
-                if(_S325)
+                var _S357 : bool = ((imm_1 & (u32(2)))) != u32(0);
+                var v_13 : vec3<f32> = BlenderNoise_0(a_14.xyz, b_13, ((imm_1 & (u32(1)))) != u32(0), _S357);
+                if(_S357)
                 {
-                    slot_2 = vec4<f32>(v_13, 0.0f);
+                    slot_3 = vec4<f32>(v_13, 0.0f);
                 }
                 else
                 {
-                    slot_2 = vec4<f32>(v_13.x);
+                    slot_3 = vec4<f32>(v_13.x);
                 }
-                r_8 = slot_2;
+                r_8 = slot_3;
                 write_1 = true;
             }
         case u32(33):
@@ -6381,301 +6665,7 @@ fn RunMaterialProgram_1( header_5 : MaterialHeader_0,  program_2 : u32,  ctx_4 :
                 {
                 case u32(0):
                     {
-                        var o_12 : u32 = MaterialWord_0(operands_1);
-                        if(o_12 != u32(4294967295))
-                        {
-                            if(((gMaterialOperandMode_0 & (u32(1)))) == u32(0))
-                            {
-                                write_1 = true;
-                            }
-                            else
-                            {
-                                write_1 = ((o_12 & (u32(2147483648)))) == u32(0);
-                            }
-                            if(write_1)
-                            {
-                                if(((gMaterialOperandMode_0 & (u32(4)))) == u32(0))
-                                {
-                                    slot_2 = stack_3[(o_12 & (u32(15)))];
-                                }
-                                else
-                                {
-                                    switch((o_12 & (u32(15))))
-                                    {
-                                    case u32(0):
-                                        {
-                                            slot_2 = stack_3[i32(0)];
-                                        }
-                                    case u32(1):
-                                        {
-                                            slot_2 = stack_3[i32(1)];
-                                        }
-                                    case u32(2):
-                                        {
-                                            slot_2 = stack_3[i32(2)];
-                                        }
-                                    case u32(3):
-                                        {
-                                            slot_2 = stack_3[i32(3)];
-                                        }
-                                    case u32(4):
-                                        {
-                                            slot_2 = stack_3[i32(4)];
-                                        }
-                                    case u32(5):
-                                        {
-                                            slot_2 = stack_3[i32(5)];
-                                        }
-                                    case u32(6):
-                                        {
-                                            slot_2 = stack_3[i32(6)];
-                                        }
-                                    case u32(7):
-                                        {
-                                            slot_2 = stack_3[i32(7)];
-                                        }
-                                    case u32(8):
-                                        {
-                                            slot_2 = stack_3[i32(8)];
-                                        }
-                                    case u32(9):
-                                        {
-                                            slot_2 = stack_3[i32(9)];
-                                        }
-                                    case u32(10):
-                                        {
-                                            slot_2 = stack_3[i32(10)];
-                                        }
-                                    case u32(11):
-                                        {
-                                            slot_2 = stack_3[i32(11)];
-                                        }
-                                    case u32(12):
-                                        {
-                                            slot_2 = stack_3[i32(12)];
-                                        }
-                                    case u32(13):
-                                        {
-                                            slot_2 = stack_3[i32(13)];
-                                        }
-                                    case u32(14):
-                                        {
-                                            slot_2 = stack_3[i32(14)];
-                                        }
-                                    case u32(15):
-                                        {
-                                            slot_2 = stack_3[i32(15)];
-                                        }
-                                    default :
-                                        {
-                                            slot_2 = _S315;
-                                        }
-                                    }
-                                }
-                            }
-                            else
-                            {
-                                slot_2 = _S315;
-                            }
-                            (*outputs_1).inputs_0.baseWeight_0 = MaterialOperand_0(o_12, slot_2, header_5.constantBase_0).x;
-                        }
-                        var o_13 : u32 = MaterialWord_0(operands_1 + u32(1));
-                        if(o_13 != u32(4294967295))
-                        {
-                            if(((gMaterialOperandMode_0 & (u32(1)))) == u32(0))
-                            {
-                                write_1 = true;
-                            }
-                            else
-                            {
-                                write_1 = ((o_13 & (u32(2147483648)))) == u32(0);
-                            }
-                            if(write_1)
-                            {
-                                if(((gMaterialOperandMode_0 & (u32(4)))) == u32(0))
-                                {
-                                    slot_2 = stack_3[(o_13 & (u32(15)))];
-                                }
-                                else
-                                {
-                                    switch((o_13 & (u32(15))))
-                                    {
-                                    case u32(0):
-                                        {
-                                            slot_2 = stack_3[i32(0)];
-                                        }
-                                    case u32(1):
-                                        {
-                                            slot_2 = stack_3[i32(1)];
-                                        }
-                                    case u32(2):
-                                        {
-                                            slot_2 = stack_3[i32(2)];
-                                        }
-                                    case u32(3):
-                                        {
-                                            slot_2 = stack_3[i32(3)];
-                                        }
-                                    case u32(4):
-                                        {
-                                            slot_2 = stack_3[i32(4)];
-                                        }
-                                    case u32(5):
-                                        {
-                                            slot_2 = stack_3[i32(5)];
-                                        }
-                                    case u32(6):
-                                        {
-                                            slot_2 = stack_3[i32(6)];
-                                        }
-                                    case u32(7):
-                                        {
-                                            slot_2 = stack_3[i32(7)];
-                                        }
-                                    case u32(8):
-                                        {
-                                            slot_2 = stack_3[i32(8)];
-                                        }
-                                    case u32(9):
-                                        {
-                                            slot_2 = stack_3[i32(9)];
-                                        }
-                                    case u32(10):
-                                        {
-                                            slot_2 = stack_3[i32(10)];
-                                        }
-                                    case u32(11):
-                                        {
-                                            slot_2 = stack_3[i32(11)];
-                                        }
-                                    case u32(12):
-                                        {
-                                            slot_2 = stack_3[i32(12)];
-                                        }
-                                    case u32(13):
-                                        {
-                                            slot_2 = stack_3[i32(13)];
-                                        }
-                                    case u32(14):
-                                        {
-                                            slot_2 = stack_3[i32(14)];
-                                        }
-                                    case u32(15):
-                                        {
-                                            slot_2 = stack_3[i32(15)];
-                                        }
-                                    default :
-                                        {
-                                            slot_2 = _S315;
-                                        }
-                                    }
-                                }
-                            }
-                            else
-                            {
-                                slot_2 = _S315;
-                            }
-                            (*outputs_1).inputs_0.baseColor_0 = MaterialOperand_0(o_13, slot_2, header_5.constantBase_0).xyz;
-                        }
-                        var o_14 : u32 = MaterialWord_0(operands_1 + u32(2));
-                        if(o_14 != u32(4294967295))
-                        {
-                            if(((gMaterialOperandMode_0 & (u32(1)))) == u32(0))
-                            {
-                                write_1 = true;
-                            }
-                            else
-                            {
-                                write_1 = ((o_14 & (u32(2147483648)))) == u32(0);
-                            }
-                            if(write_1)
-                            {
-                                if(((gMaterialOperandMode_0 & (u32(4)))) == u32(0))
-                                {
-                                    slot_2 = stack_3[(o_14 & (u32(15)))];
-                                }
-                                else
-                                {
-                                    switch((o_14 & (u32(15))))
-                                    {
-                                    case u32(0):
-                                        {
-                                            slot_2 = stack_3[i32(0)];
-                                        }
-                                    case u32(1):
-                                        {
-                                            slot_2 = stack_3[i32(1)];
-                                        }
-                                    case u32(2):
-                                        {
-                                            slot_2 = stack_3[i32(2)];
-                                        }
-                                    case u32(3):
-                                        {
-                                            slot_2 = stack_3[i32(3)];
-                                        }
-                                    case u32(4):
-                                        {
-                                            slot_2 = stack_3[i32(4)];
-                                        }
-                                    case u32(5):
-                                        {
-                                            slot_2 = stack_3[i32(5)];
-                                        }
-                                    case u32(6):
-                                        {
-                                            slot_2 = stack_3[i32(6)];
-                                        }
-                                    case u32(7):
-                                        {
-                                            slot_2 = stack_3[i32(7)];
-                                        }
-                                    case u32(8):
-                                        {
-                                            slot_2 = stack_3[i32(8)];
-                                        }
-                                    case u32(9):
-                                        {
-                                            slot_2 = stack_3[i32(9)];
-                                        }
-                                    case u32(10):
-                                        {
-                                            slot_2 = stack_3[i32(10)];
-                                        }
-                                    case u32(11):
-                                        {
-                                            slot_2 = stack_3[i32(11)];
-                                        }
-                                    case u32(12):
-                                        {
-                                            slot_2 = stack_3[i32(12)];
-                                        }
-                                    case u32(13):
-                                        {
-                                            slot_2 = stack_3[i32(13)];
-                                        }
-                                    case u32(14):
-                                        {
-                                            slot_2 = stack_3[i32(14)];
-                                        }
-                                    case u32(15):
-                                        {
-                                            slot_2 = stack_3[i32(15)];
-                                        }
-                                    default :
-                                        {
-                                            slot_2 = _S315;
-                                        }
-                                    }
-                                }
-                            }
-                            else
-                            {
-                                slot_2 = _S315;
-                            }
-                            (*outputs_1).inputs_0.baseDiffuseRoughness_0 = MaterialOperand_0(o_14, slot_2, header_5.constantBase_0).x;
-                        }
-                        var o_15 : u32 = MaterialWord_0(operands_1 + u32(3));
+                        var o_15 : u32 = MaterialWord_0(operands_1);
                         if(o_15 != u32(4294967295))
                         {
                             if(((gMaterialOperandMode_0 & (u32(1)))) == u32(0))
@@ -6690,7 +6680,7 @@ fn RunMaterialProgram_1( header_5 : MaterialHeader_0,  program_2 : u32,  ctx_4 :
                             {
                                 if(((gMaterialOperandMode_0 & (u32(4)))) == u32(0))
                                 {
-                                    slot_2 = stack_3[(o_15 & (u32(15)))];
+                                    slot_3 = stack_1[(o_15 & (u32(15)))];
                                 }
                                 else
                                 {
@@ -6698,85 +6688,82 @@ fn RunMaterialProgram_1( header_5 : MaterialHeader_0,  program_2 : u32,  ctx_4 :
                                     {
                                     case u32(0):
                                         {
-                                            slot_2 = stack_3[i32(0)];
+                                            slot_3 = stack_1[i32(0)];
                                         }
                                     case u32(1):
                                         {
-                                            slot_2 = stack_3[i32(1)];
+                                            slot_3 = stack_1[i32(1)];
                                         }
                                     case u32(2):
                                         {
-                                            slot_2 = stack_3[i32(2)];
+                                            slot_3 = stack_1[i32(2)];
                                         }
                                     case u32(3):
                                         {
-                                            slot_2 = stack_3[i32(3)];
+                                            slot_3 = stack_1[i32(3)];
                                         }
                                     case u32(4):
                                         {
-                                            slot_2 = stack_3[i32(4)];
+                                            slot_3 = stack_1[i32(4)];
                                         }
                                     case u32(5):
                                         {
-                                            slot_2 = stack_3[i32(5)];
+                                            slot_3 = stack_1[i32(5)];
                                         }
                                     case u32(6):
                                         {
-                                            slot_2 = stack_3[i32(6)];
+                                            slot_3 = stack_1[i32(6)];
                                         }
                                     case u32(7):
                                         {
-                                            slot_2 = stack_3[i32(7)];
+                                            slot_3 = stack_1[i32(7)];
                                         }
                                     case u32(8):
                                         {
-                                            slot_2 = stack_3[i32(8)];
+                                            slot_3 = stack_1[i32(8)];
                                         }
                                     case u32(9):
                                         {
-                                            slot_2 = stack_3[i32(9)];
+                                            slot_3 = stack_1[i32(9)];
                                         }
                                     case u32(10):
                                         {
-                                            slot_2 = stack_3[i32(10)];
+                                            slot_3 = stack_1[i32(10)];
                                         }
                                     case u32(11):
                                         {
-                                            slot_2 = stack_3[i32(11)];
+                                            slot_3 = stack_1[i32(11)];
                                         }
                                     case u32(12):
                                         {
-                                            slot_2 = stack_3[i32(12)];
+                                            slot_3 = stack_1[i32(12)];
                                         }
                                     case u32(13):
                                         {
-                                            slot_2 = stack_3[i32(13)];
+                                            slot_3 = stack_1[i32(13)];
                                         }
                                     case u32(14):
                                         {
-                                            slot_2 = stack_3[i32(14)];
+                                            slot_3 = stack_1[i32(14)];
                                         }
                                     case u32(15):
                                         {
-                                            slot_2 = stack_3[i32(15)];
+                                            slot_3 = stack_1[i32(15)];
                                         }
                                     default :
                                         {
-                                            slot_2 = _S315;
+                                            slot_3 = _S347;
                                         }
                                     }
                                 }
                             }
                             else
                             {
-                                slot_2 = _S315;
+                                slot_3 = _S347;
                             }
-                            (*outputs_1).inputs_0.baseMetalness_0 = MaterialOperand_0(o_15, slot_2, header_5.constantBase_0).x;
+                            (*outputs_1).inputs_0.baseWeight_0 = MaterialOperand_0(o_15, slot_3, header_5.constantBase_0).x;
                         }
-                    }
-                case u32(1):
-                    {
-                        var o_16 : u32 = MaterialWord_0(operands_1);
+                        var o_16 : u32 = MaterialWord_0(operands_1 + u32(1));
                         if(o_16 != u32(4294967295))
                         {
                             if(((gMaterialOperandMode_0 & (u32(1)))) == u32(0))
@@ -6791,7 +6778,7 @@ fn RunMaterialProgram_1( header_5 : MaterialHeader_0,  program_2 : u32,  ctx_4 :
                             {
                                 if(((gMaterialOperandMode_0 & (u32(4)))) == u32(0))
                                 {
-                                    slot_2 = stack_3[(o_16 & (u32(15)))];
+                                    slot_3 = stack_1[(o_16 & (u32(15)))];
                                 }
                                 else
                                 {
@@ -6799,82 +6786,82 @@ fn RunMaterialProgram_1( header_5 : MaterialHeader_0,  program_2 : u32,  ctx_4 :
                                     {
                                     case u32(0):
                                         {
-                                            slot_2 = stack_3[i32(0)];
+                                            slot_3 = stack_1[i32(0)];
                                         }
                                     case u32(1):
                                         {
-                                            slot_2 = stack_3[i32(1)];
+                                            slot_3 = stack_1[i32(1)];
                                         }
                                     case u32(2):
                                         {
-                                            slot_2 = stack_3[i32(2)];
+                                            slot_3 = stack_1[i32(2)];
                                         }
                                     case u32(3):
                                         {
-                                            slot_2 = stack_3[i32(3)];
+                                            slot_3 = stack_1[i32(3)];
                                         }
                                     case u32(4):
                                         {
-                                            slot_2 = stack_3[i32(4)];
+                                            slot_3 = stack_1[i32(4)];
                                         }
                                     case u32(5):
                                         {
-                                            slot_2 = stack_3[i32(5)];
+                                            slot_3 = stack_1[i32(5)];
                                         }
                                     case u32(6):
                                         {
-                                            slot_2 = stack_3[i32(6)];
+                                            slot_3 = stack_1[i32(6)];
                                         }
                                     case u32(7):
                                         {
-                                            slot_2 = stack_3[i32(7)];
+                                            slot_3 = stack_1[i32(7)];
                                         }
                                     case u32(8):
                                         {
-                                            slot_2 = stack_3[i32(8)];
+                                            slot_3 = stack_1[i32(8)];
                                         }
                                     case u32(9):
                                         {
-                                            slot_2 = stack_3[i32(9)];
+                                            slot_3 = stack_1[i32(9)];
                                         }
                                     case u32(10):
                                         {
-                                            slot_2 = stack_3[i32(10)];
+                                            slot_3 = stack_1[i32(10)];
                                         }
                                     case u32(11):
                                         {
-                                            slot_2 = stack_3[i32(11)];
+                                            slot_3 = stack_1[i32(11)];
                                         }
                                     case u32(12):
                                         {
-                                            slot_2 = stack_3[i32(12)];
+                                            slot_3 = stack_1[i32(12)];
                                         }
                                     case u32(13):
                                         {
-                                            slot_2 = stack_3[i32(13)];
+                                            slot_3 = stack_1[i32(13)];
                                         }
                                     case u32(14):
                                         {
-                                            slot_2 = stack_3[i32(14)];
+                                            slot_3 = stack_1[i32(14)];
                                         }
                                     case u32(15):
                                         {
-                                            slot_2 = stack_3[i32(15)];
+                                            slot_3 = stack_1[i32(15)];
                                         }
                                     default :
                                         {
-                                            slot_2 = _S315;
+                                            slot_3 = _S347;
                                         }
                                     }
                                 }
                             }
                             else
                             {
-                                slot_2 = _S315;
+                                slot_3 = _S347;
                             }
-                            (*outputs_1).inputs_0.specularWeight_0 = MaterialOperand_0(o_16, slot_2, header_5.constantBase_0).x;
+                            (*outputs_1).inputs_0.baseColor_0 = MaterialOperand_0(o_16, slot_3, header_5.constantBase_0).xyz;
                         }
-                        var o_17 : u32 = MaterialWord_0(operands_1 + u32(1));
+                        var o_17 : u32 = MaterialWord_0(operands_1 + u32(2));
                         if(o_17 != u32(4294967295))
                         {
                             if(((gMaterialOperandMode_0 & (u32(1)))) == u32(0))
@@ -6889,7 +6876,7 @@ fn RunMaterialProgram_1( header_5 : MaterialHeader_0,  program_2 : u32,  ctx_4 :
                             {
                                 if(((gMaterialOperandMode_0 & (u32(4)))) == u32(0))
                                 {
-                                    slot_2 = stack_3[(o_17 & (u32(15)))];
+                                    slot_3 = stack_1[(o_17 & (u32(15)))];
                                 }
                                 else
                                 {
@@ -6897,82 +6884,82 @@ fn RunMaterialProgram_1( header_5 : MaterialHeader_0,  program_2 : u32,  ctx_4 :
                                     {
                                     case u32(0):
                                         {
-                                            slot_2 = stack_3[i32(0)];
+                                            slot_3 = stack_1[i32(0)];
                                         }
                                     case u32(1):
                                         {
-                                            slot_2 = stack_3[i32(1)];
+                                            slot_3 = stack_1[i32(1)];
                                         }
                                     case u32(2):
                                         {
-                                            slot_2 = stack_3[i32(2)];
+                                            slot_3 = stack_1[i32(2)];
                                         }
                                     case u32(3):
                                         {
-                                            slot_2 = stack_3[i32(3)];
+                                            slot_3 = stack_1[i32(3)];
                                         }
                                     case u32(4):
                                         {
-                                            slot_2 = stack_3[i32(4)];
+                                            slot_3 = stack_1[i32(4)];
                                         }
                                     case u32(5):
                                         {
-                                            slot_2 = stack_3[i32(5)];
+                                            slot_3 = stack_1[i32(5)];
                                         }
                                     case u32(6):
                                         {
-                                            slot_2 = stack_3[i32(6)];
+                                            slot_3 = stack_1[i32(6)];
                                         }
                                     case u32(7):
                                         {
-                                            slot_2 = stack_3[i32(7)];
+                                            slot_3 = stack_1[i32(7)];
                                         }
                                     case u32(8):
                                         {
-                                            slot_2 = stack_3[i32(8)];
+                                            slot_3 = stack_1[i32(8)];
                                         }
                                     case u32(9):
                                         {
-                                            slot_2 = stack_3[i32(9)];
+                                            slot_3 = stack_1[i32(9)];
                                         }
                                     case u32(10):
                                         {
-                                            slot_2 = stack_3[i32(10)];
+                                            slot_3 = stack_1[i32(10)];
                                         }
                                     case u32(11):
                                         {
-                                            slot_2 = stack_3[i32(11)];
+                                            slot_3 = stack_1[i32(11)];
                                         }
                                     case u32(12):
                                         {
-                                            slot_2 = stack_3[i32(12)];
+                                            slot_3 = stack_1[i32(12)];
                                         }
                                     case u32(13):
                                         {
-                                            slot_2 = stack_3[i32(13)];
+                                            slot_3 = stack_1[i32(13)];
                                         }
                                     case u32(14):
                                         {
-                                            slot_2 = stack_3[i32(14)];
+                                            slot_3 = stack_1[i32(14)];
                                         }
                                     case u32(15):
                                         {
-                                            slot_2 = stack_3[i32(15)];
+                                            slot_3 = stack_1[i32(15)];
                                         }
                                     default :
                                         {
-                                            slot_2 = _S315;
+                                            slot_3 = _S347;
                                         }
                                     }
                                 }
                             }
                             else
                             {
-                                slot_2 = _S315;
+                                slot_3 = _S347;
                             }
-                            (*outputs_1).inputs_0.specularColor_0 = MaterialOperand_0(o_17, slot_2, header_5.constantBase_0).xyz;
+                            (*outputs_1).inputs_0.baseDiffuseRoughness_0 = MaterialOperand_0(o_17, slot_3, header_5.constantBase_0).x;
                         }
-                        var o_18 : u32 = MaterialWord_0(operands_1 + u32(2));
+                        var o_18 : u32 = MaterialWord_0(operands_1 + u32(3));
                         if(o_18 != u32(4294967295))
                         {
                             if(((gMaterialOperandMode_0 & (u32(1)))) == u32(0))
@@ -6987,7 +6974,7 @@ fn RunMaterialProgram_1( header_5 : MaterialHeader_0,  program_2 : u32,  ctx_4 :
                             {
                                 if(((gMaterialOperandMode_0 & (u32(4)))) == u32(0))
                                 {
-                                    slot_2 = stack_3[(o_18 & (u32(15)))];
+                                    slot_3 = stack_1[(o_18 & (u32(15)))];
                                 }
                                 else
                                 {
@@ -6995,82 +6982,85 @@ fn RunMaterialProgram_1( header_5 : MaterialHeader_0,  program_2 : u32,  ctx_4 :
                                     {
                                     case u32(0):
                                         {
-                                            slot_2 = stack_3[i32(0)];
+                                            slot_3 = stack_1[i32(0)];
                                         }
                                     case u32(1):
                                         {
-                                            slot_2 = stack_3[i32(1)];
+                                            slot_3 = stack_1[i32(1)];
                                         }
                                     case u32(2):
                                         {
-                                            slot_2 = stack_3[i32(2)];
+                                            slot_3 = stack_1[i32(2)];
                                         }
                                     case u32(3):
                                         {
-                                            slot_2 = stack_3[i32(3)];
+                                            slot_3 = stack_1[i32(3)];
                                         }
                                     case u32(4):
                                         {
-                                            slot_2 = stack_3[i32(4)];
+                                            slot_3 = stack_1[i32(4)];
                                         }
                                     case u32(5):
                                         {
-                                            slot_2 = stack_3[i32(5)];
+                                            slot_3 = stack_1[i32(5)];
                                         }
                                     case u32(6):
                                         {
-                                            slot_2 = stack_3[i32(6)];
+                                            slot_3 = stack_1[i32(6)];
                                         }
                                     case u32(7):
                                         {
-                                            slot_2 = stack_3[i32(7)];
+                                            slot_3 = stack_1[i32(7)];
                                         }
                                     case u32(8):
                                         {
-                                            slot_2 = stack_3[i32(8)];
+                                            slot_3 = stack_1[i32(8)];
                                         }
                                     case u32(9):
                                         {
-                                            slot_2 = stack_3[i32(9)];
+                                            slot_3 = stack_1[i32(9)];
                                         }
                                     case u32(10):
                                         {
-                                            slot_2 = stack_3[i32(10)];
+                                            slot_3 = stack_1[i32(10)];
                                         }
                                     case u32(11):
                                         {
-                                            slot_2 = stack_3[i32(11)];
+                                            slot_3 = stack_1[i32(11)];
                                         }
                                     case u32(12):
                                         {
-                                            slot_2 = stack_3[i32(12)];
+                                            slot_3 = stack_1[i32(12)];
                                         }
                                     case u32(13):
                                         {
-                                            slot_2 = stack_3[i32(13)];
+                                            slot_3 = stack_1[i32(13)];
                                         }
                                     case u32(14):
                                         {
-                                            slot_2 = stack_3[i32(14)];
+                                            slot_3 = stack_1[i32(14)];
                                         }
                                     case u32(15):
                                         {
-                                            slot_2 = stack_3[i32(15)];
+                                            slot_3 = stack_1[i32(15)];
                                         }
                                     default :
                                         {
-                                            slot_2 = _S315;
+                                            slot_3 = _S347;
                                         }
                                     }
                                 }
                             }
                             else
                             {
-                                slot_2 = _S315;
+                                slot_3 = _S347;
                             }
-                            (*outputs_1).inputs_0.specularRoughness_0 = MaterialOperand_0(o_18, slot_2, header_5.constantBase_0).x;
+                            (*outputs_1).inputs_0.baseMetalness_0 = MaterialOperand_0(o_18, slot_3, header_5.constantBase_0).x;
                         }
-                        var o_19 : u32 = MaterialWord_0(operands_1 + u32(3));
+                    }
+                case u32(1):
+                    {
+                        var o_19 : u32 = MaterialWord_0(operands_1);
                         if(o_19 != u32(4294967295))
                         {
                             if(((gMaterialOperandMode_0 & (u32(1)))) == u32(0))
@@ -7085,7 +7075,7 @@ fn RunMaterialProgram_1( header_5 : MaterialHeader_0,  program_2 : u32,  ctx_4 :
                             {
                                 if(((gMaterialOperandMode_0 & (u32(4)))) == u32(0))
                                 {
-                                    slot_2 = stack_3[(o_19 & (u32(15)))];
+                                    slot_3 = stack_1[(o_19 & (u32(15)))];
                                 }
                                 else
                                 {
@@ -7093,82 +7083,82 @@ fn RunMaterialProgram_1( header_5 : MaterialHeader_0,  program_2 : u32,  ctx_4 :
                                     {
                                     case u32(0):
                                         {
-                                            slot_2 = stack_3[i32(0)];
+                                            slot_3 = stack_1[i32(0)];
                                         }
                                     case u32(1):
                                         {
-                                            slot_2 = stack_3[i32(1)];
+                                            slot_3 = stack_1[i32(1)];
                                         }
                                     case u32(2):
                                         {
-                                            slot_2 = stack_3[i32(2)];
+                                            slot_3 = stack_1[i32(2)];
                                         }
                                     case u32(3):
                                         {
-                                            slot_2 = stack_3[i32(3)];
+                                            slot_3 = stack_1[i32(3)];
                                         }
                                     case u32(4):
                                         {
-                                            slot_2 = stack_3[i32(4)];
+                                            slot_3 = stack_1[i32(4)];
                                         }
                                     case u32(5):
                                         {
-                                            slot_2 = stack_3[i32(5)];
+                                            slot_3 = stack_1[i32(5)];
                                         }
                                     case u32(6):
                                         {
-                                            slot_2 = stack_3[i32(6)];
+                                            slot_3 = stack_1[i32(6)];
                                         }
                                     case u32(7):
                                         {
-                                            slot_2 = stack_3[i32(7)];
+                                            slot_3 = stack_1[i32(7)];
                                         }
                                     case u32(8):
                                         {
-                                            slot_2 = stack_3[i32(8)];
+                                            slot_3 = stack_1[i32(8)];
                                         }
                                     case u32(9):
                                         {
-                                            slot_2 = stack_3[i32(9)];
+                                            slot_3 = stack_1[i32(9)];
                                         }
                                     case u32(10):
                                         {
-                                            slot_2 = stack_3[i32(10)];
+                                            slot_3 = stack_1[i32(10)];
                                         }
                                     case u32(11):
                                         {
-                                            slot_2 = stack_3[i32(11)];
+                                            slot_3 = stack_1[i32(11)];
                                         }
                                     case u32(12):
                                         {
-                                            slot_2 = stack_3[i32(12)];
+                                            slot_3 = stack_1[i32(12)];
                                         }
                                     case u32(13):
                                         {
-                                            slot_2 = stack_3[i32(13)];
+                                            slot_3 = stack_1[i32(13)];
                                         }
                                     case u32(14):
                                         {
-                                            slot_2 = stack_3[i32(14)];
+                                            slot_3 = stack_1[i32(14)];
                                         }
                                     case u32(15):
                                         {
-                                            slot_2 = stack_3[i32(15)];
+                                            slot_3 = stack_1[i32(15)];
                                         }
                                     default :
                                         {
-                                            slot_2 = _S315;
+                                            slot_3 = _S347;
                                         }
                                     }
                                 }
                             }
                             else
                             {
-                                slot_2 = _S315;
+                                slot_3 = _S347;
                             }
-                            (*outputs_1).inputs_0.specularIor_0 = MaterialOperand_0(o_19, slot_2, header_5.constantBase_0).x;
+                            (*outputs_1).inputs_0.specularWeight_0 = MaterialOperand_0(o_19, slot_3, header_5.constantBase_0).x;
                         }
-                        var o_20 : u32 = MaterialWord_0(operands_1 + u32(4));
+                        var o_20 : u32 = MaterialWord_0(operands_1 + u32(1));
                         if(o_20 != u32(4294967295))
                         {
                             if(((gMaterialOperandMode_0 & (u32(1)))) == u32(0))
@@ -7183,7 +7173,7 @@ fn RunMaterialProgram_1( header_5 : MaterialHeader_0,  program_2 : u32,  ctx_4 :
                             {
                                 if(((gMaterialOperandMode_0 & (u32(4)))) == u32(0))
                                 {
-                                    slot_2 = stack_3[(o_20 & (u32(15)))];
+                                    slot_3 = stack_1[(o_20 & (u32(15)))];
                                 }
                                 else
                                 {
@@ -7191,85 +7181,82 @@ fn RunMaterialProgram_1( header_5 : MaterialHeader_0,  program_2 : u32,  ctx_4 :
                                     {
                                     case u32(0):
                                         {
-                                            slot_2 = stack_3[i32(0)];
+                                            slot_3 = stack_1[i32(0)];
                                         }
                                     case u32(1):
                                         {
-                                            slot_2 = stack_3[i32(1)];
+                                            slot_3 = stack_1[i32(1)];
                                         }
                                     case u32(2):
                                         {
-                                            slot_2 = stack_3[i32(2)];
+                                            slot_3 = stack_1[i32(2)];
                                         }
                                     case u32(3):
                                         {
-                                            slot_2 = stack_3[i32(3)];
+                                            slot_3 = stack_1[i32(3)];
                                         }
                                     case u32(4):
                                         {
-                                            slot_2 = stack_3[i32(4)];
+                                            slot_3 = stack_1[i32(4)];
                                         }
                                     case u32(5):
                                         {
-                                            slot_2 = stack_3[i32(5)];
+                                            slot_3 = stack_1[i32(5)];
                                         }
                                     case u32(6):
                                         {
-                                            slot_2 = stack_3[i32(6)];
+                                            slot_3 = stack_1[i32(6)];
                                         }
                                     case u32(7):
                                         {
-                                            slot_2 = stack_3[i32(7)];
+                                            slot_3 = stack_1[i32(7)];
                                         }
                                     case u32(8):
                                         {
-                                            slot_2 = stack_3[i32(8)];
+                                            slot_3 = stack_1[i32(8)];
                                         }
                                     case u32(9):
                                         {
-                                            slot_2 = stack_3[i32(9)];
+                                            slot_3 = stack_1[i32(9)];
                                         }
                                     case u32(10):
                                         {
-                                            slot_2 = stack_3[i32(10)];
+                                            slot_3 = stack_1[i32(10)];
                                         }
                                     case u32(11):
                                         {
-                                            slot_2 = stack_3[i32(11)];
+                                            slot_3 = stack_1[i32(11)];
                                         }
                                     case u32(12):
                                         {
-                                            slot_2 = stack_3[i32(12)];
+                                            slot_3 = stack_1[i32(12)];
                                         }
                                     case u32(13):
                                         {
-                                            slot_2 = stack_3[i32(13)];
+                                            slot_3 = stack_1[i32(13)];
                                         }
                                     case u32(14):
                                         {
-                                            slot_2 = stack_3[i32(14)];
+                                            slot_3 = stack_1[i32(14)];
                                         }
                                     case u32(15):
                                         {
-                                            slot_2 = stack_3[i32(15)];
+                                            slot_3 = stack_1[i32(15)];
                                         }
                                     default :
                                         {
-                                            slot_2 = _S315;
+                                            slot_3 = _S347;
                                         }
                                     }
                                 }
                             }
                             else
                             {
-                                slot_2 = _S315;
+                                slot_3 = _S347;
                             }
-                            (*outputs_1).inputs_0.specularDielectricOnly_0 = (MaterialOperand_0(o_20, slot_2, header_5.constantBase_0).x) != 0.0f;
+                            (*outputs_1).inputs_0.specularColor_0 = MaterialOperand_0(o_20, slot_3, header_5.constantBase_0).xyz;
                         }
-                    }
-                case u32(2):
-                    {
-                        var o_21 : u32 = MaterialWord_0(operands_1);
+                        var o_21 : u32 = MaterialWord_0(operands_1 + u32(2));
                         if(o_21 != u32(4294967295))
                         {
                             if(((gMaterialOperandMode_0 & (u32(1)))) == u32(0))
@@ -7284,7 +7271,7 @@ fn RunMaterialProgram_1( header_5 : MaterialHeader_0,  program_2 : u32,  ctx_4 :
                             {
                                 if(((gMaterialOperandMode_0 & (u32(4)))) == u32(0))
                                 {
-                                    slot_2 = stack_3[(o_21 & (u32(15)))];
+                                    slot_3 = stack_1[(o_21 & (u32(15)))];
                                 }
                                 else
                                 {
@@ -7292,82 +7279,82 @@ fn RunMaterialProgram_1( header_5 : MaterialHeader_0,  program_2 : u32,  ctx_4 :
                                     {
                                     case u32(0):
                                         {
-                                            slot_2 = stack_3[i32(0)];
+                                            slot_3 = stack_1[i32(0)];
                                         }
                                     case u32(1):
                                         {
-                                            slot_2 = stack_3[i32(1)];
+                                            slot_3 = stack_1[i32(1)];
                                         }
                                     case u32(2):
                                         {
-                                            slot_2 = stack_3[i32(2)];
+                                            slot_3 = stack_1[i32(2)];
                                         }
                                     case u32(3):
                                         {
-                                            slot_2 = stack_3[i32(3)];
+                                            slot_3 = stack_1[i32(3)];
                                         }
                                     case u32(4):
                                         {
-                                            slot_2 = stack_3[i32(4)];
+                                            slot_3 = stack_1[i32(4)];
                                         }
                                     case u32(5):
                                         {
-                                            slot_2 = stack_3[i32(5)];
+                                            slot_3 = stack_1[i32(5)];
                                         }
                                     case u32(6):
                                         {
-                                            slot_2 = stack_3[i32(6)];
+                                            slot_3 = stack_1[i32(6)];
                                         }
                                     case u32(7):
                                         {
-                                            slot_2 = stack_3[i32(7)];
+                                            slot_3 = stack_1[i32(7)];
                                         }
                                     case u32(8):
                                         {
-                                            slot_2 = stack_3[i32(8)];
+                                            slot_3 = stack_1[i32(8)];
                                         }
                                     case u32(9):
                                         {
-                                            slot_2 = stack_3[i32(9)];
+                                            slot_3 = stack_1[i32(9)];
                                         }
                                     case u32(10):
                                         {
-                                            slot_2 = stack_3[i32(10)];
+                                            slot_3 = stack_1[i32(10)];
                                         }
                                     case u32(11):
                                         {
-                                            slot_2 = stack_3[i32(11)];
+                                            slot_3 = stack_1[i32(11)];
                                         }
                                     case u32(12):
                                         {
-                                            slot_2 = stack_3[i32(12)];
+                                            slot_3 = stack_1[i32(12)];
                                         }
                                     case u32(13):
                                         {
-                                            slot_2 = stack_3[i32(13)];
+                                            slot_3 = stack_1[i32(13)];
                                         }
                                     case u32(14):
                                         {
-                                            slot_2 = stack_3[i32(14)];
+                                            slot_3 = stack_1[i32(14)];
                                         }
                                     case u32(15):
                                         {
-                                            slot_2 = stack_3[i32(15)];
+                                            slot_3 = stack_1[i32(15)];
                                         }
                                     default :
                                         {
-                                            slot_2 = _S315;
+                                            slot_3 = _S347;
                                         }
                                     }
                                 }
                             }
                             else
                             {
-                                slot_2 = _S315;
+                                slot_3 = _S347;
                             }
-                            (*outputs_1).inputs_0.specularRoughnessAnisotropy_0 = MaterialOperand_0(o_21, slot_2, header_5.constantBase_0).x;
+                            (*outputs_1).inputs_0.specularRoughness_0 = MaterialOperand_0(o_21, slot_3, header_5.constantBase_0).x;
                         }
-                        var o_22 : u32 = MaterialWord_0(operands_1 + u32(1));
+                        var o_22 : u32 = MaterialWord_0(operands_1 + u32(3));
                         if(o_22 != u32(4294967295))
                         {
                             if(((gMaterialOperandMode_0 & (u32(1)))) == u32(0))
@@ -7382,7 +7369,7 @@ fn RunMaterialProgram_1( header_5 : MaterialHeader_0,  program_2 : u32,  ctx_4 :
                             {
                                 if(((gMaterialOperandMode_0 & (u32(4)))) == u32(0))
                                 {
-                                    slot_2 = stack_3[(o_22 & (u32(15)))];
+                                    slot_3 = stack_1[(o_22 & (u32(15)))];
                                 }
                                 else
                                 {
@@ -7390,85 +7377,82 @@ fn RunMaterialProgram_1( header_5 : MaterialHeader_0,  program_2 : u32,  ctx_4 :
                                     {
                                     case u32(0):
                                         {
-                                            slot_2 = stack_3[i32(0)];
+                                            slot_3 = stack_1[i32(0)];
                                         }
                                     case u32(1):
                                         {
-                                            slot_2 = stack_3[i32(1)];
+                                            slot_3 = stack_1[i32(1)];
                                         }
                                     case u32(2):
                                         {
-                                            slot_2 = stack_3[i32(2)];
+                                            slot_3 = stack_1[i32(2)];
                                         }
                                     case u32(3):
                                         {
-                                            slot_2 = stack_3[i32(3)];
+                                            slot_3 = stack_1[i32(3)];
                                         }
                                     case u32(4):
                                         {
-                                            slot_2 = stack_3[i32(4)];
+                                            slot_3 = stack_1[i32(4)];
                                         }
                                     case u32(5):
                                         {
-                                            slot_2 = stack_3[i32(5)];
+                                            slot_3 = stack_1[i32(5)];
                                         }
                                     case u32(6):
                                         {
-                                            slot_2 = stack_3[i32(6)];
+                                            slot_3 = stack_1[i32(6)];
                                         }
                                     case u32(7):
                                         {
-                                            slot_2 = stack_3[i32(7)];
+                                            slot_3 = stack_1[i32(7)];
                                         }
                                     case u32(8):
                                         {
-                                            slot_2 = stack_3[i32(8)];
+                                            slot_3 = stack_1[i32(8)];
                                         }
                                     case u32(9):
                                         {
-                                            slot_2 = stack_3[i32(9)];
+                                            slot_3 = stack_1[i32(9)];
                                         }
                                     case u32(10):
                                         {
-                                            slot_2 = stack_3[i32(10)];
+                                            slot_3 = stack_1[i32(10)];
                                         }
                                     case u32(11):
                                         {
-                                            slot_2 = stack_3[i32(11)];
+                                            slot_3 = stack_1[i32(11)];
                                         }
                                     case u32(12):
                                         {
-                                            slot_2 = stack_3[i32(12)];
+                                            slot_3 = stack_1[i32(12)];
                                         }
                                     case u32(13):
                                         {
-                                            slot_2 = stack_3[i32(13)];
+                                            slot_3 = stack_1[i32(13)];
                                         }
                                     case u32(14):
                                         {
-                                            slot_2 = stack_3[i32(14)];
+                                            slot_3 = stack_1[i32(14)];
                                         }
                                     case u32(15):
                                         {
-                                            slot_2 = stack_3[i32(15)];
+                                            slot_3 = stack_1[i32(15)];
                                         }
                                     default :
                                         {
-                                            slot_2 = _S315;
+                                            slot_3 = _S347;
                                         }
                                     }
                                 }
                             }
                             else
                             {
-                                slot_2 = _S315;
+                                slot_3 = _S347;
                             }
-                            (*outputs_1).tangent_2 = MaterialOperand_0(o_22, slot_2, header_5.constantBase_0).xyz;
+                            (*outputs_1).inputs_0.specularIor_0 = MaterialOperand_0(o_22, slot_3, header_5.constantBase_0).x;
                         }
-                    }
-                case u32(3):
-                    {
-                        var o_23 : u32 = MaterialWord_0(operands_1);
+                        var o_23 : u32 = MaterialWord_0(operands_1 + u32(4));
                         if(o_23 != u32(4294967295))
                         {
                             if(((gMaterialOperandMode_0 & (u32(1)))) == u32(0))
@@ -7483,7 +7467,7 @@ fn RunMaterialProgram_1( header_5 : MaterialHeader_0,  program_2 : u32,  ctx_4 :
                             {
                                 if(((gMaterialOperandMode_0 & (u32(4)))) == u32(0))
                                 {
-                                    slot_2 = stack_3[(o_23 & (u32(15)))];
+                                    slot_3 = stack_1[(o_23 & (u32(15)))];
                                 }
                                 else
                                 {
@@ -7491,82 +7475,85 @@ fn RunMaterialProgram_1( header_5 : MaterialHeader_0,  program_2 : u32,  ctx_4 :
                                     {
                                     case u32(0):
                                         {
-                                            slot_2 = stack_3[i32(0)];
+                                            slot_3 = stack_1[i32(0)];
                                         }
                                     case u32(1):
                                         {
-                                            slot_2 = stack_3[i32(1)];
+                                            slot_3 = stack_1[i32(1)];
                                         }
                                     case u32(2):
                                         {
-                                            slot_2 = stack_3[i32(2)];
+                                            slot_3 = stack_1[i32(2)];
                                         }
                                     case u32(3):
                                         {
-                                            slot_2 = stack_3[i32(3)];
+                                            slot_3 = stack_1[i32(3)];
                                         }
                                     case u32(4):
                                         {
-                                            slot_2 = stack_3[i32(4)];
+                                            slot_3 = stack_1[i32(4)];
                                         }
                                     case u32(5):
                                         {
-                                            slot_2 = stack_3[i32(5)];
+                                            slot_3 = stack_1[i32(5)];
                                         }
                                     case u32(6):
                                         {
-                                            slot_2 = stack_3[i32(6)];
+                                            slot_3 = stack_1[i32(6)];
                                         }
                                     case u32(7):
                                         {
-                                            slot_2 = stack_3[i32(7)];
+                                            slot_3 = stack_1[i32(7)];
                                         }
                                     case u32(8):
                                         {
-                                            slot_2 = stack_3[i32(8)];
+                                            slot_3 = stack_1[i32(8)];
                                         }
                                     case u32(9):
                                         {
-                                            slot_2 = stack_3[i32(9)];
+                                            slot_3 = stack_1[i32(9)];
                                         }
                                     case u32(10):
                                         {
-                                            slot_2 = stack_3[i32(10)];
+                                            slot_3 = stack_1[i32(10)];
                                         }
                                     case u32(11):
                                         {
-                                            slot_2 = stack_3[i32(11)];
+                                            slot_3 = stack_1[i32(11)];
                                         }
                                     case u32(12):
                                         {
-                                            slot_2 = stack_3[i32(12)];
+                                            slot_3 = stack_1[i32(12)];
                                         }
                                     case u32(13):
                                         {
-                                            slot_2 = stack_3[i32(13)];
+                                            slot_3 = stack_1[i32(13)];
                                         }
                                     case u32(14):
                                         {
-                                            slot_2 = stack_3[i32(14)];
+                                            slot_3 = stack_1[i32(14)];
                                         }
                                     case u32(15):
                                         {
-                                            slot_2 = stack_3[i32(15)];
+                                            slot_3 = stack_1[i32(15)];
                                         }
                                     default :
                                         {
-                                            slot_2 = _S315;
+                                            slot_3 = _S347;
                                         }
                                     }
                                 }
                             }
                             else
                             {
-                                slot_2 = _S315;
+                                slot_3 = _S347;
                             }
-                            (*outputs_1).inputs_0.transmissionWeight_0 = MaterialOperand_0(o_23, slot_2, header_5.constantBase_0).x;
+                            (*outputs_1).inputs_0.specularDielectricOnly_0 = (MaterialOperand_0(o_23, slot_3, header_5.constantBase_0).x) != 0.0f;
                         }
-                        var o_24 : u32 = MaterialWord_0(operands_1 + u32(1));
+                    }
+                case u32(2):
+                    {
+                        var o_24 : u32 = MaterialWord_0(operands_1);
                         if(o_24 != u32(4294967295))
                         {
                             if(((gMaterialOperandMode_0 & (u32(1)))) == u32(0))
@@ -7581,7 +7568,7 @@ fn RunMaterialProgram_1( header_5 : MaterialHeader_0,  program_2 : u32,  ctx_4 :
                             {
                                 if(((gMaterialOperandMode_0 & (u32(4)))) == u32(0))
                                 {
-                                    slot_2 = stack_3[(o_24 & (u32(15)))];
+                                    slot_3 = stack_1[(o_24 & (u32(15)))];
                                 }
                                 else
                                 {
@@ -7589,82 +7576,82 @@ fn RunMaterialProgram_1( header_5 : MaterialHeader_0,  program_2 : u32,  ctx_4 :
                                     {
                                     case u32(0):
                                         {
-                                            slot_2 = stack_3[i32(0)];
+                                            slot_3 = stack_1[i32(0)];
                                         }
                                     case u32(1):
                                         {
-                                            slot_2 = stack_3[i32(1)];
+                                            slot_3 = stack_1[i32(1)];
                                         }
                                     case u32(2):
                                         {
-                                            slot_2 = stack_3[i32(2)];
+                                            slot_3 = stack_1[i32(2)];
                                         }
                                     case u32(3):
                                         {
-                                            slot_2 = stack_3[i32(3)];
+                                            slot_3 = stack_1[i32(3)];
                                         }
                                     case u32(4):
                                         {
-                                            slot_2 = stack_3[i32(4)];
+                                            slot_3 = stack_1[i32(4)];
                                         }
                                     case u32(5):
                                         {
-                                            slot_2 = stack_3[i32(5)];
+                                            slot_3 = stack_1[i32(5)];
                                         }
                                     case u32(6):
                                         {
-                                            slot_2 = stack_3[i32(6)];
+                                            slot_3 = stack_1[i32(6)];
                                         }
                                     case u32(7):
                                         {
-                                            slot_2 = stack_3[i32(7)];
+                                            slot_3 = stack_1[i32(7)];
                                         }
                                     case u32(8):
                                         {
-                                            slot_2 = stack_3[i32(8)];
+                                            slot_3 = stack_1[i32(8)];
                                         }
                                     case u32(9):
                                         {
-                                            slot_2 = stack_3[i32(9)];
+                                            slot_3 = stack_1[i32(9)];
                                         }
                                     case u32(10):
                                         {
-                                            slot_2 = stack_3[i32(10)];
+                                            slot_3 = stack_1[i32(10)];
                                         }
                                     case u32(11):
                                         {
-                                            slot_2 = stack_3[i32(11)];
+                                            slot_3 = stack_1[i32(11)];
                                         }
                                     case u32(12):
                                         {
-                                            slot_2 = stack_3[i32(12)];
+                                            slot_3 = stack_1[i32(12)];
                                         }
                                     case u32(13):
                                         {
-                                            slot_2 = stack_3[i32(13)];
+                                            slot_3 = stack_1[i32(13)];
                                         }
                                     case u32(14):
                                         {
-                                            slot_2 = stack_3[i32(14)];
+                                            slot_3 = stack_1[i32(14)];
                                         }
                                     case u32(15):
                                         {
-                                            slot_2 = stack_3[i32(15)];
+                                            slot_3 = stack_1[i32(15)];
                                         }
                                     default :
                                         {
-                                            slot_2 = _S315;
+                                            slot_3 = _S347;
                                         }
                                     }
                                 }
                             }
                             else
                             {
-                                slot_2 = _S315;
+                                slot_3 = _S347;
                             }
-                            (*outputs_1).inputs_0.transmissionColor_0 = MaterialOperand_0(o_24, slot_2, header_5.constantBase_0).xyz;
+                            (*outputs_1).inputs_0.specularRoughnessAnisotropy_0 = MaterialOperand_0(o_24, slot_3, header_5.constantBase_0).x;
                         }
-                        var o_25 : u32 = MaterialWord_0(operands_1 + u32(2));
+                        var o_25 : u32 = MaterialWord_0(operands_1 + u32(1));
                         if(o_25 != u32(4294967295))
                         {
                             if(((gMaterialOperandMode_0 & (u32(1)))) == u32(0))
@@ -7679,7 +7666,7 @@ fn RunMaterialProgram_1( header_5 : MaterialHeader_0,  program_2 : u32,  ctx_4 :
                             {
                                 if(((gMaterialOperandMode_0 & (u32(4)))) == u32(0))
                                 {
-                                    slot_2 = stack_3[(o_25 & (u32(15)))];
+                                    slot_3 = stack_1[(o_25 & (u32(15)))];
                                 }
                                 else
                                 {
@@ -7687,82 +7674,85 @@ fn RunMaterialProgram_1( header_5 : MaterialHeader_0,  program_2 : u32,  ctx_4 :
                                     {
                                     case u32(0):
                                         {
-                                            slot_2 = stack_3[i32(0)];
+                                            slot_3 = stack_1[i32(0)];
                                         }
                                     case u32(1):
                                         {
-                                            slot_2 = stack_3[i32(1)];
+                                            slot_3 = stack_1[i32(1)];
                                         }
                                     case u32(2):
                                         {
-                                            slot_2 = stack_3[i32(2)];
+                                            slot_3 = stack_1[i32(2)];
                                         }
                                     case u32(3):
                                         {
-                                            slot_2 = stack_3[i32(3)];
+                                            slot_3 = stack_1[i32(3)];
                                         }
                                     case u32(4):
                                         {
-                                            slot_2 = stack_3[i32(4)];
+                                            slot_3 = stack_1[i32(4)];
                                         }
                                     case u32(5):
                                         {
-                                            slot_2 = stack_3[i32(5)];
+                                            slot_3 = stack_1[i32(5)];
                                         }
                                     case u32(6):
                                         {
-                                            slot_2 = stack_3[i32(6)];
+                                            slot_3 = stack_1[i32(6)];
                                         }
                                     case u32(7):
                                         {
-                                            slot_2 = stack_3[i32(7)];
+                                            slot_3 = stack_1[i32(7)];
                                         }
                                     case u32(8):
                                         {
-                                            slot_2 = stack_3[i32(8)];
+                                            slot_3 = stack_1[i32(8)];
                                         }
                                     case u32(9):
                                         {
-                                            slot_2 = stack_3[i32(9)];
+                                            slot_3 = stack_1[i32(9)];
                                         }
                                     case u32(10):
                                         {
-                                            slot_2 = stack_3[i32(10)];
+                                            slot_3 = stack_1[i32(10)];
                                         }
                                     case u32(11):
                                         {
-                                            slot_2 = stack_3[i32(11)];
+                                            slot_3 = stack_1[i32(11)];
                                         }
                                     case u32(12):
                                         {
-                                            slot_2 = stack_3[i32(12)];
+                                            slot_3 = stack_1[i32(12)];
                                         }
                                     case u32(13):
                                         {
-                                            slot_2 = stack_3[i32(13)];
+                                            slot_3 = stack_1[i32(13)];
                                         }
                                     case u32(14):
                                         {
-                                            slot_2 = stack_3[i32(14)];
+                                            slot_3 = stack_1[i32(14)];
                                         }
                                     case u32(15):
                                         {
-                                            slot_2 = stack_3[i32(15)];
+                                            slot_3 = stack_1[i32(15)];
                                         }
                                     default :
                                         {
-                                            slot_2 = _S315;
+                                            slot_3 = _S347;
                                         }
                                     }
                                 }
                             }
                             else
                             {
-                                slot_2 = _S315;
+                                slot_3 = _S347;
                             }
-                            (*outputs_1).inputs_0.transmissionDepth_0 = MaterialOperand_0(o_25, slot_2, header_5.constantBase_0).x;
+                            (*outputs_1).tangent_2 = MaterialOperand_0(o_25, slot_3, header_5.constantBase_0).xyz;
                         }
-                        var o_26 : u32 = MaterialWord_0(operands_1 + u32(3));
+                    }
+                case u32(3):
+                    {
+                        var o_26 : u32 = MaterialWord_0(operands_1);
                         if(o_26 != u32(4294967295))
                         {
                             if(((gMaterialOperandMode_0 & (u32(1)))) == u32(0))
@@ -7777,7 +7767,7 @@ fn RunMaterialProgram_1( header_5 : MaterialHeader_0,  program_2 : u32,  ctx_4 :
                             {
                                 if(((gMaterialOperandMode_0 & (u32(4)))) == u32(0))
                                 {
-                                    slot_2 = stack_3[(o_26 & (u32(15)))];
+                                    slot_3 = stack_1[(o_26 & (u32(15)))];
                                 }
                                 else
                                 {
@@ -7785,82 +7775,82 @@ fn RunMaterialProgram_1( header_5 : MaterialHeader_0,  program_2 : u32,  ctx_4 :
                                     {
                                     case u32(0):
                                         {
-                                            slot_2 = stack_3[i32(0)];
+                                            slot_3 = stack_1[i32(0)];
                                         }
                                     case u32(1):
                                         {
-                                            slot_2 = stack_3[i32(1)];
+                                            slot_3 = stack_1[i32(1)];
                                         }
                                     case u32(2):
                                         {
-                                            slot_2 = stack_3[i32(2)];
+                                            slot_3 = stack_1[i32(2)];
                                         }
                                     case u32(3):
                                         {
-                                            slot_2 = stack_3[i32(3)];
+                                            slot_3 = stack_1[i32(3)];
                                         }
                                     case u32(4):
                                         {
-                                            slot_2 = stack_3[i32(4)];
+                                            slot_3 = stack_1[i32(4)];
                                         }
                                     case u32(5):
                                         {
-                                            slot_2 = stack_3[i32(5)];
+                                            slot_3 = stack_1[i32(5)];
                                         }
                                     case u32(6):
                                         {
-                                            slot_2 = stack_3[i32(6)];
+                                            slot_3 = stack_1[i32(6)];
                                         }
                                     case u32(7):
                                         {
-                                            slot_2 = stack_3[i32(7)];
+                                            slot_3 = stack_1[i32(7)];
                                         }
                                     case u32(8):
                                         {
-                                            slot_2 = stack_3[i32(8)];
+                                            slot_3 = stack_1[i32(8)];
                                         }
                                     case u32(9):
                                         {
-                                            slot_2 = stack_3[i32(9)];
+                                            slot_3 = stack_1[i32(9)];
                                         }
                                     case u32(10):
                                         {
-                                            slot_2 = stack_3[i32(10)];
+                                            slot_3 = stack_1[i32(10)];
                                         }
                                     case u32(11):
                                         {
-                                            slot_2 = stack_3[i32(11)];
+                                            slot_3 = stack_1[i32(11)];
                                         }
                                     case u32(12):
                                         {
-                                            slot_2 = stack_3[i32(12)];
+                                            slot_3 = stack_1[i32(12)];
                                         }
                                     case u32(13):
                                         {
-                                            slot_2 = stack_3[i32(13)];
+                                            slot_3 = stack_1[i32(13)];
                                         }
                                     case u32(14):
                                         {
-                                            slot_2 = stack_3[i32(14)];
+                                            slot_3 = stack_1[i32(14)];
                                         }
                                     case u32(15):
                                         {
-                                            slot_2 = stack_3[i32(15)];
+                                            slot_3 = stack_1[i32(15)];
                                         }
                                     default :
                                         {
-                                            slot_2 = _S315;
+                                            slot_3 = _S347;
                                         }
                                     }
                                 }
                             }
                             else
                             {
-                                slot_2 = _S315;
+                                slot_3 = _S347;
                             }
-                            (*outputs_1).inputs_0.transmissionScatter_0 = MaterialOperand_0(o_26, slot_2, header_5.constantBase_0).xyz;
+                            (*outputs_1).inputs_0.transmissionWeight_0 = MaterialOperand_0(o_26, slot_3, header_5.constantBase_0).x;
                         }
-                        var o_27 : u32 = MaterialWord_0(operands_1 + u32(4));
+                        var o_27 : u32 = MaterialWord_0(operands_1 + u32(1));
                         if(o_27 != u32(4294967295))
                         {
                             if(((gMaterialOperandMode_0 & (u32(1)))) == u32(0))
@@ -7875,7 +7865,7 @@ fn RunMaterialProgram_1( header_5 : MaterialHeader_0,  program_2 : u32,  ctx_4 :
                             {
                                 if(((gMaterialOperandMode_0 & (u32(4)))) == u32(0))
                                 {
-                                    slot_2 = stack_3[(o_27 & (u32(15)))];
+                                    slot_3 = stack_1[(o_27 & (u32(15)))];
                                 }
                                 else
                                 {
@@ -7883,82 +7873,82 @@ fn RunMaterialProgram_1( header_5 : MaterialHeader_0,  program_2 : u32,  ctx_4 :
                                     {
                                     case u32(0):
                                         {
-                                            slot_2 = stack_3[i32(0)];
+                                            slot_3 = stack_1[i32(0)];
                                         }
                                     case u32(1):
                                         {
-                                            slot_2 = stack_3[i32(1)];
+                                            slot_3 = stack_1[i32(1)];
                                         }
                                     case u32(2):
                                         {
-                                            slot_2 = stack_3[i32(2)];
+                                            slot_3 = stack_1[i32(2)];
                                         }
                                     case u32(3):
                                         {
-                                            slot_2 = stack_3[i32(3)];
+                                            slot_3 = stack_1[i32(3)];
                                         }
                                     case u32(4):
                                         {
-                                            slot_2 = stack_3[i32(4)];
+                                            slot_3 = stack_1[i32(4)];
                                         }
                                     case u32(5):
                                         {
-                                            slot_2 = stack_3[i32(5)];
+                                            slot_3 = stack_1[i32(5)];
                                         }
                                     case u32(6):
                                         {
-                                            slot_2 = stack_3[i32(6)];
+                                            slot_3 = stack_1[i32(6)];
                                         }
                                     case u32(7):
                                         {
-                                            slot_2 = stack_3[i32(7)];
+                                            slot_3 = stack_1[i32(7)];
                                         }
                                     case u32(8):
                                         {
-                                            slot_2 = stack_3[i32(8)];
+                                            slot_3 = stack_1[i32(8)];
                                         }
                                     case u32(9):
                                         {
-                                            slot_2 = stack_3[i32(9)];
+                                            slot_3 = stack_1[i32(9)];
                                         }
                                     case u32(10):
                                         {
-                                            slot_2 = stack_3[i32(10)];
+                                            slot_3 = stack_1[i32(10)];
                                         }
                                     case u32(11):
                                         {
-                                            slot_2 = stack_3[i32(11)];
+                                            slot_3 = stack_1[i32(11)];
                                         }
                                     case u32(12):
                                         {
-                                            slot_2 = stack_3[i32(12)];
+                                            slot_3 = stack_1[i32(12)];
                                         }
                                     case u32(13):
                                         {
-                                            slot_2 = stack_3[i32(13)];
+                                            slot_3 = stack_1[i32(13)];
                                         }
                                     case u32(14):
                                         {
-                                            slot_2 = stack_3[i32(14)];
+                                            slot_3 = stack_1[i32(14)];
                                         }
                                     case u32(15):
                                         {
-                                            slot_2 = stack_3[i32(15)];
+                                            slot_3 = stack_1[i32(15)];
                                         }
                                     default :
                                         {
-                                            slot_2 = _S315;
+                                            slot_3 = _S347;
                                         }
                                     }
                                 }
                             }
                             else
                             {
-                                slot_2 = _S315;
+                                slot_3 = _S347;
                             }
-                            (*outputs_1).inputs_0.transmissionScatterAnisotropy_0 = MaterialOperand_0(o_27, slot_2, header_5.constantBase_0).x;
+                            (*outputs_1).inputs_0.transmissionColor_0 = MaterialOperand_0(o_27, slot_3, header_5.constantBase_0).xyz;
                         }
-                        var o_28 : u32 = MaterialWord_0(operands_1 + u32(5));
+                        var o_28 : u32 = MaterialWord_0(operands_1 + u32(2));
                         if(o_28 != u32(4294967295))
                         {
                             if(((gMaterialOperandMode_0 & (u32(1)))) == u32(0))
@@ -7973,7 +7963,7 @@ fn RunMaterialProgram_1( header_5 : MaterialHeader_0,  program_2 : u32,  ctx_4 :
                             {
                                 if(((gMaterialOperandMode_0 & (u32(4)))) == u32(0))
                                 {
-                                    slot_2 = stack_3[(o_28 & (u32(15)))];
+                                    slot_3 = stack_1[(o_28 & (u32(15)))];
                                 }
                                 else
                                 {
@@ -7981,82 +7971,82 @@ fn RunMaterialProgram_1( header_5 : MaterialHeader_0,  program_2 : u32,  ctx_4 :
                                     {
                                     case u32(0):
                                         {
-                                            slot_2 = stack_3[i32(0)];
+                                            slot_3 = stack_1[i32(0)];
                                         }
                                     case u32(1):
                                         {
-                                            slot_2 = stack_3[i32(1)];
+                                            slot_3 = stack_1[i32(1)];
                                         }
                                     case u32(2):
                                         {
-                                            slot_2 = stack_3[i32(2)];
+                                            slot_3 = stack_1[i32(2)];
                                         }
                                     case u32(3):
                                         {
-                                            slot_2 = stack_3[i32(3)];
+                                            slot_3 = stack_1[i32(3)];
                                         }
                                     case u32(4):
                                         {
-                                            slot_2 = stack_3[i32(4)];
+                                            slot_3 = stack_1[i32(4)];
                                         }
                                     case u32(5):
                                         {
-                                            slot_2 = stack_3[i32(5)];
+                                            slot_3 = stack_1[i32(5)];
                                         }
                                     case u32(6):
                                         {
-                                            slot_2 = stack_3[i32(6)];
+                                            slot_3 = stack_1[i32(6)];
                                         }
                                     case u32(7):
                                         {
-                                            slot_2 = stack_3[i32(7)];
+                                            slot_3 = stack_1[i32(7)];
                                         }
                                     case u32(8):
                                         {
-                                            slot_2 = stack_3[i32(8)];
+                                            slot_3 = stack_1[i32(8)];
                                         }
                                     case u32(9):
                                         {
-                                            slot_2 = stack_3[i32(9)];
+                                            slot_3 = stack_1[i32(9)];
                                         }
                                     case u32(10):
                                         {
-                                            slot_2 = stack_3[i32(10)];
+                                            slot_3 = stack_1[i32(10)];
                                         }
                                     case u32(11):
                                         {
-                                            slot_2 = stack_3[i32(11)];
+                                            slot_3 = stack_1[i32(11)];
                                         }
                                     case u32(12):
                                         {
-                                            slot_2 = stack_3[i32(12)];
+                                            slot_3 = stack_1[i32(12)];
                                         }
                                     case u32(13):
                                         {
-                                            slot_2 = stack_3[i32(13)];
+                                            slot_3 = stack_1[i32(13)];
                                         }
                                     case u32(14):
                                         {
-                                            slot_2 = stack_3[i32(14)];
+                                            slot_3 = stack_1[i32(14)];
                                         }
                                     case u32(15):
                                         {
-                                            slot_2 = stack_3[i32(15)];
+                                            slot_3 = stack_1[i32(15)];
                                         }
                                     default :
                                         {
-                                            slot_2 = _S315;
+                                            slot_3 = _S347;
                                         }
                                     }
                                 }
                             }
                             else
                             {
-                                slot_2 = _S315;
+                                slot_3 = _S347;
                             }
-                            (*outputs_1).inputs_0.transmissionDispersionScale_0 = MaterialOperand_0(o_28, slot_2, header_5.constantBase_0).x;
+                            (*outputs_1).inputs_0.transmissionDepth_0 = MaterialOperand_0(o_28, slot_3, header_5.constantBase_0).x;
                         }
-                        var o_29 : u32 = MaterialWord_0(operands_1 + u32(6));
+                        var o_29 : u32 = MaterialWord_0(operands_1 + u32(3));
                         if(o_29 != u32(4294967295))
                         {
                             if(((gMaterialOperandMode_0 & (u32(1)))) == u32(0))
@@ -8071,7 +8061,7 @@ fn RunMaterialProgram_1( header_5 : MaterialHeader_0,  program_2 : u32,  ctx_4 :
                             {
                                 if(((gMaterialOperandMode_0 & (u32(4)))) == u32(0))
                                 {
-                                    slot_2 = stack_3[(o_29 & (u32(15)))];
+                                    slot_3 = stack_1[(o_29 & (u32(15)))];
                                 }
                                 else
                                 {
@@ -8079,85 +8069,82 @@ fn RunMaterialProgram_1( header_5 : MaterialHeader_0,  program_2 : u32,  ctx_4 :
                                     {
                                     case u32(0):
                                         {
-                                            slot_2 = stack_3[i32(0)];
+                                            slot_3 = stack_1[i32(0)];
                                         }
                                     case u32(1):
                                         {
-                                            slot_2 = stack_3[i32(1)];
+                                            slot_3 = stack_1[i32(1)];
                                         }
                                     case u32(2):
                                         {
-                                            slot_2 = stack_3[i32(2)];
+                                            slot_3 = stack_1[i32(2)];
                                         }
                                     case u32(3):
                                         {
-                                            slot_2 = stack_3[i32(3)];
+                                            slot_3 = stack_1[i32(3)];
                                         }
                                     case u32(4):
                                         {
-                                            slot_2 = stack_3[i32(4)];
+                                            slot_3 = stack_1[i32(4)];
                                         }
                                     case u32(5):
                                         {
-                                            slot_2 = stack_3[i32(5)];
+                                            slot_3 = stack_1[i32(5)];
                                         }
                                     case u32(6):
                                         {
-                                            slot_2 = stack_3[i32(6)];
+                                            slot_3 = stack_1[i32(6)];
                                         }
                                     case u32(7):
                                         {
-                                            slot_2 = stack_3[i32(7)];
+                                            slot_3 = stack_1[i32(7)];
                                         }
                                     case u32(8):
                                         {
-                                            slot_2 = stack_3[i32(8)];
+                                            slot_3 = stack_1[i32(8)];
                                         }
                                     case u32(9):
                                         {
-                                            slot_2 = stack_3[i32(9)];
+                                            slot_3 = stack_1[i32(9)];
                                         }
                                     case u32(10):
                                         {
-                                            slot_2 = stack_3[i32(10)];
+                                            slot_3 = stack_1[i32(10)];
                                         }
                                     case u32(11):
                                         {
-                                            slot_2 = stack_3[i32(11)];
+                                            slot_3 = stack_1[i32(11)];
                                         }
                                     case u32(12):
                                         {
-                                            slot_2 = stack_3[i32(12)];
+                                            slot_3 = stack_1[i32(12)];
                                         }
                                     case u32(13):
                                         {
-                                            slot_2 = stack_3[i32(13)];
+                                            slot_3 = stack_1[i32(13)];
                                         }
                                     case u32(14):
                                         {
-                                            slot_2 = stack_3[i32(14)];
+                                            slot_3 = stack_1[i32(14)];
                                         }
                                     case u32(15):
                                         {
-                                            slot_2 = stack_3[i32(15)];
+                                            slot_3 = stack_1[i32(15)];
                                         }
                                     default :
                                         {
-                                            slot_2 = _S315;
+                                            slot_3 = _S347;
                                         }
                                     }
                                 }
                             }
                             else
                             {
-                                slot_2 = _S315;
+                                slot_3 = _S347;
                             }
-                            (*outputs_1).inputs_0.transmissionDispersionAbbeNumber_0 = MaterialOperand_0(o_29, slot_2, header_5.constantBase_0).x;
+                            (*outputs_1).inputs_0.transmissionScatter_0 = MaterialOperand_0(o_29, slot_3, header_5.constantBase_0).xyz;
                         }
-                    }
-                case u32(4):
-                    {
-                        var o_30 : u32 = MaterialWord_0(operands_1);
+                        var o_30 : u32 = MaterialWord_0(operands_1 + u32(4));
                         if(o_30 != u32(4294967295))
                         {
                             if(((gMaterialOperandMode_0 & (u32(1)))) == u32(0))
@@ -8172,7 +8159,7 @@ fn RunMaterialProgram_1( header_5 : MaterialHeader_0,  program_2 : u32,  ctx_4 :
                             {
                                 if(((gMaterialOperandMode_0 & (u32(4)))) == u32(0))
                                 {
-                                    slot_2 = stack_3[(o_30 & (u32(15)))];
+                                    slot_3 = stack_1[(o_30 & (u32(15)))];
                                 }
                                 else
                                 {
@@ -8180,82 +8167,82 @@ fn RunMaterialProgram_1( header_5 : MaterialHeader_0,  program_2 : u32,  ctx_4 :
                                     {
                                     case u32(0):
                                         {
-                                            slot_2 = stack_3[i32(0)];
+                                            slot_3 = stack_1[i32(0)];
                                         }
                                     case u32(1):
                                         {
-                                            slot_2 = stack_3[i32(1)];
+                                            slot_3 = stack_1[i32(1)];
                                         }
                                     case u32(2):
                                         {
-                                            slot_2 = stack_3[i32(2)];
+                                            slot_3 = stack_1[i32(2)];
                                         }
                                     case u32(3):
                                         {
-                                            slot_2 = stack_3[i32(3)];
+                                            slot_3 = stack_1[i32(3)];
                                         }
                                     case u32(4):
                                         {
-                                            slot_2 = stack_3[i32(4)];
+                                            slot_3 = stack_1[i32(4)];
                                         }
                                     case u32(5):
                                         {
-                                            slot_2 = stack_3[i32(5)];
+                                            slot_3 = stack_1[i32(5)];
                                         }
                                     case u32(6):
                                         {
-                                            slot_2 = stack_3[i32(6)];
+                                            slot_3 = stack_1[i32(6)];
                                         }
                                     case u32(7):
                                         {
-                                            slot_2 = stack_3[i32(7)];
+                                            slot_3 = stack_1[i32(7)];
                                         }
                                     case u32(8):
                                         {
-                                            slot_2 = stack_3[i32(8)];
+                                            slot_3 = stack_1[i32(8)];
                                         }
                                     case u32(9):
                                         {
-                                            slot_2 = stack_3[i32(9)];
+                                            slot_3 = stack_1[i32(9)];
                                         }
                                     case u32(10):
                                         {
-                                            slot_2 = stack_3[i32(10)];
+                                            slot_3 = stack_1[i32(10)];
                                         }
                                     case u32(11):
                                         {
-                                            slot_2 = stack_3[i32(11)];
+                                            slot_3 = stack_1[i32(11)];
                                         }
                                     case u32(12):
                                         {
-                                            slot_2 = stack_3[i32(12)];
+                                            slot_3 = stack_1[i32(12)];
                                         }
                                     case u32(13):
                                         {
-                                            slot_2 = stack_3[i32(13)];
+                                            slot_3 = stack_1[i32(13)];
                                         }
                                     case u32(14):
                                         {
-                                            slot_2 = stack_3[i32(14)];
+                                            slot_3 = stack_1[i32(14)];
                                         }
                                     case u32(15):
                                         {
-                                            slot_2 = stack_3[i32(15)];
+                                            slot_3 = stack_1[i32(15)];
                                         }
                                     default :
                                         {
-                                            slot_2 = _S315;
+                                            slot_3 = _S347;
                                         }
                                     }
                                 }
                             }
                             else
                             {
-                                slot_2 = _S315;
+                                slot_3 = _S347;
                             }
-                            (*outputs_1).inputs_0.subsurfaceWeight_0 = MaterialOperand_0(o_30, slot_2, header_5.constantBase_0).x;
+                            (*outputs_1).inputs_0.transmissionScatterAnisotropy_0 = MaterialOperand_0(o_30, slot_3, header_5.constantBase_0).x;
                         }
-                        var o_31 : u32 = MaterialWord_0(operands_1 + u32(1));
+                        var o_31 : u32 = MaterialWord_0(operands_1 + u32(5));
                         if(o_31 != u32(4294967295))
                         {
                             if(((gMaterialOperandMode_0 & (u32(1)))) == u32(0))
@@ -8270,7 +8257,7 @@ fn RunMaterialProgram_1( header_5 : MaterialHeader_0,  program_2 : u32,  ctx_4 :
                             {
                                 if(((gMaterialOperandMode_0 & (u32(4)))) == u32(0))
                                 {
-                                    slot_2 = stack_3[(o_31 & (u32(15)))];
+                                    slot_3 = stack_1[(o_31 & (u32(15)))];
                                 }
                                 else
                                 {
@@ -8278,82 +8265,82 @@ fn RunMaterialProgram_1( header_5 : MaterialHeader_0,  program_2 : u32,  ctx_4 :
                                     {
                                     case u32(0):
                                         {
-                                            slot_2 = stack_3[i32(0)];
+                                            slot_3 = stack_1[i32(0)];
                                         }
                                     case u32(1):
                                         {
-                                            slot_2 = stack_3[i32(1)];
+                                            slot_3 = stack_1[i32(1)];
                                         }
                                     case u32(2):
                                         {
-                                            slot_2 = stack_3[i32(2)];
+                                            slot_3 = stack_1[i32(2)];
                                         }
                                     case u32(3):
                                         {
-                                            slot_2 = stack_3[i32(3)];
+                                            slot_3 = stack_1[i32(3)];
                                         }
                                     case u32(4):
                                         {
-                                            slot_2 = stack_3[i32(4)];
+                                            slot_3 = stack_1[i32(4)];
                                         }
                                     case u32(5):
                                         {
-                                            slot_2 = stack_3[i32(5)];
+                                            slot_3 = stack_1[i32(5)];
                                         }
                                     case u32(6):
                                         {
-                                            slot_2 = stack_3[i32(6)];
+                                            slot_3 = stack_1[i32(6)];
                                         }
                                     case u32(7):
                                         {
-                                            slot_2 = stack_3[i32(7)];
+                                            slot_3 = stack_1[i32(7)];
                                         }
                                     case u32(8):
                                         {
-                                            slot_2 = stack_3[i32(8)];
+                                            slot_3 = stack_1[i32(8)];
                                         }
                                     case u32(9):
                                         {
-                                            slot_2 = stack_3[i32(9)];
+                                            slot_3 = stack_1[i32(9)];
                                         }
                                     case u32(10):
                                         {
-                                            slot_2 = stack_3[i32(10)];
+                                            slot_3 = stack_1[i32(10)];
                                         }
                                     case u32(11):
                                         {
-                                            slot_2 = stack_3[i32(11)];
+                                            slot_3 = stack_1[i32(11)];
                                         }
                                     case u32(12):
                                         {
-                                            slot_2 = stack_3[i32(12)];
+                                            slot_3 = stack_1[i32(12)];
                                         }
                                     case u32(13):
                                         {
-                                            slot_2 = stack_3[i32(13)];
+                                            slot_3 = stack_1[i32(13)];
                                         }
                                     case u32(14):
                                         {
-                                            slot_2 = stack_3[i32(14)];
+                                            slot_3 = stack_1[i32(14)];
                                         }
                                     case u32(15):
                                         {
-                                            slot_2 = stack_3[i32(15)];
+                                            slot_3 = stack_1[i32(15)];
                                         }
                                     default :
                                         {
-                                            slot_2 = _S315;
+                                            slot_3 = _S347;
                                         }
                                     }
                                 }
                             }
                             else
                             {
-                                slot_2 = _S315;
+                                slot_3 = _S347;
                             }
-                            (*outputs_1).inputs_0.subsurfaceColor_0 = MaterialOperand_0(o_31, slot_2, header_5.constantBase_0).xyz;
+                            (*outputs_1).inputs_0.transmissionDispersionScale_0 = MaterialOperand_0(o_31, slot_3, header_5.constantBase_0).x;
                         }
-                        var o_32 : u32 = MaterialWord_0(operands_1 + u32(2));
+                        var o_32 : u32 = MaterialWord_0(operands_1 + u32(6));
                         if(o_32 != u32(4294967295))
                         {
                             if(((gMaterialOperandMode_0 & (u32(1)))) == u32(0))
@@ -8368,7 +8355,7 @@ fn RunMaterialProgram_1( header_5 : MaterialHeader_0,  program_2 : u32,  ctx_4 :
                             {
                                 if(((gMaterialOperandMode_0 & (u32(4)))) == u32(0))
                                 {
-                                    slot_2 = stack_3[(o_32 & (u32(15)))];
+                                    slot_3 = stack_1[(o_32 & (u32(15)))];
                                 }
                                 else
                                 {
@@ -8376,82 +8363,85 @@ fn RunMaterialProgram_1( header_5 : MaterialHeader_0,  program_2 : u32,  ctx_4 :
                                     {
                                     case u32(0):
                                         {
-                                            slot_2 = stack_3[i32(0)];
+                                            slot_3 = stack_1[i32(0)];
                                         }
                                     case u32(1):
                                         {
-                                            slot_2 = stack_3[i32(1)];
+                                            slot_3 = stack_1[i32(1)];
                                         }
                                     case u32(2):
                                         {
-                                            slot_2 = stack_3[i32(2)];
+                                            slot_3 = stack_1[i32(2)];
                                         }
                                     case u32(3):
                                         {
-                                            slot_2 = stack_3[i32(3)];
+                                            slot_3 = stack_1[i32(3)];
                                         }
                                     case u32(4):
                                         {
-                                            slot_2 = stack_3[i32(4)];
+                                            slot_3 = stack_1[i32(4)];
                                         }
                                     case u32(5):
                                         {
-                                            slot_2 = stack_3[i32(5)];
+                                            slot_3 = stack_1[i32(5)];
                                         }
                                     case u32(6):
                                         {
-                                            slot_2 = stack_3[i32(6)];
+                                            slot_3 = stack_1[i32(6)];
                                         }
                                     case u32(7):
                                         {
-                                            slot_2 = stack_3[i32(7)];
+                                            slot_3 = stack_1[i32(7)];
                                         }
                                     case u32(8):
                                         {
-                                            slot_2 = stack_3[i32(8)];
+                                            slot_3 = stack_1[i32(8)];
                                         }
                                     case u32(9):
                                         {
-                                            slot_2 = stack_3[i32(9)];
+                                            slot_3 = stack_1[i32(9)];
                                         }
                                     case u32(10):
                                         {
-                                            slot_2 = stack_3[i32(10)];
+                                            slot_3 = stack_1[i32(10)];
                                         }
                                     case u32(11):
                                         {
-                                            slot_2 = stack_3[i32(11)];
+                                            slot_3 = stack_1[i32(11)];
                                         }
                                     case u32(12):
                                         {
-                                            slot_2 = stack_3[i32(12)];
+                                            slot_3 = stack_1[i32(12)];
                                         }
                                     case u32(13):
                                         {
-                                            slot_2 = stack_3[i32(13)];
+                                            slot_3 = stack_1[i32(13)];
                                         }
                                     case u32(14):
                                         {
-                                            slot_2 = stack_3[i32(14)];
+                                            slot_3 = stack_1[i32(14)];
                                         }
                                     case u32(15):
                                         {
-                                            slot_2 = stack_3[i32(15)];
+                                            slot_3 = stack_1[i32(15)];
                                         }
                                     default :
                                         {
-                                            slot_2 = _S315;
+                                            slot_3 = _S347;
                                         }
                                     }
                                 }
                             }
                             else
                             {
-                                slot_2 = _S315;
+                                slot_3 = _S347;
                             }
-                            (*outputs_1).inputs_0.subsurfaceRadius_0 = MaterialOperand_0(o_32, slot_2, header_5.constantBase_0).x;
+                            (*outputs_1).inputs_0.transmissionDispersionAbbeNumber_0 = MaterialOperand_0(o_32, slot_3, header_5.constantBase_0).x;
                         }
-                        var o_33 : u32 = MaterialWord_0(operands_1 + u32(3));
+                    }
+                case u32(4):
+                    {
+                        var o_33 : u32 = MaterialWord_0(operands_1);
                         if(o_33 != u32(4294967295))
                         {
                             if(((gMaterialOperandMode_0 & (u32(1)))) == u32(0))
@@ -8466,7 +8456,7 @@ fn RunMaterialProgram_1( header_5 : MaterialHeader_0,  program_2 : u32,  ctx_4 :
                             {
                                 if(((gMaterialOperandMode_0 & (u32(4)))) == u32(0))
                                 {
-                                    slot_2 = stack_3[(o_33 & (u32(15)))];
+                                    slot_3 = stack_1[(o_33 & (u32(15)))];
                                 }
                                 else
                                 {
@@ -8474,82 +8464,82 @@ fn RunMaterialProgram_1( header_5 : MaterialHeader_0,  program_2 : u32,  ctx_4 :
                                     {
                                     case u32(0):
                                         {
-                                            slot_2 = stack_3[i32(0)];
+                                            slot_3 = stack_1[i32(0)];
                                         }
                                     case u32(1):
                                         {
-                                            slot_2 = stack_3[i32(1)];
+                                            slot_3 = stack_1[i32(1)];
                                         }
                                     case u32(2):
                                         {
-                                            slot_2 = stack_3[i32(2)];
+                                            slot_3 = stack_1[i32(2)];
                                         }
                                     case u32(3):
                                         {
-                                            slot_2 = stack_3[i32(3)];
+                                            slot_3 = stack_1[i32(3)];
                                         }
                                     case u32(4):
                                         {
-                                            slot_2 = stack_3[i32(4)];
+                                            slot_3 = stack_1[i32(4)];
                                         }
                                     case u32(5):
                                         {
-                                            slot_2 = stack_3[i32(5)];
+                                            slot_3 = stack_1[i32(5)];
                                         }
                                     case u32(6):
                                         {
-                                            slot_2 = stack_3[i32(6)];
+                                            slot_3 = stack_1[i32(6)];
                                         }
                                     case u32(7):
                                         {
-                                            slot_2 = stack_3[i32(7)];
+                                            slot_3 = stack_1[i32(7)];
                                         }
                                     case u32(8):
                                         {
-                                            slot_2 = stack_3[i32(8)];
+                                            slot_3 = stack_1[i32(8)];
                                         }
                                     case u32(9):
                                         {
-                                            slot_2 = stack_3[i32(9)];
+                                            slot_3 = stack_1[i32(9)];
                                         }
                                     case u32(10):
                                         {
-                                            slot_2 = stack_3[i32(10)];
+                                            slot_3 = stack_1[i32(10)];
                                         }
                                     case u32(11):
                                         {
-                                            slot_2 = stack_3[i32(11)];
+                                            slot_3 = stack_1[i32(11)];
                                         }
                                     case u32(12):
                                         {
-                                            slot_2 = stack_3[i32(12)];
+                                            slot_3 = stack_1[i32(12)];
                                         }
                                     case u32(13):
                                         {
-                                            slot_2 = stack_3[i32(13)];
+                                            slot_3 = stack_1[i32(13)];
                                         }
                                     case u32(14):
                                         {
-                                            slot_2 = stack_3[i32(14)];
+                                            slot_3 = stack_1[i32(14)];
                                         }
                                     case u32(15):
                                         {
-                                            slot_2 = stack_3[i32(15)];
+                                            slot_3 = stack_1[i32(15)];
                                         }
                                     default :
                                         {
-                                            slot_2 = _S315;
+                                            slot_3 = _S347;
                                         }
                                     }
                                 }
                             }
                             else
                             {
-                                slot_2 = _S315;
+                                slot_3 = _S347;
                             }
-                            (*outputs_1).inputs_0.subsurfaceRadiusScale_0 = MaterialOperand_0(o_33, slot_2, header_5.constantBase_0).xyz;
+                            (*outputs_1).inputs_0.subsurfaceWeight_0 = MaterialOperand_0(o_33, slot_3, header_5.constantBase_0).x;
                         }
-                        var o_34 : u32 = MaterialWord_0(operands_1 + u32(4));
+                        var o_34 : u32 = MaterialWord_0(operands_1 + u32(1));
                         if(o_34 != u32(4294967295))
                         {
                             if(((gMaterialOperandMode_0 & (u32(1)))) == u32(0))
@@ -8564,7 +8554,7 @@ fn RunMaterialProgram_1( header_5 : MaterialHeader_0,  program_2 : u32,  ctx_4 :
                             {
                                 if(((gMaterialOperandMode_0 & (u32(4)))) == u32(0))
                                 {
-                                    slot_2 = stack_3[(o_34 & (u32(15)))];
+                                    slot_3 = stack_1[(o_34 & (u32(15)))];
                                 }
                                 else
                                 {
@@ -8572,85 +8562,82 @@ fn RunMaterialProgram_1( header_5 : MaterialHeader_0,  program_2 : u32,  ctx_4 :
                                     {
                                     case u32(0):
                                         {
-                                            slot_2 = stack_3[i32(0)];
+                                            slot_3 = stack_1[i32(0)];
                                         }
                                     case u32(1):
                                         {
-                                            slot_2 = stack_3[i32(1)];
+                                            slot_3 = stack_1[i32(1)];
                                         }
                                     case u32(2):
                                         {
-                                            slot_2 = stack_3[i32(2)];
+                                            slot_3 = stack_1[i32(2)];
                                         }
                                     case u32(3):
                                         {
-                                            slot_2 = stack_3[i32(3)];
+                                            slot_3 = stack_1[i32(3)];
                                         }
                                     case u32(4):
                                         {
-                                            slot_2 = stack_3[i32(4)];
+                                            slot_3 = stack_1[i32(4)];
                                         }
                                     case u32(5):
                                         {
-                                            slot_2 = stack_3[i32(5)];
+                                            slot_3 = stack_1[i32(5)];
                                         }
                                     case u32(6):
                                         {
-                                            slot_2 = stack_3[i32(6)];
+                                            slot_3 = stack_1[i32(6)];
                                         }
                                     case u32(7):
                                         {
-                                            slot_2 = stack_3[i32(7)];
+                                            slot_3 = stack_1[i32(7)];
                                         }
                                     case u32(8):
                                         {
-                                            slot_2 = stack_3[i32(8)];
+                                            slot_3 = stack_1[i32(8)];
                                         }
                                     case u32(9):
                                         {
-                                            slot_2 = stack_3[i32(9)];
+                                            slot_3 = stack_1[i32(9)];
                                         }
                                     case u32(10):
                                         {
-                                            slot_2 = stack_3[i32(10)];
+                                            slot_3 = stack_1[i32(10)];
                                         }
                                     case u32(11):
                                         {
-                                            slot_2 = stack_3[i32(11)];
+                                            slot_3 = stack_1[i32(11)];
                                         }
                                     case u32(12):
                                         {
-                                            slot_2 = stack_3[i32(12)];
+                                            slot_3 = stack_1[i32(12)];
                                         }
                                     case u32(13):
                                         {
-                                            slot_2 = stack_3[i32(13)];
+                                            slot_3 = stack_1[i32(13)];
                                         }
                                     case u32(14):
                                         {
-                                            slot_2 = stack_3[i32(14)];
+                                            slot_3 = stack_1[i32(14)];
                                         }
                                     case u32(15):
                                         {
-                                            slot_2 = stack_3[i32(15)];
+                                            slot_3 = stack_1[i32(15)];
                                         }
                                     default :
                                         {
-                                            slot_2 = _S315;
+                                            slot_3 = _S347;
                                         }
                                     }
                                 }
                             }
                             else
                             {
-                                slot_2 = _S315;
+                                slot_3 = _S347;
                             }
-                            (*outputs_1).inputs_0.subsurfaceScatterAnisotropy_0 = MaterialOperand_0(o_34, slot_2, header_5.constantBase_0).x;
+                            (*outputs_1).inputs_0.subsurfaceColor_0 = MaterialOperand_0(o_34, slot_3, header_5.constantBase_0).xyz;
                         }
-                    }
-                case u32(5):
-                    {
-                        var o_35 : u32 = MaterialWord_0(operands_1);
+                        var o_35 : u32 = MaterialWord_0(operands_1 + u32(2));
                         if(o_35 != u32(4294967295))
                         {
                             if(((gMaterialOperandMode_0 & (u32(1)))) == u32(0))
@@ -8665,7 +8652,7 @@ fn RunMaterialProgram_1( header_5 : MaterialHeader_0,  program_2 : u32,  ctx_4 :
                             {
                                 if(((gMaterialOperandMode_0 & (u32(4)))) == u32(0))
                                 {
-                                    slot_2 = stack_3[(o_35 & (u32(15)))];
+                                    slot_3 = stack_1[(o_35 & (u32(15)))];
                                 }
                                 else
                                 {
@@ -8673,82 +8660,82 @@ fn RunMaterialProgram_1( header_5 : MaterialHeader_0,  program_2 : u32,  ctx_4 :
                                     {
                                     case u32(0):
                                         {
-                                            slot_2 = stack_3[i32(0)];
+                                            slot_3 = stack_1[i32(0)];
                                         }
                                     case u32(1):
                                         {
-                                            slot_2 = stack_3[i32(1)];
+                                            slot_3 = stack_1[i32(1)];
                                         }
                                     case u32(2):
                                         {
-                                            slot_2 = stack_3[i32(2)];
+                                            slot_3 = stack_1[i32(2)];
                                         }
                                     case u32(3):
                                         {
-                                            slot_2 = stack_3[i32(3)];
+                                            slot_3 = stack_1[i32(3)];
                                         }
                                     case u32(4):
                                         {
-                                            slot_2 = stack_3[i32(4)];
+                                            slot_3 = stack_1[i32(4)];
                                         }
                                     case u32(5):
                                         {
-                                            slot_2 = stack_3[i32(5)];
+                                            slot_3 = stack_1[i32(5)];
                                         }
                                     case u32(6):
                                         {
-                                            slot_2 = stack_3[i32(6)];
+                                            slot_3 = stack_1[i32(6)];
                                         }
                                     case u32(7):
                                         {
-                                            slot_2 = stack_3[i32(7)];
+                                            slot_3 = stack_1[i32(7)];
                                         }
                                     case u32(8):
                                         {
-                                            slot_2 = stack_3[i32(8)];
+                                            slot_3 = stack_1[i32(8)];
                                         }
                                     case u32(9):
                                         {
-                                            slot_2 = stack_3[i32(9)];
+                                            slot_3 = stack_1[i32(9)];
                                         }
                                     case u32(10):
                                         {
-                                            slot_2 = stack_3[i32(10)];
+                                            slot_3 = stack_1[i32(10)];
                                         }
                                     case u32(11):
                                         {
-                                            slot_2 = stack_3[i32(11)];
+                                            slot_3 = stack_1[i32(11)];
                                         }
                                     case u32(12):
                                         {
-                                            slot_2 = stack_3[i32(12)];
+                                            slot_3 = stack_1[i32(12)];
                                         }
                                     case u32(13):
                                         {
-                                            slot_2 = stack_3[i32(13)];
+                                            slot_3 = stack_1[i32(13)];
                                         }
                                     case u32(14):
                                         {
-                                            slot_2 = stack_3[i32(14)];
+                                            slot_3 = stack_1[i32(14)];
                                         }
                                     case u32(15):
                                         {
-                                            slot_2 = stack_3[i32(15)];
+                                            slot_3 = stack_1[i32(15)];
                                         }
                                     default :
                                         {
-                                            slot_2 = _S315;
+                                            slot_3 = _S347;
                                         }
                                     }
                                 }
                             }
                             else
                             {
-                                slot_2 = _S315;
+                                slot_3 = _S347;
                             }
-                            (*outputs_1).inputs_0.coatWeight_0 = MaterialOperand_0(o_35, slot_2, header_5.constantBase_0).x;
+                            (*outputs_1).inputs_0.subsurfaceRadius_0 = MaterialOperand_0(o_35, slot_3, header_5.constantBase_0).x;
                         }
-                        var o_36 : u32 = MaterialWord_0(operands_1 + u32(1));
+                        var o_36 : u32 = MaterialWord_0(operands_1 + u32(3));
                         if(o_36 != u32(4294967295))
                         {
                             if(((gMaterialOperandMode_0 & (u32(1)))) == u32(0))
@@ -8763,7 +8750,7 @@ fn RunMaterialProgram_1( header_5 : MaterialHeader_0,  program_2 : u32,  ctx_4 :
                             {
                                 if(((gMaterialOperandMode_0 & (u32(4)))) == u32(0))
                                 {
-                                    slot_2 = stack_3[(o_36 & (u32(15)))];
+                                    slot_3 = stack_1[(o_36 & (u32(15)))];
                                 }
                                 else
                                 {
@@ -8771,82 +8758,82 @@ fn RunMaterialProgram_1( header_5 : MaterialHeader_0,  program_2 : u32,  ctx_4 :
                                     {
                                     case u32(0):
                                         {
-                                            slot_2 = stack_3[i32(0)];
+                                            slot_3 = stack_1[i32(0)];
                                         }
                                     case u32(1):
                                         {
-                                            slot_2 = stack_3[i32(1)];
+                                            slot_3 = stack_1[i32(1)];
                                         }
                                     case u32(2):
                                         {
-                                            slot_2 = stack_3[i32(2)];
+                                            slot_3 = stack_1[i32(2)];
                                         }
                                     case u32(3):
                                         {
-                                            slot_2 = stack_3[i32(3)];
+                                            slot_3 = stack_1[i32(3)];
                                         }
                                     case u32(4):
                                         {
-                                            slot_2 = stack_3[i32(4)];
+                                            slot_3 = stack_1[i32(4)];
                                         }
                                     case u32(5):
                                         {
-                                            slot_2 = stack_3[i32(5)];
+                                            slot_3 = stack_1[i32(5)];
                                         }
                                     case u32(6):
                                         {
-                                            slot_2 = stack_3[i32(6)];
+                                            slot_3 = stack_1[i32(6)];
                                         }
                                     case u32(7):
                                         {
-                                            slot_2 = stack_3[i32(7)];
+                                            slot_3 = stack_1[i32(7)];
                                         }
                                     case u32(8):
                                         {
-                                            slot_2 = stack_3[i32(8)];
+                                            slot_3 = stack_1[i32(8)];
                                         }
                                     case u32(9):
                                         {
-                                            slot_2 = stack_3[i32(9)];
+                                            slot_3 = stack_1[i32(9)];
                                         }
                                     case u32(10):
                                         {
-                                            slot_2 = stack_3[i32(10)];
+                                            slot_3 = stack_1[i32(10)];
                                         }
                                     case u32(11):
                                         {
-                                            slot_2 = stack_3[i32(11)];
+                                            slot_3 = stack_1[i32(11)];
                                         }
                                     case u32(12):
                                         {
-                                            slot_2 = stack_3[i32(12)];
+                                            slot_3 = stack_1[i32(12)];
                                         }
                                     case u32(13):
                                         {
-                                            slot_2 = stack_3[i32(13)];
+                                            slot_3 = stack_1[i32(13)];
                                         }
                                     case u32(14):
                                         {
-                                            slot_2 = stack_3[i32(14)];
+                                            slot_3 = stack_1[i32(14)];
                                         }
                                     case u32(15):
                                         {
-                                            slot_2 = stack_3[i32(15)];
+                                            slot_3 = stack_1[i32(15)];
                                         }
                                     default :
                                         {
-                                            slot_2 = _S315;
+                                            slot_3 = _S347;
                                         }
                                     }
                                 }
                             }
                             else
                             {
-                                slot_2 = _S315;
+                                slot_3 = _S347;
                             }
-                            (*outputs_1).inputs_0.coatColor_0 = MaterialOperand_0(o_36, slot_2, header_5.constantBase_0).xyz;
+                            (*outputs_1).inputs_0.subsurfaceRadiusScale_0 = MaterialOperand_0(o_36, slot_3, header_5.constantBase_0).xyz;
                         }
-                        var o_37 : u32 = MaterialWord_0(operands_1 + u32(2));
+                        var o_37 : u32 = MaterialWord_0(operands_1 + u32(4));
                         if(o_37 != u32(4294967295))
                         {
                             if(((gMaterialOperandMode_0 & (u32(1)))) == u32(0))
@@ -8861,7 +8848,7 @@ fn RunMaterialProgram_1( header_5 : MaterialHeader_0,  program_2 : u32,  ctx_4 :
                             {
                                 if(((gMaterialOperandMode_0 & (u32(4)))) == u32(0))
                                 {
-                                    slot_2 = stack_3[(o_37 & (u32(15)))];
+                                    slot_3 = stack_1[(o_37 & (u32(15)))];
                                 }
                                 else
                                 {
@@ -8869,82 +8856,85 @@ fn RunMaterialProgram_1( header_5 : MaterialHeader_0,  program_2 : u32,  ctx_4 :
                                     {
                                     case u32(0):
                                         {
-                                            slot_2 = stack_3[i32(0)];
+                                            slot_3 = stack_1[i32(0)];
                                         }
                                     case u32(1):
                                         {
-                                            slot_2 = stack_3[i32(1)];
+                                            slot_3 = stack_1[i32(1)];
                                         }
                                     case u32(2):
                                         {
-                                            slot_2 = stack_3[i32(2)];
+                                            slot_3 = stack_1[i32(2)];
                                         }
                                     case u32(3):
                                         {
-                                            slot_2 = stack_3[i32(3)];
+                                            slot_3 = stack_1[i32(3)];
                                         }
                                     case u32(4):
                                         {
-                                            slot_2 = stack_3[i32(4)];
+                                            slot_3 = stack_1[i32(4)];
                                         }
                                     case u32(5):
                                         {
-                                            slot_2 = stack_3[i32(5)];
+                                            slot_3 = stack_1[i32(5)];
                                         }
                                     case u32(6):
                                         {
-                                            slot_2 = stack_3[i32(6)];
+                                            slot_3 = stack_1[i32(6)];
                                         }
                                     case u32(7):
                                         {
-                                            slot_2 = stack_3[i32(7)];
+                                            slot_3 = stack_1[i32(7)];
                                         }
                                     case u32(8):
                                         {
-                                            slot_2 = stack_3[i32(8)];
+                                            slot_3 = stack_1[i32(8)];
                                         }
                                     case u32(9):
                                         {
-                                            slot_2 = stack_3[i32(9)];
+                                            slot_3 = stack_1[i32(9)];
                                         }
                                     case u32(10):
                                         {
-                                            slot_2 = stack_3[i32(10)];
+                                            slot_3 = stack_1[i32(10)];
                                         }
                                     case u32(11):
                                         {
-                                            slot_2 = stack_3[i32(11)];
+                                            slot_3 = stack_1[i32(11)];
                                         }
                                     case u32(12):
                                         {
-                                            slot_2 = stack_3[i32(12)];
+                                            slot_3 = stack_1[i32(12)];
                                         }
                                     case u32(13):
                                         {
-                                            slot_2 = stack_3[i32(13)];
+                                            slot_3 = stack_1[i32(13)];
                                         }
                                     case u32(14):
                                         {
-                                            slot_2 = stack_3[i32(14)];
+                                            slot_3 = stack_1[i32(14)];
                                         }
                                     case u32(15):
                                         {
-                                            slot_2 = stack_3[i32(15)];
+                                            slot_3 = stack_1[i32(15)];
                                         }
                                     default :
                                         {
-                                            slot_2 = _S315;
+                                            slot_3 = _S347;
                                         }
                                     }
                                 }
                             }
                             else
                             {
-                                slot_2 = _S315;
+                                slot_3 = _S347;
                             }
-                            (*outputs_1).inputs_0.coatRoughness_0 = MaterialOperand_0(o_37, slot_2, header_5.constantBase_0).x;
+                            (*outputs_1).inputs_0.subsurfaceScatterAnisotropy_0 = MaterialOperand_0(o_37, slot_3, header_5.constantBase_0).x;
                         }
-                        var o_38 : u32 = MaterialWord_0(operands_1 + u32(3));
+                    }
+                case u32(5):
+                    {
+                        var o_38 : u32 = MaterialWord_0(operands_1);
                         if(o_38 != u32(4294967295))
                         {
                             if(((gMaterialOperandMode_0 & (u32(1)))) == u32(0))
@@ -8959,7 +8949,7 @@ fn RunMaterialProgram_1( header_5 : MaterialHeader_0,  program_2 : u32,  ctx_4 :
                             {
                                 if(((gMaterialOperandMode_0 & (u32(4)))) == u32(0))
                                 {
-                                    slot_2 = stack_3[(o_38 & (u32(15)))];
+                                    slot_3 = stack_1[(o_38 & (u32(15)))];
                                 }
                                 else
                                 {
@@ -8967,82 +8957,82 @@ fn RunMaterialProgram_1( header_5 : MaterialHeader_0,  program_2 : u32,  ctx_4 :
                                     {
                                     case u32(0):
                                         {
-                                            slot_2 = stack_3[i32(0)];
+                                            slot_3 = stack_1[i32(0)];
                                         }
                                     case u32(1):
                                         {
-                                            slot_2 = stack_3[i32(1)];
+                                            slot_3 = stack_1[i32(1)];
                                         }
                                     case u32(2):
                                         {
-                                            slot_2 = stack_3[i32(2)];
+                                            slot_3 = stack_1[i32(2)];
                                         }
                                     case u32(3):
                                         {
-                                            slot_2 = stack_3[i32(3)];
+                                            slot_3 = stack_1[i32(3)];
                                         }
                                     case u32(4):
                                         {
-                                            slot_2 = stack_3[i32(4)];
+                                            slot_3 = stack_1[i32(4)];
                                         }
                                     case u32(5):
                                         {
-                                            slot_2 = stack_3[i32(5)];
+                                            slot_3 = stack_1[i32(5)];
                                         }
                                     case u32(6):
                                         {
-                                            slot_2 = stack_3[i32(6)];
+                                            slot_3 = stack_1[i32(6)];
                                         }
                                     case u32(7):
                                         {
-                                            slot_2 = stack_3[i32(7)];
+                                            slot_3 = stack_1[i32(7)];
                                         }
                                     case u32(8):
                                         {
-                                            slot_2 = stack_3[i32(8)];
+                                            slot_3 = stack_1[i32(8)];
                                         }
                                     case u32(9):
                                         {
-                                            slot_2 = stack_3[i32(9)];
+                                            slot_3 = stack_1[i32(9)];
                                         }
                                     case u32(10):
                                         {
-                                            slot_2 = stack_3[i32(10)];
+                                            slot_3 = stack_1[i32(10)];
                                         }
                                     case u32(11):
                                         {
-                                            slot_2 = stack_3[i32(11)];
+                                            slot_3 = stack_1[i32(11)];
                                         }
                                     case u32(12):
                                         {
-                                            slot_2 = stack_3[i32(12)];
+                                            slot_3 = stack_1[i32(12)];
                                         }
                                     case u32(13):
                                         {
-                                            slot_2 = stack_3[i32(13)];
+                                            slot_3 = stack_1[i32(13)];
                                         }
                                     case u32(14):
                                         {
-                                            slot_2 = stack_3[i32(14)];
+                                            slot_3 = stack_1[i32(14)];
                                         }
                                     case u32(15):
                                         {
-                                            slot_2 = stack_3[i32(15)];
+                                            slot_3 = stack_1[i32(15)];
                                         }
                                     default :
                                         {
-                                            slot_2 = _S315;
+                                            slot_3 = _S347;
                                         }
                                     }
                                 }
                             }
                             else
                             {
-                                slot_2 = _S315;
+                                slot_3 = _S347;
                             }
-                            (*outputs_1).inputs_0.coatRoughnessAnisotropy_0 = MaterialOperand_0(o_38, slot_2, header_5.constantBase_0).x;
+                            (*outputs_1).inputs_0.coatWeight_0 = MaterialOperand_0(o_38, slot_3, header_5.constantBase_0).x;
                         }
-                        var o_39 : u32 = MaterialWord_0(operands_1 + u32(4));
+                        var o_39 : u32 = MaterialWord_0(operands_1 + u32(1));
                         if(o_39 != u32(4294967295))
                         {
                             if(((gMaterialOperandMode_0 & (u32(1)))) == u32(0))
@@ -9057,7 +9047,7 @@ fn RunMaterialProgram_1( header_5 : MaterialHeader_0,  program_2 : u32,  ctx_4 :
                             {
                                 if(((gMaterialOperandMode_0 & (u32(4)))) == u32(0))
                                 {
-                                    slot_2 = stack_3[(o_39 & (u32(15)))];
+                                    slot_3 = stack_1[(o_39 & (u32(15)))];
                                 }
                                 else
                                 {
@@ -9065,82 +9055,82 @@ fn RunMaterialProgram_1( header_5 : MaterialHeader_0,  program_2 : u32,  ctx_4 :
                                     {
                                     case u32(0):
                                         {
-                                            slot_2 = stack_3[i32(0)];
+                                            slot_3 = stack_1[i32(0)];
                                         }
                                     case u32(1):
                                         {
-                                            slot_2 = stack_3[i32(1)];
+                                            slot_3 = stack_1[i32(1)];
                                         }
                                     case u32(2):
                                         {
-                                            slot_2 = stack_3[i32(2)];
+                                            slot_3 = stack_1[i32(2)];
                                         }
                                     case u32(3):
                                         {
-                                            slot_2 = stack_3[i32(3)];
+                                            slot_3 = stack_1[i32(3)];
                                         }
                                     case u32(4):
                                         {
-                                            slot_2 = stack_3[i32(4)];
+                                            slot_3 = stack_1[i32(4)];
                                         }
                                     case u32(5):
                                         {
-                                            slot_2 = stack_3[i32(5)];
+                                            slot_3 = stack_1[i32(5)];
                                         }
                                     case u32(6):
                                         {
-                                            slot_2 = stack_3[i32(6)];
+                                            slot_3 = stack_1[i32(6)];
                                         }
                                     case u32(7):
                                         {
-                                            slot_2 = stack_3[i32(7)];
+                                            slot_3 = stack_1[i32(7)];
                                         }
                                     case u32(8):
                                         {
-                                            slot_2 = stack_3[i32(8)];
+                                            slot_3 = stack_1[i32(8)];
                                         }
                                     case u32(9):
                                         {
-                                            slot_2 = stack_3[i32(9)];
+                                            slot_3 = stack_1[i32(9)];
                                         }
                                     case u32(10):
                                         {
-                                            slot_2 = stack_3[i32(10)];
+                                            slot_3 = stack_1[i32(10)];
                                         }
                                     case u32(11):
                                         {
-                                            slot_2 = stack_3[i32(11)];
+                                            slot_3 = stack_1[i32(11)];
                                         }
                                     case u32(12):
                                         {
-                                            slot_2 = stack_3[i32(12)];
+                                            slot_3 = stack_1[i32(12)];
                                         }
                                     case u32(13):
                                         {
-                                            slot_2 = stack_3[i32(13)];
+                                            slot_3 = stack_1[i32(13)];
                                         }
                                     case u32(14):
                                         {
-                                            slot_2 = stack_3[i32(14)];
+                                            slot_3 = stack_1[i32(14)];
                                         }
                                     case u32(15):
                                         {
-                                            slot_2 = stack_3[i32(15)];
+                                            slot_3 = stack_1[i32(15)];
                                         }
                                     default :
                                         {
-                                            slot_2 = _S315;
+                                            slot_3 = _S347;
                                         }
                                     }
                                 }
                             }
                             else
                             {
-                                slot_2 = _S315;
+                                slot_3 = _S347;
                             }
-                            (*outputs_1).inputs_0.coatIor_0 = MaterialOperand_0(o_39, slot_2, header_5.constantBase_0).x;
+                            (*outputs_1).inputs_0.coatColor_0 = MaterialOperand_0(o_39, slot_3, header_5.constantBase_0).xyz;
                         }
-                        var o_40 : u32 = MaterialWord_0(operands_1 + u32(5));
+                        var o_40 : u32 = MaterialWord_0(operands_1 + u32(2));
                         if(o_40 != u32(4294967295))
                         {
                             if(((gMaterialOperandMode_0 & (u32(1)))) == u32(0))
@@ -9155,7 +9145,7 @@ fn RunMaterialProgram_1( header_5 : MaterialHeader_0,  program_2 : u32,  ctx_4 :
                             {
                                 if(((gMaterialOperandMode_0 & (u32(4)))) == u32(0))
                                 {
-                                    slot_2 = stack_3[(o_40 & (u32(15)))];
+                                    slot_3 = stack_1[(o_40 & (u32(15)))];
                                 }
                                 else
                                 {
@@ -9163,82 +9153,82 @@ fn RunMaterialProgram_1( header_5 : MaterialHeader_0,  program_2 : u32,  ctx_4 :
                                     {
                                     case u32(0):
                                         {
-                                            slot_2 = stack_3[i32(0)];
+                                            slot_3 = stack_1[i32(0)];
                                         }
                                     case u32(1):
                                         {
-                                            slot_2 = stack_3[i32(1)];
+                                            slot_3 = stack_1[i32(1)];
                                         }
                                     case u32(2):
                                         {
-                                            slot_2 = stack_3[i32(2)];
+                                            slot_3 = stack_1[i32(2)];
                                         }
                                     case u32(3):
                                         {
-                                            slot_2 = stack_3[i32(3)];
+                                            slot_3 = stack_1[i32(3)];
                                         }
                                     case u32(4):
                                         {
-                                            slot_2 = stack_3[i32(4)];
+                                            slot_3 = stack_1[i32(4)];
                                         }
                                     case u32(5):
                                         {
-                                            slot_2 = stack_3[i32(5)];
+                                            slot_3 = stack_1[i32(5)];
                                         }
                                     case u32(6):
                                         {
-                                            slot_2 = stack_3[i32(6)];
+                                            slot_3 = stack_1[i32(6)];
                                         }
                                     case u32(7):
                                         {
-                                            slot_2 = stack_3[i32(7)];
+                                            slot_3 = stack_1[i32(7)];
                                         }
                                     case u32(8):
                                         {
-                                            slot_2 = stack_3[i32(8)];
+                                            slot_3 = stack_1[i32(8)];
                                         }
                                     case u32(9):
                                         {
-                                            slot_2 = stack_3[i32(9)];
+                                            slot_3 = stack_1[i32(9)];
                                         }
                                     case u32(10):
                                         {
-                                            slot_2 = stack_3[i32(10)];
+                                            slot_3 = stack_1[i32(10)];
                                         }
                                     case u32(11):
                                         {
-                                            slot_2 = stack_3[i32(11)];
+                                            slot_3 = stack_1[i32(11)];
                                         }
                                     case u32(12):
                                         {
-                                            slot_2 = stack_3[i32(12)];
+                                            slot_3 = stack_1[i32(12)];
                                         }
                                     case u32(13):
                                         {
-                                            slot_2 = stack_3[i32(13)];
+                                            slot_3 = stack_1[i32(13)];
                                         }
                                     case u32(14):
                                         {
-                                            slot_2 = stack_3[i32(14)];
+                                            slot_3 = stack_1[i32(14)];
                                         }
                                     case u32(15):
                                         {
-                                            slot_2 = stack_3[i32(15)];
+                                            slot_3 = stack_1[i32(15)];
                                         }
                                     default :
                                         {
-                                            slot_2 = _S315;
+                                            slot_3 = _S347;
                                         }
                                     }
                                 }
                             }
                             else
                             {
-                                slot_2 = _S315;
+                                slot_3 = _S347;
                             }
-                            (*outputs_1).inputs_0.coatDarkening_0 = MaterialOperand_0(o_40, slot_2, header_5.constantBase_0).x;
+                            (*outputs_1).inputs_0.coatRoughness_0 = MaterialOperand_0(o_40, slot_3, header_5.constantBase_0).x;
                         }
-                        var o_41 : u32 = MaterialWord_0(operands_1 + u32(6));
+                        var o_41 : u32 = MaterialWord_0(operands_1 + u32(3));
                         if(o_41 != u32(4294967295))
                         {
                             if(((gMaterialOperandMode_0 & (u32(1)))) == u32(0))
@@ -9253,7 +9243,7 @@ fn RunMaterialProgram_1( header_5 : MaterialHeader_0,  program_2 : u32,  ctx_4 :
                             {
                                 if(((gMaterialOperandMode_0 & (u32(4)))) == u32(0))
                                 {
-                                    slot_2 = stack_3[(o_41 & (u32(15)))];
+                                    slot_3 = stack_1[(o_41 & (u32(15)))];
                                 }
                                 else
                                 {
@@ -9261,82 +9251,82 @@ fn RunMaterialProgram_1( header_5 : MaterialHeader_0,  program_2 : u32,  ctx_4 :
                                     {
                                     case u32(0):
                                         {
-                                            slot_2 = stack_3[i32(0)];
+                                            slot_3 = stack_1[i32(0)];
                                         }
                                     case u32(1):
                                         {
-                                            slot_2 = stack_3[i32(1)];
+                                            slot_3 = stack_1[i32(1)];
                                         }
                                     case u32(2):
                                         {
-                                            slot_2 = stack_3[i32(2)];
+                                            slot_3 = stack_1[i32(2)];
                                         }
                                     case u32(3):
                                         {
-                                            slot_2 = stack_3[i32(3)];
+                                            slot_3 = stack_1[i32(3)];
                                         }
                                     case u32(4):
                                         {
-                                            slot_2 = stack_3[i32(4)];
+                                            slot_3 = stack_1[i32(4)];
                                         }
                                     case u32(5):
                                         {
-                                            slot_2 = stack_3[i32(5)];
+                                            slot_3 = stack_1[i32(5)];
                                         }
                                     case u32(6):
                                         {
-                                            slot_2 = stack_3[i32(6)];
+                                            slot_3 = stack_1[i32(6)];
                                         }
                                     case u32(7):
                                         {
-                                            slot_2 = stack_3[i32(7)];
+                                            slot_3 = stack_1[i32(7)];
                                         }
                                     case u32(8):
                                         {
-                                            slot_2 = stack_3[i32(8)];
+                                            slot_3 = stack_1[i32(8)];
                                         }
                                     case u32(9):
                                         {
-                                            slot_2 = stack_3[i32(9)];
+                                            slot_3 = stack_1[i32(9)];
                                         }
                                     case u32(10):
                                         {
-                                            slot_2 = stack_3[i32(10)];
+                                            slot_3 = stack_1[i32(10)];
                                         }
                                     case u32(11):
                                         {
-                                            slot_2 = stack_3[i32(11)];
+                                            slot_3 = stack_1[i32(11)];
                                         }
                                     case u32(12):
                                         {
-                                            slot_2 = stack_3[i32(12)];
+                                            slot_3 = stack_1[i32(12)];
                                         }
                                     case u32(13):
                                         {
-                                            slot_2 = stack_3[i32(13)];
+                                            slot_3 = stack_1[i32(13)];
                                         }
                                     case u32(14):
                                         {
-                                            slot_2 = stack_3[i32(14)];
+                                            slot_3 = stack_1[i32(14)];
                                         }
                                     case u32(15):
                                         {
-                                            slot_2 = stack_3[i32(15)];
+                                            slot_3 = stack_1[i32(15)];
                                         }
                                     default :
                                         {
-                                            slot_2 = _S315;
+                                            slot_3 = _S347;
                                         }
                                     }
                                 }
                             }
                             else
                             {
-                                slot_2 = _S315;
+                                slot_3 = _S347;
                             }
-                            (*outputs_1).coatNormal_0 = MaterialOperand_0(o_41, slot_2, header_5.constantBase_0).xyz;
+                            (*outputs_1).inputs_0.coatRoughnessAnisotropy_0 = MaterialOperand_0(o_41, slot_3, header_5.constantBase_0).x;
                         }
-                        var o_42 : u32 = MaterialWord_0(operands_1 + u32(7));
+                        var o_42 : u32 = MaterialWord_0(operands_1 + u32(4));
                         if(o_42 != u32(4294967295))
                         {
                             if(((gMaterialOperandMode_0 & (u32(1)))) == u32(0))
@@ -9351,7 +9341,7 @@ fn RunMaterialProgram_1( header_5 : MaterialHeader_0,  program_2 : u32,  ctx_4 :
                             {
                                 if(((gMaterialOperandMode_0 & (u32(4)))) == u32(0))
                                 {
-                                    slot_2 = stack_3[(o_42 & (u32(15)))];
+                                    slot_3 = stack_1[(o_42 & (u32(15)))];
                                 }
                                 else
                                 {
@@ -9359,85 +9349,82 @@ fn RunMaterialProgram_1( header_5 : MaterialHeader_0,  program_2 : u32,  ctx_4 :
                                     {
                                     case u32(0):
                                         {
-                                            slot_2 = stack_3[i32(0)];
+                                            slot_3 = stack_1[i32(0)];
                                         }
                                     case u32(1):
                                         {
-                                            slot_2 = stack_3[i32(1)];
+                                            slot_3 = stack_1[i32(1)];
                                         }
                                     case u32(2):
                                         {
-                                            slot_2 = stack_3[i32(2)];
+                                            slot_3 = stack_1[i32(2)];
                                         }
                                     case u32(3):
                                         {
-                                            slot_2 = stack_3[i32(3)];
+                                            slot_3 = stack_1[i32(3)];
                                         }
                                     case u32(4):
                                         {
-                                            slot_2 = stack_3[i32(4)];
+                                            slot_3 = stack_1[i32(4)];
                                         }
                                     case u32(5):
                                         {
-                                            slot_2 = stack_3[i32(5)];
+                                            slot_3 = stack_1[i32(5)];
                                         }
                                     case u32(6):
                                         {
-                                            slot_2 = stack_3[i32(6)];
+                                            slot_3 = stack_1[i32(6)];
                                         }
                                     case u32(7):
                                         {
-                                            slot_2 = stack_3[i32(7)];
+                                            slot_3 = stack_1[i32(7)];
                                         }
                                     case u32(8):
                                         {
-                                            slot_2 = stack_3[i32(8)];
+                                            slot_3 = stack_1[i32(8)];
                                         }
                                     case u32(9):
                                         {
-                                            slot_2 = stack_3[i32(9)];
+                                            slot_3 = stack_1[i32(9)];
                                         }
                                     case u32(10):
                                         {
-                                            slot_2 = stack_3[i32(10)];
+                                            slot_3 = stack_1[i32(10)];
                                         }
                                     case u32(11):
                                         {
-                                            slot_2 = stack_3[i32(11)];
+                                            slot_3 = stack_1[i32(11)];
                                         }
                                     case u32(12):
                                         {
-                                            slot_2 = stack_3[i32(12)];
+                                            slot_3 = stack_1[i32(12)];
                                         }
                                     case u32(13):
                                         {
-                                            slot_2 = stack_3[i32(13)];
+                                            slot_3 = stack_1[i32(13)];
                                         }
                                     case u32(14):
                                         {
-                                            slot_2 = stack_3[i32(14)];
+                                            slot_3 = stack_1[i32(14)];
                                         }
                                     case u32(15):
                                         {
-                                            slot_2 = stack_3[i32(15)];
+                                            slot_3 = stack_1[i32(15)];
                                         }
                                     default :
                                         {
-                                            slot_2 = _S315;
+                                            slot_3 = _S347;
                                         }
                                     }
                                 }
                             }
                             else
                             {
-                                slot_2 = _S315;
+                                slot_3 = _S347;
                             }
-                            (*outputs_1).coatTangent_0 = MaterialOperand_0(o_42, slot_2, header_5.constantBase_0).xyz;
+                            (*outputs_1).inputs_0.coatIor_0 = MaterialOperand_0(o_42, slot_3, header_5.constantBase_0).x;
                         }
-                    }
-                case u32(6):
-                    {
-                        var o_43 : u32 = MaterialWord_0(operands_1);
+                        var o_43 : u32 = MaterialWord_0(operands_1 + u32(5));
                         if(o_43 != u32(4294967295))
                         {
                             if(((gMaterialOperandMode_0 & (u32(1)))) == u32(0))
@@ -9452,7 +9439,7 @@ fn RunMaterialProgram_1( header_5 : MaterialHeader_0,  program_2 : u32,  ctx_4 :
                             {
                                 if(((gMaterialOperandMode_0 & (u32(4)))) == u32(0))
                                 {
-                                    slot_2 = stack_3[(o_43 & (u32(15)))];
+                                    slot_3 = stack_1[(o_43 & (u32(15)))];
                                 }
                                 else
                                 {
@@ -9460,82 +9447,82 @@ fn RunMaterialProgram_1( header_5 : MaterialHeader_0,  program_2 : u32,  ctx_4 :
                                     {
                                     case u32(0):
                                         {
-                                            slot_2 = stack_3[i32(0)];
+                                            slot_3 = stack_1[i32(0)];
                                         }
                                     case u32(1):
                                         {
-                                            slot_2 = stack_3[i32(1)];
+                                            slot_3 = stack_1[i32(1)];
                                         }
                                     case u32(2):
                                         {
-                                            slot_2 = stack_3[i32(2)];
+                                            slot_3 = stack_1[i32(2)];
                                         }
                                     case u32(3):
                                         {
-                                            slot_2 = stack_3[i32(3)];
+                                            slot_3 = stack_1[i32(3)];
                                         }
                                     case u32(4):
                                         {
-                                            slot_2 = stack_3[i32(4)];
+                                            slot_3 = stack_1[i32(4)];
                                         }
                                     case u32(5):
                                         {
-                                            slot_2 = stack_3[i32(5)];
+                                            slot_3 = stack_1[i32(5)];
                                         }
                                     case u32(6):
                                         {
-                                            slot_2 = stack_3[i32(6)];
+                                            slot_3 = stack_1[i32(6)];
                                         }
                                     case u32(7):
                                         {
-                                            slot_2 = stack_3[i32(7)];
+                                            slot_3 = stack_1[i32(7)];
                                         }
                                     case u32(8):
                                         {
-                                            slot_2 = stack_3[i32(8)];
+                                            slot_3 = stack_1[i32(8)];
                                         }
                                     case u32(9):
                                         {
-                                            slot_2 = stack_3[i32(9)];
+                                            slot_3 = stack_1[i32(9)];
                                         }
                                     case u32(10):
                                         {
-                                            slot_2 = stack_3[i32(10)];
+                                            slot_3 = stack_1[i32(10)];
                                         }
                                     case u32(11):
                                         {
-                                            slot_2 = stack_3[i32(11)];
+                                            slot_3 = stack_1[i32(11)];
                                         }
                                     case u32(12):
                                         {
-                                            slot_2 = stack_3[i32(12)];
+                                            slot_3 = stack_1[i32(12)];
                                         }
                                     case u32(13):
                                         {
-                                            slot_2 = stack_3[i32(13)];
+                                            slot_3 = stack_1[i32(13)];
                                         }
                                     case u32(14):
                                         {
-                                            slot_2 = stack_3[i32(14)];
+                                            slot_3 = stack_1[i32(14)];
                                         }
                                     case u32(15):
                                         {
-                                            slot_2 = stack_3[i32(15)];
+                                            slot_3 = stack_1[i32(15)];
                                         }
                                     default :
                                         {
-                                            slot_2 = _S315;
+                                            slot_3 = _S347;
                                         }
                                     }
                                 }
                             }
                             else
                             {
-                                slot_2 = _S315;
+                                slot_3 = _S347;
                             }
-                            (*outputs_1).inputs_0.fuzzWeight_0 = MaterialOperand_0(o_43, slot_2, header_5.constantBase_0).x;
+                            (*outputs_1).inputs_0.coatDarkening_0 = MaterialOperand_0(o_43, slot_3, header_5.constantBase_0).x;
                         }
-                        var o_44 : u32 = MaterialWord_0(operands_1 + u32(1));
+                        var o_44 : u32 = MaterialWord_0(operands_1 + u32(6));
                         if(o_44 != u32(4294967295))
                         {
                             if(((gMaterialOperandMode_0 & (u32(1)))) == u32(0))
@@ -9550,7 +9537,7 @@ fn RunMaterialProgram_1( header_5 : MaterialHeader_0,  program_2 : u32,  ctx_4 :
                             {
                                 if(((gMaterialOperandMode_0 & (u32(4)))) == u32(0))
                                 {
-                                    slot_2 = stack_3[(o_44 & (u32(15)))];
+                                    slot_3 = stack_1[(o_44 & (u32(15)))];
                                 }
                                 else
                                 {
@@ -9558,82 +9545,82 @@ fn RunMaterialProgram_1( header_5 : MaterialHeader_0,  program_2 : u32,  ctx_4 :
                                     {
                                     case u32(0):
                                         {
-                                            slot_2 = stack_3[i32(0)];
+                                            slot_3 = stack_1[i32(0)];
                                         }
                                     case u32(1):
                                         {
-                                            slot_2 = stack_3[i32(1)];
+                                            slot_3 = stack_1[i32(1)];
                                         }
                                     case u32(2):
                                         {
-                                            slot_2 = stack_3[i32(2)];
+                                            slot_3 = stack_1[i32(2)];
                                         }
                                     case u32(3):
                                         {
-                                            slot_2 = stack_3[i32(3)];
+                                            slot_3 = stack_1[i32(3)];
                                         }
                                     case u32(4):
                                         {
-                                            slot_2 = stack_3[i32(4)];
+                                            slot_3 = stack_1[i32(4)];
                                         }
                                     case u32(5):
                                         {
-                                            slot_2 = stack_3[i32(5)];
+                                            slot_3 = stack_1[i32(5)];
                                         }
                                     case u32(6):
                                         {
-                                            slot_2 = stack_3[i32(6)];
+                                            slot_3 = stack_1[i32(6)];
                                         }
                                     case u32(7):
                                         {
-                                            slot_2 = stack_3[i32(7)];
+                                            slot_3 = stack_1[i32(7)];
                                         }
                                     case u32(8):
                                         {
-                                            slot_2 = stack_3[i32(8)];
+                                            slot_3 = stack_1[i32(8)];
                                         }
                                     case u32(9):
                                         {
-                                            slot_2 = stack_3[i32(9)];
+                                            slot_3 = stack_1[i32(9)];
                                         }
                                     case u32(10):
                                         {
-                                            slot_2 = stack_3[i32(10)];
+                                            slot_3 = stack_1[i32(10)];
                                         }
                                     case u32(11):
                                         {
-                                            slot_2 = stack_3[i32(11)];
+                                            slot_3 = stack_1[i32(11)];
                                         }
                                     case u32(12):
                                         {
-                                            slot_2 = stack_3[i32(12)];
+                                            slot_3 = stack_1[i32(12)];
                                         }
                                     case u32(13):
                                         {
-                                            slot_2 = stack_3[i32(13)];
+                                            slot_3 = stack_1[i32(13)];
                                         }
                                     case u32(14):
                                         {
-                                            slot_2 = stack_3[i32(14)];
+                                            slot_3 = stack_1[i32(14)];
                                         }
                                     case u32(15):
                                         {
-                                            slot_2 = stack_3[i32(15)];
+                                            slot_3 = stack_1[i32(15)];
                                         }
                                     default :
                                         {
-                                            slot_2 = _S315;
+                                            slot_3 = _S347;
                                         }
                                     }
                                 }
                             }
                             else
                             {
-                                slot_2 = _S315;
+                                slot_3 = _S347;
                             }
-                            (*outputs_1).inputs_0.fuzzColor_0 = MaterialOperand_0(o_44, slot_2, header_5.constantBase_0).xyz;
+                            (*outputs_1).coatNormal_0 = MaterialOperand_0(o_44, slot_3, header_5.constantBase_0).xyz;
                         }
-                        var o_45 : u32 = MaterialWord_0(operands_1 + u32(2));
+                        var o_45 : u32 = MaterialWord_0(operands_1 + u32(7));
                         if(o_45 != u32(4294967295))
                         {
                             if(((gMaterialOperandMode_0 & (u32(1)))) == u32(0))
@@ -9648,7 +9635,7 @@ fn RunMaterialProgram_1( header_5 : MaterialHeader_0,  program_2 : u32,  ctx_4 :
                             {
                                 if(((gMaterialOperandMode_0 & (u32(4)))) == u32(0))
                                 {
-                                    slot_2 = stack_3[(o_45 & (u32(15)))];
+                                    slot_3 = stack_1[(o_45 & (u32(15)))];
                                 }
                                 else
                                 {
@@ -9656,83 +9643,83 @@ fn RunMaterialProgram_1( header_5 : MaterialHeader_0,  program_2 : u32,  ctx_4 :
                                     {
                                     case u32(0):
                                         {
-                                            slot_2 = stack_3[i32(0)];
+                                            slot_3 = stack_1[i32(0)];
                                         }
                                     case u32(1):
                                         {
-                                            slot_2 = stack_3[i32(1)];
+                                            slot_3 = stack_1[i32(1)];
                                         }
                                     case u32(2):
                                         {
-                                            slot_2 = stack_3[i32(2)];
+                                            slot_3 = stack_1[i32(2)];
                                         }
                                     case u32(3):
                                         {
-                                            slot_2 = stack_3[i32(3)];
+                                            slot_3 = stack_1[i32(3)];
                                         }
                                     case u32(4):
                                         {
-                                            slot_2 = stack_3[i32(4)];
+                                            slot_3 = stack_1[i32(4)];
                                         }
                                     case u32(5):
                                         {
-                                            slot_2 = stack_3[i32(5)];
+                                            slot_3 = stack_1[i32(5)];
                                         }
                                     case u32(6):
                                         {
-                                            slot_2 = stack_3[i32(6)];
+                                            slot_3 = stack_1[i32(6)];
                                         }
                                     case u32(7):
                                         {
-                                            slot_2 = stack_3[i32(7)];
+                                            slot_3 = stack_1[i32(7)];
                                         }
                                     case u32(8):
                                         {
-                                            slot_2 = stack_3[i32(8)];
+                                            slot_3 = stack_1[i32(8)];
                                         }
                                     case u32(9):
                                         {
-                                            slot_2 = stack_3[i32(9)];
+                                            slot_3 = stack_1[i32(9)];
                                         }
                                     case u32(10):
                                         {
-                                            slot_2 = stack_3[i32(10)];
+                                            slot_3 = stack_1[i32(10)];
                                         }
                                     case u32(11):
                                         {
-                                            slot_2 = stack_3[i32(11)];
+                                            slot_3 = stack_1[i32(11)];
                                         }
                                     case u32(12):
                                         {
-                                            slot_2 = stack_3[i32(12)];
+                                            slot_3 = stack_1[i32(12)];
                                         }
                                     case u32(13):
                                         {
-                                            slot_2 = stack_3[i32(13)];
+                                            slot_3 = stack_1[i32(13)];
                                         }
                                     case u32(14):
                                         {
-                                            slot_2 = stack_3[i32(14)];
+                                            slot_3 = stack_1[i32(14)];
                                         }
                                     case u32(15):
                                         {
-                                            slot_2 = stack_3[i32(15)];
+                                            slot_3 = stack_1[i32(15)];
                                         }
                                     default :
                                         {
-                                            slot_2 = _S315;
+                                            slot_3 = _S347;
                                         }
                                     }
                                 }
                             }
                             else
                             {
-                                slot_2 = _S315;
+                                slot_3 = _S347;
                             }
-                            (*outputs_1).inputs_0.fuzzRoughness_0 = MaterialOperand_0(o_45, slot_2, header_5.constantBase_0).x;
+                            (*outputs_1).coatTangent_0 = MaterialOperand_0(o_45, slot_3, header_5.constantBase_0).xyz;
                         }
                     }
-                case u32(7):
+                case u32(6):
                     {
                         var o_46 : u32 = MaterialWord_0(operands_1);
                         if(o_46 != u32(4294967295))
@@ -9749,7 +9736,7 @@ fn RunMaterialProgram_1( header_5 : MaterialHeader_0,  program_2 : u32,  ctx_4 :
                             {
                                 if(((gMaterialOperandMode_0 & (u32(4)))) == u32(0))
                                 {
-                                    slot_2 = stack_3[(o_46 & (u32(15)))];
+                                    slot_3 = stack_1[(o_46 & (u32(15)))];
                                 }
                                 else
                                 {
@@ -9757,80 +9744,80 @@ fn RunMaterialProgram_1( header_5 : MaterialHeader_0,  program_2 : u32,  ctx_4 :
                                     {
                                     case u32(0):
                                         {
-                                            slot_2 = stack_3[i32(0)];
+                                            slot_3 = stack_1[i32(0)];
                                         }
                                     case u32(1):
                                         {
-                                            slot_2 = stack_3[i32(1)];
+                                            slot_3 = stack_1[i32(1)];
                                         }
                                     case u32(2):
                                         {
-                                            slot_2 = stack_3[i32(2)];
+                                            slot_3 = stack_1[i32(2)];
                                         }
                                     case u32(3):
                                         {
-                                            slot_2 = stack_3[i32(3)];
+                                            slot_3 = stack_1[i32(3)];
                                         }
                                     case u32(4):
                                         {
-                                            slot_2 = stack_3[i32(4)];
+                                            slot_3 = stack_1[i32(4)];
                                         }
                                     case u32(5):
                                         {
-                                            slot_2 = stack_3[i32(5)];
+                                            slot_3 = stack_1[i32(5)];
                                         }
                                     case u32(6):
                                         {
-                                            slot_2 = stack_3[i32(6)];
+                                            slot_3 = stack_1[i32(6)];
                                         }
                                     case u32(7):
                                         {
-                                            slot_2 = stack_3[i32(7)];
+                                            slot_3 = stack_1[i32(7)];
                                         }
                                     case u32(8):
                                         {
-                                            slot_2 = stack_3[i32(8)];
+                                            slot_3 = stack_1[i32(8)];
                                         }
                                     case u32(9):
                                         {
-                                            slot_2 = stack_3[i32(9)];
+                                            slot_3 = stack_1[i32(9)];
                                         }
                                     case u32(10):
                                         {
-                                            slot_2 = stack_3[i32(10)];
+                                            slot_3 = stack_1[i32(10)];
                                         }
                                     case u32(11):
                                         {
-                                            slot_2 = stack_3[i32(11)];
+                                            slot_3 = stack_1[i32(11)];
                                         }
                                     case u32(12):
                                         {
-                                            slot_2 = stack_3[i32(12)];
+                                            slot_3 = stack_1[i32(12)];
                                         }
                                     case u32(13):
                                         {
-                                            slot_2 = stack_3[i32(13)];
+                                            slot_3 = stack_1[i32(13)];
                                         }
                                     case u32(14):
                                         {
-                                            slot_2 = stack_3[i32(14)];
+                                            slot_3 = stack_1[i32(14)];
                                         }
                                     case u32(15):
                                         {
-                                            slot_2 = stack_3[i32(15)];
+                                            slot_3 = stack_1[i32(15)];
                                         }
                                     default :
                                         {
-                                            slot_2 = _S315;
+                                            slot_3 = _S347;
                                         }
                                     }
                                 }
                             }
                             else
                             {
-                                slot_2 = _S315;
+                                slot_3 = _S347;
                             }
-                            (*outputs_1).inputs_0.thinFilmWeight_1 = MaterialOperand_0(o_46, slot_2, header_5.constantBase_0).x;
+                            (*outputs_1).inputs_0.fuzzWeight_0 = MaterialOperand_0(o_46, slot_3, header_5.constantBase_0).x;
                         }
                         var o_47 : u32 = MaterialWord_0(operands_1 + u32(1));
                         if(o_47 != u32(4294967295))
@@ -9847,7 +9834,7 @@ fn RunMaterialProgram_1( header_5 : MaterialHeader_0,  program_2 : u32,  ctx_4 :
                             {
                                 if(((gMaterialOperandMode_0 & (u32(4)))) == u32(0))
                                 {
-                                    slot_2 = stack_3[(o_47 & (u32(15)))];
+                                    slot_3 = stack_1[(o_47 & (u32(15)))];
                                 }
                                 else
                                 {
@@ -9855,80 +9842,80 @@ fn RunMaterialProgram_1( header_5 : MaterialHeader_0,  program_2 : u32,  ctx_4 :
                                     {
                                     case u32(0):
                                         {
-                                            slot_2 = stack_3[i32(0)];
+                                            slot_3 = stack_1[i32(0)];
                                         }
                                     case u32(1):
                                         {
-                                            slot_2 = stack_3[i32(1)];
+                                            slot_3 = stack_1[i32(1)];
                                         }
                                     case u32(2):
                                         {
-                                            slot_2 = stack_3[i32(2)];
+                                            slot_3 = stack_1[i32(2)];
                                         }
                                     case u32(3):
                                         {
-                                            slot_2 = stack_3[i32(3)];
+                                            slot_3 = stack_1[i32(3)];
                                         }
                                     case u32(4):
                                         {
-                                            slot_2 = stack_3[i32(4)];
+                                            slot_3 = stack_1[i32(4)];
                                         }
                                     case u32(5):
                                         {
-                                            slot_2 = stack_3[i32(5)];
+                                            slot_3 = stack_1[i32(5)];
                                         }
                                     case u32(6):
                                         {
-                                            slot_2 = stack_3[i32(6)];
+                                            slot_3 = stack_1[i32(6)];
                                         }
                                     case u32(7):
                                         {
-                                            slot_2 = stack_3[i32(7)];
+                                            slot_3 = stack_1[i32(7)];
                                         }
                                     case u32(8):
                                         {
-                                            slot_2 = stack_3[i32(8)];
+                                            slot_3 = stack_1[i32(8)];
                                         }
                                     case u32(9):
                                         {
-                                            slot_2 = stack_3[i32(9)];
+                                            slot_3 = stack_1[i32(9)];
                                         }
                                     case u32(10):
                                         {
-                                            slot_2 = stack_3[i32(10)];
+                                            slot_3 = stack_1[i32(10)];
                                         }
                                     case u32(11):
                                         {
-                                            slot_2 = stack_3[i32(11)];
+                                            slot_3 = stack_1[i32(11)];
                                         }
                                     case u32(12):
                                         {
-                                            slot_2 = stack_3[i32(12)];
+                                            slot_3 = stack_1[i32(12)];
                                         }
                                     case u32(13):
                                         {
-                                            slot_2 = stack_3[i32(13)];
+                                            slot_3 = stack_1[i32(13)];
                                         }
                                     case u32(14):
                                         {
-                                            slot_2 = stack_3[i32(14)];
+                                            slot_3 = stack_1[i32(14)];
                                         }
                                     case u32(15):
                                         {
-                                            slot_2 = stack_3[i32(15)];
+                                            slot_3 = stack_1[i32(15)];
                                         }
                                     default :
                                         {
-                                            slot_2 = _S315;
+                                            slot_3 = _S347;
                                         }
                                     }
                                 }
                             }
                             else
                             {
-                                slot_2 = _S315;
+                                slot_3 = _S347;
                             }
-                            (*outputs_1).inputs_0.thinFilmThickness_1 = MaterialOperand_0(o_47, slot_2, header_5.constantBase_0).x;
+                            (*outputs_1).inputs_0.fuzzColor_0 = MaterialOperand_0(o_47, slot_3, header_5.constantBase_0).xyz;
                         }
                         var o_48 : u32 = MaterialWord_0(operands_1 + u32(2));
                         if(o_48 != u32(4294967295))
@@ -9945,7 +9932,7 @@ fn RunMaterialProgram_1( header_5 : MaterialHeader_0,  program_2 : u32,  ctx_4 :
                             {
                                 if(((gMaterialOperandMode_0 & (u32(4)))) == u32(0))
                                 {
-                                    slot_2 = stack_3[(o_48 & (u32(15)))];
+                                    slot_3 = stack_1[(o_48 & (u32(15)))];
                                 }
                                 else
                                 {
@@ -9953,83 +9940,83 @@ fn RunMaterialProgram_1( header_5 : MaterialHeader_0,  program_2 : u32,  ctx_4 :
                                     {
                                     case u32(0):
                                         {
-                                            slot_2 = stack_3[i32(0)];
+                                            slot_3 = stack_1[i32(0)];
                                         }
                                     case u32(1):
                                         {
-                                            slot_2 = stack_3[i32(1)];
+                                            slot_3 = stack_1[i32(1)];
                                         }
                                     case u32(2):
                                         {
-                                            slot_2 = stack_3[i32(2)];
+                                            slot_3 = stack_1[i32(2)];
                                         }
                                     case u32(3):
                                         {
-                                            slot_2 = stack_3[i32(3)];
+                                            slot_3 = stack_1[i32(3)];
                                         }
                                     case u32(4):
                                         {
-                                            slot_2 = stack_3[i32(4)];
+                                            slot_3 = stack_1[i32(4)];
                                         }
                                     case u32(5):
                                         {
-                                            slot_2 = stack_3[i32(5)];
+                                            slot_3 = stack_1[i32(5)];
                                         }
                                     case u32(6):
                                         {
-                                            slot_2 = stack_3[i32(6)];
+                                            slot_3 = stack_1[i32(6)];
                                         }
                                     case u32(7):
                                         {
-                                            slot_2 = stack_3[i32(7)];
+                                            slot_3 = stack_1[i32(7)];
                                         }
                                     case u32(8):
                                         {
-                                            slot_2 = stack_3[i32(8)];
+                                            slot_3 = stack_1[i32(8)];
                                         }
                                     case u32(9):
                                         {
-                                            slot_2 = stack_3[i32(9)];
+                                            slot_3 = stack_1[i32(9)];
                                         }
                                     case u32(10):
                                         {
-                                            slot_2 = stack_3[i32(10)];
+                                            slot_3 = stack_1[i32(10)];
                                         }
                                     case u32(11):
                                         {
-                                            slot_2 = stack_3[i32(11)];
+                                            slot_3 = stack_1[i32(11)];
                                         }
                                     case u32(12):
                                         {
-                                            slot_2 = stack_3[i32(12)];
+                                            slot_3 = stack_1[i32(12)];
                                         }
                                     case u32(13):
                                         {
-                                            slot_2 = stack_3[i32(13)];
+                                            slot_3 = stack_1[i32(13)];
                                         }
                                     case u32(14):
                                         {
-                                            slot_2 = stack_3[i32(14)];
+                                            slot_3 = stack_1[i32(14)];
                                         }
                                     case u32(15):
                                         {
-                                            slot_2 = stack_3[i32(15)];
+                                            slot_3 = stack_1[i32(15)];
                                         }
                                     default :
                                         {
-                                            slot_2 = _S315;
+                                            slot_3 = _S347;
                                         }
                                     }
                                 }
                             }
                             else
                             {
-                                slot_2 = _S315;
+                                slot_3 = _S347;
                             }
-                            (*outputs_1).inputs_0.thinFilmIor_1 = MaterialOperand_0(o_48, slot_2, header_5.constantBase_0).x;
+                            (*outputs_1).inputs_0.fuzzRoughness_0 = MaterialOperand_0(o_48, slot_3, header_5.constantBase_0).x;
                         }
                     }
-                case u32(8):
+                case u32(7):
                     {
                         var o_49 : u32 = MaterialWord_0(operands_1);
                         if(o_49 != u32(4294967295))
@@ -10046,7 +10033,7 @@ fn RunMaterialProgram_1( header_5 : MaterialHeader_0,  program_2 : u32,  ctx_4 :
                             {
                                 if(((gMaterialOperandMode_0 & (u32(4)))) == u32(0))
                                 {
-                                    slot_2 = stack_3[(o_49 & (u32(15)))];
+                                    slot_3 = stack_1[(o_49 & (u32(15)))];
                                 }
                                 else
                                 {
@@ -10054,80 +10041,80 @@ fn RunMaterialProgram_1( header_5 : MaterialHeader_0,  program_2 : u32,  ctx_4 :
                                     {
                                     case u32(0):
                                         {
-                                            slot_2 = stack_3[i32(0)];
+                                            slot_3 = stack_1[i32(0)];
                                         }
                                     case u32(1):
                                         {
-                                            slot_2 = stack_3[i32(1)];
+                                            slot_3 = stack_1[i32(1)];
                                         }
                                     case u32(2):
                                         {
-                                            slot_2 = stack_3[i32(2)];
+                                            slot_3 = stack_1[i32(2)];
                                         }
                                     case u32(3):
                                         {
-                                            slot_2 = stack_3[i32(3)];
+                                            slot_3 = stack_1[i32(3)];
                                         }
                                     case u32(4):
                                         {
-                                            slot_2 = stack_3[i32(4)];
+                                            slot_3 = stack_1[i32(4)];
                                         }
                                     case u32(5):
                                         {
-                                            slot_2 = stack_3[i32(5)];
+                                            slot_3 = stack_1[i32(5)];
                                         }
                                     case u32(6):
                                         {
-                                            slot_2 = stack_3[i32(6)];
+                                            slot_3 = stack_1[i32(6)];
                                         }
                                     case u32(7):
                                         {
-                                            slot_2 = stack_3[i32(7)];
+                                            slot_3 = stack_1[i32(7)];
                                         }
                                     case u32(8):
                                         {
-                                            slot_2 = stack_3[i32(8)];
+                                            slot_3 = stack_1[i32(8)];
                                         }
                                     case u32(9):
                                         {
-                                            slot_2 = stack_3[i32(9)];
+                                            slot_3 = stack_1[i32(9)];
                                         }
                                     case u32(10):
                                         {
-                                            slot_2 = stack_3[i32(10)];
+                                            slot_3 = stack_1[i32(10)];
                                         }
                                     case u32(11):
                                         {
-                                            slot_2 = stack_3[i32(11)];
+                                            slot_3 = stack_1[i32(11)];
                                         }
                                     case u32(12):
                                         {
-                                            slot_2 = stack_3[i32(12)];
+                                            slot_3 = stack_1[i32(12)];
                                         }
                                     case u32(13):
                                         {
-                                            slot_2 = stack_3[i32(13)];
+                                            slot_3 = stack_1[i32(13)];
                                         }
                                     case u32(14):
                                         {
-                                            slot_2 = stack_3[i32(14)];
+                                            slot_3 = stack_1[i32(14)];
                                         }
                                     case u32(15):
                                         {
-                                            slot_2 = stack_3[i32(15)];
+                                            slot_3 = stack_1[i32(15)];
                                         }
                                     default :
                                         {
-                                            slot_2 = _S315;
+                                            slot_3 = _S347;
                                         }
                                     }
                                 }
                             }
                             else
                             {
-                                slot_2 = _S315;
+                                slot_3 = _S347;
                             }
-                            (*outputs_1).inputs_0.emissionLuminance_0 = MaterialOperand_0(o_49, slot_2, header_5.constantBase_0).x;
+                            (*outputs_1).inputs_0.thinFilmWeight_1 = MaterialOperand_0(o_49, slot_3, header_5.constantBase_0).x;
                         }
                         var o_50 : u32 = MaterialWord_0(operands_1 + u32(1));
                         if(o_50 != u32(4294967295))
@@ -10144,7 +10131,7 @@ fn RunMaterialProgram_1( header_5 : MaterialHeader_0,  program_2 : u32,  ctx_4 :
                             {
                                 if(((gMaterialOperandMode_0 & (u32(4)))) == u32(0))
                                 {
-                                    slot_2 = stack_3[(o_50 & (u32(15)))];
+                                    slot_3 = stack_1[(o_50 & (u32(15)))];
                                 }
                                 else
                                 {
@@ -10152,85 +10139,82 @@ fn RunMaterialProgram_1( header_5 : MaterialHeader_0,  program_2 : u32,  ctx_4 :
                                     {
                                     case u32(0):
                                         {
-                                            slot_2 = stack_3[i32(0)];
+                                            slot_3 = stack_1[i32(0)];
                                         }
                                     case u32(1):
                                         {
-                                            slot_2 = stack_3[i32(1)];
+                                            slot_3 = stack_1[i32(1)];
                                         }
                                     case u32(2):
                                         {
-                                            slot_2 = stack_3[i32(2)];
+                                            slot_3 = stack_1[i32(2)];
                                         }
                                     case u32(3):
                                         {
-                                            slot_2 = stack_3[i32(3)];
+                                            slot_3 = stack_1[i32(3)];
                                         }
                                     case u32(4):
                                         {
-                                            slot_2 = stack_3[i32(4)];
+                                            slot_3 = stack_1[i32(4)];
                                         }
                                     case u32(5):
                                         {
-                                            slot_2 = stack_3[i32(5)];
+                                            slot_3 = stack_1[i32(5)];
                                         }
                                     case u32(6):
                                         {
-                                            slot_2 = stack_3[i32(6)];
+                                            slot_3 = stack_1[i32(6)];
                                         }
                                     case u32(7):
                                         {
-                                            slot_2 = stack_3[i32(7)];
+                                            slot_3 = stack_1[i32(7)];
                                         }
                                     case u32(8):
                                         {
-                                            slot_2 = stack_3[i32(8)];
+                                            slot_3 = stack_1[i32(8)];
                                         }
                                     case u32(9):
                                         {
-                                            slot_2 = stack_3[i32(9)];
+                                            slot_3 = stack_1[i32(9)];
                                         }
                                     case u32(10):
                                         {
-                                            slot_2 = stack_3[i32(10)];
+                                            slot_3 = stack_1[i32(10)];
                                         }
                                     case u32(11):
                                         {
-                                            slot_2 = stack_3[i32(11)];
+                                            slot_3 = stack_1[i32(11)];
                                         }
                                     case u32(12):
                                         {
-                                            slot_2 = stack_3[i32(12)];
+                                            slot_3 = stack_1[i32(12)];
                                         }
                                     case u32(13):
                                         {
-                                            slot_2 = stack_3[i32(13)];
+                                            slot_3 = stack_1[i32(13)];
                                         }
                                     case u32(14):
                                         {
-                                            slot_2 = stack_3[i32(14)];
+                                            slot_3 = stack_1[i32(14)];
                                         }
                                     case u32(15):
                                         {
-                                            slot_2 = stack_3[i32(15)];
+                                            slot_3 = stack_1[i32(15)];
                                         }
                                     default :
                                         {
-                                            slot_2 = _S315;
+                                            slot_3 = _S347;
                                         }
                                     }
                                 }
                             }
                             else
                             {
-                                slot_2 = _S315;
+                                slot_3 = _S347;
                             }
-                            (*outputs_1).inputs_0.emissionColor_0 = MaterialOperand_0(o_50, slot_2, header_5.constantBase_0).xyz;
+                            (*outputs_1).inputs_0.thinFilmThickness_1 = MaterialOperand_0(o_50, slot_3, header_5.constantBase_0).x;
                         }
-                    }
-                default :
-                    {
-                        var o_51 : u32 = MaterialWord_0(operands_1);
+                        var o_51 : u32 = MaterialWord_0(operands_1 + u32(2));
                         if(o_51 != u32(4294967295))
                         {
                             if(((gMaterialOperandMode_0 & (u32(1)))) == u32(0))
@@ -10245,7 +10229,7 @@ fn RunMaterialProgram_1( header_5 : MaterialHeader_0,  program_2 : u32,  ctx_4 :
                             {
                                 if(((gMaterialOperandMode_0 & (u32(4)))) == u32(0))
                                 {
-                                    slot_2 = stack_3[(o_51 & (u32(15)))];
+                                    slot_3 = stack_1[(o_51 & (u32(15)))];
                                 }
                                 else
                                 {
@@ -10253,82 +10237,85 @@ fn RunMaterialProgram_1( header_5 : MaterialHeader_0,  program_2 : u32,  ctx_4 :
                                     {
                                     case u32(0):
                                         {
-                                            slot_2 = stack_3[i32(0)];
+                                            slot_3 = stack_1[i32(0)];
                                         }
                                     case u32(1):
                                         {
-                                            slot_2 = stack_3[i32(1)];
+                                            slot_3 = stack_1[i32(1)];
                                         }
                                     case u32(2):
                                         {
-                                            slot_2 = stack_3[i32(2)];
+                                            slot_3 = stack_1[i32(2)];
                                         }
                                     case u32(3):
                                         {
-                                            slot_2 = stack_3[i32(3)];
+                                            slot_3 = stack_1[i32(3)];
                                         }
                                     case u32(4):
                                         {
-                                            slot_2 = stack_3[i32(4)];
+                                            slot_3 = stack_1[i32(4)];
                                         }
                                     case u32(5):
                                         {
-                                            slot_2 = stack_3[i32(5)];
+                                            slot_3 = stack_1[i32(5)];
                                         }
                                     case u32(6):
                                         {
-                                            slot_2 = stack_3[i32(6)];
+                                            slot_3 = stack_1[i32(6)];
                                         }
                                     case u32(7):
                                         {
-                                            slot_2 = stack_3[i32(7)];
+                                            slot_3 = stack_1[i32(7)];
                                         }
                                     case u32(8):
                                         {
-                                            slot_2 = stack_3[i32(8)];
+                                            slot_3 = stack_1[i32(8)];
                                         }
                                     case u32(9):
                                         {
-                                            slot_2 = stack_3[i32(9)];
+                                            slot_3 = stack_1[i32(9)];
                                         }
                                     case u32(10):
                                         {
-                                            slot_2 = stack_3[i32(10)];
+                                            slot_3 = stack_1[i32(10)];
                                         }
                                     case u32(11):
                                         {
-                                            slot_2 = stack_3[i32(11)];
+                                            slot_3 = stack_1[i32(11)];
                                         }
                                     case u32(12):
                                         {
-                                            slot_2 = stack_3[i32(12)];
+                                            slot_3 = stack_1[i32(12)];
                                         }
                                     case u32(13):
                                         {
-                                            slot_2 = stack_3[i32(13)];
+                                            slot_3 = stack_1[i32(13)];
                                         }
                                     case u32(14):
                                         {
-                                            slot_2 = stack_3[i32(14)];
+                                            slot_3 = stack_1[i32(14)];
                                         }
                                     case u32(15):
                                         {
-                                            slot_2 = stack_3[i32(15)];
+                                            slot_3 = stack_1[i32(15)];
                                         }
                                     default :
                                         {
-                                            slot_2 = _S315;
+                                            slot_3 = _S347;
                                         }
                                     }
                                 }
                             }
                             else
                             {
-                                slot_2 = _S315;
+                                slot_3 = _S347;
                             }
-                            (*outputs_1).inputs_0.geometryOpacity_0 = MaterialOperand_0(o_51, slot_2, header_5.constantBase_0).x;
+                            (*outputs_1).inputs_0.thinFilmIor_1 = MaterialOperand_0(o_51, slot_3, header_5.constantBase_0).x;
                         }
-                        var o_52 : u32 = MaterialWord_0(operands_1 + u32(1));
+                    }
+                case u32(8):
+                    {
+                        var o_52 : u32 = MaterialWord_0(operands_1);
                         if(o_52 != u32(4294967295))
                         {
                             if(((gMaterialOperandMode_0 & (u32(1)))) == u32(0))
@@ -10343,7 +10330,7 @@ fn RunMaterialProgram_1( header_5 : MaterialHeader_0,  program_2 : u32,  ctx_4 :
                             {
                                 if(((gMaterialOperandMode_0 & (u32(4)))) == u32(0))
                                 {
-                                    slot_2 = stack_3[(o_52 & (u32(15)))];
+                                    slot_3 = stack_1[(o_52 & (u32(15)))];
                                 }
                                 else
                                 {
@@ -10351,82 +10338,82 @@ fn RunMaterialProgram_1( header_5 : MaterialHeader_0,  program_2 : u32,  ctx_4 :
                                     {
                                     case u32(0):
                                         {
-                                            slot_2 = stack_3[i32(0)];
+                                            slot_3 = stack_1[i32(0)];
                                         }
                                     case u32(1):
                                         {
-                                            slot_2 = stack_3[i32(1)];
+                                            slot_3 = stack_1[i32(1)];
                                         }
                                     case u32(2):
                                         {
-                                            slot_2 = stack_3[i32(2)];
+                                            slot_3 = stack_1[i32(2)];
                                         }
                                     case u32(3):
                                         {
-                                            slot_2 = stack_3[i32(3)];
+                                            slot_3 = stack_1[i32(3)];
                                         }
                                     case u32(4):
                                         {
-                                            slot_2 = stack_3[i32(4)];
+                                            slot_3 = stack_1[i32(4)];
                                         }
                                     case u32(5):
                                         {
-                                            slot_2 = stack_3[i32(5)];
+                                            slot_3 = stack_1[i32(5)];
                                         }
                                     case u32(6):
                                         {
-                                            slot_2 = stack_3[i32(6)];
+                                            slot_3 = stack_1[i32(6)];
                                         }
                                     case u32(7):
                                         {
-                                            slot_2 = stack_3[i32(7)];
+                                            slot_3 = stack_1[i32(7)];
                                         }
                                     case u32(8):
                                         {
-                                            slot_2 = stack_3[i32(8)];
+                                            slot_3 = stack_1[i32(8)];
                                         }
                                     case u32(9):
                                         {
-                                            slot_2 = stack_3[i32(9)];
+                                            slot_3 = stack_1[i32(9)];
                                         }
                                     case u32(10):
                                         {
-                                            slot_2 = stack_3[i32(10)];
+                                            slot_3 = stack_1[i32(10)];
                                         }
                                     case u32(11):
                                         {
-                                            slot_2 = stack_3[i32(11)];
+                                            slot_3 = stack_1[i32(11)];
                                         }
                                     case u32(12):
                                         {
-                                            slot_2 = stack_3[i32(12)];
+                                            slot_3 = stack_1[i32(12)];
                                         }
                                     case u32(13):
                                         {
-                                            slot_2 = stack_3[i32(13)];
+                                            slot_3 = stack_1[i32(13)];
                                         }
                                     case u32(14):
                                         {
-                                            slot_2 = stack_3[i32(14)];
+                                            slot_3 = stack_1[i32(14)];
                                         }
                                     case u32(15):
                                         {
-                                            slot_2 = stack_3[i32(15)];
+                                            slot_3 = stack_1[i32(15)];
                                         }
                                     default :
                                         {
-                                            slot_2 = _S315;
+                                            slot_3 = _S347;
                                         }
                                     }
                                 }
                             }
                             else
                             {
-                                slot_2 = _S315;
+                                slot_3 = _S347;
                             }
-                            (*outputs_1).inputs_0.geometryThinWalled_0 = (MaterialOperand_0(o_52, slot_2, header_5.constantBase_0).x) != 0.0f;
+                            (*outputs_1).inputs_0.emissionLuminance_0 = MaterialOperand_0(o_52, slot_3, header_5.constantBase_0).x;
                         }
-                        var o_53 : u32 = MaterialWord_0(operands_1 + u32(2));
+                        var o_53 : u32 = MaterialWord_0(operands_1 + u32(1));
                         if(o_53 != u32(4294967295))
                         {
                             if(((gMaterialOperandMode_0 & (u32(1)))) == u32(0))
@@ -10441,7 +10428,7 @@ fn RunMaterialProgram_1( header_5 : MaterialHeader_0,  program_2 : u32,  ctx_4 :
                             {
                                 if(((gMaterialOperandMode_0 & (u32(4)))) == u32(0))
                                 {
-                                    slot_2 = stack_3[(o_53 & (u32(15)))];
+                                    slot_3 = stack_1[(o_53 & (u32(15)))];
                                 }
                                 else
                                 {
@@ -10449,80 +10436,377 @@ fn RunMaterialProgram_1( header_5 : MaterialHeader_0,  program_2 : u32,  ctx_4 :
                                     {
                                     case u32(0):
                                         {
-                                            slot_2 = stack_3[i32(0)];
+                                            slot_3 = stack_1[i32(0)];
                                         }
                                     case u32(1):
                                         {
-                                            slot_2 = stack_3[i32(1)];
+                                            slot_3 = stack_1[i32(1)];
                                         }
                                     case u32(2):
                                         {
-                                            slot_2 = stack_3[i32(2)];
+                                            slot_3 = stack_1[i32(2)];
                                         }
                                     case u32(3):
                                         {
-                                            slot_2 = stack_3[i32(3)];
+                                            slot_3 = stack_1[i32(3)];
                                         }
                                     case u32(4):
                                         {
-                                            slot_2 = stack_3[i32(4)];
+                                            slot_3 = stack_1[i32(4)];
                                         }
                                     case u32(5):
                                         {
-                                            slot_2 = stack_3[i32(5)];
+                                            slot_3 = stack_1[i32(5)];
                                         }
                                     case u32(6):
                                         {
-                                            slot_2 = stack_3[i32(6)];
+                                            slot_3 = stack_1[i32(6)];
                                         }
                                     case u32(7):
                                         {
-                                            slot_2 = stack_3[i32(7)];
+                                            slot_3 = stack_1[i32(7)];
                                         }
                                     case u32(8):
                                         {
-                                            slot_2 = stack_3[i32(8)];
+                                            slot_3 = stack_1[i32(8)];
                                         }
                                     case u32(9):
                                         {
-                                            slot_2 = stack_3[i32(9)];
+                                            slot_3 = stack_1[i32(9)];
                                         }
                                     case u32(10):
                                         {
-                                            slot_2 = stack_3[i32(10)];
+                                            slot_3 = stack_1[i32(10)];
                                         }
                                     case u32(11):
                                         {
-                                            slot_2 = stack_3[i32(11)];
+                                            slot_3 = stack_1[i32(11)];
                                         }
                                     case u32(12):
                                         {
-                                            slot_2 = stack_3[i32(12)];
+                                            slot_3 = stack_1[i32(12)];
                                         }
                                     case u32(13):
                                         {
-                                            slot_2 = stack_3[i32(13)];
+                                            slot_3 = stack_1[i32(13)];
                                         }
                                     case u32(14):
                                         {
-                                            slot_2 = stack_3[i32(14)];
+                                            slot_3 = stack_1[i32(14)];
                                         }
                                     case u32(15):
                                         {
-                                            slot_2 = stack_3[i32(15)];
+                                            slot_3 = stack_1[i32(15)];
                                         }
                                     default :
                                         {
-                                            slot_2 = _S315;
+                                            slot_3 = _S347;
                                         }
                                     }
                                 }
                             }
                             else
                             {
-                                slot_2 = _S315;
+                                slot_3 = _S347;
                             }
-                            (*outputs_1).normal_9 = MaterialOperand_0(o_53, slot_2, header_5.constantBase_0).xyz;
+                            (*outputs_1).inputs_0.emissionColor_0 = MaterialOperand_0(o_53, slot_3, header_5.constantBase_0).xyz;
+                        }
+                    }
+                default :
+                    {
+                        var o_54 : u32 = MaterialWord_0(operands_1);
+                        if(o_54 != u32(4294967295))
+                        {
+                            if(((gMaterialOperandMode_0 & (u32(1)))) == u32(0))
+                            {
+                                write_1 = true;
+                            }
+                            else
+                            {
+                                write_1 = ((o_54 & (u32(2147483648)))) == u32(0);
+                            }
+                            if(write_1)
+                            {
+                                if(((gMaterialOperandMode_0 & (u32(4)))) == u32(0))
+                                {
+                                    slot_3 = stack_1[(o_54 & (u32(15)))];
+                                }
+                                else
+                                {
+                                    switch((o_54 & (u32(15))))
+                                    {
+                                    case u32(0):
+                                        {
+                                            slot_3 = stack_1[i32(0)];
+                                        }
+                                    case u32(1):
+                                        {
+                                            slot_3 = stack_1[i32(1)];
+                                        }
+                                    case u32(2):
+                                        {
+                                            slot_3 = stack_1[i32(2)];
+                                        }
+                                    case u32(3):
+                                        {
+                                            slot_3 = stack_1[i32(3)];
+                                        }
+                                    case u32(4):
+                                        {
+                                            slot_3 = stack_1[i32(4)];
+                                        }
+                                    case u32(5):
+                                        {
+                                            slot_3 = stack_1[i32(5)];
+                                        }
+                                    case u32(6):
+                                        {
+                                            slot_3 = stack_1[i32(6)];
+                                        }
+                                    case u32(7):
+                                        {
+                                            slot_3 = stack_1[i32(7)];
+                                        }
+                                    case u32(8):
+                                        {
+                                            slot_3 = stack_1[i32(8)];
+                                        }
+                                    case u32(9):
+                                        {
+                                            slot_3 = stack_1[i32(9)];
+                                        }
+                                    case u32(10):
+                                        {
+                                            slot_3 = stack_1[i32(10)];
+                                        }
+                                    case u32(11):
+                                        {
+                                            slot_3 = stack_1[i32(11)];
+                                        }
+                                    case u32(12):
+                                        {
+                                            slot_3 = stack_1[i32(12)];
+                                        }
+                                    case u32(13):
+                                        {
+                                            slot_3 = stack_1[i32(13)];
+                                        }
+                                    case u32(14):
+                                        {
+                                            slot_3 = stack_1[i32(14)];
+                                        }
+                                    case u32(15):
+                                        {
+                                            slot_3 = stack_1[i32(15)];
+                                        }
+                                    default :
+                                        {
+                                            slot_3 = _S347;
+                                        }
+                                    }
+                                }
+                            }
+                            else
+                            {
+                                slot_3 = _S347;
+                            }
+                            (*outputs_1).inputs_0.geometryOpacity_0 = MaterialOperand_0(o_54, slot_3, header_5.constantBase_0).x;
+                        }
+                        var o_55 : u32 = MaterialWord_0(operands_1 + u32(1));
+                        if(o_55 != u32(4294967295))
+                        {
+                            if(((gMaterialOperandMode_0 & (u32(1)))) == u32(0))
+                            {
+                                write_1 = true;
+                            }
+                            else
+                            {
+                                write_1 = ((o_55 & (u32(2147483648)))) == u32(0);
+                            }
+                            if(write_1)
+                            {
+                                if(((gMaterialOperandMode_0 & (u32(4)))) == u32(0))
+                                {
+                                    slot_3 = stack_1[(o_55 & (u32(15)))];
+                                }
+                                else
+                                {
+                                    switch((o_55 & (u32(15))))
+                                    {
+                                    case u32(0):
+                                        {
+                                            slot_3 = stack_1[i32(0)];
+                                        }
+                                    case u32(1):
+                                        {
+                                            slot_3 = stack_1[i32(1)];
+                                        }
+                                    case u32(2):
+                                        {
+                                            slot_3 = stack_1[i32(2)];
+                                        }
+                                    case u32(3):
+                                        {
+                                            slot_3 = stack_1[i32(3)];
+                                        }
+                                    case u32(4):
+                                        {
+                                            slot_3 = stack_1[i32(4)];
+                                        }
+                                    case u32(5):
+                                        {
+                                            slot_3 = stack_1[i32(5)];
+                                        }
+                                    case u32(6):
+                                        {
+                                            slot_3 = stack_1[i32(6)];
+                                        }
+                                    case u32(7):
+                                        {
+                                            slot_3 = stack_1[i32(7)];
+                                        }
+                                    case u32(8):
+                                        {
+                                            slot_3 = stack_1[i32(8)];
+                                        }
+                                    case u32(9):
+                                        {
+                                            slot_3 = stack_1[i32(9)];
+                                        }
+                                    case u32(10):
+                                        {
+                                            slot_3 = stack_1[i32(10)];
+                                        }
+                                    case u32(11):
+                                        {
+                                            slot_3 = stack_1[i32(11)];
+                                        }
+                                    case u32(12):
+                                        {
+                                            slot_3 = stack_1[i32(12)];
+                                        }
+                                    case u32(13):
+                                        {
+                                            slot_3 = stack_1[i32(13)];
+                                        }
+                                    case u32(14):
+                                        {
+                                            slot_3 = stack_1[i32(14)];
+                                        }
+                                    case u32(15):
+                                        {
+                                            slot_3 = stack_1[i32(15)];
+                                        }
+                                    default :
+                                        {
+                                            slot_3 = _S347;
+                                        }
+                                    }
+                                }
+                            }
+                            else
+                            {
+                                slot_3 = _S347;
+                            }
+                            (*outputs_1).inputs_0.geometryThinWalled_0 = (MaterialOperand_0(o_55, slot_3, header_5.constantBase_0).x) != 0.0f;
+                        }
+                        var o_56 : u32 = MaterialWord_0(operands_1 + u32(2));
+                        if(o_56 != u32(4294967295))
+                        {
+                            if(((gMaterialOperandMode_0 & (u32(1)))) == u32(0))
+                            {
+                                write_1 = true;
+                            }
+                            else
+                            {
+                                write_1 = ((o_56 & (u32(2147483648)))) == u32(0);
+                            }
+                            if(write_1)
+                            {
+                                if(((gMaterialOperandMode_0 & (u32(4)))) == u32(0))
+                                {
+                                    slot_3 = stack_1[(o_56 & (u32(15)))];
+                                }
+                                else
+                                {
+                                    switch((o_56 & (u32(15))))
+                                    {
+                                    case u32(0):
+                                        {
+                                            slot_3 = stack_1[i32(0)];
+                                        }
+                                    case u32(1):
+                                        {
+                                            slot_3 = stack_1[i32(1)];
+                                        }
+                                    case u32(2):
+                                        {
+                                            slot_3 = stack_1[i32(2)];
+                                        }
+                                    case u32(3):
+                                        {
+                                            slot_3 = stack_1[i32(3)];
+                                        }
+                                    case u32(4):
+                                        {
+                                            slot_3 = stack_1[i32(4)];
+                                        }
+                                    case u32(5):
+                                        {
+                                            slot_3 = stack_1[i32(5)];
+                                        }
+                                    case u32(6):
+                                        {
+                                            slot_3 = stack_1[i32(6)];
+                                        }
+                                    case u32(7):
+                                        {
+                                            slot_3 = stack_1[i32(7)];
+                                        }
+                                    case u32(8):
+                                        {
+                                            slot_3 = stack_1[i32(8)];
+                                        }
+                                    case u32(9):
+                                        {
+                                            slot_3 = stack_1[i32(9)];
+                                        }
+                                    case u32(10):
+                                        {
+                                            slot_3 = stack_1[i32(10)];
+                                        }
+                                    case u32(11):
+                                        {
+                                            slot_3 = stack_1[i32(11)];
+                                        }
+                                    case u32(12):
+                                        {
+                                            slot_3 = stack_1[i32(12)];
+                                        }
+                                    case u32(13):
+                                        {
+                                            slot_3 = stack_1[i32(13)];
+                                        }
+                                    case u32(14):
+                                        {
+                                            slot_3 = stack_1[i32(14)];
+                                        }
+                                    case u32(15):
+                                        {
+                                            slot_3 = stack_1[i32(15)];
+                                        }
+                                    default :
+                                        {
+                                            slot_3 = _S347;
+                                        }
+                                    }
+                                }
+                            }
+                            else
+                            {
+                                slot_3 = _S347;
+                            }
+                            (*outputs_1).normal_9 = MaterialOperand_0(o_56, slot_3, header_5.constantBase_0).xyz;
                         }
                     }
                 }
@@ -10537,7 +10821,7 @@ fn RunMaterialProgram_1( header_5 : MaterialHeader_0,  program_2 : u32,  ctx_4 :
         {
             if(((gMaterialOperandMode_0 & (u32(4)))) == u32(0))
             {
-                stack_3[dst_1] = r_8;
+                stack_1[dst_1] = r_8;
             }
             else
             {
@@ -10545,67 +10829,67 @@ fn RunMaterialProgram_1( header_5 : MaterialHeader_0,  program_2 : u32,  ctx_4 :
                 {
                 case u32(0):
                     {
-                        stack_3[i32(0)] = r_8;
+                        stack_1[i32(0)] = r_8;
                     }
                 case u32(1):
                     {
-                        stack_3[i32(1)] = r_8;
+                        stack_1[i32(1)] = r_8;
                     }
                 case u32(2):
                     {
-                        stack_3[i32(2)] = r_8;
+                        stack_1[i32(2)] = r_8;
                     }
                 case u32(3):
                     {
-                        stack_3[i32(3)] = r_8;
+                        stack_1[i32(3)] = r_8;
                     }
                 case u32(4):
                     {
-                        stack_3[i32(4)] = r_8;
+                        stack_1[i32(4)] = r_8;
                     }
                 case u32(5):
                     {
-                        stack_3[i32(5)] = r_8;
+                        stack_1[i32(5)] = r_8;
                     }
                 case u32(6):
                     {
-                        stack_3[i32(6)] = r_8;
+                        stack_1[i32(6)] = r_8;
                     }
                 case u32(7):
                     {
-                        stack_3[i32(7)] = r_8;
+                        stack_1[i32(7)] = r_8;
                     }
                 case u32(8):
                     {
-                        stack_3[i32(8)] = r_8;
+                        stack_1[i32(8)] = r_8;
                     }
                 case u32(9):
                     {
-                        stack_3[i32(9)] = r_8;
+                        stack_1[i32(9)] = r_8;
                     }
                 case u32(10):
                     {
-                        stack_3[i32(10)] = r_8;
+                        stack_1[i32(10)] = r_8;
                     }
                 case u32(11):
                     {
-                        stack_3[i32(11)] = r_8;
+                        stack_1[i32(11)] = r_8;
                     }
                 case u32(12):
                     {
-                        stack_3[i32(12)] = r_8;
+                        stack_1[i32(12)] = r_8;
                     }
                 case u32(13):
                     {
-                        stack_3[i32(13)] = r_8;
+                        stack_1[i32(13)] = r_8;
                     }
                 case u32(14):
                     {
-                        stack_3[i32(14)] = r_8;
+                        stack_1[i32(14)] = r_8;
                     }
                 case u32(15):
                     {
-                        stack_3[i32(15)] = r_8;
+                        stack_1[i32(15)] = r_8;
                     }
                 default :
                     {
@@ -10640,9 +10924,9 @@ fn AlignWithFace_0( n_12 : vec3<f32>,  V_0 : vec3<f32>,  frontFacing_1 : bool) -
 
 fn BranchlessONB_1( n_13 : vec3<f32>,  b1_1 : ptr<function, vec3<f32>>,  b2_1 : ptr<function, vec3<f32>>)
 {
-    var _S326 : f32 = n_13.z;
+    var _S358 : f32 = n_13.z;
     var s_13 : f32;
-    if((_S326 >= 0.0f))
+    if((_S358 >= 0.0f))
     {
         s_13 = 1.0f;
     }
@@ -10650,12 +10934,12 @@ fn BranchlessONB_1( n_13 : vec3<f32>,  b1_1 : ptr<function, vec3<f32>>,  b2_1 : 
     {
         s_13 = -1.0f;
     }
-    var a_15 : f32 = -1.0f / (s_13 + _S326);
-    var _S327 : f32 = n_13.x;
-    var _S328 : f32 = n_13.y;
-    var b_14 : f32 = _S327 * _S328 * a_15;
-    (*b1_1) = vec3<f32>(1.0f + s_13 * _S327 * _S327 * a_15, s_13 * b_14, - s_13 * _S327);
-    (*b2_1) = vec3<f32>(b_14, s_13 + _S328 * _S328 * a_15, - _S328);
+    var a_15 : f32 = -1.0f / (s_13 + _S358);
+    var _S359 : f32 = n_13.x;
+    var _S360 : f32 = n_13.y;
+    var b_14 : f32 = _S359 * _S360 * a_15;
+    (*b1_1) = vec3<f32>(1.0f + s_13 * _S359 * _S359 * a_15, s_13 * b_14, - s_13 * _S359);
+    (*b2_1) = vec3<f32>(b_14, s_13 + _S360 * _S360 * a_15, - _S360);
     return;
 }
 
@@ -10663,23 +10947,23 @@ fn Frame_FromNormal_0( n_14 : vec3<f32>) -> Frame_0
 {
     var f_10 : Frame_0;
     f_10.n_1 = n_14;
-    var _S329 : vec3<f32> = f_10.t_0;
-    var _S330 : vec3<f32> = f_10.b_0;
-    BranchlessONB_1(n_14, &(_S329), &(_S330));
-    f_10.t_0 = _S329;
-    f_10.b_0 = _S330;
+    var _S361 : vec3<f32> = f_10.t_0;
+    var _S362 : vec3<f32> = f_10.b_0;
+    BranchlessONB_1(n_14, &(_S361), &(_S362));
+    f_10.t_0 = _S361;
+    f_10.b_0 = _S362;
     return f_10;
 }
 
 fn Frame_FromTangent_0( tangent_6 : vec4<f32>,  n_15 : vec3<f32>) -> Frame_0
 {
-    var _S331 : vec3<f32> = tangent_6.xyz;
-    var NdotT_0 : f32 = dot(_S331, n_15);
-    var _S332 : f32 = tangent_6.w;
+    var _S363 : vec3<f32> = tangent_6.xyz;
+    var NdotT_0 : f32 = dot(_S363, n_15);
+    var _S364 : f32 = tangent_6.w;
     var valid_0 : bool;
-    if(_S332 != 0.0f)
+    if(_S364 != 0.0f)
     {
-        valid_0 = ((dot(_S331, _S331)) > 0.0f);
+        valid_0 = ((dot(_S363, _S363)) > 0.0f);
     }
     else
     {
@@ -10699,9 +10983,9 @@ fn Frame_FromTangent_0( tangent_6 : vec4<f32>,  n_15 : vec3<f32>) -> Frame_0
     }
     var f_11 : Frame_0;
     f_11.n_1 = n_15;
-    var _S333 : vec3<f32> = normalize(_S331 - n_15 * vec3<f32>(NdotT_0));
-    f_11.t_0 = _S333;
-    f_11.b_0 = cross(n_15, _S333) * vec3<f32>(_S332);
+    var _S365 : vec3<f32> = normalize(_S363 - n_15 * vec3<f32>(NdotT_0));
+    f_11.t_0 = _S365;
+    f_11.b_0 = cross(n_15, _S365) * vec3<f32>(_S364);
     return f_11;
 }
 
@@ -10714,44 +10998,44 @@ fn EvalMaterial_0( si_3 : SurfaceInteraction_0,  V_1 : vec3<f32>) -> MaterialSam
     ctx_5.normal_10 = si_3.normal_0;
     ctx_5.tangent_3 = si_3.tangent_1;
     ctx_5.instanceIndex_1 = si_3.instanceIndex_0;
-    var o_54 : MaterialOutputs_0 = MaterialOutputs_Default_0(ctx_5);
+    var o_57 : MaterialOutputs_0 = MaterialOutputs_Default_0(ctx_5);
     if((header_6.surface_0) != u32(4294967295))
     {
-        RunMaterialProgram_1(header_6, header_6.surface_0, ctx_5, &(o_54));
+        RunMaterialProgram_1(header_6, header_6.surface_0, ctx_5, &(o_57));
     }
     var ms_0 : MaterialSample_0;
-    ms_0.inputs_1 = o_54.inputs_0;
-    ms_0.albedo_3 = o_54.inputs_0.baseColor_0;
-    ms_0.roughness_4 = o_54.inputs_0.specularRoughness_0;
+    ms_0.inputs_1 = o_57.inputs_0;
+    ms_0.albedo_3 = o_57.inputs_0.baseColor_0;
+    ms_0.roughness_4 = o_57.inputs_0.specularRoughness_0;
     ms_0.doubleSided_2 = MaterialHeader_DoubleSided_0(header_6);
-    ms_0.thinWalled_0 = o_54.inputs_0.geometryThinWalled_0;
-    var _S334 : f32 = si_3.tangent_1.w;
+    ms_0.thinWalled_0 = o_57.inputs_0.geometryThinWalled_0;
+    var _S366 : f32 = si_3.tangent_1.w;
     var handedness_0 : f32;
-    if(_S334 != 0.0f)
+    if(_S366 != 0.0f)
     {
-        handedness_0 = _S334;
+        handedness_0 = _S366;
     }
     else
     {
         handedness_0 = 1.0f;
     }
-    ms_0.inputs_1.basis_1 = Frame_FromTangent_0(vec4<f32>(o_54.tangent_2, handedness_0), AlignWithFace_0(o_54.normal_9, V_1, si_3.frontFacing_0));
-    var _S335 : bool;
-    if((all(((o_54.coatNormal_0) == (o_54.normal_9)))))
+    ms_0.inputs_1.basis_1 = Frame_FromTangent_0(vec4<f32>(o_57.tangent_2, handedness_0), AlignWithFace_0(o_57.normal_9, V_1, si_3.frontFacing_0));
+    var _S367 : bool;
+    if((all(((o_57.coatNormal_0) == (o_57.normal_9)))))
     {
-        _S335 = (all(((o_54.coatTangent_0) == (o_54.tangent_2))));
+        _S367 = (all(((o_57.coatTangent_0) == (o_57.tangent_2))));
     }
     else
     {
-        _S335 = false;
+        _S367 = false;
     }
-    if(_S335)
+    if(_S367)
     {
         ms_0.inputs_1.coatBasis_0 = ms_0.inputs_1.basis_1;
     }
     else
     {
-        ms_0.inputs_1.coatBasis_0 = Frame_FromTangent_0(vec4<f32>(o_54.coatTangent_0, handedness_0), AlignWithFace_0(o_54.coatNormal_0, V_1, si_3.frontFacing_0));
+        ms_0.inputs_1.coatBasis_0 = Frame_FromTangent_0(vec4<f32>(o_57.coatTangent_0, handedness_0), AlignWithFace_0(o_57.coatNormal_0, V_1, si_3.frontFacing_0));
     }
     return ms_0;
 }
@@ -10765,17 +11049,17 @@ struct VolumeDerived_0
 
 fn HomogeneousVolume_x24init_0( extinction_1 : vec3<f32>,  albedo_4 : vec3<f32>,  anisotropy_1 : f32) -> HomogeneousVolume_0
 {
-    var _S336 : HomogeneousVolume_0;
-    _S336.extinction_0 = extinction_1;
-    _S336.albedo_0 = albedo_4;
-    _S336.anisotropy_0 = anisotropy_1;
-    return _S336;
+    var _S368 : HomogeneousVolume_0;
+    _S368.extinction_0 = extinction_1;
+    _S368.albedo_0 = albedo_4;
+    _S368.anisotropy_0 = anisotropy_1;
+    return _S368;
 }
 
 fn HomogeneousVolume_Empty_0() -> HomogeneousVolume_0
 {
-    var _S337 : vec3<f32> = vec3<f32>(0.0f);
-    return HomogeneousVolume_x24init_0(_S337, _S337, 0.0f);
+    var _S369 : vec3<f32> = vec3<f32>(0.0f);
+    return HomogeneousVolume_x24init_0(_S369, _S369, 0.0f);
 }
 
 fn Square_1( v_14 : vec3<f32>) -> vec3<f32>
@@ -10785,10 +11069,10 @@ fn Square_1( v_14 : vec3<f32>) -> vec3<f32>
 
 fn CreateSubsurfaceVolume_0( radius_2 : f32,  radiusScale_0 : vec3<f32>,  color_4 : vec3<f32>,  anisotropy_2 : f32) -> HomogeneousVolume_0
 {
-    var _S338 : vec3<f32> = vec3<f32>(1.0f);
+    var _S370 : vec3<f32> = vec3<f32>(1.0f);
     var g_2 : f32 = clamp(anisotropy_2, -0.99900001287460327f, 0.99900001287460327f);
-    var _S339 : vec3<f32> = Square_1(vec3<f32>(4.0971198081970215f) + vec3<f32>(4.2086300849914551f) * color_4 - sqrt(vec3<f32>(9.5921697616577148f) + vec3<f32>(41.680801391601562f) * color_4 + vec3<f32>(17.712600708007812f) * Square_1(color_4)));
-    return HomogeneousVolume_x24init_0(_S338 / max(vec3<f32>(radius_2) * radiusScale_0, vec3<f32>(0.0010000000474974513f)), saturate((_S338 - _S339) / (_S338 - vec3<f32>(g_2) * _S339)), g_2);
+    var _S371 : vec3<f32> = Square_1(vec3<f32>(4.0971198081970215f) + vec3<f32>(4.2086300849914551f) * color_4 - sqrt(vec3<f32>(9.5921697616577148f) + vec3<f32>(41.680801391601562f) * color_4 + vec3<f32>(17.712600708007812f) * Square_1(color_4)));
+    return HomogeneousVolume_x24init_0(_S370 / max(vec3<f32>(radius_2) * radiusScale_0, vec3<f32>(0.0010000000474974513f)), saturate((_S370 - _S371) / (_S370 - vec3<f32>(g_2) * _S371)), g_2);
 }
 
 fn HomogeneousVolume_FromAbsorptionAndScattering_0( absorption_1 : vec3<f32>,  scattering_0 : vec3<f32>,  anisotropy_3 : f32) -> HomogeneousVolume_0
@@ -10801,61 +11085,61 @@ fn HomogeneousVolume_FromAbsorptionAndScattering_0( absorption_1 : vec3<f32>,  s
     }
     else
     {
-        var _S340 : f32;
+        var _S372 : f32;
         if(((extinction_2[i32(0)]) > 0.0f))
         {
-            _S340 = scattering_0[i32(0)] / extinction_2[i32(0)];
+            _S372 = scattering_0[i32(0)] / extinction_2[i32(0)];
         }
         else
         {
-            _S340 = 0.0f;
+            _S372 = 0.0f;
         }
-        albedo_5[i32(0)] = _S340;
+        albedo_5[i32(0)] = _S372;
         if(((extinction_2[i32(1)]) > 0.0f))
         {
-            _S340 = scattering_0[i32(1)] / extinction_2[i32(1)];
+            _S372 = scattering_0[i32(1)] / extinction_2[i32(1)];
         }
         else
         {
-            _S340 = 0.0f;
+            _S372 = 0.0f;
         }
-        albedo_5[i32(1)] = _S340;
+        albedo_5[i32(1)] = _S372;
         if(((extinction_2[i32(2)]) > 0.0f))
         {
-            _S340 = scattering_0[i32(2)] / extinction_2[i32(2)];
+            _S372 = scattering_0[i32(2)] / extinction_2[i32(2)];
         }
         else
         {
-            _S340 = 0.0f;
+            _S372 = 0.0f;
         }
-        albedo_5[i32(2)] = _S340;
+        albedo_5[i32(2)] = _S372;
     }
     return HomogeneousVolume_x24init_0(extinction_2, albedo_5, anisotropy_3);
 }
 
 fn CreateTransmissionVolume_0( color_5 : vec3<f32>,  depth_1 : f32,  scatter_0 : vec3<f32>,  anisotropy_4 : f32) -> HomogeneousVolume_0
 {
-    var _S341 : bool;
+    var _S373 : bool;
     if(((MinComponent_0(color_5)) >= 1.0f))
     {
-        _S341 = ((MaxComponent_0(scatter_0)) <= 0.0f);
+        _S373 = ((MaxComponent_0(scatter_0)) <= 0.0f);
     }
     else
     {
-        _S341 = false;
+        _S373 = false;
     }
-    if(_S341)
+    if(_S373)
     {
         return HomogeneousVolume_Empty_0();
     }
-    var _S342 : vec3<f32> = vec3<f32>((1.0f / max(depth_1, 0.0010000000474974513f)));
-    var scattering_1 : vec3<f32> = scatter_0 * _S342;
-    var absorption_2 : vec3<f32> = (vec3<f32>(0) - log(max(color_5, vec3<f32>(0.0010000000474974513f)))) * _S342 - scattering_1;
-    var _S343 : f32 = MinComponent_0(absorption_2);
+    var _S374 : vec3<f32> = vec3<f32>((1.0f / max(depth_1, 0.0010000000474974513f)));
+    var scattering_1 : vec3<f32> = scatter_0 * _S374;
+    var absorption_2 : vec3<f32> = (vec3<f32>(0) - log(max(color_5, vec3<f32>(0.0010000000474974513f)))) * _S374 - scattering_1;
+    var _S375 : f32 = MinComponent_0(absorption_2);
     var absorption_3 : vec3<f32>;
-    if((_S343 < 0.0f))
+    if((_S375 < 0.0f))
     {
-        absorption_3 = absorption_2 - vec3<f32>(_S343);
+        absorption_3 = absorption_2 - vec3<f32>(_S375);
     }
     else
     {
@@ -10876,14 +11160,14 @@ fn HomogeneousVolume_Scattering_0( this_71 : HomogeneousVolume_0) -> vec3<f32>
 
 fn AddVolumes_0( a_16 : HomogeneousVolume_0,  b_15 : HomogeneousVolume_0,  weightA_0 : f32,  weightB_0 : f32) -> HomogeneousVolume_0
 {
-    var _S344 : vec3<f32> = vec3<f32>(weightA_0);
-    var _S345 : vec3<f32> = vec3<f32>(weightB_0);
-    return HomogeneousVolume_FromAbsorptionAndScattering_0(HomogeneousVolume_Absorption_0(a_16) * _S344 + HomogeneousVolume_Absorption_0(b_15) * _S345, HomogeneousVolume_Scattering_0(a_16) * _S344 + HomogeneousVolume_Scattering_0(b_15) * _S345, SafeDivide_0(a_16.anisotropy_0 * weightA_0 + b_15.anisotropy_0 * weightB_0, weightA_0 + weightB_0, 0.0f));
+    var _S376 : vec3<f32> = vec3<f32>(weightA_0);
+    var _S377 : vec3<f32> = vec3<f32>(weightB_0);
+    return HomogeneousVolume_FromAbsorptionAndScattering_0(HomogeneousVolume_Absorption_0(a_16) * _S376 + HomogeneousVolume_Absorption_0(b_15) * _S377, HomogeneousVolume_Scattering_0(a_16) * _S376 + HomogeneousVolume_Scattering_0(b_15) * _S377, SafeDivide_0(a_16.anisotropy_0 * weightA_0 + b_15.anisotropy_0 * weightB_0, weightA_0 + weightB_0, 0.0f));
 }
 
 fn PrepareVolume_0( inputs_2 : BSDFInputs_0,  derived_0 : ptr<function, VolumeDerived_0>) -> HomogeneousVolume_0
 {
-    var _S346 : HomogeneousVolume_0 = HomogeneousVolume_Empty_0();
+    var _S378 : HomogeneousVolume_0 = HomogeneousVolume_Empty_0();
     (*derived_0).thinWallSubsurfaceColor_0 = vec3<f32>(0.0f);
     (*derived_0).thinWallSubsurfaceAnisotropy_0 = 0.0f;
     var subsurfaceVolume_0 : HomogeneousVolume_0;
@@ -10897,30 +11181,30 @@ fn PrepareVolume_0( inputs_2 : BSDFInputs_0,  derived_0 : ptr<function, VolumeDe
         {
             (*derived_0).thinWallSubsurfaceColor_0 = inputs_2.subsurfaceColor_0;
             (*derived_0).thinWallSubsurfaceAnisotropy_0 = inputs_2.subsurfaceScatterAnisotropy_0;
-            subsurfaceVolume_0 = _S346;
+            subsurfaceVolume_0 = _S378;
         }
     }
     else
     {
-        subsurfaceVolume_0 = _S346;
+        subsurfaceVolume_0 = _S378;
     }
     (*derived_0).transmissionTint_0 = vec3<f32>(1.0f);
     var transmissionVolume_0 : HomogeneousVolume_0;
     if(((inputs_2.transmissionWeight_0) > 0.0f))
     {
-        var _S347 : bool;
+        var _S379 : bool;
         if((inputs_2.transmissionDepth_0) == 0.0f)
         {
-            _S347 = true;
+            _S379 = true;
         }
         else
         {
-            _S347 = inputs_2.geometryThinWalled_0;
+            _S379 = inputs_2.geometryThinWalled_0;
         }
-        if(_S347)
+        if(_S379)
         {
             (*derived_0).transmissionTint_0 = inputs_2.transmissionColor_0;
-            transmissionVolume_0 = _S346;
+            transmissionVolume_0 = _S378;
         }
         else
         {
@@ -10929,7 +11213,7 @@ fn PrepareVolume_0( inputs_2 : BSDFInputs_0,  derived_0 : ptr<function, VolumeDe
     }
     else
     {
-        transmissionVolume_0 = _S346;
+        transmissionVolume_0 = _S378;
     }
     var subsurfaceFraction_0 : f32 = (1.0f - inputs_2.transmissionWeight_0) * inputs_2.subsurfaceWeight_0;
     var invTotal_0 : f32 = SafeDivide_0(1.0f, subsurfaceFraction_0 + inputs_2.transmissionWeight_0, 0.0f);
@@ -10938,16 +11222,16 @@ fn PrepareVolume_0( inputs_2 : BSDFInputs_0,  derived_0 : ptr<function, VolumeDe
 
 fn Frame_Handedness_0( this_72 : Frame_0) -> f32
 {
-    var _S348 : f32;
+    var _S380 : f32;
     if(((dot(cross(this_72.t_0, this_72.b_0), this_72.n_1)) >= 0.0f))
     {
-        _S348 = 1.0f;
+        _S380 = 1.0f;
     }
     else
     {
-        _S348 = -1.0f;
+        _S380 = -1.0f;
     }
-    return _S348;
+    return _S380;
 }
 
 fn Frame_RotatedAroundNormal_0( this_73 : Frame_0,  cosSin_0 : vec2<f32>) -> Frame_0
@@ -10960,11 +11244,11 @@ fn Frame_RotatedAroundNormal_0( this_73 : Frame_0,  cosSin_0 : vec2<f32>) -> Fra
     var h_11 : f32 = Frame_Handedness_0(this_73);
     var f_12 : Frame_0;
     f_12.n_1 = this_73.n_1;
-    var _S349 : vec3<f32> = vec3<f32>(cs_0.x);
-    var _S350 : vec3<f32> = vec3<f32>(h_11);
-    var _S351 : vec3<f32> = vec3<f32>(cs_0.y);
-    f_12.t_0 = this_73.t_0 * _S349 + _S350 * this_73.b_0 * _S351;
-    f_12.b_0 = this_73.b_0 * _S349 - _S350 * this_73.t_0 * _S351;
+    var _S381 : vec3<f32> = vec3<f32>(cs_0.x);
+    var _S382 : vec3<f32> = vec3<f32>(h_11);
+    var _S383 : vec3<f32> = vec3<f32>(cs_0.y);
+    f_12.t_0 = this_73.t_0 * _S381 + _S382 * this_73.b_0 * _S383;
+    f_12.b_0 = this_73.b_0 * _S381 - _S382 * this_73.t_0 * _S383;
     return f_12;
 }
 
@@ -10986,16 +11270,16 @@ fn IorFromF0_0( f0_2 : f32) -> f32
 fn ApplySpecularWeightToIor_0( eta_6 : f32,  specularWeight_1 : f32) -> f32
 {
     var externalIor_0 : f32 = IorFromF0_0(min(F0FromIor_0(eta_6) * specularWeight_1, 0.99989998340606689f));
-    var _S352 : f32;
+    var _S384 : f32;
     if((eta_6 < 1.0f))
     {
-        _S352 = 1.0f / externalIor_0;
+        _S384 = 1.0f / externalIor_0;
     }
     else
     {
-        _S352 = externalIor_0;
+        _S384 = externalIor_0;
     }
-    return _S352;
+    return _S384;
 }
 
 fn Average_0( v_15 : vec3<f32>) -> f32
@@ -11019,9 +11303,9 @@ fn AnisotropicAlpha_0( isotropicAlpha_1 : f32,  anisotropy_5 : f32) -> vec2<f32>
     var alpha_13 : vec2<f32>;
     if((anisotropy_5 > 0.0f))
     {
-        var _S353 : f32 = 1.0f - anisotropy_5;
-        alpha_13[i32(0)] = isotropicAlpha_1 * sqrt(2.0f / (1.0f + Square_0(_S353)));
-        alpha_13[i32(1)] = _S353 * alpha_13.x;
+        var _S385 : f32 = 1.0f - anisotropy_5;
+        alpha_13[i32(0)] = isotropicAlpha_1 * sqrt(2.0f / (1.0f + Square_0(_S385)));
+        alpha_13[i32(1)] = _S385 * alpha_13.x;
     }
     else
     {
@@ -11041,39 +11325,39 @@ fn AverageFresnel_0( eta_7 : f32) -> f32
     {
         return (eta_7 - 1.0f) / (4.085669994354248f + 1.0007100105285645f * eta_7);
     }
-    var _S354 : f32 = eta_7 * eta_7;
-    return 0.99711799621582031f + 0.10140000283718109f * eta_7 - 0.96524101495742798f * _S354 - 0.1306069940328598f * _S354 * eta_7;
+    var _S386 : f32 = eta_7 * eta_7;
+    return 0.99711799621582031f + 0.10140000283718109f * eta_7 - 0.96524101495742798f * _S386 - 0.1306069940328598f * _S386 * eta_7;
 }
 
 fn GGXDistribution_x24init_0( alpha_14 : vec2<f32>,  frame_2 : Frame_0,  isotropicAlpha_2 : f32) -> GGXDistribution_0
 {
-    var _S355 : GGXDistribution_0;
-    _S355.alpha_0 = alpha_14;
-    _S355.frame_1 = frame_2;
-    _S355.isotropicAlpha_0 = isotropicAlpha_2;
-    return _S355;
+    var _S387 : GGXDistribution_0;
+    _S387.alpha_0 = alpha_14;
+    _S387.frame_1 = frame_2;
+    _S387.isotropicAlpha_0 = isotropicAlpha_2;
+    return _S387;
 }
 
 fn BSDFInputs_HasDispersion_0( this_75 : BSDFInputs_0) -> bool
 {
-    var _S356 : bool;
+    var _S388 : bool;
     if(((this_75.transmissionDispersionScale_0) > 0.0f))
     {
-        _S356 = ((this_75.transmissionDispersionAbbeNumber_0) > 0.0f);
+        _S388 = ((this_75.transmissionDispersionAbbeNumber_0) > 0.0f);
     }
     else
     {
-        _S356 = false;
+        _S388 = false;
     }
-    if(_S356)
+    if(_S388)
     {
-        _S356 = ((this_75.baseMetalness_0) < 1.0f);
+        _S388 = ((this_75.baseMetalness_0) < 1.0f);
     }
     else
     {
-        _S356 = false;
+        _S388 = false;
     }
-    return _S356;
+    return _S388;
 }
 
 fn DispersionAdjustedIor_0( ior_5 : f32,  dispersion_1 : f32,  wavelength_0 : f32) -> f32
@@ -11123,13 +11407,13 @@ fn ThinWallFresnel_0( eta_8 : f32,  cosThetaI_6 : f32) -> f32
 
 fn SpecularLobe_x24init_0( normal_12 : vec3<f32>,  distribution_2 : GGXDistribution_0,  coefficient_2 : BaseReflectionTransmission_0,  eta_9 : vec3<f32>,  throughput_8 : vec3<f32>) -> SpecularLobe_0
 {
-    var _S357 : SpecularLobe_0;
-    _S357.normal_1 = normal_12;
-    _S357.distribution_0 = distribution_2;
-    _S357.coefficient_0 = coefficient_2;
-    _S357.eta_0 = eta_9;
-    _S357.throughput_0 = throughput_8;
-    return _S357;
+    var _S389 : SpecularLobe_0;
+    _S389.normal_1 = normal_12;
+    _S389.distribution_0 = distribution_2;
+    _S389.coefficient_0 = coefficient_2;
+    _S389.eta_0 = eta_9;
+    _S389.throughput_0 = throughput_8;
+    return _S389;
 }
 
 fn IdealDielectricReflectionRatio_0( ior_6 : f32,  alpha_15 : f32) -> f32
@@ -11139,57 +11423,57 @@ fn IdealDielectricReflectionRatio_0( ior_6 : f32,  alpha_15 : f32) -> f32
 
 fn DielectricMultipleScatteringLobe_x24init_0( normal_13 : vec3<f32>,  wo_28 : vec3<f32>,  alpha_16 : f32,  eta_10 : f32,  reflectionScale_1 : vec3<f32>,  transmissionScale_1 : vec3<f32>) -> DielectricMultipleScatteringLobe_0
 {
-    var _S358 : DielectricMultipleScatteringLobe_0;
-    _S358.normal_2 = normal_13;
-    _S358.alpha_1 = alpha_16;
-    _S358.eta_1 = eta_10;
-    _S358.reflectionScale_0 = reflectionScale_1;
-    _S358.transmissionScale_0 = transmissionScale_1;
-    _S358.reflectionRatio_0 = 0.0f;
-    _S358.energyComplementWo_0 = 0.0f;
-    var _S359 : bool;
+    var _S390 : DielectricMultipleScatteringLobe_0;
+    _S390.normal_2 = normal_13;
+    _S390.alpha_1 = alpha_16;
+    _S390.eta_1 = eta_10;
+    _S390.reflectionScale_0 = reflectionScale_1;
+    _S390.transmissionScale_0 = transmissionScale_1;
+    _S390.reflectionRatio_0 = 0.0f;
+    _S390.energyComplementWo_0 = 0.0f;
+    var _S391 : bool;
     if((alpha_16 >= 0.0015999999595806003f))
     {
-        _S359 = (any((((max(reflectionScale_1, transmissionScale_1)) > vec3<f32>(0.0f)))));
+        _S391 = (any((((max(reflectionScale_1, transmissionScale_1)) > vec3<f32>(0.0f)))));
     }
     else
     {
-        _S359 = false;
+        _S391 = false;
     }
-    if(_S359)
+    if(_S391)
     {
-        _S358.reflectionRatio_0 = IdealDielectricReflectionRatio_0(eta_10, alpha_16);
-        _S358.energyComplementWo_0 = IdealDielectricEnergyComplement_0(eta_10, alpha_16, dot(wo_28, normal_13));
+        _S390.reflectionRatio_0 = IdealDielectricReflectionRatio_0(eta_10, alpha_16);
+        _S390.energyComplementWo_0 = IdealDielectricEnergyComplement_0(eta_10, alpha_16, dot(wo_28, normal_13));
     }
-    return _S358;
+    return _S390;
 }
 
-fn MetalMultipleScatteringLobe_x24init_0( normal_14 : vec3<f32>,  wo_29 : vec3<f32>,  alpha_17 : f32,  scale_5 : vec3<f32>) -> MetalMultipleScatteringLobe_0
+fn MetalMultipleScatteringLobe_x24init_0( normal_14 : vec3<f32>,  wo_29 : vec3<f32>,  alpha_17 : f32,  scale_7 : vec3<f32>) -> MetalMultipleScatteringLobe_0
 {
-    var _S360 : MetalMultipleScatteringLobe_0;
-    _S360.normal_3 = normal_14;
-    _S360.alpha_2 = alpha_17;
-    _S360.scale_0 = scale_5;
-    var _S361 : bool;
-    if(MetalMultipleScatteringLobe_Active_0(_S360))
+    var _S392 : MetalMultipleScatteringLobe_0;
+    _S392.normal_3 = normal_14;
+    _S392.alpha_2 = alpha_17;
+    _S392.scale_0 = scale_7;
+    var _S393 : bool;
+    if(MetalMultipleScatteringLobe_Active_0(_S392))
     {
-        _S361 = (any(((scale_5 > vec3<f32>(0.0f)))));
+        _S393 = (any(((scale_7 > vec3<f32>(0.0f)))));
     }
     else
     {
-        _S361 = false;
+        _S393 = false;
     }
-    var _S362 : f32;
-    if(_S361)
+    var _S394 : f32;
+    if(_S393)
     {
-        _S362 = IdealMetalEnergyComplement_0(alpha_17, dot(wo_29, normal_14));
+        _S394 = IdealMetalEnergyComplement_0(alpha_17, dot(wo_29, normal_14));
     }
     else
     {
-        _S362 = 0.0f;
+        _S394 = 0.0f;
     }
-    _S360.energyComplementWo_1 = _S362;
-    return _S360;
+    _S392.energyComplementWo_1 = _S394;
+    return _S392;
 }
 
 fn OpaqueDielectricAverageEnergyComplement_0( ior_7 : f32,  alpha_18 : f32) -> f32
@@ -11199,41 +11483,41 @@ fn OpaqueDielectricAverageEnergyComplement_0( ior_7 : f32,  alpha_18 : f32) -> f
 
 fn DiffuseLobe_x24init_0( normal_15 : vec3<f32>,  wo_30 : vec3<f32>,  albedo_6 : vec3<f32>,  roughness_5 : f32,  specularAlpha_1 : f32,  specularEta_1 : f32) -> DiffuseLobe_0
 {
-    var _S363 : DiffuseLobe_0;
-    _S363.normal_4 = normal_15;
-    _S363.albedo_1 = albedo_6;
-    _S363.roughness_0 = roughness_5;
-    _S363.specularAlpha_0 = specularAlpha_1;
-    _S363.specularEta_0 = specularEta_1;
-    _S363.specularCompensation_0 = 0.0f;
+    var _S395 : DiffuseLobe_0;
+    _S395.normal_4 = normal_15;
+    _S395.albedo_1 = albedo_6;
+    _S395.roughness_0 = roughness_5;
+    _S395.specularAlpha_0 = specularAlpha_1;
+    _S395.specularEta_0 = specularEta_1;
+    _S395.specularCompensation_0 = 0.0f;
     if((any(((albedo_6 > vec3<f32>(0.0f))))))
     {
-        _S363.specularCompensation_0 = OpaqueDielectricEnergyComplement_0(specularEta_1, specularAlpha_1, dot(wo_30, normal_15)) / ClampAverageEnergyComplement_0(OpaqueDielectricAverageEnergyComplement_0(specularEta_1, specularAlpha_1));
+        _S395.specularCompensation_0 = OpaqueDielectricEnergyComplement_0(specularEta_1, specularAlpha_1, dot(wo_30, normal_15)) / ClampAverageEnergyComplement_0(OpaqueDielectricAverageEnergyComplement_0(specularEta_1, specularAlpha_1));
     }
-    return _S363;
+    return _S395;
 }
 
 fn ConstantReflection_x24init_0( color_6 : vec3<f32>) -> ConstantReflection_0
 {
-    var _S364 : ConstantReflection_0;
-    _S364.color_0 = color_6;
-    return _S364;
+    var _S396 : ConstantReflection_0;
+    _S396.color_0 = color_6;
+    return _S396;
 }
 
 fn MicrofacetReflectionLobe_x24init_0( normal_16 : vec3<f32>,  distribution_3 : GGXDistribution_0,  coefficient_3 : ConstantReflection_0) -> MicrofacetReflectionLobe_0
 {
-    var _S365 : MicrofacetReflectionLobe_0;
-    _S365.normal_5 = normal_16;
-    _S365.distribution_1 = distribution_3;
-    _S365.coefficient_1 = coefficient_3;
-    return _S365;
+    var _S397 : MicrofacetReflectionLobe_0;
+    _S397.normal_5 = normal_16;
+    _S397.distribution_1 = distribution_3;
+    _S397.coefficient_1 = coefficient_3;
+    return _S397;
 }
 
 fn FlippedLobe_x24init_0( lobe_3 : MicrofacetReflectionLobe_0) -> FlippedLobe_0
 {
-    var _S366 : FlippedLobe_0;
-    _S366.lobe_0 = lobe_3;
-    return _S366;
+    var _S398 : FlippedLobe_0;
+    _S398.lobe_0 = lobe_3;
+    return _S398;
 }
 
 fn MakeThinWallSpecularTransmissionLobe_0( normal_17 : vec3<f32>,  distribution_4 : GGXDistribution_0,  transmissionColor_1 : vec3<f32>) -> FlippedLobe_0
@@ -11245,9 +11529,9 @@ fn MakeThinWallSpecularTransmissionLobe_0( normal_17 : vec3<f32>,  distribution_
 
 fn FlippedLobe_x24init_1( lobe_4 : DiffuseLobe_0) -> FlippedLobe_1
 {
-    var _S367 : FlippedLobe_1;
-    _S367.lobe_0 = lobe_4;
-    return _S367;
+    var _S399 : FlippedLobe_1;
+    _S399.lobe_0 = lobe_4;
+    return _S399;
 }
 
 fn MakeThinWallDiffuseTransmissionLobe_0( normal_18 : vec3<f32>,  wo_31 : vec3<f32>,  albedo_7 : vec3<f32>,  roughness_6 : f32,  specularAlpha_2 : f32,  specularEta_2 : f32) -> FlippedLobe_1
@@ -11288,16 +11572,16 @@ fn DielectricMultipleScatteringLobe_EstimateContribution_0( this_78 : Dielectric
 
 fn MetalMultipleScatteringLobe_EstimateContribution_0( this_79 : MetalMultipleScatteringLobe_0,  wo_34 : vec3<f32>,  throughput_12 : vec3<f32>) -> f32
 {
-    var _S368 : f32;
+    var _S400 : f32;
     if(MetalMultipleScatteringLobe_Active_0(this_79))
     {
-        _S368 = ThroughputWeightedMax_0(throughput_12, this_79.scale_0) * this_79.energyComplementWo_1;
+        _S400 = ThroughputWeightedMax_0(throughput_12, this_79.scale_0) * this_79.energyComplementWo_1;
     }
     else
     {
-        _S368 = 0.0f;
+        _S400 = 0.0f;
     }
-    return _S368;
+    return _S400;
 }
 
 fn DiffuseLobe_EstimateContribution_0( this_80 : DiffuseLobe_0,  wo_35 : vec3<f32>,  throughput_13 : vec3<f32>) -> f32
@@ -11358,78 +11642,78 @@ fn BaseLobe_LobeEstimate_0( this_85 : BaseLobe_0,  index_10 : i32,  wo_39 : vec3
 
 fn BaseLobe_InitWeights_0( this_86 : ptr<function, BaseLobe_0>,  wo_40 : vec3<f32>,  throughput_19 : vec3<f32>)
 {
-    var _S369 : f32;
+    var _S401 : f32;
     if(BaseLobeEnabled_0(i32(0)))
     {
-        _S369 = BaseLobe_LobeEstimate_0((*this_86), i32(0), wo_40, throughput_19);
+        _S401 = BaseLobe_LobeEstimate_0((*this_86), i32(0), wo_40, throughput_19);
     }
     else
     {
-        _S369 = 0.0f;
+        _S401 = 0.0f;
     }
-    (*this_86).weights_0[i32(0)] = _S369;
+    (*this_86).weights_0[i32(0)] = _S401;
     if(BaseLobeEnabled_0(i32(1)))
     {
-        _S369 = BaseLobe_LobeEstimate_0((*this_86), i32(1), wo_40, throughput_19);
+        _S401 = BaseLobe_LobeEstimate_0((*this_86), i32(1), wo_40, throughput_19);
     }
     else
     {
-        _S369 = 0.0f;
+        _S401 = 0.0f;
     }
-    (*this_86).weights_0[i32(1)] = _S369;
+    (*this_86).weights_0[i32(1)] = _S401;
     if(BaseLobeEnabled_0(i32(2)))
     {
-        _S369 = BaseLobe_LobeEstimate_0((*this_86), i32(2), wo_40, throughput_19);
+        _S401 = BaseLobe_LobeEstimate_0((*this_86), i32(2), wo_40, throughput_19);
     }
     else
     {
-        _S369 = 0.0f;
+        _S401 = 0.0f;
     }
-    (*this_86).weights_0[i32(2)] = _S369;
+    (*this_86).weights_0[i32(2)] = _S401;
     if(BaseLobeEnabled_0(i32(3)))
     {
-        _S369 = BaseLobe_LobeEstimate_0((*this_86), i32(3), wo_40, throughput_19);
+        _S401 = BaseLobe_LobeEstimate_0((*this_86), i32(3), wo_40, throughput_19);
     }
     else
     {
-        _S369 = 0.0f;
+        _S401 = 0.0f;
     }
-    (*this_86).weights_0[i32(3)] = _S369;
+    (*this_86).weights_0[i32(3)] = _S401;
     if(BaseLobeEnabled_0(i32(4)))
     {
-        _S369 = BaseLobe_LobeEstimate_0((*this_86), i32(4), wo_40, throughput_19);
+        _S401 = BaseLobe_LobeEstimate_0((*this_86), i32(4), wo_40, throughput_19);
     }
     else
     {
-        _S369 = 0.0f;
+        _S401 = 0.0f;
     }
-    (*this_86).weights_0[i32(4)] = _S369;
+    (*this_86).weights_0[i32(4)] = _S401;
     if(BaseLobeEnabled_0(i32(5)))
     {
-        _S369 = BaseLobe_LobeEstimate_0((*this_86), i32(5), wo_40, throughput_19);
+        _S401 = BaseLobe_LobeEstimate_0((*this_86), i32(5), wo_40, throughput_19);
     }
     else
     {
-        _S369 = 0.0f;
+        _S401 = 0.0f;
     }
-    (*this_86).weights_0[i32(5)] = _S369;
+    (*this_86).weights_0[i32(5)] = _S401;
     return;
 }
 
 fn DielectricReflection_x24init_0( eta_11 : f32) -> DielectricReflection_0
 {
-    var _S370 : DielectricReflection_0;
-    _S370.eta_2 = eta_11;
-    return _S370;
+    var _S402 : DielectricReflection_0;
+    _S402.eta_2 = eta_11;
+    return _S402;
 }
 
 fn MicrofacetReflectionLobe_x24init_1( normal_19 : vec3<f32>,  distribution_5 : GGXDistribution_0,  coefficient_4 : DielectricReflection_0) -> MicrofacetReflectionLobe_1
 {
-    var _S371 : MicrofacetReflectionLobe_1;
-    _S371.normal_5 = normal_19;
-    _S371.distribution_1 = distribution_5;
-    _S371.coefficient_1 = coefficient_4;
-    return _S371;
+    var _S403 : MicrofacetReflectionLobe_1;
+    _S403.normal_5 = normal_19;
+    _S403.distribution_1 = distribution_5;
+    _S403.coefficient_1 = coefficient_4;
+    return _S403;
 }
 
 fn DielectricEnergyReflected_0( ior_8 : f32,  alpha_19 : f32,  cosTheta_12 : f32) -> f32
@@ -11443,16 +11727,16 @@ fn DielectricEnergyReflected_0( ior_8 : f32,  alpha_19 : f32,  cosTheta_12 : f32
 
 fn CoatLobe_ProportionReflected_0( this_87 : CoatLobe_0,  cosine_2 : f32) -> f32
 {
-    var _S372 : bool;
+    var _S404 : bool;
     if((cosine_2 > 0.0f))
     {
-        _S372 = CoatLobe_HasCoat_0(this_87);
+        _S404 = CoatLobe_HasCoat_0(this_87);
     }
     else
     {
-        _S372 = false;
+        _S404 = false;
     }
-    if(_S372)
+    if(_S404)
     {
         return DielectricEnergyReflected_0(this_87.reflection_0.coefficient_1.eta_2, this_87.reflection_0.distribution_1.isotropicAlpha_0, cosine_2) * this_87.presence_0;
     }
@@ -11461,32 +11745,32 @@ fn CoatLobe_ProportionReflected_0( this_87 : CoatLobe_0,  cosine_2 : f32) -> f32
 
 fn CoatLobe_x24init_0( base_4 : BaseLobe_0,  reflection_2 : MicrofacetReflectionLobe_1,  normal_20 : vec3<f32>,  wo_41 : vec3<f32>,  tint_3 : vec3<f32>,  presence_5 : f32,  extraBaseLayerScale_0 : vec3<f32>,  inside_1 : bool) -> CoatLobe_0
 {
-    var _S373 : CoatLobe_0;
-    _S373.base_0 = base_4;
-    _S373.reflection_0 = reflection_2;
-    _S373.normal_6 = normal_20;
-    _S373.tint_0 = tint_3;
-    _S373.presence_0 = presence_5;
-    _S373.inside_0 = inside_1;
+    var _S405 : CoatLobe_0;
+    _S405.base_0 = base_4;
+    _S405.reflection_0 = reflection_2;
+    _S405.normal_6 = normal_20;
+    _S405.tint_0 = tint_3;
+    _S405.presence_0 = presence_5;
+    _S405.inside_0 = inside_1;
     var idotn_9 : f32 = dot(wo_41, normal_20);
-    var _S374 : f32 = CoatLobe_ProportionReflected_0(_S373, idotn_9);
-    _S373.inReflected_0 = _S374;
-    _S373.inBaseLayerScale_0 = CoatLobe_BaseLayerScaleOneSide_0(_S373, idotn_9, _S374) * extraBaseLayerScale_0;
-    return _S373;
+    var _S406 : f32 = CoatLobe_ProportionReflected_0(_S405, idotn_9);
+    _S405.inReflected_0 = _S406;
+    _S405.inBaseLayerScale_0 = CoatLobe_BaseLayerScaleOneSide_0(_S405, idotn_9, _S406) * extraBaseLayerScale_0;
+    return _S405;
 }
 
 fn FuzzLobe_ProportionReflected_0( this_88 : FuzzLobe_0,  directionLocal_1 : vec3<f32>) -> f32
 {
-    var _S375 : bool;
+    var _S407 : bool;
     if(((directionLocal_1.z) <= 0.0f))
     {
-        _S375 = true;
+        _S407 = true;
     }
     else
     {
-        _S375 = !FuzzLobe_HasFuzz_0(this_88);
+        _S407 = !FuzzLobe_HasFuzz_0(this_88);
     }
-    if(_S375)
+    if(_S407)
     {
         return 0.0f;
     }
@@ -11495,18 +11779,18 @@ fn FuzzLobe_ProportionReflected_0( this_88 : FuzzLobe_0,  directionLocal_1 : vec
 
 fn FuzzLobe_x24init_0( base_5 : CoatLobe_0,  normal_21 : vec3<f32>,  wo_42 : vec3<f32>,  roughness_7 : f32,  tint_4 : vec3<f32>,  presence_6 : f32) -> FuzzLobe_0
 {
-    var _S376 : FuzzLobe_0;
-    _S376.base_1 = base_5;
-    _S376.alpha_3 = roughness_7;
-    _S376.tint_1 = tint_4;
-    _S376.presence_1 = presence_6;
-    var _S377 : Frame_0 = BasisFromNormal_0(normal_21);
-    _S376.basis_0 = _S377;
-    var _S378 : vec3<f32> = Frame_ToLocal_0(_S377, wo_42);
-    _S376.woLocal_0 = _S378;
-    _S376.viewReflected_0 = 0.0f;
-    _S376.viewReflected_0 = FuzzLobe_ProportionReflected_0(_S376, _S378);
-    return _S376;
+    var _S408 : FuzzLobe_0;
+    _S408.base_1 = base_5;
+    _S408.alpha_3 = roughness_7;
+    _S408.tint_1 = tint_4;
+    _S408.presence_1 = presence_6;
+    var _S409 : Frame_0 = BasisFromNormal_0(normal_21);
+    _S408.basis_0 = _S409;
+    var _S410 : vec3<f32> = Frame_ToLocal_0(_S409, wo_42);
+    _S408.woLocal_0 = _S410;
+    _S408.viewReflected_0 = 0.0f;
+    _S408.viewReflected_0 = FuzzLobe_ProportionReflected_0(_S408, _S410);
+    return _S408;
 }
 
 fn PrepareLobes_0( inputs_3 : BSDFInputs_0,  derived_1 : VolumeDerived_0,  wo_43 : vec3<f32>,  throughput_20 : vec3<f32>,  wavelengths_2 : vec3<f32>,  exteriorIor_0 : f32) -> FuzzLobe_0
@@ -11532,7 +11816,7 @@ fn PrepareLobes_0( inputs_3 : BSDFInputs_0,  derived_1 : VolumeDerived_0,  wo_43
     {
         specularBasis_1 = specularBasis_0;
     }
-    var _S379 : Frame_0 = specularBasis_1;
+    var _S411 : Frame_0 = specularBasis_1;
     var coatBasis_1 : Frame_0 = Frame_RotatedAroundNormal_0(inputs_3.coatBasis_0, inputs_3.coatAnisotropyRotation_0);
     var coatBasis_2 : Frame_0;
     if(((dot(wo_43, inputs_3.coatBasis_0.n_1)) < 0.0f))
@@ -11543,7 +11827,7 @@ fn PrepareLobes_0( inputs_3 : BSDFInputs_0,  derived_1 : VolumeDerived_0,  wo_43
     {
         coatBasis_2 = coatBasis_1;
     }
-    var _S380 : Frame_0 = coatBasis_2;
+    var _S412 : Frame_0 = coatBasis_2;
     var enterCoat_0 : bool;
     if(((inputs_3.coatWeight_0) > 0.0f))
     {
@@ -11570,10 +11854,10 @@ fn PrepareLobes_0( inputs_3 : BSDFInputs_0,  derived_1 : VolumeDerived_0,  wo_43
     if(inside_2)
     {
         var etaRefraction_1 : f32 = exteriorIor_0 / weightedSpecularIor_0;
-        var _S381 : f32 = weightedSpecularIor_0 / exteriorIor_0;
+        var _S413 : f32 = weightedSpecularIor_0 / exteriorIor_0;
         etaRefraction_0 = etaRefraction_1;
         etaCoat_0 = 1.0f;
-        etaOpaqueReflection_0 = _S381;
+        etaOpaqueReflection_0 = _S413;
         etaTransReflection_0 = etaRefraction_1;
     }
     else
@@ -11604,11 +11888,11 @@ fn PrepareLobes_0( inputs_3 : BSDFInputs_0,  derived_1 : VolumeDerived_0,  wo_43
             etaRefraction_0 = etaRefraction_2;
             etaCoat_0 = 1.0f;
         }
-        var _S382 : f32 = etaRefraction_0;
-        var _S383 : f32 = etaRefraction_0;
+        var _S414 : f32 = etaRefraction_0;
+        var _S415 : f32 = etaRefraction_0;
         etaRefraction_0 = etaRefraction_2;
-        etaOpaqueReflection_0 = _S383;
-        etaTransReflection_0 = _S382;
+        etaOpaqueReflection_0 = _S415;
+        etaTransReflection_0 = _S414;
     }
     if((etaRefraction_0 >= 1.0f))
     {
@@ -11657,19 +11941,19 @@ fn PrepareLobes_0( inputs_3 : BSDFInputs_0,  derived_1 : VolumeDerived_0,  wo_43
         metalF82Tint_2 = inputs_3.specularColor_0;
     }
     var weightedBaseColor_0 : vec3<f32> = inputs_3.baseColor_0 * vec3<f32>(inputs_3.baseWeight_0);
-    var _S384 : vec3<f32> = AverageFresnelMetalF82_0(weightedBaseColor_0, metalF82Tint_2);
+    var _S416 : vec3<f32> = AverageFresnelMetalF82_0(weightedBaseColor_0, metalF82Tint_2);
     var kSmooth_0 : f32 = AverageFresnel_0(etaCoat_0);
     var specularityOpaqueDielectric_0 : f32 = AverageFresnel_0(etaOpaqueReflection_0);
     var k_2 : f32 = mix(kSmooth_0, 1.0f - (1.0f - kSmooth_0) / Square_0(etaCoat_0), mix(1.0f, specularRoughness_1, opaqueDielectric_0 * specularityOpaqueDielectric_0 + (sss_0 + trans_0) * AverageFresnel_0(etaTransReflection_0) + inputs_3.baseMetalness_0));
-    var _S385 : vec3<f32> = vec3<f32>(darkenedMetal_0);
-    var _S386 : vec3<f32> = vec3<f32>(1.0f);
-    var _S387 : vec3<f32> = vec3<f32>(opaqueDielectric_0);
-    var _S388 : vec3<f32> = vec3<f32>(sss_0);
+    var _S417 : vec3<f32> = vec3<f32>(darkenedMetal_0);
+    var _S418 : vec3<f32> = vec3<f32>(1.0f);
+    var _S419 : vec3<f32> = vec3<f32>(opaqueDielectric_0);
+    var _S420 : vec3<f32> = vec3<f32>(sss_0);
     var albedoTrans_0 : vec3<f32> = vec3<f32>(trans_0);
-    var coatDarkening_1 : vec3<f32> = mix(_S386, vec3<f32>((1.0f - k_2)) / (_S386 - (_S385 * _S384 + _S387 * mix(weightedBaseColor_0, _S386, vec3<f32>(specularityOpaqueDielectric_0)) + _S388 * inputs_3.subsurfaceColor_0 + albedoTrans_0) * vec3<f32>(k_2)), vec3<f32>((inputs_3.coatWeight_0 * inputs_3.coatDarkening_0)));
+    var coatDarkening_1 : vec3<f32> = mix(_S418, vec3<f32>((1.0f - k_2)) / (_S418 - (_S417 * _S416 + _S419 * mix(weightedBaseColor_0, _S418, vec3<f32>(specularityOpaqueDielectric_0)) + _S420 * inputs_3.subsurfaceColor_0 + albedoTrans_0) * vec3<f32>(k_2)), vec3<f32>((inputs_3.coatWeight_0 * inputs_3.coatDarkening_0)));
     var distribution_6 : GGXDistribution_0 = GGXDistribution_x24init_0(anisotropicSpecularAlpha_0, specularBasis_1, specularAlpha_3);
     var transIncludingSss_0 : f32 = trans_0 + sss_0;
-    var scaleOpaqueReflection_0 : vec3<f32> = inputs_3.specularColor_0 * _S387;
+    var scaleOpaqueReflection_0 : vec3<f32> = inputs_3.specularColor_0 * _S419;
     var thinWallSpecularTransmissionAlbedoScale_0 : vec3<f32>;
     var thinWallAwareScaleTransReflection_0 : vec3<f32>;
     var scaleTransReflection_0 : vec3<f32>;
@@ -11685,9 +11969,9 @@ fn PrepareLobes_0( inputs_3 : BSDFInputs_0,  derived_1 : VolumeDerived_0,  wo_43
         var scaleTransReflection_2 : vec3<f32> = inputs_3.specularColor_0 * vec3<f32>(transIncludingSss_0);
         if(inputs_3.geometryThinWalled_0)
         {
-            var _S389 : vec3<f32> = inputs_3.specularColor_0 * _S388;
+            var _S421 : vec3<f32> = inputs_3.specularColor_0 * _S420;
             thinWallSpecularTransmissionAlbedoScale_0 = inputs_3.specularColor_0 * albedoTrans_0;
-            thinWallAwareScaleTransReflection_0 = _S389;
+            thinWallAwareScaleTransReflection_0 = _S421;
         }
         else
         {
@@ -11701,67 +11985,67 @@ fn PrepareLobes_0( inputs_3 : BSDFInputs_0,  derived_1 : VolumeDerived_0,  wo_43
     var etaOpaqueReflectionRGB_0 : vec3<f32> = vec3<f32>(etaOpaqueReflection_0);
     if(BSDFInputs_HasDispersion_0(inputs_3))
     {
-        var _S390 : f32 = SafeDivide_0(20.0f, SafeDivide_0(inputs_3.transmissionDispersionAbbeNumber_0, inputs_3.transmissionDispersionScale_0, 0.0f), 0.0f);
-        etaRefractionRGB_0[i32(0)] = DispersionAdjustedIor_0(etaRefraction_0, _S390, wavelengths_2[i32(0)]);
-        var _S391 : bool = etaTransReflection_0 == etaRefraction_0;
-        if(_S391)
+        var _S422 : f32 = SafeDivide_0(20.0f, SafeDivide_0(inputs_3.transmissionDispersionAbbeNumber_0, inputs_3.transmissionDispersionScale_0, 0.0f), 0.0f);
+        etaRefractionRGB_0[i32(0)] = DispersionAdjustedIor_0(etaRefraction_0, _S422, wavelengths_2[i32(0)]);
+        var _S423 : bool = etaTransReflection_0 == etaRefraction_0;
+        if(_S423)
         {
             dispersion_2 = etaRefractionRGB_0[i32(0)];
         }
         else
         {
-            dispersion_2 = DispersionAdjustedIor_0(etaTransReflection_0, _S390, wavelengths_2[i32(0)]);
+            dispersion_2 = DispersionAdjustedIor_0(etaTransReflection_0, _S422, wavelengths_2[i32(0)]);
         }
         etaTransReflectionRGB_0[i32(0)] = dispersion_2;
-        var _S392 : bool = etaOpaqueReflection_0 == etaTransReflection_0;
-        if(_S392)
+        var _S424 : bool = etaOpaqueReflection_0 == etaTransReflection_0;
+        if(_S424)
         {
             dispersion_2 = etaTransReflectionRGB_0[i32(0)];
         }
         else
         {
-            dispersion_2 = DispersionAdjustedIor_0(etaOpaqueReflection_0, _S390, wavelengths_2[i32(0)]);
+            dispersion_2 = DispersionAdjustedIor_0(etaOpaqueReflection_0, _S422, wavelengths_2[i32(0)]);
         }
         etaOpaqueReflectionRGB_0[i32(0)] = dispersion_2;
-        etaRefractionRGB_0[i32(1)] = DispersionAdjustedIor_0(etaRefraction_0, _S390, wavelengths_2[i32(1)]);
-        if(_S391)
+        etaRefractionRGB_0[i32(1)] = DispersionAdjustedIor_0(etaRefraction_0, _S422, wavelengths_2[i32(1)]);
+        if(_S423)
         {
             dispersion_2 = etaRefractionRGB_0[i32(1)];
         }
         else
         {
-            dispersion_2 = DispersionAdjustedIor_0(etaTransReflection_0, _S390, wavelengths_2[i32(1)]);
+            dispersion_2 = DispersionAdjustedIor_0(etaTransReflection_0, _S422, wavelengths_2[i32(1)]);
         }
         etaTransReflectionRGB_0[i32(1)] = dispersion_2;
-        if(_S392)
+        if(_S424)
         {
             dispersion_2 = etaTransReflectionRGB_0[i32(1)];
         }
         else
         {
-            dispersion_2 = DispersionAdjustedIor_0(etaOpaqueReflection_0, _S390, wavelengths_2[i32(1)]);
+            dispersion_2 = DispersionAdjustedIor_0(etaOpaqueReflection_0, _S422, wavelengths_2[i32(1)]);
         }
         etaOpaqueReflectionRGB_0[i32(1)] = dispersion_2;
-        etaRefractionRGB_0[i32(2)] = DispersionAdjustedIor_0(etaRefraction_0, _S390, wavelengths_2[i32(2)]);
-        if(_S391)
+        etaRefractionRGB_0[i32(2)] = DispersionAdjustedIor_0(etaRefraction_0, _S422, wavelengths_2[i32(2)]);
+        if(_S423)
         {
             dispersion_2 = etaRefractionRGB_0[i32(2)];
         }
         else
         {
-            dispersion_2 = DispersionAdjustedIor_0(etaTransReflection_0, _S390, wavelengths_2[i32(2)]);
+            dispersion_2 = DispersionAdjustedIor_0(etaTransReflection_0, _S422, wavelengths_2[i32(2)]);
         }
         etaTransReflectionRGB_0[i32(2)] = dispersion_2;
-        if(_S392)
+        if(_S424)
         {
             dispersion_2 = etaTransReflectionRGB_0[i32(2)];
         }
         else
         {
-            dispersion_2 = DispersionAdjustedIor_0(etaOpaqueReflection_0, _S390, wavelengths_2[i32(2)]);
+            dispersion_2 = DispersionAdjustedIor_0(etaOpaqueReflection_0, _S422, wavelengths_2[i32(2)]);
         }
         etaOpaqueReflectionRGB_0[i32(2)] = dispersion_2;
-        dispersion_2 = _S390;
+        dispersion_2 = _S422;
     }
     else
     {
@@ -11786,7 +12070,7 @@ fn PrepareLobes_0( inputs_3 : BSDFInputs_0,  derived_1 : VolumeDerived_0,  wo_43
         thinWallAwareCosTheta_0 = cosTheta_13;
     }
     var tintedTrans_0 : vec3<f32> = albedoTrans_0 * FinalTransmissionTint_0(derived_1.transmissionTint_0, inputs_3.geometryThinWalled_0, thinWallAwareCosTheta_0, etaRefraction_0);
-    var tintedTransIncludingSss_0 : vec3<f32> = tintedTrans_0 + _S388;
+    var tintedTransIncludingSss_0 : vec3<f32> = tintedTrans_0 + _S420;
     var thinWallAwareTintedTransIncludingSss_0 : vec3<f32> = vec3<f32>(nonThinWallWeight_0) * tintedTransIncludingSss_0;
     var thinFilmInteriorIor_1 : vec3<f32>;
     var thinFilmExteriorIor_1 : f32;
@@ -11806,34 +12090,34 @@ fn PrepareLobes_0( inputs_3 : BSDFInputs_0,  derived_1 : VolumeDerived_0,  wo_43
         }
         thinFilmExteriorIor_1 = weightedCoatIor_0;
     }
-    var _S393 : vec3<f32> = vec3<f32>(0.0f);
+    var _S425 : vec3<f32> = vec3<f32>(0.0f);
     var thinWallSpecularReflectionAlbedo_0 : vec3<f32>;
     var thinWallSpecularTransmissionAlbedo_0 : vec3<f32>;
     if(inputs_3.geometryThinWalled_0)
     {
-        var _S394 : vec3<f32> = tintedTrans_0 * vec3<f32>((1.0f - ThinWallFresnel_0(etaRefraction_0, thinWallAwareCosTheta_0)));
+        var _S426 : vec3<f32> = tintedTrans_0 * vec3<f32>((1.0f - ThinWallFresnel_0(etaRefraction_0, thinWallAwareCosTheta_0)));
         thinWallSpecularReflectionAlbedo_0 = thinWallSpecularTransmissionAlbedoScale_0 * vec3<f32>(ThinWallFresnel_0(etaTransReflection_0, thinWallAwareCosTheta_0));
-        thinWallSpecularTransmissionAlbedo_0 = _S394;
+        thinWallSpecularTransmissionAlbedo_0 = _S426;
     }
     else
     {
-        thinWallSpecularReflectionAlbedo_0 = _S393;
-        thinWallSpecularTransmissionAlbedo_0 = _S393;
+        thinWallSpecularReflectionAlbedo_0 = _S425;
+        thinWallSpecularTransmissionAlbedo_0 = _S425;
     }
     var thinWallSubsurfaceReflectionAlbedo_0 : vec3<f32>;
     var thinWallSubsurfaceTransmissionAlbedo_0 : vec3<f32>;
     if(inputs_3.geometryThinWalled_0)
     {
         var transmissionProportion_0 : f32 = (derived_1.thinWallSubsurfaceAnisotropy_0 + 1.0f) * 0.5f;
-        var subsurfaceAlbedo_0 : vec3<f32> = _S388 * derived_1.thinWallSubsurfaceColor_0;
-        var _S395 : vec3<f32> = subsurfaceAlbedo_0 * vec3<f32>(transmissionProportion_0);
+        var subsurfaceAlbedo_0 : vec3<f32> = _S420 * derived_1.thinWallSubsurfaceColor_0;
+        var _S427 : vec3<f32> = subsurfaceAlbedo_0 * vec3<f32>(transmissionProportion_0);
         thinWallSubsurfaceReflectionAlbedo_0 = subsurfaceAlbedo_0 * vec3<f32>((1.0f - transmissionProportion_0));
-        thinWallSubsurfaceTransmissionAlbedo_0 = _S395;
+        thinWallSubsurfaceTransmissionAlbedo_0 = _S427;
     }
     else
     {
-        thinWallSubsurfaceReflectionAlbedo_0 = _S393;
-        thinWallSubsurfaceTransmissionAlbedo_0 = _S393;
+        thinWallSubsurfaceReflectionAlbedo_0 = _S425;
+        thinWallSubsurfaceTransmissionAlbedo_0 = _S425;
     }
     var coefficient_5 : BaseReflectionTransmission_0;
     coefficient_5.etaTransparent_0 = etaTransReflectionRGB_0;
@@ -11852,15 +12136,15 @@ fn PrepareLobes_0( inputs_3 : BSDFInputs_0,  derived_1 : VolumeDerived_0,  wo_43
     coefficient_5.wavelengths_0 = wavelengths_2;
     coefficient_5.thinWallReflection_0 = thinWallSpecularReflectionAlbedo_0;
     var base_6 : BaseLobe_0;
-    base_6.specular_0 = SpecularLobe_x24init_0(_S379.n_1, distribution_6, coefficient_5, etaRefractionRGB_0, throughput_20);
-    base_6.dielectricMultipleScattering_0 = DielectricMultipleScatteringLobe_x24init_0(_S379.n_1, wo_43, specularAlpha_3, etaRefraction_0, scaleTransReflection_0, tintedTransIncludingSss_0);
-    base_6.metalMultipleScattering_0 = MetalMultipleScatteringLobe_x24init_0(_S379.n_1, wo_43, specularAlpha_3, Square_1(_S384) * _S385);
-    base_6.diffuse_0 = DiffuseLobe_x24init_0(_S379.n_1, wo_43, weightedBaseColor_0 * _S387 + thinWallSubsurfaceReflectionAlbedo_0, inputs_3.baseDiffuseRoughness_0, specularAlpha_3, etaOpaqueReflection_0);
-    base_6.thinWallSpecularTransmission_0 = MakeThinWallSpecularTransmissionLobe_0(_S379.n_1, distribution_6, thinWallSpecularTransmissionAlbedo_0);
-    base_6.thinWallDiffuseTransmission_0 = MakeThinWallDiffuseTransmissionLobe_0(_S379.n_1, wo_43, thinWallSubsurfaceTransmissionAlbedo_0, inputs_3.baseDiffuseRoughness_0, specularAlpha_3, etaOpaqueReflection_0);
+    base_6.specular_0 = SpecularLobe_x24init_0(_S411.n_1, distribution_6, coefficient_5, etaRefractionRGB_0, throughput_20);
+    base_6.dielectricMultipleScattering_0 = DielectricMultipleScatteringLobe_x24init_0(_S411.n_1, wo_43, specularAlpha_3, etaRefraction_0, scaleTransReflection_0, tintedTransIncludingSss_0);
+    base_6.metalMultipleScattering_0 = MetalMultipleScatteringLobe_x24init_0(_S411.n_1, wo_43, specularAlpha_3, Square_1(_S416) * _S417);
+    base_6.diffuse_0 = DiffuseLobe_x24init_0(_S411.n_1, wo_43, weightedBaseColor_0 * _S419 + thinWallSubsurfaceReflectionAlbedo_0, inputs_3.baseDiffuseRoughness_0, specularAlpha_3, etaOpaqueReflection_0);
+    base_6.thinWallSpecularTransmission_0 = MakeThinWallSpecularTransmissionLobe_0(_S411.n_1, distribution_6, thinWallSpecularTransmissionAlbedo_0);
+    base_6.thinWallDiffuseTransmission_0 = MakeThinWallDiffuseTransmissionLobe_0(_S411.n_1, wo_43, thinWallSubsurfaceTransmissionAlbedo_0, inputs_3.baseDiffuseRoughness_0, specularAlpha_3, etaOpaqueReflection_0);
     BaseLobe_InitWeights_0(&(base_6), wo_43, throughput_20);
-    var coat_0 : CoatLobe_0 = CoatLobe_x24init_0(base_6, MicrofacetReflectionLobe_x24init_1(_S380.n_1, GGXDistribution_x24init_0(anisotropicCoatAlpha_0, coatBasis_2, coatAlpha_0), DielectricReflection_x24init_0(etaCoat_0)), _S380.n_1, wo_43, inputs_3.coatColor_0, inputs_3.coatWeight_0, coatDarkening_1, inside_2);
-    var fuzzNormal_0 : vec3<f32> = normalize(mix(_S379.n_1, _S380.n_1, vec3<f32>(inputs_3.coatWeight_0)));
+    var coat_0 : CoatLobe_0 = CoatLobe_x24init_0(base_6, MicrofacetReflectionLobe_x24init_1(_S412.n_1, GGXDistribution_x24init_0(anisotropicCoatAlpha_0, coatBasis_2, coatAlpha_0), DielectricReflection_x24init_0(etaCoat_0)), _S412.n_1, wo_43, inputs_3.coatColor_0, inputs_3.coatWeight_0, coatDarkening_1, inside_2);
+    var fuzzNormal_0 : vec3<f32> = normalize(mix(_S411.n_1, _S412.n_1, vec3<f32>(inputs_3.coatWeight_0)));
     if(inside_2)
     {
         weightedCoatIor_0 = 0.0f;
@@ -11918,15 +12202,15 @@ fn ComputeEmission_0( inputs_4 : BSDFInputs_0,  wo_44 : vec3<f32>,  lobes_1 : Fu
 
 fn BSDF_x24init_0( inputs_5 : BSDFInputs_0,  wo_45 : vec3<f32>,  throughput_21 : vec3<f32>,  wavelengths_3 : vec3<f32>,  exteriorIor_1 : f32) -> BSDF_0
 {
-    var _S396 : BSDF_0;
-    _S396.wo_0 = wo_45;
+    var _S428 : BSDF_0;
+    _S428.wo_0 = wo_45;
     var derived_2 : VolumeDerived_0;
-    var _S397 : HomogeneousVolume_0 = PrepareVolume_0(inputs_5, &(derived_2));
-    _S396.volume_0 = _S397;
-    var _S398 : FuzzLobe_0 = PrepareLobes_0(inputs_5, derived_2, wo_45, throughput_21, wavelengths_3, exteriorIor_1);
-    _S396.lobes_0 = _S398;
-    _S396.emission_0 = ComputeEmission_0(inputs_5, wo_45, _S398);
-    return _S396;
+    var _S429 : HomogeneousVolume_0 = PrepareVolume_0(inputs_5, &(derived_2));
+    _S428.volume_0 = _S429;
+    var _S430 : FuzzLobe_0 = PrepareLobes_0(inputs_5, derived_2, wo_45, throughput_21, wavelengths_3, exteriorIor_1);
+    _S428.lobes_0 = _S430;
+    _S428.emission_0 = ComputeEmission_0(inputs_5, wo_45, _S430);
+    return _S428;
 }
 
 fn WorkBase_0( index_11 : u32) -> u32
@@ -11940,10 +12224,10 @@ fn WorkPixel_0( index_12 : u32) -> vec2<u32>
     var block_0 : u32 = work_0 / u32(64);
     var lane_0 : u32 = (work_0 & (u32(63)));
     var blocksX_0 : u32 = (gFrame_0.frame_0.x + u32(7)) / u32(8);
-    var _S399 : u32 = block_0 % blocksX_0;
-    var _S400 : u32 = _S399 * u32(8) + ((lane_0 & (u32(7))));
-    var _S401 : u32 = block_0 / blocksX_0;
-    return vec2<u32>(_S400, _S401 * u32(8) + lane_0 / u32(8));
+    var _S431 : u32 = block_0 % blocksX_0;
+    var _S432 : u32 = _S431 * u32(8) + ((lane_0 & (u32(7))));
+    var _S433 : u32 = block_0 / blocksX_0;
+    return vec2<u32>(_S432, _S433 * u32(8) + lane_0 / u32(8));
 }
 
 fn NrdEnabled_0() -> bool
@@ -11959,8 +12243,8 @@ fn NrdBase_0( base_7 : u32) -> u32
 
 fn NrdPackFraction_0( f_14 : vec3<f32>) -> u32
 {
-    var _S402 : vec3<u32> = vec3<u32>(round(saturate(f_14) * vec3<f32>(511.0f)));
-    return ((((_S402.x) | ((((_S402.y) << (u32(9))))))) | ((((_S402.z) << (u32(18))))));
+    var _S434 : vec3<u32> = vec3<u32>(round(saturate(f_14) * vec3<f32>(511.0f)));
+    return ((((_S434.x) | ((((_S434.y) << (u32(9))))))) | ((((_S434.z) << (u32(18))))));
 }
 
 fn NrdPackSurface_0( roughness_8 : f32,  metalness_0 : f32) -> f32
@@ -11968,21 +12252,21 @@ fn NrdPackSurface_0( roughness_8 : f32,  metalness_0 : f32) -> f32
     return saturate(roughness_8) * 0.99000000953674316f + 2.0f * round(saturate(metalness_0) * 255.0f);
 }
 
-fn EmissiveHitPdf_0( _S403 : u32,  _S404 : u32,  _S405 : vec3<f32>,  _S406 : vec3<f32>) -> f32
+fn EmissiveHitPdf_0( _S435 : u32,  _S436 : u32,  _S437 : vec3<f32>,  _S438 : vec3<f32>) -> f32
 {
-    if((((gInstances_0[_S403].flags_0) & (u32(2)))) == u32(0))
+    if((((gInstances_0[_S435].flags_0) & (u32(2)))) == u32(0))
     {
         return 0.0f;
     }
-    var light_4 : EmissiveTriangle_std430_0 = gLights_0[gInstances_0[_S403].lightOffset_0 + _S404];
-    return light_4.p1_0.w * EmissiveSolidAnglePdf_0(light_4.p0_0.w, MaterialHeader_DoubleSided_0(LoadMaterialHeader_0((bitcast<u32>((light_4.n_0.w))))), _S405, _S406, light_4.n_0.xyz);
+    var light_4 : EmissiveTriangle_std430_0 = gLights_0[gInstances_0[_S435].lightOffset_0 + _S436];
+    return light_4.p1_0.w * EmissiveSolidAnglePdf_0(light_4.p0_0.w, MaterialHeader_DoubleSided_0(LoadMaterialHeader_0((bitcast<u32>((light_4.n_0.w))))), _S437, _S438, light_4.n_0.xyz);
 }
 
 fn RandomSequence_x24init_0( positionSeed_0 : u32,  timeSeed_0 : u32) -> RandomSequence_0
 {
-    var _S407 : RandomSequence_0;
-    _S407.seed_0 = StrongIntegerHash_0(positionSeed_0 + StrongIntegerHash_0(timeSeed_0));
-    return _S407;
+    var _S439 : RandomSequence_0;
+    _S439.seed_0 = StrongIntegerHash_0(positionSeed_0 + StrongIntegerHash_0(timeSeed_0));
+    return _S439;
 }
 
 fn ScreenCacheMode_0( bit_0 : u32) -> bool
@@ -12012,9 +12296,9 @@ fn ScreenCacheClip_0( previous_1 : bool,  p_8 : vec3<f32>) -> vec4<f32>
 
 fn ScreenCacheScreen_0( clip_0 : vec4<f32>) -> vec3<f32>
 {
-    var _S408 : f32 = clip_0.w;
-    var ndc_0 : vec2<f32> = clip_0.xy / vec2<f32>(_S408);
-    return vec3<f32>(ndc_0.x * 0.5f + 0.5f, 0.5f - ndc_0.y * 0.5f, gScreenCache_0.params_0.x / _S408);
+    var _S440 : f32 = clip_0.w;
+    var ndc_0 : vec2<f32> = clip_0.xy / vec2<f32>(_S440);
+    return vec3<f32>(ndc_0.x * 0.5f + 0.5f, 0.5f - ndc_0.y * 0.5f, gScreenCache_0.params_0.x / _S440);
 }
 
 fn ScreenCacheSize_0() -> vec2<f32>
@@ -12039,71 +12323,71 @@ fn ScreenCacheSurfaceConfidence_0( packed_0 : f32) -> f32
         return 0.0f;
     }
     var metal_1 : bool = (packed_0 >= 2.0f);
-    var _S409 : f32;
+    var _S441 : f32;
     if(metal_1)
     {
-        _S409 = 2.0f;
+        _S441 = 2.0f;
     }
     else
     {
-        _S409 = 0.0f;
+        _S441 = 0.0f;
     }
-    var specular_3 : f32 = ScreenCacheSpecularConfidence_0(saturate(packed_0 - _S409));
+    var specular_3 : f32 = ScreenCacheSpecularConfidence_0(saturate(packed_0 - _S441));
     if(metal_1)
     {
-        _S409 = specular_3;
+        _S441 = specular_3;
     }
     else
     {
-        _S409 = mix(1.0f, specular_3, 0.20000000298023224f);
+        _S441 = mix(1.0f, specular_3, 0.20000000298023224f);
     }
-    return _S409 * gScreenCache_0.params_0.w;
+    return _S441 * gScreenCache_0.params_0.w;
 }
 
 fn isinf_0( x_28 : f32) -> bool
 {
-    var _S410 : u32 = (bitcast<u32>((x_28)));
-    var _S411 : u32 = (_S410 & (u32(8388607)));
-    var _S412 : bool;
-    if(((((_S410 >> (u32(23)))) & (u32(255)))) == u32(255))
+    var _S442 : u32 = (bitcast<u32>((x_28)));
+    var _S443 : u32 = (_S442 & (u32(8388607)));
+    var _S444 : bool;
+    if(((((_S442 >> (u32(23)))) & (u32(255)))) == u32(255))
     {
-        _S412 = _S411 == u32(0);
+        _S444 = _S443 == u32(0);
     }
     else
     {
-        _S412 = false;
+        _S444 = false;
     }
-    return _S412;
+    return _S444;
 }
 
 fn isnan_0( x_29 : f32) -> bool
 {
-    var _S413 : u32 = (bitcast<u32>((x_29)));
-    var _S414 : u32 = (_S413 & (u32(8388607)));
-    var _S415 : bool;
-    if(((((_S413 >> (u32(23)))) & (u32(255)))) == u32(255))
+    var _S445 : u32 = (bitcast<u32>((x_29)));
+    var _S446 : u32 = (_S445 & (u32(8388607)));
+    var _S447 : bool;
+    if(((((_S445 >> (u32(23)))) & (u32(255)))) == u32(255))
     {
-        _S415 = _S414 != u32(0);
+        _S447 = _S446 != u32(0);
     }
     else
     {
-        _S415 = false;
+        _S447 = false;
     }
-    return _S415;
+    return _S447;
 }
 
 fn isfinite_0( x_30 : f32) -> bool
 {
-    var _S416 : bool;
+    var _S448 : bool;
     if(isinf_0(x_30))
     {
-        _S416 = true;
+        _S448 = true;
     }
     else
     {
-        _S416 = isnan_0(x_30);
+        _S448 = isnan_0(x_30);
     }
-    return !_S416;
+    return !_S448;
 }
 
 fn isfinite_1( x_31 : vec3<f32>) -> vec3<bool>
@@ -12128,40 +12412,40 @@ fn isfinite_1( x_31 : vec3<f32>) -> vec3<bool>
 fn ScreenCacheLookup_0( position_3 : vec3<f32>,  normal_22 : vec3<f32>,  pixel_1 : vec2<u32>,  radiance_2 : ptr<function, vec3<f32>>) -> f32
 {
     (*radiance_2) = vec3<f32>(0.0f);
-    var near_0 : f32 = gScreenCache_0.params_0.x;
+    var near_1 : f32 = gScreenCache_0.params_0.x;
     var c_14 : vec4<f32> = ScreenCacheClip_0(true, position_3);
-    var _S417 : f32 = c_14.w;
-    if((_S417 <= near_0))
+    var _S449 : f32 = c_14.w;
+    if((_S449 <= near_1))
     {
         return 0.0f;
     }
-    var _S418 : vec2<f32> = ScreenCacheScreen_0(c_14).xy;
-    var _S419 : bool;
-    if((any(((_S418 <= vec2<f32>(0.0f))))))
+    var _S450 : vec2<f32> = ScreenCacheScreen_0(c_14).xy;
+    var _S451 : bool;
+    if((any(((_S450 <= vec2<f32>(0.0f))))))
     {
-        _S419 = true;
+        _S451 = true;
     }
     else
     {
-        _S419 = (any(((_S418 >= vec2<f32>(1.0f)))));
+        _S451 = (any(((_S450 >= vec2<f32>(1.0f)))));
     }
-    if(_S419)
+    if(_S451)
     {
         return 0.0f;
     }
-    var _S420 : vec3<i32> = vec3<i32>(ScreenCacheTexel_0(_S418), i32(0));
-    var surface_1 : f32 = (textureLoad((gScreenCacheDepth_0), ((_S420)).xy, ((_S420)).z).x);
+    var _S452 : vec3<i32> = vec3<i32>(ScreenCacheTexel_0(_S450), i32(0));
+    var surface_1 : f32 = (textureLoad((gScreenCacheDepth_0), ((_S452)).xy, ((_S452)).z).x);
     if((surface_1 <= 0.0f))
     {
         return 0.0f;
     }
-    var viewZ_0 : f32 = near_0 / surface_1;
-    var _S421 : vec2<f32> = vec2<f32>(0.10000000149011612f);
-    var edge_0 : vec2<f32> = saturate(_S418 / _S421) * saturate((vec2<f32>(1.0f) - _S418) / _S421);
-    var n_16 : vec4<f32> = (textureLoad((gScreenCacheNormal_0), ((_S420)).xy, ((_S420)).z));
-    var confidence_0 : f32 = saturate((0.019999999552965164f - abs(_S417 - viewZ_0) / max(_S417, viewZ_0)) / 0.0099999997764825821f) * (edge_0.x * edge_0.y) * (saturate((dot(n_16.xyz, normal_22) - 0.5f) / 0.40000000596046448f) * ScreenCacheSurfaceConfidence_0(n_16.w));
+    var viewZ_0 : f32 = near_1 / surface_1;
+    var _S453 : vec2<f32> = vec2<f32>(0.10000000149011612f);
+    var edge_0 : vec2<f32> = saturate(_S450 / _S453) * saturate((vec2<f32>(1.0f) - _S450) / _S453);
+    var n_16 : vec4<f32> = (textureLoad((gScreenCacheNormal_0), ((_S452)).xy, ((_S452)).z));
+    var confidence_0 : f32 = saturate((0.019999999552965164f - abs(_S449 - viewZ_0) / max(_S449, viewZ_0)) / 0.0099999997764825821f) * (edge_0.x * edge_0.y) * (saturate((dot(n_16.xyz, normal_22) - 0.5f) / 0.40000000596046448f) * ScreenCacheSurfaceConfidence_0(n_16.w));
     var cc_0 : vec4<f32> = ScreenCacheClip_0(false, position_3);
-    if(((cc_0.w) <= near_0))
+    if(((cc_0.w) <= near_1))
     {
         return 0.0f;
     }
@@ -12170,56 +12454,56 @@ fn ScreenCacheLookup_0( position_3 : vec3<f32>,  normal_22 : vec3<f32>,  pixel_1
     {
         return 0.0f;
     }
-    var _S422 : vec3<f32> = (textureLoad((gScreenCacheColor_0), ((_S420)).xy, ((_S420)).z)).xyz;
-    (*radiance_2) = _S422;
-    var _S423 : f32;
-    if((all((isfinite_1(_S422)))))
+    var _S454 : vec3<f32> = (textureLoad((gScreenCacheColor_0), ((_S452)).xy, ((_S452)).z)).xyz;
+    (*radiance_2) = _S454;
+    var _S455 : f32;
+    if((all((isfinite_1(_S454)))))
     {
-        _S423 = confidence_1;
+        _S455 = confidence_1;
     }
     else
     {
-        _S423 = 0.0f;
+        _S455 = 0.0f;
     }
-    return _S423;
+    return _S455;
 }
 
 fn SharcSurface_0( ms_1 : MaterialSample_0) -> bool
 {
-    var _S424 : bool;
+    var _S456 : bool;
     if(((ms_1.roughness_4) >= (gFrame_0.sharcParams_0.y)))
     {
-        _S424 = ((ms_1.inputs_1.baseMetalness_0) < 0.10000000149011612f);
+        _S456 = ((ms_1.inputs_1.baseMetalness_0) < 0.10000000149011612f);
     }
     else
     {
-        _S424 = false;
+        _S456 = false;
     }
-    if(_S424)
+    if(_S456)
     {
-        _S424 = (ms_1.inputs_1.transmissionWeight_0) == 0.0f;
+        _S456 = (ms_1.inputs_1.transmissionWeight_0) == 0.0f;
     }
     else
     {
-        _S424 = false;
+        _S456 = false;
     }
-    if(_S424)
+    if(_S456)
     {
-        _S424 = (ms_1.inputs_1.subsurfaceWeight_0) == 0.0f;
+        _S456 = (ms_1.inputs_1.subsurfaceWeight_0) == 0.0f;
     }
     else
     {
-        _S424 = false;
+        _S456 = false;
     }
-    if(_S424)
+    if(_S456)
     {
-        _S424 = (ms_1.inputs_1.coatWeight_0) == 0.0f;
+        _S456 = (ms_1.inputs_1.coatWeight_0) == 0.0f;
     }
     else
     {
-        _S424 = false;
+        _S456 = false;
     }
-    return _S424;
+    return _S456;
 }
 
 struct SharcKey_0
@@ -12233,51 +12517,51 @@ fn SharcMakeKey_0( position_4 : vec3<f32>,  normal_23 : vec3<f32>,  view_0 : vec
 {
     var baseSize_0 : f32 = gFrame_0.sharcParams_0.x;
     var level_3 : u32 = u32(clamp(floor(log2(max(length(position_4 - gFrame_0.cameraPosition_0.xyz) / (baseSize_0 * 32.0f), 1.0f))), 0.0f, 16.0f));
-    var _S425 : f32 = baseSize_0 * exp2(f32(level_3));
-    (*size_1) = _S425;
-    var cell_0 : vec3<f32> = floor(position_4 / vec3<f32>(_S425));
-    var _S426 : vec3<f32> = vec3<f32>(0.5f);
-    var _S427 : vec3<u32> = vec3<u32>(clamp(floor((normal_23 * _S426 + _S426) * vec3<f32>(15.0f) + _S426), vec3<f32>(0.0f), vec3<f32>(15.0f)));
-    var _S428 : u32;
+    var _S457 : f32 = baseSize_0 * exp2(f32(level_3));
+    (*size_1) = _S457;
+    var cell_0 : vec3<f32> = floor(position_4 / vec3<f32>(_S457));
+    var _S458 : vec3<f32> = vec3<f32>(0.5f);
+    var _S459 : vec3<u32> = vec3<u32>(clamp(floor((normal_23 * _S458 + _S458) * vec3<f32>(15.0f) + _S458), vec3<f32>(0.0f), vec3<f32>(15.0f)));
+    var _S460 : u32;
     if(((view_0.x) >= 0.0f))
     {
-        _S428 = u32(1);
+        _S460 = u32(1);
     }
     else
     {
-        _S428 = u32(0);
+        _S460 = u32(0);
     }
-    var _S429 : u32;
+    var _S461 : u32;
     if(((view_0.y) >= 0.0f))
     {
-        _S429 = u32(2);
+        _S461 = u32(2);
     }
     else
     {
-        _S429 = u32(0);
+        _S461 = u32(0);
     }
-    var _S430 : u32 = (_S428 | (_S429));
+    var _S462 : u32 = (_S460 | (_S461));
     if(((view_0.z) >= 0.0f))
     {
-        _S428 = u32(4);
+        _S460 = u32(4);
     }
     else
     {
-        _S428 = u32(0);
+        _S460 = u32(0);
     }
-    (*key_0).spatial_0 = vec4<u32>((bitcast<vec3<u32>>((vec3<i32>(clamp(cell_0, vec3<f32>(-1.073741824e+09f), vec3<f32>(1.073741824e+09f)))))), ((((((((_S427.x) | ((((_S427.y) << (u32(4))))))) | ((((_S427.z) << (u32(8))))))) | (((((_S430 | (_S428))) << (u32(12))))))) | (((level_3 << (u32(15)))))));
+    (*key_0).spatial_0 = vec4<u32>((bitcast<vec3<u32>>((vec3<i32>(clamp(cell_0, vec3<f32>(-1.073741824e+09f), vec3<f32>(1.073741824e+09f)))))), ((((((((_S459.x) | ((((_S459.y) << (u32(4))))))) | ((((_S459.z) << (u32(8))))))) | (((((_S462 | (_S460))) << (u32(12))))))) | (((level_3 << (u32(15)))))));
     (*key_0).material_2 = material_3;
     (*key_0).instance_0 = instance_1;
-    var _S431 : bool;
+    var _S463 : bool;
     if((all((isfinite_1(cell_0)))))
     {
-        _S431 = (all((((abs(cell_0)) < vec3<f32>(1.073741824e+09f)))));
+        _S463 = (all((((abs(cell_0)) < vec3<f32>(1.073741824e+09f)))));
     }
     else
     {
-        _S431 = false;
+        _S463 = false;
     }
-    return _S431;
+    return _S463;
 }
 
 fn SharcRecordWord_0( record_0 : u32) -> u32
@@ -12287,32 +12571,32 @@ fn SharcRecordWord_0( record_0 : u32) -> u32
 
 fn SharcRecord_0( index_14 : u32,  bounce_1 : u32,  key_1 : SharcKey_0,  radiance_3 : vec3<f32>,  throughput_22 : vec3<f32>)
 {
-    var _S432 : bool;
+    var _S464 : bool;
     if(bounce_1 == u32(0))
     {
-        _S432 = true;
+        _S464 = true;
     }
     else
     {
-        _S432 = (bounce_1 > u32(4));
+        _S464 = (bounce_1 > u32(4));
     }
-    if(_S432)
+    if(_S464)
     {
-        _S432 = true;
+        _S464 = true;
     }
     else
     {
-        _S432 = (bounce_1 >= (gFrame_0.settings_0.x));
+        _S464 = (bounce_1 >= (gFrame_0.settings_0.x));
     }
-    if(_S432)
+    if(_S464)
     {
-        _S432 = true;
+        _S464 = true;
     }
     else
     {
-        _S432 = (any(((throughput_22 < vec3<f32>(9.9999997473787516e-05f)))));
+        _S464 = (any(((throughput_22 < vec3<f32>(9.9999997473787516e-05f)))));
     }
-    if(_S432)
+    if(_S464)
     {
         return;
     }
@@ -12334,15 +12618,15 @@ fn SharcHash_0( key_2 : SharcKey_0) -> u32
     return ((StrongIntegerHash_0(((((((StrongIntegerHash_0(((((key_2.spatial_0.x) ^ ((StrongIntegerHash_0(key_2.spatial_0.y))))) ^ ((StrongIntegerHash_0(key_2.spatial_0.z)))))) ^ ((key_2.spatial_0.w)))) ^ ((StrongIntegerHash_0(key_2.material_2))))) ^ ((StrongIntegerHash_0(key_2.instance_0)))))) & ((gFrame_0.sharc_0.y - u32(1))));
 }
 
-fn SharcCellWord_0( slot_3 : u32) -> u32
+fn SharcCellWord_0( slot_4 : u32) -> u32
 {
-    return gFrame_0.sharc_0.x + u32(16) + slot_3 * u32(16);
+    return gFrame_0.sharc_0.x + u32(16) + slot_4 * u32(16);
 }
 
 fn SharcQuery_0( key_3 : SharcKey_0,  radiance_4 : ptr<function, vec3<f32>>) -> bool
 {
     (*radiance_4) = vec3<f32>(0.0f);
-    var _S433 : u32 = SharcHash_0(key_3);
+    var _S465 : u32 = SharcHash_0(key_3);
     var probe_0 : u32 = u32(0);
     loop
     {
@@ -12353,70 +12637,70 @@ fn SharcQuery_0( key_3 : SharcKey_0,  radiance_4 : ptr<function, vec3<f32>>) -> 
         {
             break;
         }
-        var base_10 : u32 = SharcCellWord_0(((_S433 + probe_0) & ((gFrame_0.sharc_0.y - u32(1))))) / u32(4);
+        var base_10 : u32 = SharcCellWord_0(((_S465 + probe_0) & ((gFrame_0.sharc_0.y - u32(1))))) / u32(4);
         var a_17 : vec4<u32> = (bitcast<vec4<u32>>((gAccum_0[base_10])));
         var b_17 : vec4<u32> = (bitcast<vec4<u32>>((gAccum_0[base_10 + u32(1)])));
-        var _S434 : u32 = base_10 + u32(3);
-        var history_0 : u32 = (bitcast<u32>((gAccum_0[_S434].w)));
-        var _S435 : bool;
+        var _S466 : u32 = base_10 + u32(3);
+        var history_0 : u32 = (bitcast<u32>((gAccum_0[_S466].w)));
+        var _S467 : bool;
         if((a_17.x) == u32(4294967295))
         {
-            _S435 = (all(((a_17.yzw) == (key_3.spatial_0.xyz))));
+            _S467 = (all(((a_17.yzw) == (key_3.spatial_0.xyz))));
         }
         else
         {
-            _S435 = false;
+            _S467 = false;
         }
-        var _S436 : bool;
-        if(_S435)
+        var _S468 : bool;
+        if(_S467)
         {
-            _S436 = (b_17.x) == (key_3.spatial_0.w);
-        }
-        else
-        {
-            _S436 = false;
-        }
-        var _S437 : bool;
-        if(_S436)
-        {
-            _S437 = (b_17.y) == (key_3.material_2);
+            _S468 = (b_17.x) == (key_3.spatial_0.w);
         }
         else
         {
-            _S437 = false;
+            _S468 = false;
         }
-        var _S438 : bool;
-        if(_S437)
+        var _S469 : bool;
+        if(_S468)
         {
-            _S438 = (b_17.z) == (key_3.instance_0);
-        }
-        else
-        {
-            _S438 = false;
-        }
-        var _S439 : bool;
-        if(_S438)
-        {
-            _S439 = (((history_0 & (u32(65535)))) >= (gFrame_0.sharcControl_0.x));
+            _S469 = (b_17.y) == (key_3.material_2);
         }
         else
         {
-            _S439 = false;
+            _S469 = false;
         }
-        var _S440 : bool;
-        if(_S439)
+        var _S470 : bool;
+        if(_S469)
         {
-            _S440 = ((gFrame_0.sharc_0.w - b_17.w) <= (gFrame_0.sharcControl_0.z));
+            _S470 = (b_17.z) == (key_3.instance_0);
         }
         else
         {
-            _S440 = false;
+            _S470 = false;
         }
-        if(_S440)
+        var _S471 : bool;
+        if(_S470)
         {
-            var _S441 : vec3<f32> = gAccum_0[_S434].xyz;
-            (*radiance_4) = _S441;
-            return (all((isfinite_1(_S441))));
+            _S471 = (((history_0 & (u32(65535)))) >= (gFrame_0.sharcControl_0.x));
+        }
+        else
+        {
+            _S471 = false;
+        }
+        var _S472 : bool;
+        if(_S471)
+        {
+            _S472 = ((gFrame_0.sharc_0.w - b_17.w) <= (gFrame_0.sharcControl_0.z));
+        }
+        else
+        {
+            _S472 = false;
+        }
+        if(_S472)
+        {
+            var _S473 : vec3<f32> = gAccum_0[_S466].xyz;
+            (*radiance_4) = _S473;
+            return (all((isfinite_1(_S473))));
         }
         probe_0 = probe_0 + u32(1);
     }
@@ -12430,66 +12714,66 @@ fn DiffuseOnlyFrame_0() -> bool
 
 fn DiffuseOnlyVertex_0( primary_0 : bool,  ms_2 : MaterialSample_0) -> bool
 {
-    var _S442 : bool;
+    var _S474 : bool;
     if(primary_0)
     {
-        _S442 = DiffuseOnlyFrame_0();
+        _S474 = DiffuseOnlyFrame_0();
     }
     else
     {
-        _S442 = false;
+        _S474 = false;
     }
-    if(_S442)
+    if(_S474)
     {
-        _S442 = ((ms_2.inputs_1.transmissionWeight_0) <= 0.0f);
+        _S474 = ((ms_2.inputs_1.transmissionWeight_0) <= 0.0f);
     }
     else
     {
-        _S442 = false;
+        _S474 = false;
     }
-    return _S442;
+    return _S474;
 }
 
 fn BaseLobe_MaxActiveAlpha_0( this_89 : BaseLobe_0) -> f32
 {
-    var _S443 : bool;
+    var _S475 : bool;
     if(BaseLobe_IsActive_0(this_89, i32(3)))
     {
-        _S443 = true;
+        _S475 = true;
     }
     else
     {
-        _S443 = BaseLobe_IsActive_0(this_89, i32(5));
+        _S475 = BaseLobe_IsActive_0(this_89, i32(5));
     }
-    if(_S443)
+    if(_S475)
     {
-        _S443 = true;
+        _S475 = true;
     }
     else
     {
-        _S443 = BaseLobe_IsActive_0(this_89, i32(1));
+        _S475 = BaseLobe_IsActive_0(this_89, i32(1));
     }
-    if(_S443)
+    if(_S475)
     {
-        _S443 = true;
+        _S475 = true;
     }
     else
     {
-        _S443 = BaseLobe_IsActive_0(this_89, i32(2));
+        _S475 = BaseLobe_IsActive_0(this_89, i32(2));
     }
-    if(_S443)
+    if(_S475)
     {
         return 1.0f;
     }
     if(BaseLobe_IsActive_0(this_89, i32(0)))
     {
-        _S443 = true;
+        _S475 = true;
     }
     else
     {
-        _S443 = BaseLobe_IsActive_0(this_89, i32(4));
+        _S475 = BaseLobe_IsActive_0(this_89, i32(4));
     }
-    if(_S443)
+    if(_S475)
     {
         return max(this_89.specular_0.distribution_0.alpha_0.x, this_89.specular_0.distribution_0.alpha_0.y);
     }
@@ -12498,40 +12782,40 @@ fn BaseLobe_MaxActiveAlpha_0( this_89 : BaseLobe_0) -> f32
 
 fn CoatLobe_MaxActiveAlpha_0( this_90 : CoatLobe_0) -> f32
 {
-    var _S444 : bool;
+    var _S476 : bool;
     if(this_90.inside_0)
     {
-        _S444 = true;
+        _S476 = true;
     }
     else
     {
-        _S444 = !CoatLobe_HasCoat_0(this_90);
+        _S476 = !CoatLobe_HasCoat_0(this_90);
     }
-    var _S445 : f32;
-    if(_S444)
+    var _S477 : f32;
+    if(_S476)
     {
-        _S445 = 0.0f;
+        _S477 = 0.0f;
     }
     else
     {
-        _S445 = max(this_90.reflection_0.distribution_1.alpha_0.x, this_90.reflection_0.distribution_1.alpha_0.y);
+        _S477 = max(this_90.reflection_0.distribution_1.alpha_0.x, this_90.reflection_0.distribution_1.alpha_0.y);
     }
-    return _S445;
+    return _S477;
 }
 
 fn BSDF_MaxActiveAlpha_0( this_91 : BSDF_0) -> f32
 {
     var baseAlpha_0 : f32 = BaseLobe_MaxActiveAlpha_0(this_91.lobes_0.base_1.base_0);
-    var _S446 : f32;
+    var _S478 : f32;
     if(FuzzLobe_HasFuzz_0(this_91.lobes_0))
     {
-        _S446 = 1.0f;
+        _S478 = 1.0f;
     }
     else
     {
-        _S446 = max(baseAlpha_0, CoatLobe_MaxActiveAlpha_0(this_91.lobes_0.base_1));
+        _S478 = max(baseAlpha_0, CoatLobe_MaxActiveAlpha_0(this_91.lobes_0.base_1));
     }
-    return _S446;
+    return _S478;
 }
 
 struct LobeSample_0
@@ -12546,9 +12830,9 @@ struct LobeSample_0
 fn SampleCosineHemisphere_0( u_10 : vec2<f32>) -> vec3<f32>
 {
     var phi_2 : f32 = 2.0f * float_getPi_0() * u_10.x;
-    var _S447 : f32 = u_10.y;
-    var sinTheta_1 : f32 = sqrt(1.0f - _S447);
-    return vec3<f32>(sinTheta_1 * cos(phi_2), sinTheta_1 * sin(phi_2), sqrt(_S447));
+    var _S479 : f32 = u_10.y;
+    var sinTheta_1 : f32 = sqrt(1.0f - _S479);
+    return vec3<f32>(sinTheta_1 * cos(phi_2), sinTheta_1 * sin(phi_2), sqrt(_S479));
 }
 
 fn Frame_ToWorld_0( this_92 : Frame_0,  v_16 : vec3<f32>) -> vec3<f32>
@@ -12607,8 +12891,8 @@ fn SheenSampleLTC_0( ltc_2 : vec3<f32>,  u_12 : vec2<f32>) -> vec3<f32>
 {
     var wiOriginal_1 : vec3<f32> = SampleCosineHemisphere_0(u_12);
     var a_18 : f32 = 1.0f / ltc_2.x;
-    var _S448 : f32 = wiOriginal_1.z;
-    return normalize(vec3<f32>(wiOriginal_1.x * a_18 - _S448 * ltc_2.y * a_18, wiOriginal_1.y * a_18, _S448));
+    var _S480 : f32 = wiOriginal_1.z;
+    return normalize(vec3<f32>(wiOriginal_1.x * a_18 - _S480 * ltc_2.y * a_18, wiOriginal_1.y * a_18, _S480));
 }
 
 fn ClampRemappedRandom_0( u_13 : f32) -> f32
@@ -12620,12 +12904,12 @@ fn SampleGGXVisibleNormal_0( alpha_20 : vec2<f32>,  wo_46 : vec3<f32>,  u_14 : v
 {
     var toHemisphere_0 : vec3<f32> = vec3<f32>(alpha_20.x, alpha_20.y, 1.0f);
     var woHemisphere_0 : vec3<f32> = normalize(toHemisphere_0 * wo_46);
-    var _S449 : f32 = min(woHemisphere_0.z, 1.0f);
+    var _S481 : f32 = min(woHemisphere_0.z, 1.0f);
     var angle_2 : f32 = 2.0f * float_getPi_0() * u_14.x;
-    var onePlusCos_0 : f32 = 1.0f + _S449;
-    var _S450 : f32 = u_14.y;
-    var z_8 : f32 = (1.0f - _S450) * onePlusCos_0;
-    var radius_3 : f32 = sqrt((z_8 + (1.0f - _S449)) * (_S450 * onePlusCos_0));
+    var onePlusCos_0 : f32 = 1.0f + _S481;
+    var _S482 : f32 = u_14.y;
+    var z_8 : f32 = (1.0f - _S482) * onePlusCos_0;
+    var radius_3 : f32 = sqrt((z_8 + (1.0f - _S481)) * (_S482 * onePlusCos_0));
     return normalize(toHemisphere_0 * vec3<f32>(radius_3 * cos(angle_2) + woHemisphere_0.x, radius_3 * sin(angle_2) + woHemisphere_0.y, z_8));
 }
 
@@ -12656,12 +12940,12 @@ fn MicrofacetReflectionLobe_Sample_0( this_96 : MicrofacetReflectionLobe_1,  u_1
     var odoth_4 : f32 = dot(wi_31, h_13);
     var f_17 : vec3<f32> = DielectricReflection_Reflection_0(this_96.coefficient_1, idoth_14);
     var gShadowing_0 : f32 = GGXDistribution_G1_0(this_96.distribution_1, wi_31);
-    var d_8 : f32 = GGXDistribution_D_0(this_96.distribution_1, h_13);
-    if((d_8 <= 0.0f))
+    var d_11 : f32 = GGXDistribution_D_0(this_96.distribution_1, h_13);
+    if((d_11 <= 0.0f))
     {
         return LobeSample_Invalid_0();
     }
-    return LobeSample_Make_0(wi_31, DiffuseSpecular_Specular_0(f_17 * vec3<f32>(gShadowing_0)), d_8 * GGXDistribution_G1_0(this_96.distribution_1, wo_48) * idoth_14 / (4.0f * odoth_4 * idotn_10), MicrofacetReflectionLobe_LobeType_0(this_96));
+    return LobeSample_Make_0(wi_31, DiffuseSpecular_Specular_0(f_17 * vec3<f32>(gShadowing_0)), d_11 * GGXDistribution_G1_0(this_96.distribution_1, wo_48) * idoth_14 / (4.0f * odoth_4 * idotn_10), MicrofacetReflectionLobe_LobeType_0(this_96));
 }
 
 fn SampledLobe_Make_0( layer_1 : i32,  lobe_5 : i32,  sample_0 : LobeSample_0) -> SampledLobe_0
@@ -12677,9 +12961,9 @@ fn SampledLobe_Make_0( layer_1 : i32,  lobe_5 : i32,  sample_0 : LobeSample_0) -
 fn BaseLobe_SelectLobe_0( this_97 : BaseLobe_0,  u_17 : ptr<function, f32>,  selectedWeight_0 : ptr<function, f32>,  totalWeight_2 : ptr<function, f32>) -> i32
 {
     var weightSoFar_0 : f32;
-    var _S451 : f32 = BaseLobe_TotalWeight_0(this_97);
-    (*totalWeight_2) = _S451;
-    if((_S451 <= 1.17549435082228751e-38f))
+    var _S483 : f32 = BaseLobe_TotalWeight_0(this_97);
+    (*totalWeight_2) = _S483;
+    if((_S483 <= 1.17549435082228751e-38f))
     {
         (*selectedWeight_0) = 0.0f;
         return i32(-1);
@@ -12817,8 +13101,8 @@ fn SpecularLobe_Sample_0( this_98 : SpecularLobe_0,  u_18 : vec3<f32>,  wo_49 : 
     {
         return LobeSample_Invalid_0();
     }
-    var _S452 : f32 = u_18.z;
-    if((_S452 < (c_15.reflectionProbability_0)))
+    var _S484 : f32 = u_18.z;
+    if((_S484 < (c_15.reflectionProbability_0)))
     {
         var wi_33 : vec3<f32> = normalize((vec3<f32>(0) - wo_49) + h_14 * vec3<f32>(2.0f) * vec3<f32>(idoth_15));
         if(((idotn_11 * dot(this_98.normal_1, wi_33)) <= 0.0f))
@@ -12827,14 +13111,14 @@ fn SpecularLobe_Sample_0( this_98 : SpecularLobe_0,  u_18 : vec3<f32>,  wo_49 : 
         }
         var odoth_5 : f32 = dot(wi_33, h_14);
         var weight_3 : DiffuseSpecular_0 = DiffuseSpecular_Specular_0(c_15.reflection_1 * vec3<f32>((1.0f / c_15.reflectionProbability_0)) * vec3<f32>(GGXDistribution_G1_0(this_98.distribution_0, wi_33)));
-        var d_9 : f32 = GGXDistribution_D_0(this_98.distribution_0, h_14);
-        if((d_9 <= 0.0f))
+        var d_12 : f32 = GGXDistribution_D_0(this_98.distribution_0, h_14);
+        if((d_12 <= 0.0f))
         {
             return LobeSample_Invalid_0();
         }
-        return LobeSample_Make_0(wi_33, weight_3, c_15.reflectionProbability_0 * d_9 * GGXDistribution_G1_0(this_98.distribution_0, wo_49) * idoth_15 / (4.0f * odoth_5 * idotn_11), u32(9));
+        return LobeSample_Make_0(wi_33, weight_3, c_15.reflectionProbability_0 * d_12 * GGXDistribution_G1_0(this_98.distribution_0, wo_49) * idoth_15 / (4.0f * odoth_5 * idotn_11), u32(9));
     }
-    var remapped_0 : f32 = (_S452 - c_15.reflectionProbability_0) / c_15.transmissionProbability_0;
+    var remapped_0 : f32 = (_S484 - c_15.reflectionProbability_0) / c_15.transmissionProbability_0;
     var channelProbabilities_0 : vec3<f32> = SpecularLobe_ChannelProbabilities_0(this_98);
     var channel_0 : i32;
     if((remapped_0 < (channelProbabilities_0[i32(0)])))
@@ -12853,8 +13137,8 @@ fn SpecularLobe_Sample_0( this_98 : SpecularLobe_0,  u_18 : vec3<f32>,  wo_49 : 
         }
     }
     var wi_34 : vec3<f32>;
-    var _S453 : bool = Refract_0(wo_49, h_14, idoth_15, this_98.eta_0[channel_0], &(wi_34));
-    if(!_S453)
+    var _S485 : bool = Refract_0(wo_49, h_14, idoth_15, this_98.eta_0[channel_0], &(wi_34));
+    if(!_S485)
     {
         return LobeSample_Invalid_0();
     }
@@ -12959,12 +13243,12 @@ fn MicrofacetReflectionLobe_Sample_1( this_105 : MicrofacetReflectionLobe_0,  u_
     var odoth_6 : f32 = dot(wi_37, h_15);
     var f_18 : vec3<f32> = ConstantReflection_Reflection_0(this_105.coefficient_1, idoth_16);
     var gShadowing_1 : f32 = GGXDistribution_G1_0(this_105.distribution_1, wi_37);
-    var d_10 : f32 = GGXDistribution_D_0(this_105.distribution_1, h_15);
-    if((d_10 <= 0.0f))
+    var d_13 : f32 = GGXDistribution_D_0(this_105.distribution_1, h_15);
+    if((d_13 <= 0.0f))
     {
         return LobeSample_Invalid_0();
     }
-    return LobeSample_Make_0(wi_37, DiffuseSpecular_Specular_0(f_18 * vec3<f32>(gShadowing_1)), d_10 * GGXDistribution_G1_0(this_105.distribution_1, wo_53) * idoth_16 / (4.0f * odoth_6 * idotn_12), MicrofacetReflectionLobe_LobeType_1(this_105));
+    return LobeSample_Make_0(wi_37, DiffuseSpecular_Specular_0(f_18 * vec3<f32>(gShadowing_1)), d_13 * GGXDistribution_G1_0(this_105.distribution_1, wo_53) * idoth_16 / (4.0f * odoth_6 * idotn_12), MicrofacetReflectionLobe_LobeType_1(this_105));
 }
 
 fn SwapReflectionTransmission_0( type_2 : u32) -> u32
@@ -13053,18 +13337,18 @@ fn BaseLobe_SampleLobe_0( this_109 : BaseLobe_0,  u_27 : vec3<f32>,  wo_57 : vec
 
 fn CoatLobe_SampleLobe_0( this_110 : CoatLobe_0,  u_28 : vec3<f32>,  wo_58 : vec3<f32>,  wi_39 : ptr<function, vec3<f32>>,  type_4 : ptr<function, u32>,  sampled_4 : ptr<function, SampledLobe_0>) -> bool
 {
-    var _S454 : bool = !this_110.inside_0;
-    var _S455 : bool;
-    if(_S454)
+    var _S486 : bool = !this_110.inside_0;
+    var _S487 : bool;
+    if(_S486)
     {
-        _S455 = CoatLobe_HasCoat_0(this_110);
+        _S487 = CoatLobe_HasCoat_0(this_110);
     }
     else
     {
-        _S455 = false;
+        _S487 = false;
     }
     var coatProbability_0 : f32;
-    if(_S455)
+    if(_S487)
     {
         coatProbability_0 = CoatLobe_ReflectionProbability_0(this_110, wo_58);
     }
@@ -13073,15 +13357,15 @@ fn CoatLobe_SampleLobe_0( this_110 : CoatLobe_0,  u_28 : vec3<f32>,  wo_58 : vec
         coatProbability_0 = 0.0f;
     }
     var ux_2 : f32 = u_28.x;
-    if(_S454)
+    if(_S486)
     {
-        _S455 = (ux_2 < coatProbability_0);
+        _S487 = (ux_2 < coatProbability_0);
     }
     else
     {
-        _S455 = false;
+        _S487 = false;
     }
-    if(_S455)
+    if(_S487)
     {
         var s_20 : LobeSample_0 = MicrofacetReflectionLobe_Sample_0(this_110.reflection_0, vec3<f32>(ClampRemappedRandom_0(ux_2 * (1.0f / coatProbability_0)), u_28.y, u_28.z), wo_58);
         (*wi_39) = s_20.wi_26;
@@ -13090,7 +13374,7 @@ fn CoatLobe_SampleLobe_0( this_110 : CoatLobe_0,  u_28 : vec3<f32>,  wo_58 : vec
         return s_20.valid_1;
     }
     var ux_3 : f32;
-    if(_S454)
+    if(_S486)
     {
         ux_3 = ClampRemappedRandom_0((ux_2 - coatProbability_0) * (1.0f / (1.0f - coatProbability_0)));
     }
@@ -13098,8 +13382,8 @@ fn CoatLobe_SampleLobe_0( this_110 : CoatLobe_0,  u_28 : vec3<f32>,  wo_58 : vec
     {
         ux_3 = ux_2;
     }
-    var _S456 : bool = BaseLobe_SampleLobe_0(this_110.base_0, vec3<f32>(ux_3, u_28.y, u_28.z), wo_58, &((*wi_39)), &((*type_4)), &((*sampled_4)));
-    return _S456;
+    var _S488 : bool = BaseLobe_SampleLobe_0(this_110.base_0, vec3<f32>(ux_3, u_28.y, u_28.z), wo_58, &((*wi_39)), &((*type_4)), &((*sampled_4)));
+    return _S488;
 }
 
 fn FuzzLobe_SampleLobe_0( this_111 : FuzzLobe_0,  u_29 : vec3<f32>,  wo_59 : vec3<f32>,  wi_40 : ptr<function, vec3<f32>>,  type_5 : ptr<function, u32>,  sampled_5 : ptr<function, SampledLobe_0>) -> bool
@@ -13116,24 +13400,24 @@ fn FuzzLobe_SampleLobe_0( this_111 : FuzzLobe_0,  u_29 : vec3<f32>,  wo_59 : vec
     {
         sheenProbability_0 = 0.0f;
     }
-    var _S457 : f32 = u_29.x;
-    if((_S457 < sheenProbability_0))
+    var _S489 : f32 = u_29.x;
+    if((_S489 < sheenProbability_0))
     {
-        var _S458 : f32 = this_111.woLocal_0.z;
-        if((_S458 <= 0.0f))
+        var _S490 : f32 = this_111.woLocal_0.z;
+        if((_S490 <= 0.0f))
         {
             return false;
         }
         var wiLocal_7 : vec3<f32> = SheenRotate_0(SheenSampleLTC_0(FuzzLobe_Coefficients_0(this_111, this_111.woLocal_0), u_29.yz), this_111.woLocal_0.xy);
-        if(((_S458 * wiLocal_7.z) <= 0.0f))
+        if(((_S490 * wiLocal_7.z) <= 0.0f))
         {
             return false;
         }
         (*wi_40) = normalize(Frame_ToWorld_0(this_111.basis_0, wiLocal_7));
         return true;
     }
-    var _S459 : bool = CoatLobe_SampleLobe_0(this_111.base_1, vec3<f32>(ClampRemappedRandom_0((_S457 - sheenProbability_0) * (1.0f / (1.0f - sheenProbability_0))), u_29.y, u_29.z), wo_59, &((*wi_40)), &((*type_5)), &((*sampled_5)));
-    return _S459;
+    var _S491 : bool = CoatLobe_SampleLobe_0(this_111.base_1, vec3<f32>(ClampRemappedRandom_0((_S489 - sheenProbability_0) * (1.0f / (1.0f - sheenProbability_0))), u_29.y, u_29.z), wo_59, &((*wi_40)), &((*type_5)), &((*sampled_5)));
+    return _S491;
 }
 
 fn BaseLobe_LobeEvalPdf_1( this_112 : BaseLobe_0,  index_16 : i32,  wo_60 : vec3<f32>,  wi_41 : vec3<f32>,  f_19 : ptr<function, DiffuseSpecular_0>,  pdf_12 : ptr<function, f32>)
@@ -13193,16 +13477,16 @@ fn BaseLobe_EvalPdf_1( this_113 : BaseLobe_0,  wo_61 : vec3<f32>,  wi_42 : vec3<
         {
             var lobeF_1 : DiffuseSpecular_0 = sampled_6.f_1;
             var lobePdf_1 : f32 = sampled_6.pdf_0;
-            var _S460 : bool;
+            var _S492 : bool;
             if((sampled_6.layer_0) != i32(1))
             {
-                _S460 = true;
+                _S492 = true;
             }
             else
             {
-                _S460 = (sampled_6.lobe_1) != i_8;
+                _S492 = (sampled_6.lobe_1) != i_8;
             }
-            if(_S460)
+            if(_S492)
             {
                 BaseLobe_LobeEvalPdf_1(this_113, i_8, wo_61, wi_42, &(lobeF_1), &(lobePdf_1));
             }
@@ -13237,35 +13521,35 @@ fn CoatLobe_EvalPdf_1( this_114 : CoatLobe_0,  wo_62 : vec3<f32>,  wi_43 : vec3<
         return;
     }
     var coatSampled_1 : bool = (sampled_7.layer_0) == i32(2);
-    var _S461 : DiffuseSpecular_0;
+    var _S493 : DiffuseSpecular_0;
     if(coatSampled_1)
     {
-        _S461 = sampled_7.f_1;
+        _S493 = sampled_7.f_1;
     }
     else
     {
-        _S461 = CoatLobe_CoatEval_0(this_114, wo_62, wi_43);
+        _S493 = CoatLobe_CoatEval_0(this_114, wo_62, wi_43);
     }
-    (*f_21) = CoatLobe_Combine_0(this_114, _S461, baseF_2, wi_43);
-    var _S462 : f32;
+    (*f_21) = CoatLobe_Combine_0(this_114, _S493, baseF_2, wi_43);
+    var _S494 : f32;
     if(CoatLobe_HasCoat_0(this_114))
     {
-        var _S463 : f32 = basePdf_2;
+        var _S495 : f32 = basePdf_2;
         if(coatSampled_1)
         {
-            _S462 = sampled_7.pdf_0;
+            _S494 = sampled_7.pdf_0;
         }
         else
         {
-            _S462 = MicrofacetReflectionLobe_Pdf_1(this_114.reflection_0, wo_62, wi_43);
+            _S494 = MicrofacetReflectionLobe_Pdf_1(this_114.reflection_0, wo_62, wi_43);
         }
-        _S462 = mix(_S463, _S462, CoatLobe_ReflectionProbability_0(this_114, wo_62));
+        _S494 = mix(_S495, _S494, CoatLobe_ReflectionProbability_0(this_114, wo_62));
     }
     else
     {
-        _S462 = basePdf_2;
+        _S494 = basePdf_2;
     }
-    (*pdf_14) = _S462;
+    (*pdf_14) = _S494;
     return;
 }
 
@@ -13276,16 +13560,16 @@ fn FuzzLobe_EvalPdf_1( this_115 : FuzzLobe_0,  wo_63 : vec3<f32>,  wi_44 : vec3<
     CoatLobe_EvalPdf_1(this_115.base_1, wo_63, wi_44, sampled_8, &(baseF_3), &(basePdf_3));
     var wiLocal_8 : vec3<f32> = Frame_ToLocal_0(this_115.basis_0, wi_44);
     (*f_22) = x2B_0(x2A_1(baseF_3, FuzzLobe_BaseLayerScaleComplete_0(this_115, wiLocal_8)), DiffuseSpecular_Specular_0(FuzzLobe_SheenEval_0(this_115, wiLocal_8)));
-    var _S464 : f32;
+    var _S496 : f32;
     if(FuzzLobe_HasFuzz_0(this_115))
     {
-        _S464 = mix(basePdf_3, FuzzLobe_SheenPdf_0(this_115, wiLocal_8), FuzzLobe_SheenProbability_0(this_115, wo_63));
+        _S496 = mix(basePdf_3, FuzzLobe_SheenPdf_0(this_115, wiLocal_8), FuzzLobe_SheenProbability_0(this_115, wo_63));
     }
     else
     {
-        _S464 = basePdf_3;
+        _S496 = basePdf_3;
     }
-    (*pdf_15) = _S464;
+    (*pdf_15) = _S496;
     return;
 }
 
@@ -13294,8 +13578,8 @@ fn SampleLayer_0( layer_2 : FuzzLobe_0,  u_30 : vec3<f32>,  wo_64 : vec3<f32>) -
     var wi_45 : vec3<f32>;
     var type_6 : u32;
     var sampled_9 : SampledLobe_0;
-    var _S465 : bool = FuzzLobe_SampleLobe_0(layer_2, u_30, wo_64, &(wi_45), &(type_6), &(sampled_9));
-    if(!_S465)
+    var _S497 : bool = FuzzLobe_SampleLobe_0(layer_2, u_30, wo_64, &(wi_45), &(type_6), &(sampled_9));
+    if(!_S497)
     {
         return LobeSample_Invalid_0();
     }
@@ -13321,54 +13605,54 @@ fn BSDF_Sample_0( this_117 : BSDF_0,  u_32 : vec3<f32>) -> LobeSample_0
 
 fn NrdOctEncode_0( v_17 : vec3<f32>) -> vec2<f32>
 {
-    var _S466 : f32 = v_17.z;
-    var p_9 : vec2<f32> = v_17.xy / vec2<f32>((abs(v_17.x) + abs(v_17.y) + abs(_S466)));
-    var _S467 : vec2<f32>;
-    if((_S466 >= 0.0f))
+    var _S498 : f32 = v_17.z;
+    var p_9 : vec2<f32> = v_17.xy / vec2<f32>((abs(v_17.x) + abs(v_17.y) + abs(_S498)));
+    var _S499 : vec2<f32>;
+    if((_S498 >= 0.0f))
     {
-        _S467 = p_9;
+        _S499 = p_9;
     }
     else
     {
-        _S467 = (vec2<f32>(1.0f) - abs(p_9.yx)) * select(vec2<f32>(-1.0f), vec2<f32>(1.0f), (p_9 >= vec2<f32>(0.0f)));
+        _S499 = (vec2<f32>(1.0f) - abs(p_9.yx)) * select(vec2<f32>(-1.0f), vec2<f32>(1.0f), (p_9 >= vec2<f32>(0.0f)));
     }
-    return _S467;
+    return _S499;
 }
 
 fn NrdDiffuseFraction_0( v_18 : DiffuseSpecular_0) -> vec3<f32>
 {
     var total_1 : vec3<f32> = v_18.diffuse_1 + v_18.specular_1;
-    var _S468 : f32 = total_1.x;
-    var _S469 : f32;
-    if((_S468 > 0.0f))
+    var _S500 : f32 = total_1.x;
+    var _S501 : f32;
+    if((_S500 > 0.0f))
     {
-        _S469 = v_18.diffuse_1.x / _S468;
+        _S501 = v_18.diffuse_1.x / _S500;
     }
     else
     {
-        _S469 = 0.5f;
+        _S501 = 0.5f;
     }
-    var _S470 : f32 = total_1.y;
-    var _S471 : f32;
-    if((_S470 > 0.0f))
+    var _S502 : f32 = total_1.y;
+    var _S503 : f32;
+    if((_S502 > 0.0f))
     {
-        _S471 = v_18.diffuse_1.y / _S470;
+        _S503 = v_18.diffuse_1.y / _S502;
     }
     else
     {
-        _S471 = 0.5f;
+        _S503 = 0.5f;
     }
-    var _S472 : f32 = total_1.z;
-    var _S473 : f32;
-    if((_S472 > 0.0f))
+    var _S504 : f32 = total_1.z;
+    var _S505 : f32;
+    if((_S504 > 0.0f))
     {
-        _S473 = v_18.diffuse_1.z / _S472;
+        _S505 = v_18.diffuse_1.z / _S504;
     }
     else
     {
-        _S473 = 0.5f;
+        _S505 = 0.5f;
     }
-    return vec3<f32>(_S469, _S471, _S473);
+    return vec3<f32>(_S501, _S503, _S505);
 }
 
 fn SurfaceInteraction_ComputeRayOrigin_0( this_118 : SurfaceInteraction_0,  viewSide_0 : bool) -> vec3<f32>
@@ -13394,21 +13678,21 @@ fn ScatterConeSpread_0( lobe_6 : u32,  roughness_10 : f32) -> f32
     return 0.5f * roughness_10 * roughness_10;
 }
 
-fn ShadePath_0( base_11 : u32,  s_21 : ptr<function, WavefrontPath_0>,  hit_3 : HitRecord_0,  bounce_2 : u32)
+fn ShadePath_0( base_11 : u32,  s_21 : ptr<function, WavefrontPath_0>,  hit_4 : HitRecord_0,  bounce_2 : u32)
 {
-    var _S474 : vec3<f32> = vec3<f32>(0.0f);
-    if((any(((((*s_21).path_0.absorption_0) > _S474)))))
+    var _S506 : vec3<f32> = vec3<f32>(0.0f);
+    if((any(((((*s_21).path_0.absorption_0) > _S506)))))
     {
-        (*s_21).path_0.throughput_7 = (*s_21).path_0.throughput_7 * exp((*s_21).path_0.absorption_0 * vec3<f32>(- hit_3.t_6));
+        (*s_21).path_0.throughput_7 = (*s_21).path_0.throughput_7 * exp((*s_21).path_0.absorption_0 * vec3<f32>(- hit_4.t_6));
     }
-    var hitConeWidth_0 : f32 = (*s_21).path_0.coneWidth_2 + (*s_21).path_0.coneSpread_0 * hit_3.t_6;
-    var si_4 : SurfaceInteraction_0 = GetSurfaceInteraction_0((*s_21).path_0.direction_1, hit_3, hitConeWidth_0);
+    var hitConeWidth_0 : f32 = (*s_21).path_0.coneWidth_2 + (*s_21).path_0.coneSpread_0 * hit_4.t_6;
+    var si_4 : SurfaceInteraction_0 = GetSurfaceInteraction_0((*s_21).path_0.direction_1, hit_4, hitConeWidth_0);
     var V_2 : vec3<f32> = (vec3<f32>(0) - (*s_21).path_0.direction_1);
     var ms_3 : MaterialSample_0 = EvalMaterial_0(si_4, V_2);
     var bsdf_2 : BSDF_0 = BSDF_x24init_0(ms_3.inputs_1, V_2, (*s_21).path_0.throughput_7, vec3<f32>(620.0f, 540.0f, 450.0f), 1.0f);
-    var _S475 : bool = bounce_2 == u32(0);
+    var _S507 : bool = bounce_2 == u32(0);
     var throughput_23 : vec3<f32>;
-    if(_S475)
+    if(_S507)
     {
         (*s_21).albedo_2 = ms_3.albedo_3;
         if(si_4.frontFacing_0)
@@ -13424,8 +13708,8 @@ fn ShadePath_0( base_11 : u32,  s_21 : ptr<function, WavefrontPath_0>,  hit_3 : 
         {
             var pixel_2 : vec2<u32> = WorkPixel_0(base_11 - WorkBase_0(u32(0)));
             var output_0 : u32 = (pixel_2.y * gFrame_0.frame_0.x + pixel_2.x) * u32(3);
-            gAccum_0[output_0 + u32(1)][i32(3)] = hit_3.t_6;
-            gAccum_0[output_0 + u32(2)][i32(3)] = f32(hit_3.instanceIndex_2 + u32(1));
+            gAccum_0[output_0 + u32(1)][i32(3)] = hit_4.t_6;
+            gAccum_0[output_0 + u32(2)][i32(3)] = f32(hit_4.instanceIndex_2 + u32(1));
         }
         if(NrdEnabled_0())
         {
@@ -13457,12 +13741,12 @@ fn ShadePath_0( base_11 : u32,  s_21 : ptr<function, WavefrontPath_0>,  hit_3 : 
     {
         return;
     }
-    var _S476 : bool = (any((((bsdf_2.emission_0) > _S474))));
+    var _S508 : bool = (any((((bsdf_2.emission_0) > _S506))));
     var continuation_0 : f32;
-    if(_S476)
+    if(_S508)
     {
-        var _S477 : bool = !_S475;
-        if(_S477)
+        var _S509 : bool = !_S507;
+        if(_S509)
         {
             transmitted_0 = (*s_21).path_0.lightsSampled_0;
         }
@@ -13472,7 +13756,7 @@ fn ShadePath_0( base_11 : u32,  s_21 : ptr<function, WavefrontPath_0>,  hit_3 : 
         }
         if(transmitted_0)
         {
-            continuation_0 = EvalMISRobust_0((*s_21).path_0.scatterPdf_0, EmissiveHitPdf_0(si_4.instanceIndex_0, si_4.primitiveIndex_0, (*s_21).path_0.origin_3, si_4.position_0));
+            continuation_0 = EvalMISRobust_0((*s_21).path_0.scatterPdf_0, EmissiveHitPdf_0(si_4.instanceIndex_0, si_4.primitiveIndex_0, (*s_21).path_0.origin_5, si_4.position_0));
         }
         else
         {
@@ -13482,7 +13766,7 @@ fn ShadePath_0( base_11 : u32,  s_21 : ptr<function, WavefrontPath_0>,  hit_3 : 
         var clampValue_0 : f32 = gFrame_0.envParams_0.w / gFrame_0.envParams_0.z;
         if((clampValue_0 > 0.0f))
         {
-            transmitted_0 = _S477;
+            transmitted_0 = _S509;
         }
         else
         {
@@ -13498,7 +13782,7 @@ fn ShadePath_0( base_11 : u32,  s_21 : ptr<function, WavefrontPath_0>,  hit_3 : 
         }
         (*s_21).path_0.radiance_1 = (*s_21).path_0.radiance_1 + throughput_23;
     }
-    if(_S475)
+    if(_S507)
     {
         transmitted_0 = NrdEnabled_0();
     }
@@ -13509,11 +13793,11 @@ fn ShadePath_0( base_11 : u32,  s_21 : ptr<function, WavefrontPath_0>,  hit_3 : 
     if(transmitted_0)
     {
         var r_11 : u32 = NrdBase_0(base_11);
-        var _S478 : vec3<f32> = (*s_21).path_0.radiance_1;
-        gAccum_0[r_11].x = _S478.x;
-        gAccum_0[r_11].y = _S478.y;
-        gAccum_0[r_11].z = _S478.z;
-        if((any(((((*s_21).path_0.radiance_1) > _S474)))))
+        var _S510 : vec3<f32> = (*s_21).path_0.radiance_1;
+        gAccum_0[r_11].x = _S510.x;
+        gAccum_0[r_11].y = _S510.y;
+        gAccum_0[r_11].z = _S510.z;
+        if((any(((((*s_21).path_0.radiance_1) > _S506)))))
         {
             gAccum_0[r_11][i32(3)] = (bitcast<f32>((((bitcast<u32>((gAccum_0[r_11].w))) | (u32(268435456))))));
         }
@@ -13524,8 +13808,8 @@ fn ShadePath_0( base_11 : u32,  s_21 : ptr<function, WavefrontPath_0>,  hit_3 : 
     }
     var rng_5 : RandomSequence_0 = RandomSequence_x24init_0(u32(0), u32(0));
     rng_5.seed_0 = (*s_21).randomSeed_0;
-    var _S479 : bool = !_S475;
-    if(_S479)
+    var _S511 : bool = !_S507;
+    if(_S511)
     {
         transmitted_0 = ScreenCacheMode_0(u32(2));
     }
@@ -13551,7 +13835,7 @@ fn ShadePath_0( base_11 : u32,  s_21 : ptr<function, WavefrontPath_0>,  hit_3 : 
     }
     if(transmitted_0)
     {
-        transmitted_0 = !_S476;
+        transmitted_0 = !_S508;
     }
     else
     {
@@ -13576,12 +13860,12 @@ fn ShadePath_0( base_11 : u32,  s_21 : ptr<function, WavefrontPath_0>,  hit_3 : 
         {
             throughput_23 = (vec3<f32>(0) - ms_3.inputs_1.basis_1.n_1);
         }
-        var _S480 : vec2<u32> = WorkPixel_0(base_11 - WorkBase_0(u32(0)));
-        var confidence_2 : f32 = ScreenCacheLookup_0(si_4.position_0, throughput_23, _S480, &(cached_0));
+        var _S512 : vec2<u32> = WorkPixel_0(base_11 - WorkBase_0(u32(0)));
+        var confidence_2 : f32 = ScreenCacheLookup_0(si_4.position_0, throughput_23, _S512, &(cached_0));
         if((confidence_2 > 0.0f))
         {
-            var _S481 : f32 = RandomSequence_Next_1(&(rng_5));
-            transmitted_0 = (_S481 < confidence_2);
+            var _S513 : f32 = RandomSequence_Next_1(&(rng_5));
+            transmitted_0 = (_S513 < confidence_2);
         }
         else
         {
@@ -13604,10 +13888,10 @@ fn ShadePath_0( base_11 : u32,  s_21 : ptr<function, WavefrontPath_0>,  hit_3 : 
             return;
         }
     }
-    var _S482 : bool = SharcEnabled_0();
-    if(_S482)
+    var _S514 : bool = SharcEnabled_0();
+    if(_S514)
     {
-        transmitted_0 = _S479;
+        transmitted_0 = _S511;
     }
     else
     {
@@ -13621,7 +13905,7 @@ fn ShadePath_0( base_11 : u32,  s_21 : ptr<function, WavefrontPath_0>,  hit_3 : 
     {
         transmitted_0 = false;
     }
-    var _S483 : u32;
+    var _S515 : u32;
     if(transmitted_0)
     {
         var key_4 : SharcKey_0;
@@ -13635,8 +13919,8 @@ fn ShadePath_0( base_11 : u32,  s_21 : ptr<function, WavefrontPath_0>,  hit_3 : 
             throughput_23 = (vec3<f32>(0) - si_4.faceNormal_0);
         }
         var index_17 : u32 = base_11 - WorkBase_0(u32(0));
-        var _S484 : bool = SharcMakeKey_0(si_4.position_0, throughput_23, V_2, si_4.materialIndex_1, si_4.instanceIndex_0, &(key_4), &(voxelSize_0));
-        if(_S484)
+        var _S516 : bool = SharcMakeKey_0(si_4.position_0, throughput_23, V_2, si_4.materialIndex_1, si_4.instanceIndex_0, &(key_4), &(voxelSize_0));
+        if(_S516)
         {
             if(SharcUpdatePath_0(index_17, gWavefront_0.tileStart_0))
             {
@@ -13644,7 +13928,7 @@ fn ShadePath_0( base_11 : u32,  s_21 : ptr<function, WavefrontPath_0>,  hit_3 : 
             }
             else
             {
-                if(((hit_3.t_6) > (voxelSize_0 * sqrt(3.0f))))
+                if(((hit_4.t_6) > (voxelSize_0 * sqrt(3.0f))))
                 {
                     transmitted_0 = (hitConeWidth_0 > voxelSize_0);
                 }
@@ -13662,20 +13946,20 @@ fn ShadePath_0( base_11 : u32,  s_21 : ptr<function, WavefrontPath_0>,  hit_3 : 
                 }
                 if(transmitted_0)
                 {
-                    var _S485 : u32 = Field_0(base_11, u32(6));
-                    var state_0 : u32 = (bitcast<u32>((gAccum_0[_S485].w))) + u32(65536);
+                    var _S517 : u32 = Field_0(base_11, u32(6));
+                    var state_0 : u32 = (bitcast<u32>((gAccum_0[_S517].w))) + u32(65536);
                     var cached_1 : vec3<f32>;
-                    var found_4 : bool = SharcQuery_0(key_4, &(cached_1));
-                    if(found_4)
+                    var found_1 : bool = SharcQuery_0(key_4, &(cached_1));
+                    if(found_1)
                     {
-                        _S483 = u32(256);
+                        _S515 = u32(256);
                     }
                     else
                     {
-                        _S483 = u32(0);
+                        _S515 = u32(0);
                     }
-                    gAccum_0[_S485][i32(3)] = (bitcast<f32>(((state_0 | (_S483)))));
-                    if(found_4)
+                    gAccum_0[_S517][i32(3)] = (bitcast<f32>(((state_0 | (_S515)))));
+                    if(found_1)
                     {
                         (*s_21).path_0.radiance_1 = (*s_21).path_0.radiance_1 + (*s_21).path_0.throughput_7 * cached_1;
                         return;
@@ -13684,17 +13968,17 @@ fn ShadePath_0( base_11 : u32,  s_21 : ptr<function, WavefrontPath_0>,  hit_3 : 
             }
         }
     }
-    var diffuseOnly_0 : bool = DiffuseOnlyVertex_0(_S475, ms_3);
-    var _S486 : bool = ((BSDF_MaxActiveAlpha_0(bsdf_2)) >= 0.0010000000474974513f);
-    (*s_21).path_0.lightsSampled_0 = _S486;
-    if(_S486)
+    var diffuseOnly_0 : bool = DiffuseOnlyVertex_0(_S507, ms_3);
+    var _S518 : bool = ((BSDF_MaxActiveAlpha_0(bsdf_2)) >= 0.0010000000474974513f);
+    (*s_21).path_0.lightsSampled_0 = _S518;
+    if(_S518)
     {
-        var _S487 : vec3<f32> = NextEventEstimation_0(si_4, bsdf_2, vec2<f32>(hitConeWidth_0, (*s_21).path_0.coneSpread_0), &(rng_5));
-        var direct_0 : vec3<f32> = (*s_21).path_0.throughput_7 * _S487;
+        var _S519 : vec3<f32> = NextEventEstimation_0(si_4, bsdf_2, vec2<f32>(hitConeWidth_0, (*s_21).path_0.coneSpread_0), &(rng_5));
+        var direct_0 : vec3<f32> = (*s_21).path_0.throughput_7 * _S519;
         var clampValue_2 : f32 = gFrame_0.envParams_0.w / gFrame_0.envParams_0.z;
         if((clampValue_2 > 0.0f))
         {
-            transmitted_0 = _S479;
+            transmitted_0 = _S511;
         }
         else
         {
@@ -13718,10 +14002,10 @@ fn ShadePath_0( base_11 : u32,  s_21 : ptr<function, WavefrontPath_0>,  hit_3 : 
     }
     else
     {
-        var _S488 : f32 = RandomSequence_Next_1(&(rng_5));
-        bs_0 = BSDF_Sample_0(bsdf_2, vec3<f32>(u_33, _S488));
+        var _S520 : f32 = RandomSequence_Next_1(&(rng_5));
+        bs_0 = BSDF_Sample_0(bsdf_2, vec3<f32>(u_33, _S520));
     }
-    var _S489 : LobeSample_0 = bs_0;
+    var _S521 : LobeSample_0 = bs_0;
     var weight_4 : vec3<f32> = bs_0.weight_1.diffuse_1 + bs_0.weight_1.specular_1;
     if(!bs_0.valid_1)
     {
@@ -13737,13 +14021,13 @@ fn ShadePath_0( base_11 : u32,  s_21 : ptr<function, WavefrontPath_0>,  hit_3 : 
     }
     else
     {
-        transmitted_0 = (all(((weight_4 <= _S474))));
+        transmitted_0 = (all(((weight_4 <= _S506))));
     }
     if(transmitted_0)
     {
         return;
     }
-    if(_S475)
+    if(_S507)
     {
         transmitted_0 = NrdEnabled_0();
     }
@@ -13754,33 +14038,33 @@ fn ShadePath_0( base_11 : u32,  s_21 : ptr<function, WavefrontPath_0>,  hit_3 : 
     if(transmitted_0)
     {
         var r_12 : u32 = NrdBase_0(base_11);
-        var _S490 : LobeSample_0 = bs_0;
+        var _S522 : LobeSample_0 = bs_0;
         var oct_0 : vec2<f32> = NrdOctEncode_0(bs_0.wi_26);
         if(DiffuseOnlyFrame_0())
         {
-            transmitted_0 = ((dot(_S490.wi_26, si_4.faceNormal_0)) > 0.0f) != (si_4.frontFacing_0);
+            transmitted_0 = ((dot(_S522.wi_26, si_4.faceNormal_0)) > 0.0f) != (si_4.frontFacing_0);
         }
         else
         {
             transmitted_0 = false;
         }
-        var _S491 : u32 = NrdPackFraction_0(NrdDiffuseFraction_0(_S489.weight_1));
+        var _S523 : u32 = NrdPackFraction_0(NrdDiffuseFraction_0(_S521.weight_1));
         if(transmitted_0)
         {
-            _S483 = u32(134217728);
+            _S515 = u32(134217728);
         }
         else
         {
-            _S483 = u32(0);
+            _S515 = u32(0);
         }
-        gAccum_0[r_12][i32(3)] = (bitcast<f32>(((((_S491 | (_S483))) | ((((bitcast<u32>((gAccum_0[r_12].w))) & (u32(268435456)))))))));
+        gAccum_0[r_12][i32(3)] = (bitcast<f32>(((((_S523 | (_S515))) | ((((bitcast<u32>((gAccum_0[r_12].w))) & (u32(268435456)))))))));
         gAccum_0[r_12 + u32(3)][i32(3)] = oct_0.x;
         gAccum_0[r_12 + u32(4)][i32(3)] = oct_0.y;
     }
     var throughput_24 : vec3<f32> = (*s_21).path_0.throughput_7 * weight_4;
-    if(_S482)
+    if(_S514)
     {
-        transmitted_0 = _S475;
+        transmitted_0 = _S507;
     }
     else
     {
@@ -13796,8 +14080,8 @@ fn ShadePath_0( base_11 : u32,  s_21 : ptr<function, WavefrontPath_0>,  hit_3 : 
     }
     if((continuation_0 < 1.0f))
     {
-        var _S492 : f32 = RandomSequence_Next_1(&(rng_5));
-        if((_S492 >= continuation_0))
+        var _S524 : f32 = RandomSequence_Next_1(&(rng_5));
+        if((_S524 >= continuation_0))
         {
             return;
         }
@@ -13811,7 +14095,7 @@ fn ShadePath_0( base_11 : u32,  s_21 : ptr<function, WavefrontPath_0>,  hit_3 : 
     (*s_21).path_0.direction_1 = bs_0.wi_26;
     (*s_21).path_0.scatterPdf_0 = bs_0.pdf_7;
     var crossesSurface_0 : bool = ((dot(bs_0.wi_26, si_4.faceNormal_0)) > 0.0f) != (si_4.frontFacing_0);
-    (*s_21).path_0.origin_3 = SurfaceInteraction_ComputeRayOrigin_0(si_4, !crossesSurface_0);
+    (*s_21).path_0.origin_5 = SurfaceInteraction_ComputeRayOrigin_0(si_4, !crossesSurface_0);
     if(crossesSurface_0)
     {
         transmitted_0 = !ms_3.thinWalled_0;
@@ -13836,65 +14120,65 @@ fn ShadePath_0( base_11 : u32,  s_21 : ptr<function, WavefrontPath_0>,  hit_3 : 
     (*s_21).path_0.coneSpread_0 = (*s_21).path_0.coneSpread_0 + ScatterConeSpread_0(bs_0.type_0, ms_3.roughness_4);
     (*s_21).randomSeed_0 = rng_5.seed_0;
     (*s_21).active_0 = u32(1);
-    if(_S482)
+    if(_S514)
     {
-        var _S493 : u32 = Field_0(base_11, u32(6));
-        gAccum_0[_S493][i32(3)] = (bitcast<f32>(((bitcast<u32>((gAccum_0[_S493].w))) + u32(1))));
+        var _S525 : u32 = Field_0(base_11, u32(6));
+        gAccum_0[_S525][i32(3)] = (bitcast<f32>(((bitcast<u32>((gAccum_0[_S525].w))) + u32(1))));
     }
     return;
 }
 
-fn IntersectTriangle_1( o_55 : vec3<f32>,  d_11 : vec3<f32>,  v0_2 : vec3<f32>,  e1_1 : vec3<f32>,  e2_1 : vec3<f32>,  tMin_3 : f32,  tMax_3 : f32,  t_12 : ptr<function, f32>,  bary_3 : ptr<function, vec2<f32>>) -> bool
+fn IntersectTriangle_1( o_58 : vec3<f32>,  d_14 : vec3<f32>,  v0_2 : vec3<f32>,  e1_2 : vec3<f32>,  e2_1 : vec3<f32>,  tMin_5 : f32,  tMax_4 : f32,  t_12 : ptr<function, f32>,  bary_3 : ptr<function, vec2<f32>>) -> bool
 {
     (*t_12) = 0.0f;
     (*bary_3) = vec2<f32>(0.0f);
-    var h_16 : vec3<f32> = cross(d_11, e2_1);
-    var a_19 : f32 = dot(e1_1, h_16);
+    var h_16 : vec3<f32> = cross(d_14, e2_1);
+    var a_19 : f32 = dot(e1_2, h_16);
     if(a_19 == 0.0f)
     {
         return false;
     }
     var f_24 : f32 = rcp_1(a_19);
-    var s_22 : vec3<f32> = o_55 - v0_2;
+    var s_22 : vec3<f32> = o_58 - v0_2;
     var u_34 : f32 = f_24 * dot(s_22, h_16);
-    var _S494 : bool;
+    var _S526 : bool;
     if((u_34 < 0.0f))
     {
-        _S494 = true;
+        _S526 = true;
     }
     else
     {
-        _S494 = (u_34 > 1.0f);
+        _S526 = (u_34 > 1.0f);
     }
-    if(_S494)
+    if(_S526)
     {
         return false;
     }
-    var q_1 : vec3<f32> = cross(s_22, e1_1);
-    var v_19 : f32 = f_24 * dot(d_11, q_1);
+    var q_1 : vec3<f32> = cross(s_22, e1_2);
+    var v_19 : f32 = f_24 * dot(d_14, q_1);
     if((v_19 < 0.0f))
     {
-        _S494 = true;
+        _S526 = true;
     }
     else
     {
-        _S494 = ((u_34 + v_19) > 1.0f);
+        _S526 = ((u_34 + v_19) > 1.0f);
     }
-    if(_S494)
+    if(_S526)
     {
         return false;
     }
     (*t_12) = f_24 * dot(e2_1, q_1);
     (*bary_3) = vec2<f32>(u_34, v_19);
-    if(((*t_12) > tMin_3))
+    if(((*t_12) > tMin_5))
     {
-        _S494 = ((*t_12) < tMax_3);
+        _S526 = ((*t_12) < tMax_4);
     }
     else
     {
-        _S494 = false;
+        _S526 = false;
     }
-    return _S494;
+    return _S526;
 }
 
 fn VertexUV0_1( v_20 : ptr<function, Vertex_std430_0>) -> vec2<f32>
@@ -13902,308 +14186,572 @@ fn VertexUV0_1( v_20 : ptr<function, Vertex_std430_0>) -> vec2<f32>
     return vec2<f32>((*v_20).positionU_0.w, (*v_20).normalV_0.w);
 }
 
-fn AlphaTestRejects_0( _S495 : u32,  _S496 : u32,  _S497 : vec2<f32>,  _S498 : f32) -> bool
+fn AlphaTestRejects_0( _S527 : u32,  _S528 : u32,  _S529 : vec2<f32>,  _S530 : f32) -> bool
 {
-    var material_4 : MaterialHeader_0 = LoadMaterialHeader_0(gInstances_0[_S495].materialIndex_0);
-    var _S499 : u32 = MaterialHeader_AlphaMode_0(material_4);
-    if(_S499 == u32(0))
+    var material_4 : MaterialHeader_0 = LoadMaterialHeader_0(gInstances_0[_S527].materialIndex_0);
+    var _S531 : u32 = MaterialHeader_AlphaMode_0(material_4);
+    if(_S531 == u32(0))
     {
         return false;
     }
-    var _S500 : vec3<u32> = LoadTriangleIndices_0(_S495, _S496);
-    var _S501 : Vertex_std430_0 = gVertices_0[_S500.x];
-    var _S502 : Vertex_std430_0 = gVertices_0[_S500.y];
-    var _S503 : Vertex_std430_0 = gVertices_0[_S500.z];
-    var _S504 : f32 = _S497.x;
-    var _S505 : f32 = _S497.y;
-    var _S506 : f32 = 1.0f - _S504 - _S505;
-    var _S507 : vec2<f32> = VertexUV0_1(&(_S501));
-    var _S508 : vec2<f32> = VertexUV0_1(&(_S502));
-    var _S509 : vec2<f32> = VertexUV0_1(&(_S503));
-    var _S510 : vec2<f32> = vec2<f32>(_S506);
-    var _S511 : vec2<f32> = vec2<f32>(_S504);
-    var _S512 : vec2<f32> = vec2<f32>(_S505);
-    var _S513 : vec2<f32> = _S501.uv1_0.xy;
-    var _S514 : vec2<f32> = _S502.uv1_0.xy;
-    var _S515 : vec2<f32> = _S503.uv1_0.xy;
-    var _S516 : vec3<f32> = _S502.positionU_0.xyz;
-    var _S517 : vec3<f32> = _S501.positionU_0.xyz;
-    var _S518 : vec3<f32> = _S503.positionU_0.xyz;
-    var tc_8 : TextureCoords_0 = MakeTextureCoords_0(_S507 * _S510 + _S508 * _S511 + _S509 * _S512, _S513 * _S510 + _S514 * _S511 + _S515 * _S512, TransformVector_0(_S495, _S516 - _S517), TransformVector_0(_S495, _S518 - _S517), _S508 - _S507, _S509 - _S507, _S514 - _S513, _S515 - _S513, gRayCone_0.x + gRayCone_0.y * _S498, 1.0f);
-    tc_8.objectPosition_0 = _S517 * vec3<f32>(_S506) + _S516 * vec3<f32>(_S504) + _S518 * vec3<f32>(_S505);
+    var _S532 : vec3<u32> = LoadTriangleIndices_0(_S527, _S528);
+    var _S533 : Vertex_std430_0 = gVertices_0[_S532.x];
+    var _S534 : Vertex_std430_0 = gVertices_0[_S532.y];
+    var _S535 : Vertex_std430_0 = gVertices_0[_S532.z];
+    var _S536 : f32 = _S529.x;
+    var _S537 : f32 = _S529.y;
+    var _S538 : f32 = 1.0f - _S536 - _S537;
+    var _S539 : vec2<f32> = VertexUV0_1(&(_S533));
+    var _S540 : vec2<f32> = VertexUV0_1(&(_S534));
+    var _S541 : vec2<f32> = VertexUV0_1(&(_S535));
+    var _S542 : vec2<f32> = vec2<f32>(_S538);
+    var _S543 : vec2<f32> = vec2<f32>(_S536);
+    var _S544 : vec2<f32> = vec2<f32>(_S537);
+    var _S545 : vec2<f32> = _S533.uv1_0.xy;
+    var _S546 : vec2<f32> = _S534.uv1_0.xy;
+    var _S547 : vec2<f32> = _S535.uv1_0.xy;
+    var _S548 : vec3<f32> = _S534.positionU_0.xyz;
+    var _S549 : vec3<f32> = _S533.positionU_0.xyz;
+    var _S550 : vec3<f32> = _S535.positionU_0.xyz;
+    var tc_8 : TextureCoords_0 = MakeTextureCoords_0(_S539 * _S542 + _S540 * _S543 + _S541 * _S544, _S545 * _S542 + _S546 * _S543 + _S547 * _S544, TransformVector_0(_S527, _S548 - _S549), TransformVector_0(_S527, _S550 - _S549), _S540 - _S539, _S541 - _S539, _S546 - _S545, _S547 - _S545, gRayCone_0.x + gRayCone_0.y * _S530, 1.0f);
+    tc_8.objectPosition_0 = _S549 * vec3<f32>(_S538) + _S548 * vec3<f32>(_S536) + _S550 * vec3<f32>(_S537);
     var opacity_1 : f32 = EvalOpacity_0(material_4, tc_8);
-    if(_S499 == u32(1))
+    if(_S531 == u32(1))
     {
         return (opacity_1 < (material_4.alphaCutoff_0));
     }
-    return (opacity_1 < (f32(((StrongIntegerHash_0((_S496 ^ ((StrongIntegerHash_0(((bitcast<u32>((_S498))) ^ ((gFrame_0.frame_0.w))))))))) & (u32(16777215)))) * 5.9604644775390625e-08f));
+    return (opacity_1 < (f32(((StrongIntegerHash_0((_S528 ^ ((StrongIntegerHash_0(((bitcast<u32>((_S530))) ^ ((gFrame_0.frame_0.w))))))))) & (u32(16777215)))) * 5.9604644775390625e-08f));
 }
 
-fn TraverseBLAS_1( _S519 : u32,  _S520 : u32,  _S521 : vec3<f32>,  _S522 : vec3<f32>,  _S523 : f32,  _S524 : bool,  _S525 : ptr<function, HitRecord_0>) -> bool
+fn IntersectSlot_1( slot_5 : u32,  instanceIndex_7 : u32,  blasTriOffset_4 : u32,  merged_3 : bool,  alphaTested_1 : bool,  o_59 : vec3<f32>,  d_15 : vec3<f32>,  tMin_6 : f32,  hit_5 : ptr<function, HitRecord_0>) -> bool
 {
-    var found_5 : bool;
-    var _S526 : vec3<f32> = SafeRcp_0(_S522);
-    var _S527 : bool = (((gInstances_0[_S520].flags_0) & (u32(1)))) != u32(0);
-    var stack_4 : array<u32, i32(48)>;
-    var nodeRef_2 : u32 = u32(0);
-    var found_6 : bool = false;
-    var stackPtr_8 : u32 = u32(0);
-    loop
+    gTraversalCost_0 = gTraversalCost_0 + u32(1);
+    var base_12 : u32 = (blasTriOffset_4 + slot_5) * u32(3);
+    var v0_3 : vec4<f32> = gTris_0[base_12];
+    var e1_3 : vec4<f32> = gTris_0[base_12 + u32(1)];
+    var e2_2 : vec4<f32> = gTris_0[base_12 + u32(2)];
+    var t_13 : f32;
+    var bary_4 : vec2<f32>;
+    var _S551 : bool = IntersectTriangle_1(o_59, d_15, v0_3.xyz, e1_3.xyz, e2_2.xyz, tMin_6, (*hit_5).t_6, &(t_13), &(bary_4));
+    if(!_S551)
     {
-        var i_9 : u32;
-        if(((nodeRef_2 & (u32(2147483648)))) != u32(0))
-        {
-            var _S528 : u32 = (((nodeRef_2 >> (u32(24)))) & (u32(127)));
-            var _S529 : u32 = (nodeRef_2 & (u32(16777215)));
-            found_5 = found_6;
-            i_9 = u32(0);
-            loop
-            {
-                if((i_9 < _S528))
-                {
-                }
-                else
-                {
-                    break;
-                }
-                gTraversalCost_0 = gTraversalCost_0 + u32(1);
-                var base_12 : u32 = (gInstances_0[_S520].blasTriOffset_0 + _S529 + i_9) * u32(3);
-                var v0_3 : vec4<f32> = gTris_0[base_12];
-                var t_13 : f32;
-                var bary_4 : vec2<f32>;
-                var _S530 : bool = IntersectTriangle_1(_S521, _S522, v0_3.xyz, gTris_0[base_12 + u32(1)].xyz, gTris_0[base_12 + u32(2)].xyz, _S523, (*_S525).t_6, &(t_13), &(bary_4));
-                if(!_S530)
-                {
-                    i_9 = i_9 + u32(1);
-                    continue;
-                }
-                var primitiveIndex_3 : u32 = (bitcast<u32>((v0_3.w)));
-                var _S531 : bool;
-                if(_S527)
-                {
-                    var _S532 : bool = AlphaTestRejects_0(_S520, primitiveIndex_3, bary_4, t_13);
-                    _S531 = _S532;
-                }
-                else
-                {
-                    _S531 = false;
-                }
-                if(_S531)
-                {
-                    i_9 = i_9 + u32(1);
-                    continue;
-                }
-                (*_S525).t_6 = t_13;
-                (*_S525).barycentrics_0 = bary_4;
-                (*_S525).instanceIndex_2 = _S519;
-                (*_S525).primitiveIndex_1 = primitiveIndex_3;
-                if(_S524)
-                {
-                    return true;
-                }
-                found_5 = true;
-                i_9 = i_9 + u32(1);
-            }
-            if(stackPtr_8 == u32(0))
-            {
-                break;
-            }
-            var stackPtr_9 : u32 = stackPtr_8 - u32(1);
-            nodeRef_2 = stack_4[stackPtr_9];
-            found_6 = found_5;
-            stackPtr_8 = stackPtr_9;
-            continue;
-        }
-        gTraversalCost_0 = gTraversalCost_0 + u32(1);
-        var node_2 : BVHNode_std430_0 = gNodes_0[gInstances_0[_S520].blasNodeOffset_0 + nodeRef_2];
-        var dist1_4 : f32 = IntersectBox_0(node_2.lmin_0, node_2.lmax_0, _S521, _S526, _S523, (*_S525).t_6);
-        var dist2_4 : f32 = IntersectBox_0(node_2.rmin_0, node_2.rmax_0, _S521, _S526, _S523, (*_S525).t_6);
-        var far_2 : u32;
-        var dist1_5 : f32;
-        var dist2_5 : f32;
-        if((dist1_4 > dist2_4))
-        {
-            dist1_5 = dist2_4;
-            i_9 = node_2.right_0;
-            dist2_5 = dist1_4;
-            far_2 = node_2.left_0;
-        }
-        else
-        {
-            dist1_5 = dist1_4;
-            i_9 = node_2.left_0;
-            dist2_5 = dist2_4;
-            far_2 = node_2.right_0;
-        }
-        if(dist1_5 == 1.00000001504746622e+30f)
-        {
-            if(stackPtr_8 == u32(0))
-            {
-                found_5 = found_6;
-                break;
-            }
-            var stackPtr_10 : u32 = stackPtr_8 - u32(1);
-            nodeRef_2 = stack_4[stackPtr_10];
-            stackPtr_8 = stackPtr_10;
-        }
-        else
-        {
-            if(dist2_5 != 1.00000001504746622e+30f)
-            {
-                found_5 = (stackPtr_8 < u32(48));
-            }
-            else
-            {
-                found_5 = false;
-            }
-            var stackPtr_11 : u32;
-            if(found_5)
-            {
-                var _S533 : u32 = stackPtr_8 + u32(1);
-                stack_4[stackPtr_8] = far_2;
-                stackPtr_11 = _S533;
-            }
-            else
-            {
-                stackPtr_11 = stackPtr_8;
-            }
-            nodeRef_2 = i_9;
-            stackPtr_8 = stackPtr_11;
-        }
+        return false;
     }
-    return found_5;
+    var primitiveIndex_3 : u32 = (bitcast<u32>((v0_3.w)));
+    var _S552 : bool;
+    var _S553 : u32;
+    if(merged_3)
+    {
+        var _S554 : u32 = (bitcast<u32>((e1_3.w)));
+        _S552 = (bitcast<u32>((e2_2.w))) != u32(0);
+        _S553 = _S554;
+    }
+    else
+    {
+        _S552 = alphaTested_1;
+        _S553 = instanceIndex_7;
+    }
+    if(_S552)
+    {
+        var _S555 : bool = AlphaTestRejects_0(_S553, primitiveIndex_3, bary_4, t_13);
+        _S552 = _S555;
+    }
+    else
+    {
+        _S552 = false;
+    }
+    if(_S552)
+    {
+        return false;
+    }
+    (*hit_5).t_6 = t_13;
+    (*hit_5).barycentrics_0 = bary_4;
+    (*hit_5).instanceIndex_2 = _S553;
+    (*hit_5).primitiveIndex_1 = primitiveIndex_3;
+    return true;
 }
 
-fn TraceScene_1( ray_2 : Ray_0,  anyHit_1 : bool,  hit_4 : ptr<function, HitRecord_0>) -> bool
+fn TraceScene_1( ray_2 : Ray_0,  anyHit_1 : bool,  hit_6 : ptr<function, HitRecord_0>) -> bool
 {
-    var found_7 : bool;
-    (*hit_4).t_6 = ray_2.tMax_0;
-    (*hit_4).barycentrics_0 = vec2<f32>(0.0f);
-    (*hit_4).instanceIndex_2 = u32(4294967295);
-    (*hit_4).primitiveIndex_1 = u32(4294967295);
+    (*hit_6).t_6 = ray_2.tMax_0;
+    (*hit_6).barycentrics_0 = vec2<f32>(0.0f);
+    (*hit_6).instanceIndex_2 = u32(4294967295);
+    (*hit_6).primitiveIndex_1 = u32(4294967295);
     if((gFrame_0.counts_0.x) == u32(0))
     {
         return false;
     }
-    var _S534 : u32 = gFrame_0.counts_0.z;
-    var _S535 : vec3<f32> = SafeRcp_0(ray_2.direction_0);
-    var stack_5 : array<u32, i32(32)>;
+    var _S556 : u32 = gFrame_0.counts_0.z;
+    var worldRD_1 : vec3<f32> = SafeRcp_0(ray_2.direction_0);
+    var _S557 : vec2<u32> = vec2<u32>(u32(0));
+    var nodeGroup_1 : vec2<u32> = _S557;
+    var triGroup_1 : vec2<u32> = _S557;
+    var inBlas_3 : bool = false;
+    var instanceIndex_8 : u32 = u32(0);
+    var blasTriOffset_5 : u32 = u32(0);
+    var merged_4 : bool = false;
+    var alphaTested_2 : bool = false;
+    var o_60 : vec3<f32> = ray_2.origin_0;
+    var d_16 : vec3<f32> = ray_2.direction_0;
+    var octinv_3 : u32 = u32(0);
+    var blasNodeOffset_3 : u32 = u32(0);
+    var rD_3 : vec3<f32> = worldRD_1;
     var nodeRef_3 : u32 = u32(0);
-    var found_8 : bool = false;
-    var stackPtr_12 : u32 = u32(0);
+    var found_2 : bool = false;
+    var stackPtr_3 : u32 = u32(0);
     loop
     {
-        var i_10 : u32;
-        if(((nodeRef_3 & (u32(2147483648)))) != u32(0))
+        var pop_1 : bool;
+        var inBlas_4 : bool;
+        var merged_5 : bool;
+        var alphaTested_3 : bool;
+        var instanceIndex_9 : u32;
+        var blasTriOffset_6 : u32;
+        var octinv_4 : u32;
+        var blasNodeOffset_4 : u32;
+        var nodeRef_4 : u32;
+        var stackPtr_4 : u32;
+        var o_61 : vec3<f32>;
+        var d_17 : vec3<f32>;
+        var rD_4 : vec3<f32>;
+        var dist1_2 : f32;
+        var dist2_2 : f32;
+        if(inBlas_3)
         {
-            var _S536 : u32 = (((nodeRef_3 >> (u32(24)))) & (u32(127)));
-            var _S537 : u32 = (nodeRef_3 & (u32(16777215)));
-            found_7 = found_8;
-            i_10 = u32(0);
+            if(((nodeGroup_1.y) > u32(16777215)))
+            {
+                var hits_1 : u32 = nodeGroup_1.y;
+                var childBit_1 : u32 = firstbithigh_0(hits_1);
+                nodeGroup_1[i32(1)] = ((nodeGroup_1[i32(1)]) & ((~((u32(1) << (childBit_1))))));
+                if(((nodeGroup_1.y) > u32(16777215)))
+                {
+                    pop_1 = (stackPtr_3 < u32(32));
+                }
+                else
+                {
+                    pop_1 = false;
+                }
+                if(pop_1)
+                {
+                    var _S558 : u32 = stackPtr_3 + u32(1);
+                    gTraversalStack_0[stackPtr_3] = nodeGroup_1;
+                    octinv_4 = _S558;
+                }
+                else
+                {
+                    octinv_4 = stackPtr_3;
+                }
+                var node_2 : u32 = blasNodeOffset_3 + (nodeGroup_1.x + countOneBits((hits_1 & ((~((u32(4294967295) << ((((childBit_1 - u32(24)) ^ (((octinv_3 & (u32(255))))))))))))))) * u32(5);
+                gTraversalCost_0 = gTraversalCost_0 + u32(1);
+                var n0_1 : vec4<f32> = gNodes_0[node_2];
+                var n1_1 : vec4<f32> = gNodes_0[node_2 + u32(1)];
+                var n2_1 : vec4<f32> = gNodes_0[node_2 + u32(2)];
+                var n3_1 : vec4<f32> = gNodes_0[node_2 + u32(3)];
+                var n4_1 : vec4<f32> = gNodes_0[node_2 + u32(4)];
+                var e4_1 : u32 = (bitcast<u32>((n0_1.w)));
+                var scale_8 : vec3<f32> = vec3<f32>((bitcast<f32>(((((e4_1 & (u32(255)))) << (u32(23)))))), (bitcast<f32>(((((((e4_1 >> (u32(8)))) & (u32(255)))) << (u32(23)))))), (bitcast<f32>(((((((e4_1 >> (u32(16)))) & (u32(255)))) << (u32(23))))))) * rD_3;
+                var origin_6 : vec3<f32> = (n0_1.xyz - o_60) * rD_3;
+                var negative_1 : vec3<bool> = (rD_3 < vec3<f32>(0.0f));
+                var _S559 : bool = negative_1.x;
+                if(_S559)
+                {
+                    dist1_2 = n3_1.z;
+                }
+                else
+                {
+                    dist1_2 = n2_1.x;
+                }
+                var _S560 : u32 = (bitcast<u32>((dist1_2)));
+                var _S561 : bool = negative_1.y;
+                if(_S561)
+                {
+                    dist2_2 = n4_1.x;
+                }
+                else
+                {
+                    dist2_2 = n2_1.z;
+                }
+                var _S562 : u32 = (bitcast<u32>((dist2_2)));
+                var _S563 : bool = negative_1.z;
+                var _S564 : f32;
+                if(_S563)
+                {
+                    _S564 = n4_1.z;
+                }
+                else
+                {
+                    _S564 = n3_1.x;
+                }
+                var lo0_1 : vec3<u32> = vec3<u32>(_S560, _S562, (bitcast<u32>((_S564))));
+                var _S565 : f32;
+                if(_S559)
+                {
+                    _S565 = n2_1.x;
+                }
+                else
+                {
+                    _S565 = n3_1.z;
+                }
+                var _S566 : u32 = (bitcast<u32>((_S565)));
+                var _S567 : f32;
+                if(_S561)
+                {
+                    _S567 = n2_1.z;
+                }
+                else
+                {
+                    _S567 = n4_1.x;
+                }
+                var _S568 : u32 = (bitcast<u32>((_S567)));
+                var _S569 : f32;
+                if(_S563)
+                {
+                    _S569 = n3_1.x;
+                }
+                else
+                {
+                    _S569 = n4_1.z;
+                }
+                var hi0_1 : vec3<u32> = vec3<u32>(_S566, _S568, (bitcast<u32>((_S569))));
+                var _S570 : f32;
+                if(_S559)
+                {
+                    _S570 = n3_1.w;
+                }
+                else
+                {
+                    _S570 = n2_1.y;
+                }
+                var _S571 : u32 = (bitcast<u32>((_S570)));
+                var _S572 : f32;
+                if(_S561)
+                {
+                    _S572 = n4_1.y;
+                }
+                else
+                {
+                    _S572 = n2_1.w;
+                }
+                var _S573 : u32 = (bitcast<u32>((_S572)));
+                var _S574 : f32;
+                if(_S563)
+                {
+                    _S574 = n4_1.w;
+                }
+                else
+                {
+                    _S574 = n3_1.y;
+                }
+                var lo1_1 : vec3<u32> = vec3<u32>(_S571, _S573, (bitcast<u32>((_S574))));
+                var _S575 : f32;
+                if(_S559)
+                {
+                    _S575 = n2_1.y;
+                }
+                else
+                {
+                    _S575 = n3_1.w;
+                }
+                var _S576 : u32 = (bitcast<u32>((_S575)));
+                var _S577 : f32;
+                if(_S561)
+                {
+                    _S577 = n2_1.w;
+                }
+                else
+                {
+                    _S577 = n4_1.y;
+                }
+                var _S578 : u32 = (bitcast<u32>((_S577)));
+                var _S579 : f32;
+                if(_S563)
+                {
+                    _S579 = n3_1.y;
+                }
+                else
+                {
+                    _S579 = n4_1.w;
+                }
+                var hitmask_2 : u32 = ((CwbvhChildHits_0((bitcast<u32>((n1_1.z))), lo0_1, hi0_1, scale_8, origin_6, ray_2.tMin_0, (*hit_6).t_6, octinv_3)) | ((CwbvhChildHits_0((bitcast<u32>((n1_1.w))), lo1_1, vec3<u32>(_S576, _S578, (bitcast<u32>((_S579)))), scale_8, origin_6, ray_2.tMin_0, (*hit_6).t_6, octinv_3))));
+                nodeGroup_1 = vec2<u32>((bitcast<u32>((n1_1.x))), (((hitmask_2 & (u32(4278190080)))) | (((e4_1 >> (u32(24)))))));
+                triGroup_1 = vec2<u32>((bitcast<u32>((n1_1.y))), (hitmask_2 & (u32(16777215))));
+            }
+            else
+            {
+                triGroup_1 = nodeGroup_1;
+                nodeGroup_1 = _S557;
+                octinv_4 = stackPtr_3;
+            }
+            pop_1 = found_2;
             loop
             {
-                if((i_10 < _S536))
+                if((triGroup_1.y) != u32(0))
                 {
                 }
                 else
                 {
                     break;
                 }
-                var instanceIndex_4 : u32 = gIndices_0[_S534 + _S537 + i_10];
-                var _S538 : bool = TraverseBLAS_1(instanceIndex_4, instanceIndex_4, InverseTransformPoint_0(instanceIndex_4, ray_2.origin_0), InverseTransformVector_0(instanceIndex_4, ray_2.direction_0), ray_2.tMin_0, anyHit_1, &((*hit_4)));
-                if(_S538)
+                var triangleBit_1 : u32 = firstbithigh_0(triGroup_1.y);
+                triGroup_1[i32(1)] = ((triGroup_1[i32(1)]) & ((~((u32(1) << (triangleBit_1))))));
+                var _S580 : bool = IntersectSlot_1((((triGroup_1.x) >> (u32(2)))) + triangleBit_1, instanceIndex_8, blasTriOffset_5, merged_4, alphaTested_2, o_60, d_16, ray_2.tMin_0, &((*hit_6)));
+                if(_S580)
                 {
                     if(anyHit_1)
                     {
                         return true;
                     }
-                    found_7 = true;
+                    pop_1 = true;
                 }
-                i_10 = i_10 + u32(1);
             }
-            if(stackPtr_12 == u32(0))
+            if((triGroup_1.y) == u32(0))
             {
-                break;
-            }
-            var stackPtr_13 : u32 = stackPtr_12 - u32(1);
-            nodeRef_3 = stack_5[stackPtr_13];
-            found_8 = found_7;
-            stackPtr_12 = stackPtr_13;
-            continue;
-        }
-        gTraversalCost_0 = gTraversalCost_0 + u32(1);
-        var node_3 : BVHNode_std430_0 = gNodes_0[gFrame_0.envInfo_0.z + nodeRef_3];
-        var dist1_6 : f32 = IntersectBox_0(node_3.lmin_0, node_3.lmax_0, ray_2.origin_0, _S535, ray_2.tMin_0, (*hit_4).t_6);
-        var dist2_6 : f32 = IntersectBox_0(node_3.rmin_0, node_3.rmax_0, ray_2.origin_0, _S535, ray_2.tMin_0, (*hit_4).t_6);
-        var far_3 : u32;
-        var dist1_7 : f32;
-        var dist2_7 : f32;
-        if((dist1_6 > dist2_6))
-        {
-            dist1_7 = dist2_6;
-            i_10 = node_3.right_0;
-            dist2_7 = dist1_6;
-            far_3 = node_3.left_0;
-        }
-        else
-        {
-            dist1_7 = dist1_6;
-            i_10 = node_3.left_0;
-            dist2_7 = dist2_6;
-            far_3 = node_3.right_0;
-        }
-        if(dist1_7 == 1.00000001504746622e+30f)
-        {
-            if(stackPtr_12 == u32(0))
-            {
-                found_7 = found_8;
-                break;
-            }
-            var stackPtr_14 : u32 = stackPtr_12 - u32(1);
-            nodeRef_3 = stack_5[stackPtr_14];
-            stackPtr_12 = stackPtr_14;
-        }
-        else
-        {
-            if(dist2_7 != 1.00000001504746622e+30f)
-            {
-                found_7 = (stackPtr_12 < u32(32));
+                inBlas_4 = ((nodeGroup_1.y) <= u32(16777215));
             }
             else
             {
-                found_7 = false;
+                inBlas_4 = false;
             }
-            var stackPtr_15 : u32;
-            if(found_7)
+            var _S581 : u32 = octinv_4;
+            var _S582 : bool = pop_1;
+            pop_1 = inBlas_4;
+            inBlas_4 = inBlas_3;
+            instanceIndex_9 = instanceIndex_8;
+            blasTriOffset_6 = blasTriOffset_5;
+            merged_5 = merged_4;
+            alphaTested_3 = alphaTested_2;
+            o_61 = o_60;
+            d_17 = d_16;
+            octinv_4 = octinv_3;
+            blasNodeOffset_4 = blasNodeOffset_3;
+            rD_4 = rD_3;
+            nodeRef_4 = nodeRef_3;
+            found_2 = _S582;
+            stackPtr_4 = _S581;
+        }
+        else
+        {
+            if(((nodeRef_3 & (u32(2147483648)))) != u32(0))
             {
-                var _S539 : u32 = stackPtr_12 + u32(1);
-                stack_5[stackPtr_12] = far_3;
-                stackPtr_15 = _S539;
+                var count_2 : u32 = (((nodeRef_3 >> (u32(24)))) & (u32(127)));
+                var first_1 : u32 = (nodeRef_3 & (u32(16777215)));
+                if(count_2 == u32(0))
+                {
+                    pop_1 = true;
+                    inBlas_4 = inBlas_3;
+                    instanceIndex_9 = instanceIndex_8;
+                    blasTriOffset_6 = blasTriOffset_5;
+                    merged_5 = merged_4;
+                    alphaTested_3 = alphaTested_2;
+                    o_61 = o_60;
+                    d_17 = d_16;
+                    octinv_4 = octinv_3;
+                    blasNodeOffset_4 = blasNodeOffset_3;
+                    rD_4 = rD_3;
+                    nodeRef_4 = stackPtr_3;
+                }
+                else
+                {
+                    if((count_2 > u32(1)))
+                    {
+                        pop_1 = (stackPtr_3 < u32(32));
+                    }
+                    else
+                    {
+                        pop_1 = false;
+                    }
+                    if(pop_1)
+                    {
+                        var _S583 : u32 = stackPtr_3 + u32(1);
+                        gTraversalStack_0[stackPtr_3] = vec2<u32>((((u32(2147483648) | ((((count_2 - u32(1)) << (u32(24))))))) | ((first_1 + u32(1)))), u32(0));
+                        octinv_4 = _S583;
+                    }
+                    else
+                    {
+                        octinv_4 = stackPtr_3;
+                    }
+                    var instanceIndex_10 : u32 = gIndices_0[_S556 + first_1];
+                    var _S584 : u32 = gInstances_0[instanceIndex_10].blasNodeOffset_0;
+                    var _S585 : u32 = gInstances_0[instanceIndex_10].blasTriOffset_0;
+                    var _S586 : vec3<f32> = InverseTransformPoint_0(instanceIndex_10, ray_2.origin_0);
+                    var _S587 : vec3<f32> = InverseTransformVector_0(instanceIndex_10, ray_2.direction_0);
+                    var _S588 : vec3<f32> = SafeRcp_0(_S587);
+                    var _S589 : bool = (((gInstances_0[instanceIndex_10].flags_0) & (u32(1)))) != u32(0);
+                    var _S590 : bool = (((gInstances_0[instanceIndex_10].flags_0) & (u32(4)))) != u32(0);
+                    if(((_S587.x) < 0.0f))
+                    {
+                        instanceIndex_9 = u32(4);
+                    }
+                    else
+                    {
+                        instanceIndex_9 = u32(0);
+                    }
+                    if(((_S587.y) < 0.0f))
+                    {
+                        blasTriOffset_6 = u32(2);
+                    }
+                    else
+                    {
+                        blasTriOffset_6 = u32(0);
+                    }
+                    var _S591 : u32 = (instanceIndex_9 | (blasTriOffset_6));
+                    if(((_S587.z) < 0.0f))
+                    {
+                        blasNodeOffset_4 = u32(1);
+                    }
+                    else
+                    {
+                        blasNodeOffset_4 = u32(0);
+                    }
+                    var _S592 : u32 = (u32(7) - ((_S591 | (blasNodeOffset_4)))) * u32(16843009);
+                    nodeGroup_1 = vec2<u32>(u32(0), u32(2147483648));
+                    var _S593 : u32 = octinv_4;
+                    pop_1 = false;
+                    inBlas_4 = true;
+                    instanceIndex_9 = instanceIndex_10;
+                    blasTriOffset_6 = _S585;
+                    merged_5 = _S590;
+                    alphaTested_3 = _S589;
+                    o_61 = _S586;
+                    d_17 = _S587;
+                    octinv_4 = _S592;
+                    blasNodeOffset_4 = _S584;
+                    rD_4 = _S588;
+                    nodeRef_4 = _S593;
+                }
+                var _S594 : u32 = nodeRef_4;
+                nodeRef_4 = nodeRef_3;
+                stackPtr_4 = _S594;
             }
             else
             {
-                stackPtr_15 = stackPtr_12;
+                gTraversalCost_0 = gTraversalCost_0 + u32(1);
+                var node_3 : u32 = gFrame_0.envInfo_0.z + nodeRef_3 * u32(4);
+                var left_1 : vec4<f32> = gNodes_0[node_3];
+                var leftMax_1 : vec4<f32> = gNodes_0[node_3 + u32(1)];
+                var dist1_3 : f32 = IntersectBox_0(left_1.xyz, leftMax_1.xyz, ray_2.origin_0, worldRD_1, ray_2.tMin_0, (*hit_6).t_6);
+                var dist2_3 : f32 = IntersectBox_0(gNodes_0[node_3 + u32(2)].xyz, gNodes_0[node_3 + u32(3)].xyz, ray_2.origin_0, worldRD_1, ray_2.tMin_0, (*hit_6).t_6);
+                var near_2 : u32 = (bitcast<u32>((left_1.w)));
+                var far_1 : u32 = (bitcast<u32>((leftMax_1.w)));
+                if((dist1_3 > dist2_3))
+                {
+                    dist1_2 = dist2_3;
+                    instanceIndex_9 = far_1;
+                    dist2_2 = dist1_3;
+                    blasTriOffset_6 = near_2;
+                }
+                else
+                {
+                    dist1_2 = dist1_3;
+                    instanceIndex_9 = near_2;
+                    dist2_2 = dist2_3;
+                    blasTriOffset_6 = far_1;
+                }
+                if(dist1_2 == 1.00000001504746622e+30f)
+                {
+                    pop_1 = true;
+                    octinv_4 = nodeRef_3;
+                    blasNodeOffset_4 = stackPtr_3;
+                }
+                else
+                {
+                    if(dist2_2 != 1.00000001504746622e+30f)
+                    {
+                        pop_1 = (stackPtr_3 < u32(32));
+                    }
+                    else
+                    {
+                        pop_1 = false;
+                    }
+                    if(pop_1)
+                    {
+                        var _S595 : u32 = stackPtr_3 + u32(1);
+                        gTraversalStack_0[stackPtr_3] = vec2<u32>(blasTriOffset_6, u32(0));
+                        octinv_4 = _S595;
+                    }
+                    else
+                    {
+                        octinv_4 = stackPtr_3;
+                    }
+                    var _S596 : u32 = octinv_4;
+                    pop_1 = false;
+                    octinv_4 = instanceIndex_9;
+                    blasNodeOffset_4 = _S596;
+                }
+                var _S597 : u32 = octinv_4;
+                var _S598 : u32 = blasNodeOffset_4;
+                inBlas_4 = inBlas_3;
+                instanceIndex_9 = instanceIndex_8;
+                blasTriOffset_6 = blasTriOffset_5;
+                merged_5 = merged_4;
+                alphaTested_3 = alphaTested_2;
+                o_61 = o_60;
+                d_17 = d_16;
+                octinv_4 = octinv_3;
+                blasNodeOffset_4 = blasNodeOffset_3;
+                rD_4 = rD_3;
+                nodeRef_4 = _S597;
+                stackPtr_4 = _S598;
             }
-            nodeRef_3 = i_10;
-            stackPtr_12 = stackPtr_15;
         }
+        if(pop_1)
+        {
+            if(stackPtr_4 == u32(0))
+            {
+                break;
+            }
+            var stackPtr_5 : u32 = stackPtr_4 - u32(1);
+            var entry_2 : vec2<u32> = gTraversalStack_0[stackPtr_5];
+            var inBlas_5 : bool;
+            var nodeRef_5 : u32;
+            if((gTraversalStack_0[stackPtr_5].y) == u32(0))
+            {
+                var _S599 : u32 = entry_2.x;
+                inBlas_5 = false;
+                nodeRef_5 = _S599;
+            }
+            else
+            {
+                nodeGroup_1 = entry_2;
+                inBlas_5 = inBlas_4;
+                nodeRef_5 = nodeRef_4;
+            }
+            inBlas_3 = inBlas_5;
+            nodeRef_3 = nodeRef_5;
+            stackPtr_3 = stackPtr_5;
+        }
+        else
+        {
+            inBlas_3 = inBlas_4;
+            nodeRef_3 = nodeRef_4;
+            stackPtr_3 = stackPtr_4;
+        }
+        instanceIndex_8 = instanceIndex_9;
+        blasTriOffset_5 = blasTriOffset_6;
+        merged_4 = merged_5;
+        alphaTested_2 = alphaTested_3;
+        o_60 = o_61;
+        d_16 = d_17;
+        octinv_3 = octinv_4;
+        blasNodeOffset_3 = blasNodeOffset_4;
+        rD_3 = rD_4;
     }
-    return found_7;
+    return found_2;
 }
 
 fn TraceOcclusion_1( ray_3 : Ray_0) -> bool
 {
-    var hit_5 : HitRecord_0;
-    var _S540 : bool = TraceScene_1(ray_3, true, &(hit_5));
-    return _S540;
+    var hit_7 : HitRecord_0;
+    var _S600 : bool = TraceScene_1(ray_3, true, &(hit_7));
+    return _S600;
 }
 
 fn NextEventEstimation_1( si_5 : SurfaceInteraction_0,  bsdf_3 : BSDF_0,  cone_2 : vec2<f32>,  rng_6 : ptr<function, RandomSequence_0>) -> vec3<f32>
 {
-    var _S541 : vec3<f32> = vec3<f32>(0.0f);
+    var _S601 : vec3<f32> = vec3<f32>(0.0f);
     gRayCone_0 = cone_2;
     var source_1 : u32 = u32(0);
-    var result_8 : vec3<f32> = _S541;
+    var result_8 : vec3<f32> = _S601;
     loop
     {
         if((source_1 < u32(3)))
@@ -14213,7 +14761,7 @@ fn NextEventEstimation_1( si_5 : SurfaceInteraction_0,  bsdf_3 : BSDF_0,  cone_2
         {
             break;
         }
-        var origin_4 : vec3<f32>;
+        var origin_7 : vec3<f32>;
         var dir_12 : vec3<f32>;
         var shadow_2 : bool;
         var mis_1 : bool;
@@ -14241,9 +14789,9 @@ fn NextEventEstimation_1( si_5 : SurfaceInteraction_0,  bsdf_3 : BSDF_0,  cone_2
                 continue;
             }
             var dir_13 : vec3<f32> = (vec3<f32>(0) - ls_5.normal_7);
-            var _S542 : vec3<f32> = ShadowOrigin_0(si_5, dir_13);
+            var _S602 : vec3<f32> = ShadowOrigin_0(si_5, dir_13);
             shadow_2 = true;
-            origin_4 = _S542;
+            origin_7 = _S602;
             maxDistance_2 = 1.00000001504746622e+30f;
             mis_1 = true;
             ls_4 = ls_5;
@@ -14273,15 +14821,15 @@ fn NextEventEstimation_1( si_5 : SurfaceInteraction_0,  bsdf_3 : BSDF_0,  cone_2
                     continue;
                 }
                 var lightPos_2 : vec3<f32> = ComputeOffsetOrigin_0(ls_6.position_1, ls_6.normal_7);
-                var origin_5 : vec3<f32> = ShadowOrigin_0(si_5, lightPos_2 - si_5.position_0);
-                var dir_14 : vec3<f32> = lightPos_2 - origin_5;
+                var origin_8 : vec3<f32> = ShadowOrigin_0(si_5, lightPos_2 - si_5.position_0);
+                var dir_14 : vec3<f32> = lightPos_2 - origin_8;
                 var maxDistance_3 : f32 = length(dir_14);
                 var dir_15 : vec3<f32> = dir_14 / vec3<f32>(maxDistance_3);
-                var _S543 : bool = !ls_6.delta_0;
+                var _S603 : bool = !ls_6.delta_0;
                 shadow_2 = ls_6.shadow_0;
-                origin_4 = origin_5;
+                origin_7 = origin_8;
                 maxDistance_2 = maxDistance_3;
-                mis_1 = _S543;
+                mis_1 = _S603;
                 ls_4 = ls_6;
                 dir_12 = dir_15;
             }
@@ -14294,9 +14842,9 @@ fn NextEventEstimation_1( si_5 : SurfaceInteraction_0,  bsdf_3 : BSDF_0,  cone_2
                 }
                 var ls_7 : LightSample_0 = SampleSun_0(&((*rng_6)));
                 var dir_16 : vec3<f32> = (vec3<f32>(0) - ls_7.normal_7);
-                var _S544 : vec3<f32> = ShadowOrigin_0(si_5, dir_16);
+                var _S604 : vec3<f32> = ShadowOrigin_0(si_5, dir_16);
                 shadow_2 = true;
-                origin_4 = _S544;
+                origin_7 = _S604;
                 maxDistance_2 = 1.00000001504746622e+30f;
                 mis_1 = false;
                 ls_4 = ls_7;
@@ -14307,25 +14855,25 @@ fn NextEventEstimation_1( si_5 : SurfaceInteraction_0,  bsdf_3 : BSDF_0,  cone_2
         var bsdfPdf_1 : f32;
         BSDF_EvalPdf_0(bsdf_3, dir_12, &(eval_1), &(bsdfPdf_1));
         var f_25 : vec3<f32> = eval_1.diffuse_1 + eval_1.specular_1;
-        var _S545 : bool;
+        var _S605 : bool;
         if((any(((f_25 > vec3<f32>(0.0f))))))
         {
             if(!shadow_2)
             {
-                _S545 = true;
+                _S605 = true;
             }
             else
             {
-                var _S546 : bool = TraceOcclusion_1(Ray_x24init_0(origin_4, dir_12, maxDistance_2));
-                _S545 = !_S546;
+                var _S606 : bool = TraceOcclusion_1(Ray_x24init_0(origin_7, dir_12, maxDistance_2));
+                _S605 = !_S606;
             }
         }
         else
         {
-            _S545 = false;
+            _S605 = false;
         }
         var result_9 : vec3<f32>;
-        if(_S545)
+        if(_S605)
         {
             var weight_5 : f32;
             if(mis_1)
@@ -14348,21 +14896,21 @@ fn NextEventEstimation_1( si_5 : SurfaceInteraction_0,  bsdf_3 : BSDF_0,  cone_2
     return result_8;
 }
 
-fn ShadePath_1( base_13 : u32,  s_23 : ptr<function, WavefrontPath_0>,  hit_6 : HitRecord_0,  bounce_3 : u32)
+fn ShadePath_1( base_13 : u32,  s_23 : ptr<function, WavefrontPath_0>,  hit_8 : HitRecord_0,  bounce_3 : u32)
 {
-    var _S547 : vec3<f32> = vec3<f32>(0.0f);
-    if((any(((((*s_23).path_0.absorption_0) > _S547)))))
+    var _S607 : vec3<f32> = vec3<f32>(0.0f);
+    if((any(((((*s_23).path_0.absorption_0) > _S607)))))
     {
-        (*s_23).path_0.throughput_7 = (*s_23).path_0.throughput_7 * exp((*s_23).path_0.absorption_0 * vec3<f32>(- hit_6.t_6));
+        (*s_23).path_0.throughput_7 = (*s_23).path_0.throughput_7 * exp((*s_23).path_0.absorption_0 * vec3<f32>(- hit_8.t_6));
     }
-    var hitConeWidth_1 : f32 = (*s_23).path_0.coneWidth_2 + (*s_23).path_0.coneSpread_0 * hit_6.t_6;
-    var si_6 : SurfaceInteraction_0 = GetSurfaceInteraction_0((*s_23).path_0.direction_1, hit_6, hitConeWidth_1);
+    var hitConeWidth_1 : f32 = (*s_23).path_0.coneWidth_2 + (*s_23).path_0.coneSpread_0 * hit_8.t_6;
+    var si_6 : SurfaceInteraction_0 = GetSurfaceInteraction_0((*s_23).path_0.direction_1, hit_8, hitConeWidth_1);
     var V_3 : vec3<f32> = (vec3<f32>(0) - (*s_23).path_0.direction_1);
     var ms_4 : MaterialSample_0 = EvalMaterial_0(si_6, V_3);
     var bsdf_4 : BSDF_0 = BSDF_x24init_0(ms_4.inputs_1, V_3, (*s_23).path_0.throughput_7, vec3<f32>(620.0f, 540.0f, 450.0f), 1.0f);
-    var _S548 : bool = bounce_3 == u32(0);
+    var _S608 : bool = bounce_3 == u32(0);
     var throughput_25 : vec3<f32>;
-    if(_S548)
+    if(_S608)
     {
         (*s_23).albedo_2 = ms_4.albedo_3;
         if(si_6.frontFacing_0)
@@ -14378,8 +14926,8 @@ fn ShadePath_1( base_13 : u32,  s_23 : ptr<function, WavefrontPath_0>,  hit_6 : 
         {
             var pixel_3 : vec2<u32> = WorkPixel_0(base_13 - WorkBase_0(u32(0)));
             var output_1 : u32 = (pixel_3.y * gFrame_0.frame_0.x + pixel_3.x) * u32(3);
-            gAccum_0[output_1 + u32(1)][i32(3)] = hit_6.t_6;
-            gAccum_0[output_1 + u32(2)][i32(3)] = f32(hit_6.instanceIndex_2 + u32(1));
+            gAccum_0[output_1 + u32(1)][i32(3)] = hit_8.t_6;
+            gAccum_0[output_1 + u32(2)][i32(3)] = f32(hit_8.instanceIndex_2 + u32(1));
         }
         if(NrdEnabled_0())
         {
@@ -14411,12 +14959,12 @@ fn ShadePath_1( base_13 : u32,  s_23 : ptr<function, WavefrontPath_0>,  hit_6 : 
     {
         return;
     }
-    var _S549 : bool = (any((((bsdf_4.emission_0) > _S547))));
+    var _S609 : bool = (any((((bsdf_4.emission_0) > _S607))));
     var continuation_1 : f32;
-    if(_S549)
+    if(_S609)
     {
-        var _S550 : bool = !_S548;
-        if(_S550)
+        var _S610 : bool = !_S608;
+        if(_S610)
         {
             transmitted_1 = (*s_23).path_0.lightsSampled_0;
         }
@@ -14426,7 +14974,7 @@ fn ShadePath_1( base_13 : u32,  s_23 : ptr<function, WavefrontPath_0>,  hit_6 : 
         }
         if(transmitted_1)
         {
-            continuation_1 = EvalMISRobust_0((*s_23).path_0.scatterPdf_0, EmissiveHitPdf_0(si_6.instanceIndex_0, si_6.primitiveIndex_0, (*s_23).path_0.origin_3, si_6.position_0));
+            continuation_1 = EvalMISRobust_0((*s_23).path_0.scatterPdf_0, EmissiveHitPdf_0(si_6.instanceIndex_0, si_6.primitiveIndex_0, (*s_23).path_0.origin_5, si_6.position_0));
         }
         else
         {
@@ -14436,7 +14984,7 @@ fn ShadePath_1( base_13 : u32,  s_23 : ptr<function, WavefrontPath_0>,  hit_6 : 
         var clampValue_3 : f32 = gFrame_0.envParams_0.w / gFrame_0.envParams_0.z;
         if((clampValue_3 > 0.0f))
         {
-            transmitted_1 = _S550;
+            transmitted_1 = _S610;
         }
         else
         {
@@ -14452,7 +15000,7 @@ fn ShadePath_1( base_13 : u32,  s_23 : ptr<function, WavefrontPath_0>,  hit_6 : 
         }
         (*s_23).path_0.radiance_1 = (*s_23).path_0.radiance_1 + throughput_25;
     }
-    if(_S548)
+    if(_S608)
     {
         transmitted_1 = NrdEnabled_0();
     }
@@ -14463,11 +15011,11 @@ fn ShadePath_1( base_13 : u32,  s_23 : ptr<function, WavefrontPath_0>,  hit_6 : 
     if(transmitted_1)
     {
         var r_14 : u32 = NrdBase_0(base_13);
-        var _S551 : vec3<f32> = (*s_23).path_0.radiance_1;
-        gAccum_0[r_14].x = _S551.x;
-        gAccum_0[r_14].y = _S551.y;
-        gAccum_0[r_14].z = _S551.z;
-        if((any(((((*s_23).path_0.radiance_1) > _S547)))))
+        var _S611 : vec3<f32> = (*s_23).path_0.radiance_1;
+        gAccum_0[r_14].x = _S611.x;
+        gAccum_0[r_14].y = _S611.y;
+        gAccum_0[r_14].z = _S611.z;
+        if((any(((((*s_23).path_0.radiance_1) > _S607)))))
         {
             gAccum_0[r_14][i32(3)] = (bitcast<f32>((((bitcast<u32>((gAccum_0[r_14].w))) | (u32(268435456))))));
         }
@@ -14478,8 +15026,8 @@ fn ShadePath_1( base_13 : u32,  s_23 : ptr<function, WavefrontPath_0>,  hit_6 : 
     }
     var rng_7 : RandomSequence_0 = RandomSequence_x24init_0(u32(0), u32(0));
     rng_7.seed_0 = (*s_23).randomSeed_0;
-    var _S552 : bool = !_S548;
-    if(_S552)
+    var _S612 : bool = !_S608;
+    if(_S612)
     {
         transmitted_1 = ScreenCacheMode_0(u32(2));
     }
@@ -14505,7 +15053,7 @@ fn ShadePath_1( base_13 : u32,  s_23 : ptr<function, WavefrontPath_0>,  hit_6 : 
     }
     if(transmitted_1)
     {
-        transmitted_1 = !_S549;
+        transmitted_1 = !_S609;
     }
     else
     {
@@ -14530,12 +15078,12 @@ fn ShadePath_1( base_13 : u32,  s_23 : ptr<function, WavefrontPath_0>,  hit_6 : 
         {
             throughput_25 = (vec3<f32>(0) - ms_4.inputs_1.basis_1.n_1);
         }
-        var _S553 : vec2<u32> = WorkPixel_0(base_13 - WorkBase_0(u32(0)));
-        var confidence_3 : f32 = ScreenCacheLookup_0(si_6.position_0, throughput_25, _S553, &(cached_2));
+        var _S613 : vec2<u32> = WorkPixel_0(base_13 - WorkBase_0(u32(0)));
+        var confidence_3 : f32 = ScreenCacheLookup_0(si_6.position_0, throughput_25, _S613, &(cached_2));
         if((confidence_3 > 0.0f))
         {
-            var _S554 : f32 = RandomSequence_Next_1(&(rng_7));
-            transmitted_1 = (_S554 < confidence_3);
+            var _S614 : f32 = RandomSequence_Next_1(&(rng_7));
+            transmitted_1 = (_S614 < confidence_3);
         }
         else
         {
@@ -14558,10 +15106,10 @@ fn ShadePath_1( base_13 : u32,  s_23 : ptr<function, WavefrontPath_0>,  hit_6 : 
             return;
         }
     }
-    var _S555 : bool = SharcEnabled_0();
-    if(_S555)
+    var _S615 : bool = SharcEnabled_0();
+    if(_S615)
     {
-        transmitted_1 = _S552;
+        transmitted_1 = _S612;
     }
     else
     {
@@ -14575,7 +15123,7 @@ fn ShadePath_1( base_13 : u32,  s_23 : ptr<function, WavefrontPath_0>,  hit_6 : 
     {
         transmitted_1 = false;
     }
-    var _S556 : u32;
+    var _S616 : u32;
     if(transmitted_1)
     {
         var key_5 : SharcKey_0;
@@ -14589,8 +15137,8 @@ fn ShadePath_1( base_13 : u32,  s_23 : ptr<function, WavefrontPath_0>,  hit_6 : 
             throughput_25 = (vec3<f32>(0) - si_6.faceNormal_0);
         }
         var index_18 : u32 = base_13 - WorkBase_0(u32(0));
-        var _S557 : bool = SharcMakeKey_0(si_6.position_0, throughput_25, V_3, si_6.materialIndex_1, si_6.instanceIndex_0, &(key_5), &(voxelSize_1));
-        if(_S557)
+        var _S617 : bool = SharcMakeKey_0(si_6.position_0, throughput_25, V_3, si_6.materialIndex_1, si_6.instanceIndex_0, &(key_5), &(voxelSize_1));
+        if(_S617)
         {
             if(SharcUpdatePath_0(index_18, gWavefront_0.tileStart_0))
             {
@@ -14598,7 +15146,7 @@ fn ShadePath_1( base_13 : u32,  s_23 : ptr<function, WavefrontPath_0>,  hit_6 : 
             }
             else
             {
-                if(((hit_6.t_6) > (voxelSize_1 * sqrt(3.0f))))
+                if(((hit_8.t_6) > (voxelSize_1 * sqrt(3.0f))))
                 {
                     transmitted_1 = (hitConeWidth_1 > voxelSize_1);
                 }
@@ -14616,20 +15164,20 @@ fn ShadePath_1( base_13 : u32,  s_23 : ptr<function, WavefrontPath_0>,  hit_6 : 
                 }
                 if(transmitted_1)
                 {
-                    var _S558 : u32 = Field_0(base_13, u32(6));
-                    var state_1 : u32 = (bitcast<u32>((gAccum_0[_S558].w))) + u32(65536);
+                    var _S618 : u32 = Field_0(base_13, u32(6));
+                    var state_1 : u32 = (bitcast<u32>((gAccum_0[_S618].w))) + u32(65536);
                     var cached_3 : vec3<f32>;
-                    var found_9 : bool = SharcQuery_0(key_5, &(cached_3));
-                    if(found_9)
+                    var found_3 : bool = SharcQuery_0(key_5, &(cached_3));
+                    if(found_3)
                     {
-                        _S556 = u32(256);
+                        _S616 = u32(256);
                     }
                     else
                     {
-                        _S556 = u32(0);
+                        _S616 = u32(0);
                     }
-                    gAccum_0[_S558][i32(3)] = (bitcast<f32>(((state_1 | (_S556)))));
-                    if(found_9)
+                    gAccum_0[_S618][i32(3)] = (bitcast<f32>(((state_1 | (_S616)))));
+                    if(found_3)
                     {
                         (*s_23).path_0.radiance_1 = (*s_23).path_0.radiance_1 + (*s_23).path_0.throughput_7 * cached_3;
                         return;
@@ -14638,17 +15186,17 @@ fn ShadePath_1( base_13 : u32,  s_23 : ptr<function, WavefrontPath_0>,  hit_6 : 
             }
         }
     }
-    var diffuseOnly_1 : bool = DiffuseOnlyVertex_0(_S548, ms_4);
-    var _S559 : bool = ((BSDF_MaxActiveAlpha_0(bsdf_4)) >= 0.0010000000474974513f);
-    (*s_23).path_0.lightsSampled_0 = _S559;
-    if(_S559)
+    var diffuseOnly_1 : bool = DiffuseOnlyVertex_0(_S608, ms_4);
+    var _S619 : bool = ((BSDF_MaxActiveAlpha_0(bsdf_4)) >= 0.0010000000474974513f);
+    (*s_23).path_0.lightsSampled_0 = _S619;
+    if(_S619)
     {
-        var _S560 : vec3<f32> = NextEventEstimation_1(si_6, bsdf_4, vec2<f32>(hitConeWidth_1, (*s_23).path_0.coneSpread_0), &(rng_7));
-        var direct_1 : vec3<f32> = (*s_23).path_0.throughput_7 * _S560;
+        var _S620 : vec3<f32> = NextEventEstimation_1(si_6, bsdf_4, vec2<f32>(hitConeWidth_1, (*s_23).path_0.coneSpread_0), &(rng_7));
+        var direct_1 : vec3<f32> = (*s_23).path_0.throughput_7 * _S620;
         var clampValue_5 : f32 = gFrame_0.envParams_0.w / gFrame_0.envParams_0.z;
         if((clampValue_5 > 0.0f))
         {
-            transmitted_1 = _S552;
+            transmitted_1 = _S612;
         }
         else
         {
@@ -14672,10 +15220,10 @@ fn ShadePath_1( base_13 : u32,  s_23 : ptr<function, WavefrontPath_0>,  hit_6 : 
     }
     else
     {
-        var _S561 : f32 = RandomSequence_Next_1(&(rng_7));
-        bs_1 = BSDF_Sample_0(bsdf_4, vec3<f32>(u_35, _S561));
+        var _S621 : f32 = RandomSequence_Next_1(&(rng_7));
+        bs_1 = BSDF_Sample_0(bsdf_4, vec3<f32>(u_35, _S621));
     }
-    var _S562 : LobeSample_0 = bs_1;
+    var _S622 : LobeSample_0 = bs_1;
     var weight_6 : vec3<f32> = bs_1.weight_1.diffuse_1 + bs_1.weight_1.specular_1;
     if(!bs_1.valid_1)
     {
@@ -14691,13 +15239,13 @@ fn ShadePath_1( base_13 : u32,  s_23 : ptr<function, WavefrontPath_0>,  hit_6 : 
     }
     else
     {
-        transmitted_1 = (all(((weight_6 <= _S547))));
+        transmitted_1 = (all(((weight_6 <= _S607))));
     }
     if(transmitted_1)
     {
         return;
     }
-    if(_S548)
+    if(_S608)
     {
         transmitted_1 = NrdEnabled_0();
     }
@@ -14708,33 +15256,33 @@ fn ShadePath_1( base_13 : u32,  s_23 : ptr<function, WavefrontPath_0>,  hit_6 : 
     if(transmitted_1)
     {
         var r_15 : u32 = NrdBase_0(base_13);
-        var _S563 : LobeSample_0 = bs_1;
+        var _S623 : LobeSample_0 = bs_1;
         var oct_1 : vec2<f32> = NrdOctEncode_0(bs_1.wi_26);
         if(DiffuseOnlyFrame_0())
         {
-            transmitted_1 = ((dot(_S563.wi_26, si_6.faceNormal_0)) > 0.0f) != (si_6.frontFacing_0);
+            transmitted_1 = ((dot(_S623.wi_26, si_6.faceNormal_0)) > 0.0f) != (si_6.frontFacing_0);
         }
         else
         {
             transmitted_1 = false;
         }
-        var _S564 : u32 = NrdPackFraction_0(NrdDiffuseFraction_0(_S562.weight_1));
+        var _S624 : u32 = NrdPackFraction_0(NrdDiffuseFraction_0(_S622.weight_1));
         if(transmitted_1)
         {
-            _S556 = u32(134217728);
+            _S616 = u32(134217728);
         }
         else
         {
-            _S556 = u32(0);
+            _S616 = u32(0);
         }
-        gAccum_0[r_15][i32(3)] = (bitcast<f32>(((((_S564 | (_S556))) | ((((bitcast<u32>((gAccum_0[r_15].w))) & (u32(268435456)))))))));
+        gAccum_0[r_15][i32(3)] = (bitcast<f32>(((((_S624 | (_S616))) | ((((bitcast<u32>((gAccum_0[r_15].w))) & (u32(268435456)))))))));
         gAccum_0[r_15 + u32(3)][i32(3)] = oct_1.x;
         gAccum_0[r_15 + u32(4)][i32(3)] = oct_1.y;
     }
     var throughput_26 : vec3<f32> = (*s_23).path_0.throughput_7 * weight_6;
-    if(_S555)
+    if(_S615)
     {
-        transmitted_1 = _S548;
+        transmitted_1 = _S608;
     }
     else
     {
@@ -14750,8 +15298,8 @@ fn ShadePath_1( base_13 : u32,  s_23 : ptr<function, WavefrontPath_0>,  hit_6 : 
     }
     if((continuation_1 < 1.0f))
     {
-        var _S565 : f32 = RandomSequence_Next_1(&(rng_7));
-        if((_S565 >= continuation_1))
+        var _S625 : f32 = RandomSequence_Next_1(&(rng_7));
+        if((_S625 >= continuation_1))
         {
             return;
         }
@@ -14765,7 +15313,7 @@ fn ShadePath_1( base_13 : u32,  s_23 : ptr<function, WavefrontPath_0>,  hit_6 : 
     (*s_23).path_0.direction_1 = bs_1.wi_26;
     (*s_23).path_0.scatterPdf_0 = bs_1.pdf_7;
     var crossesSurface_1 : bool = ((dot(bs_1.wi_26, si_6.faceNormal_0)) > 0.0f) != (si_6.frontFacing_0);
-    (*s_23).path_0.origin_3 = SurfaceInteraction_ComputeRayOrigin_0(si_6, !crossesSurface_1);
+    (*s_23).path_0.origin_5 = SurfaceInteraction_ComputeRayOrigin_0(si_6, !crossesSurface_1);
     if(crossesSurface_1)
     {
         transmitted_1 = !ms_4.thinWalled_0;
@@ -14790,10 +15338,10 @@ fn ShadePath_1( base_13 : u32,  s_23 : ptr<function, WavefrontPath_0>,  hit_6 : 
     (*s_23).path_0.coneSpread_0 = (*s_23).path_0.coneSpread_0 + ScatterConeSpread_0(bs_1.type_0, ms_4.roughness_4);
     (*s_23).randomSeed_0 = rng_7.seed_0;
     (*s_23).active_0 = u32(1);
-    if(_S555)
+    if(_S615)
     {
-        var _S566 : u32 = Field_0(base_13, u32(6));
-        gAccum_0[_S566][i32(3)] = (bitcast<f32>(((bitcast<u32>((gAccum_0[_S566].w))) + u32(1))));
+        var _S626 : u32 = Field_0(base_13, u32(6));
+        gAccum_0[_S626][i32(3)] = (bitcast<f32>(((bitcast<u32>((gAccum_0[_S626].w))) + u32(1))));
     }
     return;
 }
@@ -14805,16 +15353,16 @@ fn LoadPath_0( base_14 : u32) -> WavefrontPath_0
     s_24.active_0 = (bitcast<u32>((gAccum_0[base_14].w)));
     s_24.path_0.throughput_7 = gAccum_0[Field_0(base_14, u32(1))].xyz;
     s_24.randomSeed_0 = (bitcast<u32>((gAccum_0[Field_0(base_14, u32(1))].w)));
-    s_24.path_0.origin_3 = gAccum_0[Field_0(base_14, u32(2))].xyz;
+    s_24.path_0.origin_5 = gAccum_0[Field_0(base_14, u32(2))].xyz;
     s_24.path_0.scatterPdf_0 = gAccum_0[Field_0(base_14, u32(2))].w;
     s_24.path_0.direction_1 = gAccum_0[Field_0(base_14, u32(3))].xyz;
     s_24.path_0.lightsSampled_0 = (bitcast<u32>((gAccum_0[Field_0(base_14, u32(3))].w))) != u32(0);
     s_24.path_0.absorption_0 = gAccum_0[Field_0(base_14, u32(4))].xyz;
     s_24.path_0.coneWidth_2 = gAccum_0[Field_0(base_14, u32(4))].w;
-    var _S567 : vec3<f32> = vec3<f32>(0.0f);
-    s_24.albedo_2 = _S567;
+    var _S627 : vec3<f32> = vec3<f32>(0.0f);
+    s_24.albedo_2 = _S627;
     s_24.path_0.coneSpread_0 = gAccum_0[Field_0(base_14, u32(5))].w;
-    s_24.normal_11 = _S567;
+    s_24.normal_11 = _S627;
     s_24.path_0.lobe_2 = u32(0);
     return s_24;
 }
@@ -14838,43 +15386,43 @@ fn DiffuseOnlyLightWeight_0( weight_7 : ptr<function, f32>,  f_27 : ptr<function
 
 fn ShadowFlags_0( shadow_3 : bool,  primary_1 : bool,  bypass_0 : bool,  analytic_2 : bool,  eval_2 : DiffuseSpecular_0) -> u32
 {
-    var _S568 : u32 = select(u32(0), u32(1), shadow_3);
-    var _S569 : bool;
+    var _S628 : u32 = select(u32(0), u32(1), shadow_3);
+    var _S629 : bool;
     if(primary_1)
     {
-        _S569 = NrdEnabled_0();
+        _S629 = NrdEnabled_0();
     }
     else
     {
-        _S569 = false;
+        _S629 = false;
     }
-    var _S570 : u32;
-    if(_S569)
+    var _S630 : u32;
+    if(_S629)
     {
         if(bypass_0)
         {
-            _S570 = u32(4);
+            _S630 = u32(4);
         }
         else
         {
-            _S570 = u32(0);
+            _S630 = u32(0);
         }
-        var _S571 : u32 = (((u32(2) | (_S570))) | ((((NrdPackFraction_0(NrdDiffuseFraction_0(eval_2))) << (u32(3))))));
+        var _S631 : u32 = (((u32(2) | (_S630))) | ((((NrdPackFraction_0(NrdDiffuseFraction_0(eval_2))) << (u32(3))))));
         if(analytic_2)
         {
-            _S570 = u32(1073741824);
+            _S630 = u32(1073741824);
         }
         else
         {
-            _S570 = u32(0);
+            _S630 = u32(0);
         }
-        _S570 = (_S571 | (_S570));
+        _S630 = (_S631 | (_S630));
     }
     else
     {
-        _S570 = u32(0);
+        _S630 = u32(0);
     }
-    return (_S568 | (_S570));
+    return (_S628 | (_S630));
 }
 
 fn QueueDirectLighting_0( base_15 : u32,  si_7 : SurfaceInteraction_0,  bsdf_5 : BSDF_0,  cone_3 : vec2<f32>,  throughput_27 : vec3<f32>,  primary_2 : bool,  diffuseOnly_2 : bool,  normal_24 : vec3<f32>,  rng_8 : ptr<function, RandomSequence_0>)
@@ -14895,7 +15443,7 @@ fn QueueDirectLighting_0( base_15 : u32,  si_7 : SurfaceInteraction_0,  bsdf_5 :
         var mis_2 : bool;
         var shadow_4 : bool;
         var ls_8 : LightSample_0;
-        var origin_6 : vec3<f32>;
+        var origin_9 : vec3<f32>;
         var dir_17 : vec3<f32>;
         if(source_2 == u32(0))
         {
@@ -14919,10 +15467,10 @@ fn QueueDirectLighting_0( base_15 : u32,  si_7 : SurfaceInteraction_0,  bsdf_5 :
                 continue;
             }
             var dir_18 : vec3<f32> = (vec3<f32>(0) - ls_9.normal_7);
-            var _S572 : vec3<f32> = ShadowOrigin_0(si_7, dir_18);
+            var _S632 : vec3<f32> = ShadowOrigin_0(si_7, dir_18);
             ls_8 = ls_9;
             mis_2 = true;
-            origin_6 = _S572;
+            origin_9 = _S632;
             maxDistance_4 = 1.00000001504746622e+30f;
             shadow_4 = true;
             dir_17 = dir_18;
@@ -14936,10 +15484,10 @@ fn QueueDirectLighting_0( base_15 : u32,  si_7 : SurfaceInteraction_0,  bsdf_5 :
                     source_2 = source_2 + u32(1);
                     continue;
                 }
-                var _S573 : LightSample_0 = SampleEmissive_0(si_7.position_0, cone_3, &((*rng_8)));
-                if((any((((_S573.radiance_0) > vec3<f32>(0.0f))))))
+                var _S633 : LightSample_0 = SampleEmissive_0(si_7.position_0, cone_3, &((*rng_8)));
+                if((any((((_S633.radiance_0) > vec3<f32>(0.0f))))))
                 {
-                    mis_2 = ((_S573.solidAnglePdf_0) > 0.0f);
+                    mis_2 = ((_S633.solidAnglePdf_0) > 0.0f);
                 }
                 else
                 {
@@ -14950,17 +15498,17 @@ fn QueueDirectLighting_0( base_15 : u32,  si_7 : SurfaceInteraction_0,  bsdf_5 :
                     source_2 = source_2 + u32(1);
                     continue;
                 }
-                var lightPos_3 : vec3<f32> = ComputeOffsetOrigin_0(_S573.position_1, _S573.normal_7);
-                var origin_7 : vec3<f32> = ShadowOrigin_0(si_7, lightPos_3 - si_7.position_0);
-                var dir_19 : vec3<f32> = lightPos_3 - origin_7;
+                var lightPos_3 : vec3<f32> = ComputeOffsetOrigin_0(_S633.position_1, _S633.normal_7);
+                var origin_10 : vec3<f32> = ShadowOrigin_0(si_7, lightPos_3 - si_7.position_0);
+                var dir_19 : vec3<f32> = lightPos_3 - origin_10;
                 var maxDistance_5 : f32 = length(dir_19);
                 var dir_20 : vec3<f32> = dir_19 / vec3<f32>(maxDistance_5);
-                var _S574 : bool = !_S573.delta_0;
-                ls_8 = _S573;
-                mis_2 = _S574;
-                origin_6 = origin_7;
+                var _S634 : bool = !_S633.delta_0;
+                ls_8 = _S633;
+                mis_2 = _S634;
+                origin_9 = origin_10;
                 maxDistance_4 = maxDistance_5;
-                shadow_4 = _S573.shadow_0;
+                shadow_4 = _S633.shadow_0;
                 dir_17 = dir_20;
             }
             else
@@ -14972,10 +15520,10 @@ fn QueueDirectLighting_0( base_15 : u32,  si_7 : SurfaceInteraction_0,  bsdf_5 :
                 }
                 var ls_10 : LightSample_0 = SampleSun_0(&((*rng_8)));
                 var dir_21 : vec3<f32> = (vec3<f32>(0) - ls_10.normal_7);
-                var _S575 : vec3<f32> = ShadowOrigin_0(si_7, dir_21);
+                var _S635 : vec3<f32> = ShadowOrigin_0(si_7, dir_21);
                 ls_8 = ls_10;
                 mis_2 = false;
-                origin_6 = _S575;
+                origin_9 = _S635;
                 maxDistance_4 = 1.00000001504746622e+30f;
                 shadow_4 = true;
                 dir_17 = dir_21;
@@ -14993,16 +15541,16 @@ fn QueueDirectLighting_0( base_15 : u32,  si_7 : SurfaceInteraction_0,  bsdf_5 :
         if((any(((f_28 > vec3<f32>(0.0f))))))
         {
             var weight_8 : f32;
-            var _S576 : f32;
+            var _S636 : f32;
             if(mis_2)
             {
-                _S576 = EvalMISRobust_0(ls_8.solidAnglePdf_0, pdf_18);
+                _S636 = EvalMISRobust_0(ls_8.solidAnglePdf_0, pdf_18);
             }
             else
             {
-                _S576 = 1.0f;
+                _S636 = 1.0f;
             }
-            weight_8 = _S576;
+            weight_8 = _S636;
             var f_29 : vec3<f32>;
             if(diffuseOnly_2)
             {
@@ -15014,7 +15562,7 @@ fn QueueDirectLighting_0( base_15 : u32,  si_7 : SurfaceInteraction_0,  bsdf_5 :
                 f_29 = f_28;
             }
             var offset_1 : u32 = u32(12) + source_2 * u32(3);
-            gAccum_0[Field_0(base_15, offset_1)] = vec4<f32>(origin_6, maxDistance_4);
+            gAccum_0[Field_0(base_15, offset_1)] = vec4<f32>(origin_9, maxDistance_4);
             gAccum_0[Field_0(base_15, offset_1 + u32(1))] = vec4<f32>(dir_17, (bitcast<f32>((ShadowFlags_0(shadow_4, primary_2, source_2 == u32(2), ls_8.analytic_0, eval_3)))));
             gAccum_0[Field_0(base_15, offset_1 + u32(2))] = vec4<f32>(vec3<f32>(weight_8) * ls_8.radiance_0 * f_29 / vec3<f32>(ls_8.solidAnglePdf_0), 0.0f);
             mask_1 = (mask_0 | (((u32(1) << (source_2)))));
@@ -15039,49 +15587,49 @@ fn QueueDirectLighting_0( base_15 : u32,  si_7 : SurfaceInteraction_0,  bsdf_5 :
     return;
 }
 
-fn ShadePath_2( base_16 : u32,  s_25 : ptr<function, WavefrontPath_0>,  hit_7 : HitRecord_0,  bounce_4 : u32)
+fn ShadePath_2( base_16 : u32,  s_25 : ptr<function, WavefrontPath_0>,  hit_9 : HitRecord_0,  bounce_4 : u32)
 {
-    var hitConeWidth_2 : f32 = (*s_25).path_0.coneWidth_2 + (*s_25).path_0.coneSpread_0 * hit_7.t_6;
-    var si_8 : SurfaceInteraction_0 = GetSurfaceInteraction_0((*s_25).path_0.direction_1, hit_7, hitConeWidth_2);
+    var hitConeWidth_2 : f32 = (*s_25).path_0.coneWidth_2 + (*s_25).path_0.coneSpread_0 * hit_9.t_6;
+    var si_8 : SurfaceInteraction_0 = GetSurfaceInteraction_0((*s_25).path_0.direction_1, hit_9, hitConeWidth_2);
     var V_4 : vec3<f32> = (vec3<f32>(0) - (*s_25).path_0.direction_1);
     var ms_5 : MaterialSample_0 = EvalMaterial_0(si_8, V_4);
     (*s_25) = LoadPath_0(base_16);
-    var _S577 : vec3<f32> = vec3<f32>(0.0f);
-    if((any(((((*s_25).path_0.absorption_0) > _S577)))))
+    var _S637 : vec3<f32> = vec3<f32>(0.0f);
+    if((any(((((*s_25).path_0.absorption_0) > _S637)))))
     {
-        (*s_25).path_0.throughput_7 = (*s_25).path_0.throughput_7 * exp((*s_25).path_0.absorption_0 * vec3<f32>(- hit_7.t_6));
+        (*s_25).path_0.throughput_7 = (*s_25).path_0.throughput_7 * exp((*s_25).path_0.absorption_0 * vec3<f32>(- hit_9.t_6));
     }
     var bsdf_6 : BSDF_0 = BSDF_x24init_0(ms_5.inputs_1, V_4, (*s_25).path_0.throughput_7, vec3<f32>(620.0f, 540.0f, 450.0f), 1.0f);
     (*s_25).active_0 = u32(0);
-    var _S578 : bool;
+    var _S638 : bool;
     if(!si_8.frontFacing_0)
     {
-        _S578 = !ms_5.doubleSided_2;
+        _S638 = !ms_5.doubleSided_2;
     }
     else
     {
-        _S578 = false;
+        _S638 = false;
     }
-    if(_S578)
+    if(_S638)
     {
-        _S578 = ((ms_5.inputs_1.transmissionWeight_0) <= 0.0f);
+        _S638 = ((ms_5.inputs_1.transmissionWeight_0) <= 0.0f);
     }
     else
     {
-        _S578 = false;
+        _S638 = false;
     }
-    if(_S578)
+    if(_S638)
     {
         return;
     }
-    var _S579 : bool = (any((((bsdf_6.emission_0) > _S577))));
+    var _S639 : bool = (any((((bsdf_6.emission_0) > _S637))));
     var throughput_28 : vec3<f32>;
-    if(_S579)
+    if(_S639)
     {
         var mis_3 : f32;
         if((*s_25).path_0.lightsSampled_0)
         {
-            mis_3 = EvalMISRobust_0((*s_25).path_0.scatterPdf_0, EmissiveHitPdf_0(si_8.instanceIndex_0, si_8.primitiveIndex_0, (*s_25).path_0.origin_3, si_8.position_0));
+            mis_3 = EvalMISRobust_0((*s_25).path_0.scatterPdf_0, EmissiveHitPdf_0(si_8.instanceIndex_0, si_8.primitiveIndex_0, (*s_25).path_0.origin_5, si_8.position_0));
         }
         else
         {
@@ -15089,8 +15637,8 @@ fn ShadePath_2( base_16 : u32,  s_25 : ptr<function, WavefrontPath_0>,  hit_7 : 
         }
         var contribution_6 : vec3<f32> = (*s_25).path_0.throughput_7 * vec3<f32>(mis_3) * bsdf_6.emission_0;
         var clampValue_6 : f32 = gFrame_0.envParams_0.w / gFrame_0.envParams_0.z;
-        var _S580 : bool = (clampValue_6 > 0.0f);
-        if(_S580)
+        var _S640 : bool = (clampValue_6 > 0.0f);
+        if(_S640)
         {
             throughput_28 = min(contribution_6, vec3<f32>(clampValue_6));
         }
@@ -15110,35 +15658,35 @@ fn ShadePath_2( base_16 : u32,  s_25 : ptr<function, WavefrontPath_0>,  hit_7 : 
     {
         if(SharcEnabled_0())
         {
-            _S578 = SharcUpdatePath_0(base_16 - WorkBase_0(u32(0)), gWavefront_0.tileStart_0);
+            _S638 = SharcUpdatePath_0(base_16 - WorkBase_0(u32(0)), gWavefront_0.tileStart_0);
         }
         else
         {
-            _S578 = false;
+            _S638 = false;
         }
-        _S578 = !_S578;
+        _S638 = !_S638;
     }
     else
     {
-        _S578 = false;
+        _S638 = false;
     }
-    if(_S578)
+    if(_S638)
     {
-        _S578 = !_S579;
+        _S638 = !_S639;
     }
     else
     {
-        _S578 = false;
+        _S638 = false;
     }
-    if(_S578)
+    if(_S638)
     {
-        _S578 = ((ms_5.inputs_1.transmissionWeight_0) <= 0.0f);
+        _S638 = ((ms_5.inputs_1.transmissionWeight_0) <= 0.0f);
     }
     else
     {
-        _S578 = false;
+        _S638 = false;
     }
-    if(_S578)
+    if(_S638)
     {
         var cached_4 : vec3<f32>;
         if(si_8.frontFacing_0)
@@ -15149,18 +15697,18 @@ fn ShadePath_2( base_16 : u32,  s_25 : ptr<function, WavefrontPath_0>,  hit_7 : 
         {
             throughput_28 = (vec3<f32>(0) - ms_5.inputs_1.basis_1.n_1);
         }
-        var _S581 : vec2<u32> = WorkPixel_0(base_16 - WorkBase_0(u32(0)));
-        var confidence_4 : f32 = ScreenCacheLookup_0(si_8.position_0, throughput_28, _S581, &(cached_4));
+        var _S641 : vec2<u32> = WorkPixel_0(base_16 - WorkBase_0(u32(0)));
+        var confidence_4 : f32 = ScreenCacheLookup_0(si_8.position_0, throughput_28, _S641, &(cached_4));
         if((confidence_4 > 0.0f))
         {
-            var _S582 : f32 = RandomSequence_Next_1(&(rng_9));
-            _S578 = (_S582 < confidence_4);
+            var _S642 : f32 = RandomSequence_Next_1(&(rng_9));
+            _S638 = (_S642 < confidence_4);
         }
         else
         {
-            _S578 = false;
+            _S638 = false;
         }
-        if(_S578)
+        if(_S638)
         {
             var contribution_7 : vec3<f32> = (*s_25).path_0.throughput_7 * cached_4;
             var clampValue_7 : f32 = gFrame_0.envParams_0.w / gFrame_0.envParams_0.z;
@@ -15177,16 +15725,16 @@ fn ShadePath_2( base_16 : u32,  s_25 : ptr<function, WavefrontPath_0>,  hit_7 : 
             return;
         }
     }
-    var _S583 : bool = SharcEnabled_0();
-    if(_S583)
+    var _S643 : bool = SharcEnabled_0();
+    if(_S643)
     {
-        _S578 = SharcSurface_0(ms_5);
+        _S638 = SharcSurface_0(ms_5);
     }
     else
     {
-        _S578 = false;
+        _S638 = false;
     }
-    if(_S578)
+    if(_S638)
     {
         var key_6 : SharcKey_0;
         var voxelSize_2 : f32;
@@ -15199,8 +15747,8 @@ fn ShadePath_2( base_16 : u32,  s_25 : ptr<function, WavefrontPath_0>,  hit_7 : 
             throughput_28 = (vec3<f32>(0) - si_8.faceNormal_0);
         }
         var index_19 : u32 = base_16 - WorkBase_0(u32(0));
-        var _S584 : bool = SharcMakeKey_0(si_8.position_0, throughput_28, V_4, si_8.materialIndex_1, si_8.instanceIndex_0, &(key_6), &(voxelSize_2));
-        if(_S584)
+        var _S644 : bool = SharcMakeKey_0(si_8.position_0, throughput_28, V_4, si_8.materialIndex_1, si_8.instanceIndex_0, &(key_6), &(voxelSize_2));
+        if(_S644)
         {
             if(SharcUpdatePath_0(index_19, gWavefront_0.tileStart_0))
             {
@@ -15208,39 +15756,39 @@ fn ShadePath_2( base_16 : u32,  s_25 : ptr<function, WavefrontPath_0>,  hit_7 : 
             }
             else
             {
-                if(((hit_7.t_6) > (voxelSize_2 * sqrt(3.0f))))
+                if(((hit_9.t_6) > (voxelSize_2 * sqrt(3.0f))))
                 {
-                    _S578 = (hitConeWidth_2 > voxelSize_2);
+                    _S638 = (hitConeWidth_2 > voxelSize_2);
                 }
                 else
                 {
-                    _S578 = false;
+                    _S638 = false;
                 }
-                if(_S578)
+                if(_S638)
                 {
-                    _S578 = (((*s_25).path_0.coneSpread_0) >= 0.05000000074505806f);
+                    _S638 = (((*s_25).path_0.coneSpread_0) >= 0.05000000074505806f);
                 }
                 else
                 {
-                    _S578 = false;
+                    _S638 = false;
                 }
-                if(_S578)
+                if(_S638)
                 {
-                    var _S585 : u32 = Field_0(base_16, u32(6));
-                    var state_2 : u32 = (bitcast<u32>((gAccum_0[_S585].w))) + u32(65536);
+                    var _S645 : u32 = Field_0(base_16, u32(6));
+                    var state_2 : u32 = (bitcast<u32>((gAccum_0[_S645].w))) + u32(65536);
                     var cached_5 : vec3<f32>;
-                    var found_10 : bool = SharcQuery_0(key_6, &(cached_5));
-                    var _S586 : u32;
-                    if(found_10)
+                    var found_4 : bool = SharcQuery_0(key_6, &(cached_5));
+                    var _S646 : u32;
+                    if(found_4)
                     {
-                        _S586 = u32(256);
+                        _S646 = u32(256);
                     }
                     else
                     {
-                        _S586 = u32(0);
+                        _S646 = u32(0);
                     }
-                    gAccum_0[_S585][i32(3)] = (bitcast<f32>(((state_2 | (_S586)))));
-                    if(found_10)
+                    gAccum_0[_S645][i32(3)] = (bitcast<f32>(((state_2 | (_S646)))));
+                    if(found_4)
                     {
                         (*s_25).path_0.radiance_1 = (*s_25).path_0.radiance_1 + (*s_25).path_0.throughput_7 * cached_5;
                         return;
@@ -15250,9 +15798,9 @@ fn ShadePath_2( base_16 : u32,  s_25 : ptr<function, WavefrontPath_0>,  hit_7 : 
         }
     }
     var diffuseOnly_3 : bool = DiffuseOnlyVertex_0(false, ms_5);
-    var _S587 : bool = ((BSDF_MaxActiveAlpha_0(bsdf_6)) >= 0.0010000000474974513f);
-    (*s_25).path_0.lightsSampled_0 = _S587;
-    if(_S587)
+    var _S647 : bool = ((BSDF_MaxActiveAlpha_0(bsdf_6)) >= 0.0010000000474974513f);
+    (*s_25).path_0.lightsSampled_0 = _S647;
+    if(_S647)
     {
         QueueDirectLighting_0(base_16, si_8, bsdf_6, vec2<f32>(hitConeWidth_2, (*s_25).path_0.coneSpread_0), (*s_25).path_0.throughput_7, false, diffuseOnly_3, (*s_25).normal_11, &(rng_9));
     }
@@ -15264,40 +15812,40 @@ fn ShadePath_2( base_16 : u32,  s_25 : ptr<function, WavefrontPath_0>,  hit_7 : 
     }
     else
     {
-        var _S588 : f32 = RandomSequence_Next_1(&(rng_9));
-        bs_2 = BSDF_Sample_0(bsdf_6, vec3<f32>(u_36, _S588));
+        var _S648 : f32 = RandomSequence_Next_1(&(rng_9));
+        bs_2 = BSDF_Sample_0(bsdf_6, vec3<f32>(u_36, _S648));
     }
     var weight_9 : vec3<f32> = bs_2.weight_1.diffuse_1 + bs_2.weight_1.specular_1;
     if(!bs_2.valid_1)
     {
-        _S578 = true;
+        _S638 = true;
     }
     else
     {
-        _S578 = ((bs_2.pdf_7) <= 0.0f);
+        _S638 = ((bs_2.pdf_7) <= 0.0f);
     }
-    if(_S578)
+    if(_S638)
     {
-        _S578 = true;
+        _S638 = true;
     }
     else
     {
-        _S578 = (all(((weight_9 <= _S577))));
+        _S638 = (all(((weight_9 <= _S637))));
     }
-    if(_S578)
+    if(_S638)
     {
         return;
     }
     var throughput_29 : vec3<f32> = (*s_25).path_0.throughput_7 * weight_9;
-    var _S589 : f32 = sqrt(saturate(MaxComponent_0(throughput_29) / max(MaxComponent_0((*s_25).path_0.throughput_7), 9.999999960041972e-13f)));
-    if((_S589 < 1.0f))
+    var _S649 : f32 = sqrt(saturate(MaxComponent_0(throughput_29) / max(MaxComponent_0((*s_25).path_0.throughput_7), 9.999999960041972e-13f)));
+    if((_S649 < 1.0f))
     {
-        var _S590 : f32 = RandomSequence_Next_1(&(rng_9));
-        if((_S590 >= _S589))
+        var _S650 : f32 = RandomSequence_Next_1(&(rng_9));
+        if((_S650 >= _S649))
         {
             return;
         }
-        throughput_28 = throughput_29 / vec3<f32>(_S589);
+        throughput_28 = throughput_29 / vec3<f32>(_S649);
     }
     else
     {
@@ -15307,16 +15855,16 @@ fn ShadePath_2( base_16 : u32,  s_25 : ptr<function, WavefrontPath_0>,  hit_7 : 
     (*s_25).path_0.direction_1 = bs_2.wi_26;
     (*s_25).path_0.scatterPdf_0 = bs_2.pdf_7;
     var crossesSurface_2 : bool = ((dot(bs_2.wi_26, si_8.faceNormal_0)) > 0.0f) != (si_8.frontFacing_0);
-    (*s_25).path_0.origin_3 = SurfaceInteraction_ComputeRayOrigin_0(si_8, !crossesSurface_2);
+    (*s_25).path_0.origin_5 = SurfaceInteraction_ComputeRayOrigin_0(si_8, !crossesSurface_2);
     if(crossesSurface_2)
     {
-        _S578 = !ms_5.thinWalled_0;
+        _S638 = !ms_5.thinWalled_0;
     }
     else
     {
-        _S578 = false;
+        _S638 = false;
     }
-    if(_S578)
+    if(_S638)
     {
         if(si_8.frontFacing_0)
         {
@@ -15332,10 +15880,10 @@ fn ShadePath_2( base_16 : u32,  s_25 : ptr<function, WavefrontPath_0>,  hit_7 : 
     (*s_25).path_0.coneSpread_0 = (*s_25).path_0.coneSpread_0 + ScatterConeSpread_0(bs_2.type_0, ms_5.roughness_4);
     (*s_25).randomSeed_0 = rng_9.seed_0;
     (*s_25).active_0 = u32(1);
-    if(_S583)
+    if(_S643)
     {
-        var _S591 : u32 = Field_0(base_16, u32(6));
-        gAccum_0[_S591][i32(3)] = (bitcast<f32>(((bitcast<u32>((gAccum_0[_S591].w))) + u32(1))));
+        var _S651 : u32 = Field_0(base_16, u32(6));
+        gAccum_0[_S651][i32(3)] = (bitcast<f32>(((bitcast<u32>((gAccum_0[_S651].w))) + u32(1))));
     }
     return;
 }
@@ -15347,7 +15895,7 @@ fn LoadPath_1( base_17 : u32) -> WavefrontPath_0
     s_26.active_0 = (bitcast<u32>((gAccum_0[base_17].w)));
     s_26.path_0.throughput_7 = gAccum_0[Field_0(base_17, u32(1))].xyz;
     s_26.randomSeed_0 = (bitcast<u32>((gAccum_0[Field_0(base_17, u32(1))].w)));
-    s_26.path_0.origin_3 = gAccum_0[Field_0(base_17, u32(2))].xyz;
+    s_26.path_0.origin_5 = gAccum_0[Field_0(base_17, u32(2))].xyz;
     s_26.path_0.scatterPdf_0 = gAccum_0[Field_0(base_17, u32(2))].w;
     s_26.path_0.direction_1 = gAccum_0[Field_0(base_17, u32(3))].xyz;
     s_26.path_0.lightsSampled_0 = (bitcast<u32>((gAccum_0[Field_0(base_17, u32(3))].w))) != u32(0);
@@ -15360,17 +15908,17 @@ fn LoadPath_1( base_17 : u32) -> WavefrontPath_0
     return s_26;
 }
 
-fn ShadePath_3( base_18 : u32,  s_27 : ptr<function, WavefrontPath_0>,  hit_8 : HitRecord_0,  bounce_5 : u32)
+fn ShadePath_3( base_18 : u32,  s_27 : ptr<function, WavefrontPath_0>,  hit_10 : HitRecord_0,  bounce_5 : u32)
 {
-    var hitConeWidth_3 : f32 = (*s_27).path_0.coneWidth_2 + (*s_27).path_0.coneSpread_0 * hit_8.t_6;
-    var si_9 : SurfaceInteraction_0 = GetSurfaceInteraction_0((*s_27).path_0.direction_1, hit_8, hitConeWidth_3);
+    var hitConeWidth_3 : f32 = (*s_27).path_0.coneWidth_2 + (*s_27).path_0.coneSpread_0 * hit_10.t_6;
+    var si_9 : SurfaceInteraction_0 = GetSurfaceInteraction_0((*s_27).path_0.direction_1, hit_10, hitConeWidth_3);
     var V_5 : vec3<f32> = (vec3<f32>(0) - (*s_27).path_0.direction_1);
     var ms_6 : MaterialSample_0 = EvalMaterial_0(si_9, V_5);
     (*s_27) = LoadPath_1(base_18);
-    var _S592 : vec3<f32> = vec3<f32>(0.0f);
-    if((any(((((*s_27).path_0.absorption_0) > _S592)))))
+    var _S652 : vec3<f32> = vec3<f32>(0.0f);
+    if((any(((((*s_27).path_0.absorption_0) > _S652)))))
     {
-        (*s_27).path_0.throughput_7 = (*s_27).path_0.throughput_7 * exp((*s_27).path_0.absorption_0 * vec3<f32>(- hit_8.t_6));
+        (*s_27).path_0.throughput_7 = (*s_27).path_0.throughput_7 * exp((*s_27).path_0.absorption_0 * vec3<f32>(- hit_10.t_6));
     }
     var bsdf_7 : BSDF_0 = BSDF_x24init_0(ms_6.inputs_1, V_5, (*s_27).path_0.throughput_7, vec3<f32>(620.0f, 540.0f, 450.0f), 1.0f);
     (*s_27).albedo_2 = ms_6.albedo_3;
@@ -15388,11 +15936,11 @@ fn ShadePath_3( base_18 : u32,  s_27 : ptr<function, WavefrontPath_0>,  hit_8 : 
     {
         var pixel_4 : vec2<u32> = WorkPixel_0(base_18 - WorkBase_0(u32(0)));
         var output_2 : u32 = (pixel_4.y * gFrame_0.frame_0.x + pixel_4.x) * u32(3);
-        gAccum_0[output_2 + u32(1)][i32(3)] = hit_8.t_6;
-        gAccum_0[output_2 + u32(2)][i32(3)] = f32(hit_8.instanceIndex_2 + u32(1));
+        gAccum_0[output_2 + u32(1)][i32(3)] = hit_10.t_6;
+        gAccum_0[output_2 + u32(2)][i32(3)] = f32(hit_10.instanceIndex_2 + u32(1));
     }
-    var _S593 : bool = NrdEnabled_0();
-    if(_S593)
+    var _S653 : bool = NrdEnabled_0();
+    if(_S653)
     {
         var r_16 : u32 = NrdBase_0(base_18);
         gAccum_0[r_16] = vec4<f32>((*s_27).path_0.radiance_1, (bitcast<f32>((NrdPackFraction_0(vec3<f32>(0.5f))))));
@@ -15421,18 +15969,18 @@ fn ShadePath_3( base_18 : u32,  s_27 : ptr<function, WavefrontPath_0>,  hit_8 : 
     {
         return;
     }
-    if((any((((bsdf_7.emission_0) > _S592)))))
+    if((any((((bsdf_7.emission_0) > _S652)))))
     {
         (*s_27).path_0.radiance_1 = (*s_27).path_0.radiance_1 + (*s_27).path_0.throughput_7 * bsdf_7.emission_0;
     }
-    if(_S593)
+    if(_S653)
     {
         var r_17 : u32 = NrdBase_0(base_18);
-        var _S594 : vec3<f32> = (*s_27).path_0.radiance_1;
-        gAccum_0[r_17].x = _S594.x;
-        gAccum_0[r_17].y = _S594.y;
-        gAccum_0[r_17].z = _S594.z;
-        if((any(((((*s_27).path_0.radiance_1) > _S592)))))
+        var _S654 : vec3<f32> = (*s_27).path_0.radiance_1;
+        gAccum_0[r_17].x = _S654.x;
+        gAccum_0[r_17].y = _S654.y;
+        gAccum_0[r_17].z = _S654.z;
+        if((any(((((*s_27).path_0.radiance_1) > _S652)))))
         {
             gAccum_0[r_17][i32(3)] = (bitcast<f32>((((bitcast<u32>((gAccum_0[r_17].w))) | (u32(268435456))))));
         }
@@ -15443,11 +15991,11 @@ fn ShadePath_3( base_18 : u32,  s_27 : ptr<function, WavefrontPath_0>,  hit_8 : 
     }
     var rng_10 : RandomSequence_0 = RandomSequence_x24init_0(u32(0), u32(0));
     rng_10.seed_0 = (*s_27).randomSeed_0;
-    var _S595 : bool = SharcEnabled_0();
+    var _S655 : bool = SharcEnabled_0();
     var diffuseOnly_4 : bool = DiffuseOnlyVertex_0(true, ms_6);
-    var _S596 : bool = ((BSDF_MaxActiveAlpha_0(bsdf_7)) >= 0.0010000000474974513f);
-    (*s_27).path_0.lightsSampled_0 = _S596;
-    if(_S596)
+    var _S656 : bool = ((BSDF_MaxActiveAlpha_0(bsdf_7)) >= 0.0010000000474974513f);
+    (*s_27).path_0.lightsSampled_0 = _S656;
+    if(_S656)
     {
         QueueDirectLighting_0(base_18, si_9, bsdf_7, vec2<f32>(hitConeWidth_3, (*s_27).path_0.coneSpread_0), (*s_27).path_0.throughput_7, true, diffuseOnly_4, (*s_27).normal_11, &(rng_10));
     }
@@ -15459,10 +16007,10 @@ fn ShadePath_3( base_18 : u32,  s_27 : ptr<function, WavefrontPath_0>,  hit_8 : 
     }
     else
     {
-        var _S597 : f32 = RandomSequence_Next_1(&(rng_10));
-        bs_3 = BSDF_Sample_0(bsdf_7, vec3<f32>(u_37, _S597));
+        var _S657 : f32 = RandomSequence_Next_1(&(rng_10));
+        bs_3 = BSDF_Sample_0(bsdf_7, vec3<f32>(u_37, _S657));
     }
-    var _S598 : LobeSample_0 = bs_3;
+    var _S658 : LobeSample_0 = bs_3;
     var weight_10 : vec3<f32> = bs_3.weight_1.diffuse_1 + bs_3.weight_1.specular_1;
     if(!bs_3.valid_1)
     {
@@ -15478,42 +16026,42 @@ fn ShadePath_3( base_18 : u32,  s_27 : ptr<function, WavefrontPath_0>,  hit_8 : 
     }
     else
     {
-        transmitted_2 = (all(((weight_10 <= _S592))));
+        transmitted_2 = (all(((weight_10 <= _S652))));
     }
     if(transmitted_2)
     {
         return;
     }
-    if(_S593)
+    if(_S653)
     {
         var r_18 : u32 = NrdBase_0(base_18);
-        var _S599 : LobeSample_0 = bs_3;
+        var _S659 : LobeSample_0 = bs_3;
         var oct_2 : vec2<f32> = NrdOctEncode_0(bs_3.wi_26);
         if(DiffuseOnlyFrame_0())
         {
-            transmitted_2 = ((dot(_S599.wi_26, si_9.faceNormal_0)) > 0.0f) != (si_9.frontFacing_0);
+            transmitted_2 = ((dot(_S659.wi_26, si_9.faceNormal_0)) > 0.0f) != (si_9.frontFacing_0);
         }
         else
         {
             transmitted_2 = false;
         }
-        var _S600 : u32 = NrdPackFraction_0(NrdDiffuseFraction_0(_S598.weight_1));
-        var _S601 : u32;
+        var _S660 : u32 = NrdPackFraction_0(NrdDiffuseFraction_0(_S658.weight_1));
+        var _S661 : u32;
         if(transmitted_2)
         {
-            _S601 = u32(134217728);
+            _S661 = u32(134217728);
         }
         else
         {
-            _S601 = u32(0);
+            _S661 = u32(0);
         }
-        gAccum_0[r_18][i32(3)] = (bitcast<f32>(((((_S600 | (_S601))) | ((((bitcast<u32>((gAccum_0[r_18].w))) & (u32(268435456)))))))));
+        gAccum_0[r_18][i32(3)] = (bitcast<f32>(((((_S660 | (_S661))) | ((((bitcast<u32>((gAccum_0[r_18].w))) & (u32(268435456)))))))));
         gAccum_0[r_18 + u32(3)][i32(3)] = oct_2.x;
         gAccum_0[r_18 + u32(4)][i32(3)] = oct_2.y;
     }
     var throughput_31 : vec3<f32> = (*s_27).path_0.throughput_7 * weight_10;
     var continuation_2 : f32;
-    if(_S595)
+    if(_S655)
     {
         continuation_2 = 1.0f;
     }
@@ -15523,8 +16071,8 @@ fn ShadePath_3( base_18 : u32,  s_27 : ptr<function, WavefrontPath_0>,  hit_8 : 
     }
     if((continuation_2 < 1.0f))
     {
-        var _S602 : f32 = RandomSequence_Next_1(&(rng_10));
-        if((_S602 >= continuation_2))
+        var _S662 : f32 = RandomSequence_Next_1(&(rng_10));
+        if((_S662 >= continuation_2))
         {
             return;
         }
@@ -15538,7 +16086,7 @@ fn ShadePath_3( base_18 : u32,  s_27 : ptr<function, WavefrontPath_0>,  hit_8 : 
     (*s_27).path_0.direction_1 = bs_3.wi_26;
     (*s_27).path_0.scatterPdf_0 = bs_3.pdf_7;
     var crossesSurface_3 : bool = ((dot(bs_3.wi_26, si_9.faceNormal_0)) > 0.0f) != (si_9.frontFacing_0);
-    (*s_27).path_0.origin_3 = SurfaceInteraction_ComputeRayOrigin_0(si_9, !crossesSurface_3);
+    (*s_27).path_0.origin_5 = SurfaceInteraction_ComputeRayOrigin_0(si_9, !crossesSurface_3);
     if(crossesSurface_3)
     {
         transmitted_2 = !ms_6.thinWalled_0;
@@ -15563,30 +16111,30 @@ fn ShadePath_3( base_18 : u32,  s_27 : ptr<function, WavefrontPath_0>,  hit_8 : 
     (*s_27).path_0.coneSpread_0 = (*s_27).path_0.coneSpread_0 + ScatterConeSpread_0(bs_3.type_0, ms_6.roughness_4);
     (*s_27).randomSeed_0 = rng_10.seed_0;
     (*s_27).active_0 = u32(1);
-    if(_S595)
+    if(_S655)
     {
-        var _S603 : u32 = Field_0(base_18, u32(6));
-        gAccum_0[_S603][i32(3)] = (bitcast<f32>(((bitcast<u32>((gAccum_0[_S603].w))) + u32(1))));
+        var _S663 : u32 = Field_0(base_18, u32(6));
+        gAccum_0[_S663][i32(3)] = (bitcast<f32>(((bitcast<u32>((gAccum_0[_S663].w))) + u32(1))));
     }
     return;
 }
 
-fn ShadePath_4( base_19 : u32,  s_28 : ptr<function, WavefrontPath_0>,  hit_9 : HitRecord_0,  bounce_6 : u32)
+fn ShadePath_4( base_19 : u32,  s_28 : ptr<function, WavefrontPath_0>,  hit_11 : HitRecord_0,  bounce_6 : u32)
 {
-    var hitConeWidth_4 : f32 = (*s_28).path_0.coneWidth_2 + (*s_28).path_0.coneSpread_0 * hit_9.t_6;
-    var si_10 : SurfaceInteraction_0 = GetSurfaceInteraction_0((*s_28).path_0.direction_1, hit_9, hitConeWidth_4);
+    var hitConeWidth_4 : f32 = (*s_28).path_0.coneWidth_2 + (*s_28).path_0.coneSpread_0 * hit_11.t_6;
+    var si_10 : SurfaceInteraction_0 = GetSurfaceInteraction_0((*s_28).path_0.direction_1, hit_11, hitConeWidth_4);
     var V_6 : vec3<f32> = (vec3<f32>(0) - (*s_28).path_0.direction_1);
     var ms_7 : MaterialSample_0 = EvalMaterial_0(si_10, V_6);
     (*s_28) = LoadPath_1(base_19);
-    var _S604 : vec3<f32> = vec3<f32>(0.0f);
-    if((any(((((*s_28).path_0.absorption_0) > _S604)))))
+    var _S664 : vec3<f32> = vec3<f32>(0.0f);
+    if((any(((((*s_28).path_0.absorption_0) > _S664)))))
     {
-        (*s_28).path_0.throughput_7 = (*s_28).path_0.throughput_7 * exp((*s_28).path_0.absorption_0 * vec3<f32>(- hit_9.t_6));
+        (*s_28).path_0.throughput_7 = (*s_28).path_0.throughput_7 * exp((*s_28).path_0.absorption_0 * vec3<f32>(- hit_11.t_6));
     }
     var bsdf_8 : BSDF_0 = BSDF_x24init_0(ms_7.inputs_1, V_6, (*s_28).path_0.throughput_7, vec3<f32>(620.0f, 540.0f, 450.0f), 1.0f);
-    var _S605 : bool = bounce_6 == u32(0);
+    var _S665 : bool = bounce_6 == u32(0);
     var throughput_32 : vec3<f32>;
-    if(_S605)
+    if(_S665)
     {
         (*s_28).albedo_2 = ms_7.albedo_3;
         if(si_10.frontFacing_0)
@@ -15602,8 +16150,8 @@ fn ShadePath_4( base_19 : u32,  s_28 : ptr<function, WavefrontPath_0>,  hit_9 : 
         {
             var pixel_5 : vec2<u32> = WorkPixel_0(base_19 - WorkBase_0(u32(0)));
             var output_3 : u32 = (pixel_5.y * gFrame_0.frame_0.x + pixel_5.x) * u32(3);
-            gAccum_0[output_3 + u32(1)][i32(3)] = hit_9.t_6;
-            gAccum_0[output_3 + u32(2)][i32(3)] = f32(hit_9.instanceIndex_2 + u32(1));
+            gAccum_0[output_3 + u32(1)][i32(3)] = hit_11.t_6;
+            gAccum_0[output_3 + u32(2)][i32(3)] = f32(hit_11.instanceIndex_2 + u32(1));
         }
         if(NrdEnabled_0())
         {
@@ -15635,12 +16183,12 @@ fn ShadePath_4( base_19 : u32,  s_28 : ptr<function, WavefrontPath_0>,  hit_9 : 
     {
         return;
     }
-    var _S606 : bool = (any((((bsdf_8.emission_0) > _S604))));
+    var _S666 : bool = (any((((bsdf_8.emission_0) > _S664))));
     var continuation_3 : f32;
-    if(_S606)
+    if(_S666)
     {
-        var _S607 : bool = !_S605;
-        if(_S607)
+        var _S667 : bool = !_S665;
+        if(_S667)
         {
             transmitted_3 = (*s_28).path_0.lightsSampled_0;
         }
@@ -15650,7 +16198,7 @@ fn ShadePath_4( base_19 : u32,  s_28 : ptr<function, WavefrontPath_0>,  hit_9 : 
         }
         if(transmitted_3)
         {
-            continuation_3 = EvalMISRobust_0((*s_28).path_0.scatterPdf_0, EmissiveHitPdf_0(si_10.instanceIndex_0, si_10.primitiveIndex_0, (*s_28).path_0.origin_3, si_10.position_0));
+            continuation_3 = EvalMISRobust_0((*s_28).path_0.scatterPdf_0, EmissiveHitPdf_0(si_10.instanceIndex_0, si_10.primitiveIndex_0, (*s_28).path_0.origin_5, si_10.position_0));
         }
         else
         {
@@ -15660,7 +16208,7 @@ fn ShadePath_4( base_19 : u32,  s_28 : ptr<function, WavefrontPath_0>,  hit_9 : 
         var clampValue_8 : f32 = gFrame_0.envParams_0.w / gFrame_0.envParams_0.z;
         if((clampValue_8 > 0.0f))
         {
-            transmitted_3 = _S607;
+            transmitted_3 = _S667;
         }
         else
         {
@@ -15676,7 +16224,7 @@ fn ShadePath_4( base_19 : u32,  s_28 : ptr<function, WavefrontPath_0>,  hit_9 : 
         }
         (*s_28).path_0.radiance_1 = (*s_28).path_0.radiance_1 + throughput_32;
     }
-    if(_S605)
+    if(_S665)
     {
         transmitted_3 = NrdEnabled_0();
     }
@@ -15687,11 +16235,11 @@ fn ShadePath_4( base_19 : u32,  s_28 : ptr<function, WavefrontPath_0>,  hit_9 : 
     if(transmitted_3)
     {
         var r_20 : u32 = NrdBase_0(base_19);
-        var _S608 : vec3<f32> = (*s_28).path_0.radiance_1;
-        gAccum_0[r_20].x = _S608.x;
-        gAccum_0[r_20].y = _S608.y;
-        gAccum_0[r_20].z = _S608.z;
-        if((any(((((*s_28).path_0.radiance_1) > _S604)))))
+        var _S668 : vec3<f32> = (*s_28).path_0.radiance_1;
+        gAccum_0[r_20].x = _S668.x;
+        gAccum_0[r_20].y = _S668.y;
+        gAccum_0[r_20].z = _S668.z;
+        if((any(((((*s_28).path_0.radiance_1) > _S664)))))
         {
             gAccum_0[r_20][i32(3)] = (bitcast<f32>((((bitcast<u32>((gAccum_0[r_20].w))) | (u32(268435456))))));
         }
@@ -15702,8 +16250,8 @@ fn ShadePath_4( base_19 : u32,  s_28 : ptr<function, WavefrontPath_0>,  hit_9 : 
     }
     var rng_11 : RandomSequence_0 = RandomSequence_x24init_0(u32(0), u32(0));
     rng_11.seed_0 = (*s_28).randomSeed_0;
-    var _S609 : bool = !_S605;
-    if(_S609)
+    var _S669 : bool = !_S665;
+    if(_S669)
     {
         transmitted_3 = ScreenCacheMode_0(u32(2));
     }
@@ -15729,7 +16277,7 @@ fn ShadePath_4( base_19 : u32,  s_28 : ptr<function, WavefrontPath_0>,  hit_9 : 
     }
     if(transmitted_3)
     {
-        transmitted_3 = !_S606;
+        transmitted_3 = !_S666;
     }
     else
     {
@@ -15754,12 +16302,12 @@ fn ShadePath_4( base_19 : u32,  s_28 : ptr<function, WavefrontPath_0>,  hit_9 : 
         {
             throughput_32 = (vec3<f32>(0) - ms_7.inputs_1.basis_1.n_1);
         }
-        var _S610 : vec2<u32> = WorkPixel_0(base_19 - WorkBase_0(u32(0)));
-        var confidence_5 : f32 = ScreenCacheLookup_0(si_10.position_0, throughput_32, _S610, &(cached_6));
+        var _S670 : vec2<u32> = WorkPixel_0(base_19 - WorkBase_0(u32(0)));
+        var confidence_5 : f32 = ScreenCacheLookup_0(si_10.position_0, throughput_32, _S670, &(cached_6));
         if((confidence_5 > 0.0f))
         {
-            var _S611 : f32 = RandomSequence_Next_1(&(rng_11));
-            transmitted_3 = (_S611 < confidence_5);
+            var _S671 : f32 = RandomSequence_Next_1(&(rng_11));
+            transmitted_3 = (_S671 < confidence_5);
         }
         else
         {
@@ -15782,10 +16330,10 @@ fn ShadePath_4( base_19 : u32,  s_28 : ptr<function, WavefrontPath_0>,  hit_9 : 
             return;
         }
     }
-    var _S612 : bool = SharcEnabled_0();
-    if(_S612)
+    var _S672 : bool = SharcEnabled_0();
+    if(_S672)
     {
-        transmitted_3 = _S609;
+        transmitted_3 = _S669;
     }
     else
     {
@@ -15799,7 +16347,7 @@ fn ShadePath_4( base_19 : u32,  s_28 : ptr<function, WavefrontPath_0>,  hit_9 : 
     {
         transmitted_3 = false;
     }
-    var _S613 : u32;
+    var _S673 : u32;
     if(transmitted_3)
     {
         var key_7 : SharcKey_0;
@@ -15813,8 +16361,8 @@ fn ShadePath_4( base_19 : u32,  s_28 : ptr<function, WavefrontPath_0>,  hit_9 : 
             throughput_32 = (vec3<f32>(0) - si_10.faceNormal_0);
         }
         var index_20 : u32 = base_19 - WorkBase_0(u32(0));
-        var _S614 : bool = SharcMakeKey_0(si_10.position_0, throughput_32, V_6, si_10.materialIndex_1, si_10.instanceIndex_0, &(key_7), &(voxelSize_3));
-        if(_S614)
+        var _S674 : bool = SharcMakeKey_0(si_10.position_0, throughput_32, V_6, si_10.materialIndex_1, si_10.instanceIndex_0, &(key_7), &(voxelSize_3));
+        if(_S674)
         {
             if(SharcUpdatePath_0(index_20, gWavefront_0.tileStart_0))
             {
@@ -15822,7 +16370,7 @@ fn ShadePath_4( base_19 : u32,  s_28 : ptr<function, WavefrontPath_0>,  hit_9 : 
             }
             else
             {
-                if(((hit_9.t_6) > (voxelSize_3 * sqrt(3.0f))))
+                if(((hit_11.t_6) > (voxelSize_3 * sqrt(3.0f))))
                 {
                     transmitted_3 = (hitConeWidth_4 > voxelSize_3);
                 }
@@ -15840,20 +16388,20 @@ fn ShadePath_4( base_19 : u32,  s_28 : ptr<function, WavefrontPath_0>,  hit_9 : 
                 }
                 if(transmitted_3)
                 {
-                    var _S615 : u32 = Field_0(base_19, u32(6));
-                    var state_3 : u32 = (bitcast<u32>((gAccum_0[_S615].w))) + u32(65536);
+                    var _S675 : u32 = Field_0(base_19, u32(6));
+                    var state_3 : u32 = (bitcast<u32>((gAccum_0[_S675].w))) + u32(65536);
                     var cached_7 : vec3<f32>;
-                    var found_11 : bool = SharcQuery_0(key_7, &(cached_7));
-                    if(found_11)
+                    var found_5 : bool = SharcQuery_0(key_7, &(cached_7));
+                    if(found_5)
                     {
-                        _S613 = u32(256);
+                        _S673 = u32(256);
                     }
                     else
                     {
-                        _S613 = u32(0);
+                        _S673 = u32(0);
                     }
-                    gAccum_0[_S615][i32(3)] = (bitcast<f32>(((state_3 | (_S613)))));
-                    if(found_11)
+                    gAccum_0[_S675][i32(3)] = (bitcast<f32>(((state_3 | (_S673)))));
+                    if(found_5)
                     {
                         (*s_28).path_0.radiance_1 = (*s_28).path_0.radiance_1 + (*s_28).path_0.throughput_7 * cached_7;
                         return;
@@ -15862,12 +16410,12 @@ fn ShadePath_4( base_19 : u32,  s_28 : ptr<function, WavefrontPath_0>,  hit_9 : 
             }
         }
     }
-    var diffuseOnly_5 : bool = DiffuseOnlyVertex_0(_S605, ms_7);
-    var _S616 : bool = ((BSDF_MaxActiveAlpha_0(bsdf_8)) >= 0.0010000000474974513f);
-    (*s_28).path_0.lightsSampled_0 = _S616;
-    if(_S616)
+    var diffuseOnly_5 : bool = DiffuseOnlyVertex_0(_S665, ms_7);
+    var _S676 : bool = ((BSDF_MaxActiveAlpha_0(bsdf_8)) >= 0.0010000000474974513f);
+    (*s_28).path_0.lightsSampled_0 = _S676;
+    if(_S676)
     {
-        QueueDirectLighting_0(base_19, si_10, bsdf_8, vec2<f32>(hitConeWidth_4, (*s_28).path_0.coneSpread_0), (*s_28).path_0.throughput_7, _S605, diffuseOnly_5, (*s_28).normal_11, &(rng_11));
+        QueueDirectLighting_0(base_19, si_10, bsdf_8, vec2<f32>(hitConeWidth_4, (*s_28).path_0.coneSpread_0), (*s_28).path_0.throughput_7, _S665, diffuseOnly_5, (*s_28).normal_11, &(rng_11));
     }
     var u_38 : vec2<f32> = RandomSequence_Next2D_0(&(rng_11));
     var bs_4 : LobeSample_0;
@@ -15877,10 +16425,10 @@ fn ShadePath_4( base_19 : u32,  s_28 : ptr<function, WavefrontPath_0>,  hit_9 : 
     }
     else
     {
-        var _S617 : f32 = RandomSequence_Next_1(&(rng_11));
-        bs_4 = BSDF_Sample_0(bsdf_8, vec3<f32>(u_38, _S617));
+        var _S677 : f32 = RandomSequence_Next_1(&(rng_11));
+        bs_4 = BSDF_Sample_0(bsdf_8, vec3<f32>(u_38, _S677));
     }
-    var _S618 : LobeSample_0 = bs_4;
+    var _S678 : LobeSample_0 = bs_4;
     var weight_11 : vec3<f32> = bs_4.weight_1.diffuse_1 + bs_4.weight_1.specular_1;
     if(!bs_4.valid_1)
     {
@@ -15896,13 +16444,13 @@ fn ShadePath_4( base_19 : u32,  s_28 : ptr<function, WavefrontPath_0>,  hit_9 : 
     }
     else
     {
-        transmitted_3 = (all(((weight_11 <= _S604))));
+        transmitted_3 = (all(((weight_11 <= _S664))));
     }
     if(transmitted_3)
     {
         return;
     }
-    if(_S605)
+    if(_S665)
     {
         transmitted_3 = NrdEnabled_0();
     }
@@ -15913,33 +16461,33 @@ fn ShadePath_4( base_19 : u32,  s_28 : ptr<function, WavefrontPath_0>,  hit_9 : 
     if(transmitted_3)
     {
         var r_21 : u32 = NrdBase_0(base_19);
-        var _S619 : LobeSample_0 = bs_4;
+        var _S679 : LobeSample_0 = bs_4;
         var oct_3 : vec2<f32> = NrdOctEncode_0(bs_4.wi_26);
         if(DiffuseOnlyFrame_0())
         {
-            transmitted_3 = ((dot(_S619.wi_26, si_10.faceNormal_0)) > 0.0f) != (si_10.frontFacing_0);
+            transmitted_3 = ((dot(_S679.wi_26, si_10.faceNormal_0)) > 0.0f) != (si_10.frontFacing_0);
         }
         else
         {
             transmitted_3 = false;
         }
-        var _S620 : u32 = NrdPackFraction_0(NrdDiffuseFraction_0(_S618.weight_1));
+        var _S680 : u32 = NrdPackFraction_0(NrdDiffuseFraction_0(_S678.weight_1));
         if(transmitted_3)
         {
-            _S613 = u32(134217728);
+            _S673 = u32(134217728);
         }
         else
         {
-            _S613 = u32(0);
+            _S673 = u32(0);
         }
-        gAccum_0[r_21][i32(3)] = (bitcast<f32>(((((_S620 | (_S613))) | ((((bitcast<u32>((gAccum_0[r_21].w))) & (u32(268435456)))))))));
+        gAccum_0[r_21][i32(3)] = (bitcast<f32>(((((_S680 | (_S673))) | ((((bitcast<u32>((gAccum_0[r_21].w))) & (u32(268435456)))))))));
         gAccum_0[r_21 + u32(3)][i32(3)] = oct_3.x;
         gAccum_0[r_21 + u32(4)][i32(3)] = oct_3.y;
     }
     var throughput_33 : vec3<f32> = (*s_28).path_0.throughput_7 * weight_11;
-    if(_S612)
+    if(_S672)
     {
-        transmitted_3 = _S605;
+        transmitted_3 = _S665;
     }
     else
     {
@@ -15955,8 +16503,8 @@ fn ShadePath_4( base_19 : u32,  s_28 : ptr<function, WavefrontPath_0>,  hit_9 : 
     }
     if((continuation_3 < 1.0f))
     {
-        var _S621 : f32 = RandomSequence_Next_1(&(rng_11));
-        if((_S621 >= continuation_3))
+        var _S681 : f32 = RandomSequence_Next_1(&(rng_11));
+        if((_S681 >= continuation_3))
         {
             return;
         }
@@ -15970,7 +16518,7 @@ fn ShadePath_4( base_19 : u32,  s_28 : ptr<function, WavefrontPath_0>,  hit_9 : 
     (*s_28).path_0.direction_1 = bs_4.wi_26;
     (*s_28).path_0.scatterPdf_0 = bs_4.pdf_7;
     var crossesSurface_4 : bool = ((dot(bs_4.wi_26, si_10.faceNormal_0)) > 0.0f) != (si_10.frontFacing_0);
-    (*s_28).path_0.origin_3 = SurfaceInteraction_ComputeRayOrigin_0(si_10, !crossesSurface_4);
+    (*s_28).path_0.origin_5 = SurfaceInteraction_ComputeRayOrigin_0(si_10, !crossesSurface_4);
     if(crossesSurface_4)
     {
         transmitted_3 = !ms_7.thinWalled_0;
@@ -15995,56 +16543,56 @@ fn ShadePath_4( base_19 : u32,  s_28 : ptr<function, WavefrontPath_0>,  hit_9 : 
     (*s_28).path_0.coneSpread_0 = (*s_28).path_0.coneSpread_0 + ScatterConeSpread_0(bs_4.type_0, ms_7.roughness_4);
     (*s_28).randomSeed_0 = rng_11.seed_0;
     (*s_28).active_0 = u32(1);
-    if(_S612)
+    if(_S672)
     {
-        var _S622 : u32 = Field_0(base_19, u32(6));
-        gAccum_0[_S622][i32(3)] = (bitcast<f32>(((bitcast<u32>((gAccum_0[_S622].w))) + u32(1))));
+        var _S682 : u32 = Field_0(base_19, u32(6));
+        gAccum_0[_S682][i32(3)] = (bitcast<f32>(((bitcast<u32>((gAccum_0[_S682].w))) + u32(1))));
     }
     return;
 }
 
-fn ShadePath_5( base_20 : u32,  s_29 : ptr<function, WavefrontPath_0>,  hit_10 : HitRecord_0,  bounce_7 : u32)
+fn ShadePath_5( base_20 : u32,  s_29 : ptr<function, WavefrontPath_0>,  hit_12 : HitRecord_0,  bounce_7 : u32)
 {
-    var _S623 : vec3<f32> = vec3<f32>(0.0f);
-    if((any(((((*s_29).path_0.absorption_0) > _S623)))))
+    var _S683 : vec3<f32> = vec3<f32>(0.0f);
+    if((any(((((*s_29).path_0.absorption_0) > _S683)))))
     {
-        (*s_29).path_0.throughput_7 = (*s_29).path_0.throughput_7 * exp((*s_29).path_0.absorption_0 * vec3<f32>(- hit_10.t_6));
+        (*s_29).path_0.throughput_7 = (*s_29).path_0.throughput_7 * exp((*s_29).path_0.absorption_0 * vec3<f32>(- hit_12.t_6));
     }
-    var hitConeWidth_5 : f32 = (*s_29).path_0.coneWidth_2 + (*s_29).path_0.coneSpread_0 * hit_10.t_6;
-    var si_11 : SurfaceInteraction_0 = GetSurfaceInteraction_0((*s_29).path_0.direction_1, hit_10, hitConeWidth_5);
+    var hitConeWidth_5 : f32 = (*s_29).path_0.coneWidth_2 + (*s_29).path_0.coneSpread_0 * hit_12.t_6;
+    var si_11 : SurfaceInteraction_0 = GetSurfaceInteraction_0((*s_29).path_0.direction_1, hit_12, hitConeWidth_5);
     var V_7 : vec3<f32> = (vec3<f32>(0) - (*s_29).path_0.direction_1);
     var ms_8 : MaterialSample_0 = EvalMaterial_0(si_11, V_7);
     var bsdf_9 : BSDF_0 = BSDF_x24init_0(ms_8.inputs_1, V_7, (*s_29).path_0.throughput_7, vec3<f32>(620.0f, 540.0f, 450.0f), 1.0f);
     (*s_29).active_0 = u32(0);
-    var _S624 : bool;
+    var _S684 : bool;
     if(!si_11.frontFacing_0)
     {
-        _S624 = !ms_8.doubleSided_2;
+        _S684 = !ms_8.doubleSided_2;
     }
     else
     {
-        _S624 = false;
+        _S684 = false;
     }
-    if(_S624)
+    if(_S684)
     {
-        _S624 = ((ms_8.inputs_1.transmissionWeight_0) <= 0.0f);
+        _S684 = ((ms_8.inputs_1.transmissionWeight_0) <= 0.0f);
     }
     else
     {
-        _S624 = false;
+        _S684 = false;
     }
-    if(_S624)
+    if(_S684)
     {
         return;
     }
-    var _S625 : bool = (any((((bsdf_9.emission_0) > _S623))));
+    var _S685 : bool = (any((((bsdf_9.emission_0) > _S683))));
     var throughput_34 : vec3<f32>;
-    if(_S625)
+    if(_S685)
     {
         var mis_4 : f32;
         if((*s_29).path_0.lightsSampled_0)
         {
-            mis_4 = EvalMISRobust_0((*s_29).path_0.scatterPdf_0, EmissiveHitPdf_0(si_11.instanceIndex_0, si_11.primitiveIndex_0, (*s_29).path_0.origin_3, si_11.position_0));
+            mis_4 = EvalMISRobust_0((*s_29).path_0.scatterPdf_0, EmissiveHitPdf_0(si_11.instanceIndex_0, si_11.primitiveIndex_0, (*s_29).path_0.origin_5, si_11.position_0));
         }
         else
         {
@@ -16052,8 +16600,8 @@ fn ShadePath_5( base_20 : u32,  s_29 : ptr<function, WavefrontPath_0>,  hit_10 :
         }
         var contribution_12 : vec3<f32> = (*s_29).path_0.throughput_7 * vec3<f32>(mis_4) * bsdf_9.emission_0;
         var clampValue_10 : f32 = gFrame_0.envParams_0.w / gFrame_0.envParams_0.z;
-        var _S626 : bool = (clampValue_10 > 0.0f);
-        if(_S626)
+        var _S686 : bool = (clampValue_10 > 0.0f);
+        if(_S686)
         {
             throughput_34 = min(contribution_12, vec3<f32>(clampValue_10));
         }
@@ -16073,35 +16621,35 @@ fn ShadePath_5( base_20 : u32,  s_29 : ptr<function, WavefrontPath_0>,  hit_10 :
     {
         if(SharcEnabled_0())
         {
-            _S624 = SharcUpdatePath_0(base_20 - WorkBase_0(u32(0)), gWavefront_0.tileStart_0);
+            _S684 = SharcUpdatePath_0(base_20 - WorkBase_0(u32(0)), gWavefront_0.tileStart_0);
         }
         else
         {
-            _S624 = false;
+            _S684 = false;
         }
-        _S624 = !_S624;
+        _S684 = !_S684;
     }
     else
     {
-        _S624 = false;
+        _S684 = false;
     }
-    if(_S624)
+    if(_S684)
     {
-        _S624 = !_S625;
+        _S684 = !_S685;
     }
     else
     {
-        _S624 = false;
+        _S684 = false;
     }
-    if(_S624)
+    if(_S684)
     {
-        _S624 = ((ms_8.inputs_1.transmissionWeight_0) <= 0.0f);
+        _S684 = ((ms_8.inputs_1.transmissionWeight_0) <= 0.0f);
     }
     else
     {
-        _S624 = false;
+        _S684 = false;
     }
-    if(_S624)
+    if(_S684)
     {
         var cached_8 : vec3<f32>;
         if(si_11.frontFacing_0)
@@ -16112,18 +16660,18 @@ fn ShadePath_5( base_20 : u32,  s_29 : ptr<function, WavefrontPath_0>,  hit_10 :
         {
             throughput_34 = (vec3<f32>(0) - ms_8.inputs_1.basis_1.n_1);
         }
-        var _S627 : vec2<u32> = WorkPixel_0(base_20 - WorkBase_0(u32(0)));
-        var confidence_6 : f32 = ScreenCacheLookup_0(si_11.position_0, throughput_34, _S627, &(cached_8));
+        var _S687 : vec2<u32> = WorkPixel_0(base_20 - WorkBase_0(u32(0)));
+        var confidence_6 : f32 = ScreenCacheLookup_0(si_11.position_0, throughput_34, _S687, &(cached_8));
         if((confidence_6 > 0.0f))
         {
-            var _S628 : f32 = RandomSequence_Next_1(&(rng_12));
-            _S624 = (_S628 < confidence_6);
+            var _S688 : f32 = RandomSequence_Next_1(&(rng_12));
+            _S684 = (_S688 < confidence_6);
         }
         else
         {
-            _S624 = false;
+            _S684 = false;
         }
-        if(_S624)
+        if(_S684)
         {
             var contribution_13 : vec3<f32> = (*s_29).path_0.throughput_7 * cached_8;
             var clampValue_11 : f32 = gFrame_0.envParams_0.w / gFrame_0.envParams_0.z;
@@ -16140,16 +16688,16 @@ fn ShadePath_5( base_20 : u32,  s_29 : ptr<function, WavefrontPath_0>,  hit_10 :
             return;
         }
     }
-    var _S629 : bool = SharcEnabled_0();
-    if(_S629)
+    var _S689 : bool = SharcEnabled_0();
+    if(_S689)
     {
-        _S624 = SharcSurface_0(ms_8);
+        _S684 = SharcSurface_0(ms_8);
     }
     else
     {
-        _S624 = false;
+        _S684 = false;
     }
-    if(_S624)
+    if(_S684)
     {
         var key_8 : SharcKey_0;
         var voxelSize_4 : f32;
@@ -16162,8 +16710,8 @@ fn ShadePath_5( base_20 : u32,  s_29 : ptr<function, WavefrontPath_0>,  hit_10 :
             throughput_34 = (vec3<f32>(0) - si_11.faceNormal_0);
         }
         var index_21 : u32 = base_20 - WorkBase_0(u32(0));
-        var _S630 : bool = SharcMakeKey_0(si_11.position_0, throughput_34, V_7, si_11.materialIndex_1, si_11.instanceIndex_0, &(key_8), &(voxelSize_4));
-        if(_S630)
+        var _S690 : bool = SharcMakeKey_0(si_11.position_0, throughput_34, V_7, si_11.materialIndex_1, si_11.instanceIndex_0, &(key_8), &(voxelSize_4));
+        if(_S690)
         {
             if(SharcUpdatePath_0(index_21, gWavefront_0.tileStart_0))
             {
@@ -16171,39 +16719,39 @@ fn ShadePath_5( base_20 : u32,  s_29 : ptr<function, WavefrontPath_0>,  hit_10 :
             }
             else
             {
-                if(((hit_10.t_6) > (voxelSize_4 * sqrt(3.0f))))
+                if(((hit_12.t_6) > (voxelSize_4 * sqrt(3.0f))))
                 {
-                    _S624 = (hitConeWidth_5 > voxelSize_4);
+                    _S684 = (hitConeWidth_5 > voxelSize_4);
                 }
                 else
                 {
-                    _S624 = false;
+                    _S684 = false;
                 }
-                if(_S624)
+                if(_S684)
                 {
-                    _S624 = (((*s_29).path_0.coneSpread_0) >= 0.05000000074505806f);
+                    _S684 = (((*s_29).path_0.coneSpread_0) >= 0.05000000074505806f);
                 }
                 else
                 {
-                    _S624 = false;
+                    _S684 = false;
                 }
-                if(_S624)
+                if(_S684)
                 {
-                    var _S631 : u32 = Field_0(base_20, u32(6));
-                    var state_4 : u32 = (bitcast<u32>((gAccum_0[_S631].w))) + u32(65536);
+                    var _S691 : u32 = Field_0(base_20, u32(6));
+                    var state_4 : u32 = (bitcast<u32>((gAccum_0[_S691].w))) + u32(65536);
                     var cached_9 : vec3<f32>;
-                    var found_12 : bool = SharcQuery_0(key_8, &(cached_9));
-                    var _S632 : u32;
-                    if(found_12)
+                    var found_6 : bool = SharcQuery_0(key_8, &(cached_9));
+                    var _S692 : u32;
+                    if(found_6)
                     {
-                        _S632 = u32(256);
+                        _S692 = u32(256);
                     }
                     else
                     {
-                        _S632 = u32(0);
+                        _S692 = u32(0);
                     }
-                    gAccum_0[_S631][i32(3)] = (bitcast<f32>(((state_4 | (_S632)))));
-                    if(found_12)
+                    gAccum_0[_S691][i32(3)] = (bitcast<f32>(((state_4 | (_S692)))));
+                    if(found_6)
                     {
                         (*s_29).path_0.radiance_1 = (*s_29).path_0.radiance_1 + (*s_29).path_0.throughput_7 * cached_9;
                         return;
@@ -16213,9 +16761,9 @@ fn ShadePath_5( base_20 : u32,  s_29 : ptr<function, WavefrontPath_0>,  hit_10 :
         }
     }
     var diffuseOnly_6 : bool = DiffuseOnlyVertex_0(false, ms_8);
-    var _S633 : bool = ((BSDF_MaxActiveAlpha_0(bsdf_9)) >= 0.0010000000474974513f);
-    (*s_29).path_0.lightsSampled_0 = _S633;
-    if(_S633)
+    var _S693 : bool = ((BSDF_MaxActiveAlpha_0(bsdf_9)) >= 0.0010000000474974513f);
+    (*s_29).path_0.lightsSampled_0 = _S693;
+    if(_S693)
     {
         QueueDirectLighting_0(base_20, si_11, bsdf_9, vec2<f32>(hitConeWidth_5, (*s_29).path_0.coneSpread_0), (*s_29).path_0.throughput_7, false, diffuseOnly_6, (*s_29).normal_11, &(rng_12));
     }
@@ -16227,40 +16775,40 @@ fn ShadePath_5( base_20 : u32,  s_29 : ptr<function, WavefrontPath_0>,  hit_10 :
     }
     else
     {
-        var _S634 : f32 = RandomSequence_Next_1(&(rng_12));
-        bs_5 = BSDF_Sample_0(bsdf_9, vec3<f32>(u_39, _S634));
+        var _S694 : f32 = RandomSequence_Next_1(&(rng_12));
+        bs_5 = BSDF_Sample_0(bsdf_9, vec3<f32>(u_39, _S694));
     }
     var weight_12 : vec3<f32> = bs_5.weight_1.diffuse_1 + bs_5.weight_1.specular_1;
     if(!bs_5.valid_1)
     {
-        _S624 = true;
+        _S684 = true;
     }
     else
     {
-        _S624 = ((bs_5.pdf_7) <= 0.0f);
+        _S684 = ((bs_5.pdf_7) <= 0.0f);
     }
-    if(_S624)
+    if(_S684)
     {
-        _S624 = true;
+        _S684 = true;
     }
     else
     {
-        _S624 = (all(((weight_12 <= _S623))));
+        _S684 = (all(((weight_12 <= _S683))));
     }
-    if(_S624)
+    if(_S684)
     {
         return;
     }
     var throughput_35 : vec3<f32> = (*s_29).path_0.throughput_7 * weight_12;
-    var _S635 : f32 = sqrt(saturate(MaxComponent_0(throughput_35) / max(MaxComponent_0((*s_29).path_0.throughput_7), 9.999999960041972e-13f)));
-    if((_S635 < 1.0f))
+    var _S695 : f32 = sqrt(saturate(MaxComponent_0(throughput_35) / max(MaxComponent_0((*s_29).path_0.throughput_7), 9.999999960041972e-13f)));
+    if((_S695 < 1.0f))
     {
-        var _S636 : f32 = RandomSequence_Next_1(&(rng_12));
-        if((_S636 >= _S635))
+        var _S696 : f32 = RandomSequence_Next_1(&(rng_12));
+        if((_S696 >= _S695))
         {
             return;
         }
-        throughput_34 = throughput_35 / vec3<f32>(_S635);
+        throughput_34 = throughput_35 / vec3<f32>(_S695);
     }
     else
     {
@@ -16270,16 +16818,16 @@ fn ShadePath_5( base_20 : u32,  s_29 : ptr<function, WavefrontPath_0>,  hit_10 :
     (*s_29).path_0.direction_1 = bs_5.wi_26;
     (*s_29).path_0.scatterPdf_0 = bs_5.pdf_7;
     var crossesSurface_5 : bool = ((dot(bs_5.wi_26, si_11.faceNormal_0)) > 0.0f) != (si_11.frontFacing_0);
-    (*s_29).path_0.origin_3 = SurfaceInteraction_ComputeRayOrigin_0(si_11, !crossesSurface_5);
+    (*s_29).path_0.origin_5 = SurfaceInteraction_ComputeRayOrigin_0(si_11, !crossesSurface_5);
     if(crossesSurface_5)
     {
-        _S624 = !ms_8.thinWalled_0;
+        _S684 = !ms_8.thinWalled_0;
     }
     else
     {
-        _S624 = false;
+        _S684 = false;
     }
-    if(_S624)
+    if(_S684)
     {
         if(si_11.frontFacing_0)
         {
@@ -16295,10 +16843,10 @@ fn ShadePath_5( base_20 : u32,  s_29 : ptr<function, WavefrontPath_0>,  hit_10 :
     (*s_29).path_0.coneSpread_0 = (*s_29).path_0.coneSpread_0 + ScatterConeSpread_0(bs_5.type_0, ms_8.roughness_4);
     (*s_29).randomSeed_0 = rng_12.seed_0;
     (*s_29).active_0 = u32(1);
-    if(_S629)
+    if(_S689)
     {
-        var _S637 : u32 = Field_0(base_20, u32(6));
-        gAccum_0[_S637][i32(3)] = (bitcast<f32>(((bitcast<u32>((gAccum_0[_S637].w))) + u32(1))));
+        var _S697 : u32 = Field_0(base_20, u32(6));
+        gAccum_0[_S697][i32(3)] = (bitcast<f32>(((bitcast<u32>((gAccum_0[_S697].w))) + u32(1))));
     }
     return;
 }
@@ -16307,22 +16855,22 @@ fn StorePath_0( base_21 : u32,  s_30 : WavefrontPath_0)
 {
     gAccum_0[base_21] = vec4<f32>(s_30.path_0.radiance_1, (bitcast<f32>((s_30.active_0))));
     gAccum_0[Field_0(base_21, u32(1))] = vec4<f32>(s_30.path_0.throughput_7, (bitcast<f32>((s_30.randomSeed_0))));
-    gAccum_0[Field_0(base_21, u32(2))] = vec4<f32>(s_30.path_0.origin_3, s_30.path_0.scatterPdf_0);
+    gAccum_0[Field_0(base_21, u32(2))] = vec4<f32>(s_30.path_0.origin_5, s_30.path_0.scatterPdf_0);
     gAccum_0[Field_0(base_21, u32(3))] = vec4<f32>(s_30.path_0.direction_1, (bitcast<f32>((select(u32(0), u32(1), s_30.path_0.lightsSampled_0)))));
     gAccum_0[Field_0(base_21, u32(4))] = vec4<f32>(s_30.path_0.absorption_0, s_30.path_0.coneWidth_2);
     gAccum_0[Field_0(base_21, u32(5))][i32(3)] = s_30.path_0.coneSpread_0;
     return;
 }
 
-fn ShadePath_6( base_22 : u32,  s_31 : ptr<function, WavefrontPath_0>,  hit_11 : HitRecord_0,  bounce_8 : u32)
+fn ShadePath_6( base_22 : u32,  s_31 : ptr<function, WavefrontPath_0>,  hit_13 : HitRecord_0,  bounce_8 : u32)
 {
-    var _S638 : vec3<f32> = vec3<f32>(0.0f);
-    if((any(((((*s_31).path_0.absorption_0) > _S638)))))
+    var _S698 : vec3<f32> = vec3<f32>(0.0f);
+    if((any(((((*s_31).path_0.absorption_0) > _S698)))))
     {
-        (*s_31).path_0.throughput_7 = (*s_31).path_0.throughput_7 * exp((*s_31).path_0.absorption_0 * vec3<f32>(- hit_11.t_6));
+        (*s_31).path_0.throughput_7 = (*s_31).path_0.throughput_7 * exp((*s_31).path_0.absorption_0 * vec3<f32>(- hit_13.t_6));
     }
-    var hitConeWidth_6 : f32 = (*s_31).path_0.coneWidth_2 + (*s_31).path_0.coneSpread_0 * hit_11.t_6;
-    var si_12 : SurfaceInteraction_0 = GetSurfaceInteraction_0((*s_31).path_0.direction_1, hit_11, hitConeWidth_6);
+    var hitConeWidth_6 : f32 = (*s_31).path_0.coneWidth_2 + (*s_31).path_0.coneSpread_0 * hit_13.t_6;
+    var si_12 : SurfaceInteraction_0 = GetSurfaceInteraction_0((*s_31).path_0.direction_1, hit_13, hitConeWidth_6);
     var V_8 : vec3<f32> = (vec3<f32>(0) - (*s_31).path_0.direction_1);
     var ms_9 : MaterialSample_0 = EvalMaterial_0(si_12, V_8);
     var bsdf_10 : BSDF_0 = BSDF_x24init_0(ms_9.inputs_1, V_8, (*s_31).path_0.throughput_7, vec3<f32>(620.0f, 540.0f, 450.0f), 1.0f);
@@ -16341,11 +16889,11 @@ fn ShadePath_6( base_22 : u32,  s_31 : ptr<function, WavefrontPath_0>,  hit_11 :
     {
         var pixel_6 : vec2<u32> = WorkPixel_0(base_22 - WorkBase_0(u32(0)));
         var output_4 : u32 = (pixel_6.y * gFrame_0.frame_0.x + pixel_6.x) * u32(3);
-        gAccum_0[output_4 + u32(1)][i32(3)] = hit_11.t_6;
-        gAccum_0[output_4 + u32(2)][i32(3)] = f32(hit_11.instanceIndex_2 + u32(1));
+        gAccum_0[output_4 + u32(1)][i32(3)] = hit_13.t_6;
+        gAccum_0[output_4 + u32(2)][i32(3)] = f32(hit_13.instanceIndex_2 + u32(1));
     }
-    var _S639 : bool = NrdEnabled_0();
-    if(_S639)
+    var _S699 : bool = NrdEnabled_0();
+    if(_S699)
     {
         var r_22 : u32 = NrdBase_0(base_22);
         gAccum_0[r_22] = vec4<f32>((*s_31).path_0.radiance_1, (bitcast<f32>((NrdPackFraction_0(vec3<f32>(0.5f))))));
@@ -16374,18 +16922,18 @@ fn ShadePath_6( base_22 : u32,  s_31 : ptr<function, WavefrontPath_0>,  hit_11 :
     {
         return;
     }
-    if((any((((bsdf_10.emission_0) > _S638)))))
+    if((any((((bsdf_10.emission_0) > _S698)))))
     {
         (*s_31).path_0.radiance_1 = (*s_31).path_0.radiance_1 + (*s_31).path_0.throughput_7 * bsdf_10.emission_0;
     }
-    if(_S639)
+    if(_S699)
     {
         var r_23 : u32 = NrdBase_0(base_22);
-        var _S640 : vec3<f32> = (*s_31).path_0.radiance_1;
-        gAccum_0[r_23].x = _S640.x;
-        gAccum_0[r_23].y = _S640.y;
-        gAccum_0[r_23].z = _S640.z;
-        if((any(((((*s_31).path_0.radiance_1) > _S638)))))
+        var _S700 : vec3<f32> = (*s_31).path_0.radiance_1;
+        gAccum_0[r_23].x = _S700.x;
+        gAccum_0[r_23].y = _S700.y;
+        gAccum_0[r_23].z = _S700.z;
+        if((any(((((*s_31).path_0.radiance_1) > _S698)))))
         {
             gAccum_0[r_23][i32(3)] = (bitcast<f32>((((bitcast<u32>((gAccum_0[r_23].w))) | (u32(268435456))))));
         }
@@ -16396,11 +16944,11 @@ fn ShadePath_6( base_22 : u32,  s_31 : ptr<function, WavefrontPath_0>,  hit_11 :
     }
     var rng_13 : RandomSequence_0 = RandomSequence_x24init_0(u32(0), u32(0));
     rng_13.seed_0 = (*s_31).randomSeed_0;
-    var _S641 : bool = SharcEnabled_0();
+    var _S701 : bool = SharcEnabled_0();
     var diffuseOnly_7 : bool = DiffuseOnlyVertex_0(true, ms_9);
-    var _S642 : bool = ((BSDF_MaxActiveAlpha_0(bsdf_10)) >= 0.0010000000474974513f);
-    (*s_31).path_0.lightsSampled_0 = _S642;
-    if(_S642)
+    var _S702 : bool = ((BSDF_MaxActiveAlpha_0(bsdf_10)) >= 0.0010000000474974513f);
+    (*s_31).path_0.lightsSampled_0 = _S702;
+    if(_S702)
     {
         QueueDirectLighting_0(base_22, si_12, bsdf_10, vec2<f32>(hitConeWidth_6, (*s_31).path_0.coneSpread_0), (*s_31).path_0.throughput_7, true, diffuseOnly_7, (*s_31).normal_11, &(rng_13));
     }
@@ -16412,10 +16960,10 @@ fn ShadePath_6( base_22 : u32,  s_31 : ptr<function, WavefrontPath_0>,  hit_11 :
     }
     else
     {
-        var _S643 : f32 = RandomSequence_Next_1(&(rng_13));
-        bs_6 = BSDF_Sample_0(bsdf_10, vec3<f32>(u_40, _S643));
+        var _S703 : f32 = RandomSequence_Next_1(&(rng_13));
+        bs_6 = BSDF_Sample_0(bsdf_10, vec3<f32>(u_40, _S703));
     }
-    var _S644 : LobeSample_0 = bs_6;
+    var _S704 : LobeSample_0 = bs_6;
     var weight_13 : vec3<f32> = bs_6.weight_1.diffuse_1 + bs_6.weight_1.specular_1;
     if(!bs_6.valid_1)
     {
@@ -16431,42 +16979,42 @@ fn ShadePath_6( base_22 : u32,  s_31 : ptr<function, WavefrontPath_0>,  hit_11 :
     }
     else
     {
-        transmitted_4 = (all(((weight_13 <= _S638))));
+        transmitted_4 = (all(((weight_13 <= _S698))));
     }
     if(transmitted_4)
     {
         return;
     }
-    if(_S639)
+    if(_S699)
     {
         var r_24 : u32 = NrdBase_0(base_22);
-        var _S645 : LobeSample_0 = bs_6;
+        var _S705 : LobeSample_0 = bs_6;
         var oct_4 : vec2<f32> = NrdOctEncode_0(bs_6.wi_26);
         if(DiffuseOnlyFrame_0())
         {
-            transmitted_4 = ((dot(_S645.wi_26, si_12.faceNormal_0)) > 0.0f) != (si_12.frontFacing_0);
+            transmitted_4 = ((dot(_S705.wi_26, si_12.faceNormal_0)) > 0.0f) != (si_12.frontFacing_0);
         }
         else
         {
             transmitted_4 = false;
         }
-        var _S646 : u32 = NrdPackFraction_0(NrdDiffuseFraction_0(_S644.weight_1));
-        var _S647 : u32;
+        var _S706 : u32 = NrdPackFraction_0(NrdDiffuseFraction_0(_S704.weight_1));
+        var _S707 : u32;
         if(transmitted_4)
         {
-            _S647 = u32(134217728);
+            _S707 = u32(134217728);
         }
         else
         {
-            _S647 = u32(0);
+            _S707 = u32(0);
         }
-        gAccum_0[r_24][i32(3)] = (bitcast<f32>(((((_S646 | (_S647))) | ((((bitcast<u32>((gAccum_0[r_24].w))) & (u32(268435456)))))))));
+        gAccum_0[r_24][i32(3)] = (bitcast<f32>(((((_S706 | (_S707))) | ((((bitcast<u32>((gAccum_0[r_24].w))) & (u32(268435456)))))))));
         gAccum_0[r_24 + u32(3)][i32(3)] = oct_4.x;
         gAccum_0[r_24 + u32(4)][i32(3)] = oct_4.y;
     }
     var throughput_37 : vec3<f32> = (*s_31).path_0.throughput_7 * weight_13;
     var continuation_4 : f32;
-    if(_S641)
+    if(_S701)
     {
         continuation_4 = 1.0f;
     }
@@ -16476,8 +17024,8 @@ fn ShadePath_6( base_22 : u32,  s_31 : ptr<function, WavefrontPath_0>,  hit_11 :
     }
     if((continuation_4 < 1.0f))
     {
-        var _S648 : f32 = RandomSequence_Next_1(&(rng_13));
-        if((_S648 >= continuation_4))
+        var _S708 : f32 = RandomSequence_Next_1(&(rng_13));
+        if((_S708 >= continuation_4))
         {
             return;
         }
@@ -16491,7 +17039,7 @@ fn ShadePath_6( base_22 : u32,  s_31 : ptr<function, WavefrontPath_0>,  hit_11 :
     (*s_31).path_0.direction_1 = bs_6.wi_26;
     (*s_31).path_0.scatterPdf_0 = bs_6.pdf_7;
     var crossesSurface_6 : bool = ((dot(bs_6.wi_26, si_12.faceNormal_0)) > 0.0f) != (si_12.frontFacing_0);
-    (*s_31).path_0.origin_3 = SurfaceInteraction_ComputeRayOrigin_0(si_12, !crossesSurface_6);
+    (*s_31).path_0.origin_5 = SurfaceInteraction_ComputeRayOrigin_0(si_12, !crossesSurface_6);
     if(crossesSurface_6)
     {
         transmitted_4 = !ms_9.thinWalled_0;
@@ -16516,10 +17064,10 @@ fn ShadePath_6( base_22 : u32,  s_31 : ptr<function, WavefrontPath_0>,  hit_11 :
     (*s_31).path_0.coneSpread_0 = (*s_31).path_0.coneSpread_0 + ScatterConeSpread_0(bs_6.type_0, ms_9.roughness_4);
     (*s_31).randomSeed_0 = rng_13.seed_0;
     (*s_31).active_0 = u32(1);
-    if(_S641)
+    if(_S701)
     {
-        var _S649 : u32 = Field_0(base_22, u32(6));
-        gAccum_0[_S649][i32(3)] = (bitcast<f32>(((bitcast<u32>((gAccum_0[_S649].w))) + u32(1))));
+        var _S709 : u32 = Field_0(base_22, u32(6));
+        gAccum_0[_S709][i32(3)] = (bitcast<f32>(((bitcast<u32>((gAccum_0[_S709].w))) + u32(1))));
     }
     return;
 }
@@ -16530,7 +17078,7 @@ fn ConstantMaterialOutput_0( header_7 : MaterialHeader_0,  program_3 : u32,  gro
     {
         return fallback_2;
     }
-    var _S650 : vec4<f32> = fallback_2;
+    var _S710 : vec4<f32> = fallback_2;
     var n_22 : u32 = u32(0);
     var pc_4 : u32 = program_3;
     loop
@@ -16542,46 +17090,46 @@ fn ConstantMaterialOutput_0( header_7 : MaterialHeader_0,  program_3 : u32,  gro
         {
             break;
         }
-        var _S651 : u32 = gMaterialData_0[pc_4].x;
-        if(((_S651 & (u32(255)))) == u32(0))
+        var _S711 : u32 = gMaterialData_0[pc_4].x;
+        if(((_S711 & (u32(255)))) == u32(0))
         {
             break;
         }
-        var outputGroup_0 : u32 = (_S651 >> (u32(16)));
+        var outputGroup_0 : u32 = (_S711 >> (u32(16)));
         if(outputGroup_0 == group_0)
         {
             var operand_1 : u32 = MaterialWord_0(pc_4 * u32(4) + u32(1) + field_1);
-            var _S652 : vec4<f32>;
+            var _S712 : vec4<f32>;
             if(operand_1 != u32(4294967295))
             {
-                _S652 = MaterialOperand_0(operand_1, vec4<f32>(0.0f), header_7.constantBase_0);
+                _S712 = MaterialOperand_0(operand_1, vec4<f32>(0.0f), header_7.constantBase_0);
             }
             else
             {
-                _S652 = _S650;
+                _S712 = _S710;
             }
-            _S650 = _S652;
+            _S710 = _S712;
         }
         var pc_5 : u32 = pc_4 + ((((u32(351898) >> ((u32(2) * min(outputGroup_0, u32(9)))))) & (u32(3))));
         n_22 = n_22 + u32(1);
         pc_4 = pc_5;
     }
-    return _S650;
+    return _S710;
 }
 
 fn ConstantEmissiveRadiance_0( header_8 : MaterialHeader_0) -> vec3<f32>
 {
     var defaults_0 : BSDFInputs_0 = BSDFInputs_Default_0();
-    var _S653 : bool;
+    var _S713 : bool;
     if((MaterialHeader_AlphaMode_0(header_8)) == u32(1))
     {
-        _S653 = ((ConstantMaterialOutput_0(header_8, header_8.opacity_0, u32(9), u32(0), vec4<f32>(defaults_0.geometryOpacity_0)).x) < (header_8.alphaCutoff_0));
+        _S713 = ((ConstantMaterialOutput_0(header_8, header_8.opacity_0, u32(9), u32(0), vec4<f32>(defaults_0.geometryOpacity_0)).x) < (header_8.alphaCutoff_0));
     }
     else
     {
-        _S653 = false;
+        _S713 = false;
     }
-    if(_S653)
+    if(_S713)
     {
         return vec3<f32>(0.0f);
     }
@@ -16590,50 +17138,50 @@ fn ConstantEmissiveRadiance_0( header_8 : MaterialHeader_0) -> vec3<f32>
 
 fn SampleEmissiveGeometry_0( viewer_3 : vec3<f32>,  rng_14 : ptr<function, RandomSequence_0>,  index_22 : ptr<function, u32>,  bary_5 : ptr<function, vec3<f32>>) -> LightSample_0
 {
-    var _S654 : f32 = RandomSequence_Next_1(&((*rng_14)));
-    (*index_22) = SelectLight_0(_S654);
+    var _S714 : f32 = RandomSequence_Next_1(&((*rng_14)));
+    (*index_22) = SelectLight_0(_S714);
     (*bary_5) = vec3<f32>(0.0f);
-    var _S655 : EmissiveTriangle_std430_0 = gLights_0[(*index_22)];
-    var _S656 : u32 = AnalyticFlags_0(&(_S655));
-    if(((_S656 & (u32(2147483648)))) != u32(0))
+    var _S715 : EmissiveTriangle_std430_0 = gLights_0[(*index_22)];
+    var _S716 : u32 = AnalyticFlags_0(&(_S715));
+    if(((_S716 & (u32(2147483648)))) != u32(0))
     {
-        var _S657 : LightSample_0 = SampleAnalytic_0(&(_S655), viewer_3, &((*rng_14)));
-        return _S657;
+        var _S717 : LightSample_0 = SampleAnalytic_0(&(_S715), viewer_3, &((*rng_14)));
+        return _S717;
     }
-    var _S658 : vec2<f32> = RandomSequence_Next2D_0(&((*rng_14)));
-    var _S659 : vec3<f32> = SampleTriangle_0(_S658);
-    (*bary_5) = _S659;
+    var _S718 : vec2<f32> = RandomSequence_Next2D_0(&((*rng_14)));
+    var _S719 : vec3<f32> = SampleTriangle_0(_S718);
+    (*bary_5) = _S719;
     var s_32 : LightSample_0;
     s_32.delta_0 = false;
     s_32.shadow_0 = true;
     s_32.analytic_0 = false;
-    var _S660 : vec4<f32> = _S655.p0_0;
-    var _S661 : vec4<f32> = _S655.p1_0;
-    s_32.position_1 = _S655.p0_0.xyz * vec3<f32>(_S659.x) + _S655.p1_0.xyz * vec3<f32>(_S659.y) + _S655.p2_0.xyz * vec3<f32>(_S659.z);
-    s_32.normal_7 = _S655.n_0.xyz;
-    var material_5 : MaterialHeader_0 = LoadMaterialHeader_0((bitcast<u32>((_S655.n_0.w))));
-    var _S662 : vec3<f32>;
+    var _S720 : vec4<f32> = _S715.p0_0;
+    var _S721 : vec4<f32> = _S715.p1_0;
+    s_32.position_1 = _S715.p0_0.xyz * vec3<f32>(_S719.x) + _S715.p1_0.xyz * vec3<f32>(_S719.y) + _S715.p2_0.xyz * vec3<f32>(_S719.z);
+    s_32.normal_7 = _S715.n_0.xyz;
+    var material_5 : MaterialHeader_0 = LoadMaterialHeader_0((bitcast<u32>((_S715.n_0.w))));
+    var _S722 : vec3<f32>;
     if((((((material_5.flags_1) >> (u32(26)))) & (u32(31)))) == u32(0))
     {
-        _S662 = ConstantEmissiveRadiance_0(material_5);
+        _S722 = ConstantEmissiveRadiance_0(material_5);
     }
     else
     {
-        _S662 = vec3<f32>(1.0f);
+        _S722 = vec3<f32>(1.0f);
     }
-    s_32.radiance_0 = _S662;
-    var _S663 : bool = MaterialHeader_DoubleSided_0(material_5);
-    s_32.solidAnglePdf_0 = _S661.w * EmissiveSolidAnglePdf_0(_S660.w, _S663, viewer_3, s_32.position_1, s_32.normal_7);
-    var _S664 : bool;
-    if(_S663)
+    s_32.radiance_0 = _S722;
+    var _S723 : bool = MaterialHeader_DoubleSided_0(material_5);
+    s_32.solidAnglePdf_0 = _S721.w * EmissiveSolidAnglePdf_0(_S720.w, _S723, viewer_3, s_32.position_1, s_32.normal_7);
+    var _S724 : bool;
+    if(_S723)
     {
-        _S664 = ((dot(s_32.normal_7, viewer_3 - s_32.position_1)) < 0.0f);
+        _S724 = ((dot(s_32.normal_7, viewer_3 - s_32.position_1)) < 0.0f);
     }
     else
     {
-        _S664 = false;
+        _S724 = false;
     }
-    if(_S664)
+    if(_S724)
     {
         s_32.normal_7 = (vec3<f32>(0) - s_32.normal_7);
     }
@@ -16685,7 +17233,7 @@ fn QueueDirectLighting_1( base_23 : u32,  si_13 : SurfaceInteraction_0,  bsdf_11
         var shadow_5 : bool;
         var pendingLight_0 : bool;
         var ls_11 : LightSample_0;
-        var origin_8 : vec3<f32>;
+        var origin_11 : vec3<f32>;
         var dir_22 : vec3<f32>;
         if(source_3 == u32(0))
         {
@@ -16713,10 +17261,10 @@ fn QueueDirectLighting_1( base_23 : u32,  si_13 : SurfaceInteraction_0,  bsdf_11
                 continue;
             }
             var dir_23 : vec3<f32> = (vec3<f32>(0) - ls_12.normal_7);
-            var _S665 : vec3<f32> = ShadowOrigin_0(si_13, dir_23);
+            var _S725 : vec3<f32> = ShadowOrigin_0(si_13, dir_23);
             ls_11 = ls_12;
             mis_5 = true;
-            origin_8 = _S665;
+            origin_11 = _S725;
             maxDistance_6 = 1.00000001504746622e+30f;
             shadow_5 = true;
             pendingLight_0 = false;
@@ -16737,11 +17285,11 @@ fn QueueDirectLighting_1( base_23 : u32,  si_13 : SurfaceInteraction_0,  bsdf_11
                 var lightIndex_0 : u32;
                 var bary_6 : vec3<f32>;
                 var ls_13 : LightSample_0 = SampleEmissiveGeometry_0(si_13.position_0, &((*rng_15)), &(lightIndex_0), &(bary_6));
-                var _S666 : EmissiveTriangle_std430_0 = gLights_0[lightIndex_0];
-                var _S667 : u32 = AnalyticFlags_0(&(_S666));
-                if(((_S667 & (u32(2147483648)))) == u32(0))
+                var _S726 : EmissiveTriangle_std430_0 = gLights_0[lightIndex_0];
+                var _S727 : u32 = AnalyticFlags_0(&(_S726));
+                if(((_S727 & (u32(2147483648)))) == u32(0))
                 {
-                    mis_5 = (((((LoadMaterialHeader_0((bitcast<u32>((_S666.n_0.w)))).flags_1) >> (u32(26)))) & (u32(31)))) != u32(0);
+                    mis_5 = (((((LoadMaterialHeader_0((bitcast<u32>((_S726.n_0.w)))).flags_1) >> (u32(26)))) & (u32(31)))) != u32(0);
                 }
                 else
                 {
@@ -16773,18 +17321,18 @@ fn QueueDirectLighting_1( base_23 : u32,  si_13 : SurfaceInteraction_0,  bsdf_11
                     continue;
                 }
                 var lightPos_4 : vec3<f32> = ComputeOffsetOrigin_0(ls_13.position_1, ls_13.normal_7);
-                var origin_9 : vec3<f32> = ShadowOrigin_0(si_13, lightPos_4 - si_13.position_0);
-                var dir_24 : vec3<f32> = lightPos_4 - origin_9;
+                var origin_12 : vec3<f32> = ShadowOrigin_0(si_13, lightPos_4 - si_13.position_0);
+                var dir_24 : vec3<f32> = lightPos_4 - origin_12;
                 var maxDistance_7 : f32 = length(dir_24);
                 var dir_25 : vec3<f32> = dir_24 / vec3<f32>(maxDistance_7);
-                var _S668 : bool = !ls_13.delta_0;
-                var _S669 : bool = mis_5;
+                var _S728 : bool = !ls_13.delta_0;
+                var _S729 : bool = mis_5;
                 ls_11 = ls_13;
-                mis_5 = _S668;
-                origin_8 = origin_9;
+                mis_5 = _S728;
+                origin_11 = origin_12;
                 maxDistance_6 = maxDistance_7;
                 shadow_5 = ls_13.shadow_0;
-                pendingLight_0 = _S669;
+                pendingLight_0 = _S729;
                 dir_22 = dir_25;
             }
             else
@@ -16798,10 +17346,10 @@ fn QueueDirectLighting_1( base_23 : u32,  si_13 : SurfaceInteraction_0,  bsdf_11
                 }
                 var ls_14 : LightSample_0 = SampleSun_0(&((*rng_15)));
                 var dir_26 : vec3<f32> = (vec3<f32>(0) - ls_14.normal_7);
-                var _S670 : vec3<f32> = ShadowOrigin_0(si_13, dir_26);
+                var _S730 : vec3<f32> = ShadowOrigin_0(si_13, dir_26);
                 ls_11 = ls_14;
                 mis_5 = false;
-                origin_8 = _S670;
+                origin_11 = _S730;
                 maxDistance_6 = 1.00000001504746622e+30f;
                 shadow_5 = true;
                 pendingLight_0 = false;
@@ -16821,16 +17369,16 @@ fn QueueDirectLighting_1( base_23 : u32,  si_13 : SurfaceInteraction_0,  bsdf_11
         if((any(((f_30 > vec3<f32>(0.0f))))))
         {
             var weight_14 : f32;
-            var _S671 : f32;
+            var _S731 : f32;
             if(mis_5)
             {
-                _S671 = EvalMISRobust_0(ls_11.solidAnglePdf_0, pdf_19);
+                _S731 = EvalMISRobust_0(ls_11.solidAnglePdf_0, pdf_19);
             }
             else
             {
-                _S671 = 1.0f;
+                _S731 = 1.0f;
             }
-            weight_14 = _S671;
+            weight_14 = _S731;
             var f_31 : vec3<f32>;
             if(diffuseOnly_8)
             {
@@ -16842,18 +17390,18 @@ fn QueueDirectLighting_1( base_23 : u32,  si_13 : SurfaceInteraction_0,  bsdf_11
                 f_31 = f_30;
             }
             var offset_2 : u32 = u32(12) + source_3 * u32(3);
-            gAccum_0[Field_0(base_23, offset_2)] = vec4<f32>(origin_8, maxDistance_6);
+            gAccum_0[Field_0(base_23, offset_2)] = vec4<f32>(origin_11, maxDistance_6);
             gAccum_0[Field_0(base_23, offset_2 + u32(1))] = vec4<f32>(dir_22, (bitcast<f32>((ShadowFlags_0(shadow_5, primary_3, source_3 == u32(2), ls_11.analytic_0, eval_4)))));
-            var _S672 : vec4<f32>;
+            var _S732 : vec4<f32>;
             if(pendingLight_0)
             {
-                _S672 = vec4<f32>(f_31, weight_14);
+                _S732 = vec4<f32>(f_31, weight_14);
             }
             else
             {
-                _S672 = vec4<f32>(vec3<f32>(weight_14) * ls_11.radiance_0 * f_31 / vec3<f32>(ls_11.solidAnglePdf_0), 0.0f);
+                _S732 = vec4<f32>(vec3<f32>(weight_14) * ls_11.radiance_0 * f_31 / vec3<f32>(ls_11.solidAnglePdf_0), 0.0f);
             }
-            gAccum_0[Field_0(base_23, offset_2 + u32(2))] = _S672;
+            gAccum_0[Field_0(base_23, offset_2 + u32(2))] = _S732;
             mask_4 = (mask_3 | (((u32(1) << (source_3)))));
         }
         else
@@ -16877,21 +17425,21 @@ fn QueueDirectLighting_1( base_23 : u32,  si_13 : SurfaceInteraction_0,  bsdf_11
     return;
 }
 
-fn ShadePath_7( base_24 : u32,  s_33 : ptr<function, WavefrontPath_0>,  hit_12 : HitRecord_0,  bounce_9 : u32)
+fn ShadePath_7( base_24 : u32,  s_33 : ptr<function, WavefrontPath_0>,  hit_14 : HitRecord_0,  bounce_9 : u32)
 {
-    var _S673 : vec3<f32> = vec3<f32>(0.0f);
-    if((any(((((*s_33).path_0.absorption_0) > _S673)))))
+    var _S733 : vec3<f32> = vec3<f32>(0.0f);
+    if((any(((((*s_33).path_0.absorption_0) > _S733)))))
     {
-        (*s_33).path_0.throughput_7 = (*s_33).path_0.throughput_7 * exp((*s_33).path_0.absorption_0 * vec3<f32>(- hit_12.t_6));
+        (*s_33).path_0.throughput_7 = (*s_33).path_0.throughput_7 * exp((*s_33).path_0.absorption_0 * vec3<f32>(- hit_14.t_6));
     }
-    var hitConeWidth_7 : f32 = (*s_33).path_0.coneWidth_2 + (*s_33).path_0.coneSpread_0 * hit_12.t_6;
-    var si_14 : SurfaceInteraction_0 = GetSurfaceInteraction_0((*s_33).path_0.direction_1, hit_12, hitConeWidth_7);
+    var hitConeWidth_7 : f32 = (*s_33).path_0.coneWidth_2 + (*s_33).path_0.coneSpread_0 * hit_14.t_6;
+    var si_14 : SurfaceInteraction_0 = GetSurfaceInteraction_0((*s_33).path_0.direction_1, hit_14, hitConeWidth_7);
     var V_9 : vec3<f32> = (vec3<f32>(0) - (*s_33).path_0.direction_1);
     var ms_10 : MaterialSample_0 = EvalMaterial_0(si_14, V_9);
     var bsdf_12 : BSDF_0 = BSDF_x24init_0(ms_10.inputs_1, V_9, (*s_33).path_0.throughput_7, vec3<f32>(620.0f, 540.0f, 450.0f), 1.0f);
-    var _S674 : bool = bounce_9 == u32(0);
+    var _S734 : bool = bounce_9 == u32(0);
     var throughput_39 : vec3<f32>;
-    if(_S674)
+    if(_S734)
     {
         (*s_33).albedo_2 = ms_10.albedo_3;
         if(si_14.frontFacing_0)
@@ -16907,8 +17455,8 @@ fn ShadePath_7( base_24 : u32,  s_33 : ptr<function, WavefrontPath_0>,  hit_12 :
         {
             var pixel_7 : vec2<u32> = WorkPixel_0(base_24 - WorkBase_0(u32(0)));
             var output_5 : u32 = (pixel_7.y * gFrame_0.frame_0.x + pixel_7.x) * u32(3);
-            gAccum_0[output_5 + u32(1)][i32(3)] = hit_12.t_6;
-            gAccum_0[output_5 + u32(2)][i32(3)] = f32(hit_12.instanceIndex_2 + u32(1));
+            gAccum_0[output_5 + u32(1)][i32(3)] = hit_14.t_6;
+            gAccum_0[output_5 + u32(2)][i32(3)] = f32(hit_14.instanceIndex_2 + u32(1));
         }
         if(NrdEnabled_0())
         {
@@ -16940,12 +17488,12 @@ fn ShadePath_7( base_24 : u32,  s_33 : ptr<function, WavefrontPath_0>,  hit_12 :
     {
         return;
     }
-    var _S675 : bool = (any((((bsdf_12.emission_0) > _S673))));
+    var _S735 : bool = (any((((bsdf_12.emission_0) > _S733))));
     var continuation_5 : f32;
-    if(_S675)
+    if(_S735)
     {
-        var _S676 : bool = !_S674;
-        if(_S676)
+        var _S736 : bool = !_S734;
+        if(_S736)
         {
             transmitted_5 = (*s_33).path_0.lightsSampled_0;
         }
@@ -16955,7 +17503,7 @@ fn ShadePath_7( base_24 : u32,  s_33 : ptr<function, WavefrontPath_0>,  hit_12 :
         }
         if(transmitted_5)
         {
-            continuation_5 = EvalMISRobust_0((*s_33).path_0.scatterPdf_0, EmissiveHitPdf_0(si_14.instanceIndex_0, si_14.primitiveIndex_0, (*s_33).path_0.origin_3, si_14.position_0));
+            continuation_5 = EvalMISRobust_0((*s_33).path_0.scatterPdf_0, EmissiveHitPdf_0(si_14.instanceIndex_0, si_14.primitiveIndex_0, (*s_33).path_0.origin_5, si_14.position_0));
         }
         else
         {
@@ -16965,7 +17513,7 @@ fn ShadePath_7( base_24 : u32,  s_33 : ptr<function, WavefrontPath_0>,  hit_12 :
         var clampValue_12 : f32 = gFrame_0.envParams_0.w / gFrame_0.envParams_0.z;
         if((clampValue_12 > 0.0f))
         {
-            transmitted_5 = _S676;
+            transmitted_5 = _S736;
         }
         else
         {
@@ -16981,7 +17529,7 @@ fn ShadePath_7( base_24 : u32,  s_33 : ptr<function, WavefrontPath_0>,  hit_12 :
         }
         (*s_33).path_0.radiance_1 = (*s_33).path_0.radiance_1 + throughput_39;
     }
-    if(_S674)
+    if(_S734)
     {
         transmitted_5 = NrdEnabled_0();
     }
@@ -16992,11 +17540,11 @@ fn ShadePath_7( base_24 : u32,  s_33 : ptr<function, WavefrontPath_0>,  hit_12 :
     if(transmitted_5)
     {
         var r_26 : u32 = NrdBase_0(base_24);
-        var _S677 : vec3<f32> = (*s_33).path_0.radiance_1;
-        gAccum_0[r_26].x = _S677.x;
-        gAccum_0[r_26].y = _S677.y;
-        gAccum_0[r_26].z = _S677.z;
-        if((any(((((*s_33).path_0.radiance_1) > _S673)))))
+        var _S737 : vec3<f32> = (*s_33).path_0.radiance_1;
+        gAccum_0[r_26].x = _S737.x;
+        gAccum_0[r_26].y = _S737.y;
+        gAccum_0[r_26].z = _S737.z;
+        if((any(((((*s_33).path_0.radiance_1) > _S733)))))
         {
             gAccum_0[r_26][i32(3)] = (bitcast<f32>((((bitcast<u32>((gAccum_0[r_26].w))) | (u32(268435456))))));
         }
@@ -17007,8 +17555,8 @@ fn ShadePath_7( base_24 : u32,  s_33 : ptr<function, WavefrontPath_0>,  hit_12 :
     }
     var rng_16 : RandomSequence_0 = RandomSequence_x24init_0(u32(0), u32(0));
     rng_16.seed_0 = (*s_33).randomSeed_0;
-    var _S678 : bool = !_S674;
-    if(_S678)
+    var _S738 : bool = !_S734;
+    if(_S738)
     {
         transmitted_5 = ScreenCacheMode_0(u32(2));
     }
@@ -17034,7 +17582,7 @@ fn ShadePath_7( base_24 : u32,  s_33 : ptr<function, WavefrontPath_0>,  hit_12 :
     }
     if(transmitted_5)
     {
-        transmitted_5 = !_S675;
+        transmitted_5 = !_S735;
     }
     else
     {
@@ -17059,12 +17607,12 @@ fn ShadePath_7( base_24 : u32,  s_33 : ptr<function, WavefrontPath_0>,  hit_12 :
         {
             throughput_39 = (vec3<f32>(0) - ms_10.inputs_1.basis_1.n_1);
         }
-        var _S679 : vec2<u32> = WorkPixel_0(base_24 - WorkBase_0(u32(0)));
-        var confidence_7 : f32 = ScreenCacheLookup_0(si_14.position_0, throughput_39, _S679, &(cached_10));
+        var _S739 : vec2<u32> = WorkPixel_0(base_24 - WorkBase_0(u32(0)));
+        var confidence_7 : f32 = ScreenCacheLookup_0(si_14.position_0, throughput_39, _S739, &(cached_10));
         if((confidence_7 > 0.0f))
         {
-            var _S680 : f32 = RandomSequence_Next_1(&(rng_16));
-            transmitted_5 = (_S680 < confidence_7);
+            var _S740 : f32 = RandomSequence_Next_1(&(rng_16));
+            transmitted_5 = (_S740 < confidence_7);
         }
         else
         {
@@ -17087,10 +17635,10 @@ fn ShadePath_7( base_24 : u32,  s_33 : ptr<function, WavefrontPath_0>,  hit_12 :
             return;
         }
     }
-    var _S681 : bool = SharcEnabled_0();
-    if(_S681)
+    var _S741 : bool = SharcEnabled_0();
+    if(_S741)
     {
-        transmitted_5 = _S678;
+        transmitted_5 = _S738;
     }
     else
     {
@@ -17104,7 +17652,7 @@ fn ShadePath_7( base_24 : u32,  s_33 : ptr<function, WavefrontPath_0>,  hit_12 :
     {
         transmitted_5 = false;
     }
-    var _S682 : u32;
+    var _S742 : u32;
     if(transmitted_5)
     {
         var key_9 : SharcKey_0;
@@ -17118,8 +17666,8 @@ fn ShadePath_7( base_24 : u32,  s_33 : ptr<function, WavefrontPath_0>,  hit_12 :
             throughput_39 = (vec3<f32>(0) - si_14.faceNormal_0);
         }
         var index_24 : u32 = base_24 - WorkBase_0(u32(0));
-        var _S683 : bool = SharcMakeKey_0(si_14.position_0, throughput_39, V_9, si_14.materialIndex_1, si_14.instanceIndex_0, &(key_9), &(voxelSize_5));
-        if(_S683)
+        var _S743 : bool = SharcMakeKey_0(si_14.position_0, throughput_39, V_9, si_14.materialIndex_1, si_14.instanceIndex_0, &(key_9), &(voxelSize_5));
+        if(_S743)
         {
             if(SharcUpdatePath_0(index_24, gWavefront_0.tileStart_0))
             {
@@ -17127,7 +17675,7 @@ fn ShadePath_7( base_24 : u32,  s_33 : ptr<function, WavefrontPath_0>,  hit_12 :
             }
             else
             {
-                if(((hit_12.t_6) > (voxelSize_5 * sqrt(3.0f))))
+                if(((hit_14.t_6) > (voxelSize_5 * sqrt(3.0f))))
                 {
                     transmitted_5 = (hitConeWidth_7 > voxelSize_5);
                 }
@@ -17145,20 +17693,20 @@ fn ShadePath_7( base_24 : u32,  s_33 : ptr<function, WavefrontPath_0>,  hit_12 :
                 }
                 if(transmitted_5)
                 {
-                    var _S684 : u32 = Field_0(base_24, u32(6));
-                    var state_5 : u32 = (bitcast<u32>((gAccum_0[_S684].w))) + u32(65536);
+                    var _S744 : u32 = Field_0(base_24, u32(6));
+                    var state_5 : u32 = (bitcast<u32>((gAccum_0[_S744].w))) + u32(65536);
                     var cached_11 : vec3<f32>;
-                    var found_13 : bool = SharcQuery_0(key_9, &(cached_11));
-                    if(found_13)
+                    var found_7 : bool = SharcQuery_0(key_9, &(cached_11));
+                    if(found_7)
                     {
-                        _S682 = u32(256);
+                        _S742 = u32(256);
                     }
                     else
                     {
-                        _S682 = u32(0);
+                        _S742 = u32(0);
                     }
-                    gAccum_0[_S684][i32(3)] = (bitcast<f32>(((state_5 | (_S682)))));
-                    if(found_13)
+                    gAccum_0[_S744][i32(3)] = (bitcast<f32>(((state_5 | (_S742)))));
+                    if(found_7)
                     {
                         (*s_33).path_0.radiance_1 = (*s_33).path_0.radiance_1 + (*s_33).path_0.throughput_7 * cached_11;
                         return;
@@ -17167,12 +17715,12 @@ fn ShadePath_7( base_24 : u32,  s_33 : ptr<function, WavefrontPath_0>,  hit_12 :
             }
         }
     }
-    var diffuseOnly_9 : bool = DiffuseOnlyVertex_0(_S674, ms_10);
-    var _S685 : bool = ((BSDF_MaxActiveAlpha_0(bsdf_12)) >= 0.0010000000474974513f);
-    (*s_33).path_0.lightsSampled_0 = _S685;
-    if(_S685)
+    var diffuseOnly_9 : bool = DiffuseOnlyVertex_0(_S734, ms_10);
+    var _S745 : bool = ((BSDF_MaxActiveAlpha_0(bsdf_12)) >= 0.0010000000474974513f);
+    (*s_33).path_0.lightsSampled_0 = _S745;
+    if(_S745)
     {
-        QueueDirectLighting_1(base_24, si_14, bsdf_12, vec2<f32>(hitConeWidth_7, (*s_33).path_0.coneSpread_0), (*s_33).path_0.throughput_7, _S674, diffuseOnly_9, (*s_33).normal_11, &(rng_16));
+        QueueDirectLighting_1(base_24, si_14, bsdf_12, vec2<f32>(hitConeWidth_7, (*s_33).path_0.coneSpread_0), (*s_33).path_0.throughput_7, _S734, diffuseOnly_9, (*s_33).normal_11, &(rng_16));
     }
     var u_41 : vec2<f32> = RandomSequence_Next2D_0(&(rng_16));
     var bs_7 : LobeSample_0;
@@ -17182,10 +17730,10 @@ fn ShadePath_7( base_24 : u32,  s_33 : ptr<function, WavefrontPath_0>,  hit_12 :
     }
     else
     {
-        var _S686 : f32 = RandomSequence_Next_1(&(rng_16));
-        bs_7 = BSDF_Sample_0(bsdf_12, vec3<f32>(u_41, _S686));
+        var _S746 : f32 = RandomSequence_Next_1(&(rng_16));
+        bs_7 = BSDF_Sample_0(bsdf_12, vec3<f32>(u_41, _S746));
     }
-    var _S687 : LobeSample_0 = bs_7;
+    var _S747 : LobeSample_0 = bs_7;
     var weight_15 : vec3<f32> = bs_7.weight_1.diffuse_1 + bs_7.weight_1.specular_1;
     if(!bs_7.valid_1)
     {
@@ -17201,13 +17749,13 @@ fn ShadePath_7( base_24 : u32,  s_33 : ptr<function, WavefrontPath_0>,  hit_12 :
     }
     else
     {
-        transmitted_5 = (all(((weight_15 <= _S673))));
+        transmitted_5 = (all(((weight_15 <= _S733))));
     }
     if(transmitted_5)
     {
         return;
     }
-    if(_S674)
+    if(_S734)
     {
         transmitted_5 = NrdEnabled_0();
     }
@@ -17218,33 +17766,33 @@ fn ShadePath_7( base_24 : u32,  s_33 : ptr<function, WavefrontPath_0>,  hit_12 :
     if(transmitted_5)
     {
         var r_27 : u32 = NrdBase_0(base_24);
-        var _S688 : LobeSample_0 = bs_7;
+        var _S748 : LobeSample_0 = bs_7;
         var oct_5 : vec2<f32> = NrdOctEncode_0(bs_7.wi_26);
         if(DiffuseOnlyFrame_0())
         {
-            transmitted_5 = ((dot(_S688.wi_26, si_14.faceNormal_0)) > 0.0f) != (si_14.frontFacing_0);
+            transmitted_5 = ((dot(_S748.wi_26, si_14.faceNormal_0)) > 0.0f) != (si_14.frontFacing_0);
         }
         else
         {
             transmitted_5 = false;
         }
-        var _S689 : u32 = NrdPackFraction_0(NrdDiffuseFraction_0(_S687.weight_1));
+        var _S749 : u32 = NrdPackFraction_0(NrdDiffuseFraction_0(_S747.weight_1));
         if(transmitted_5)
         {
-            _S682 = u32(134217728);
+            _S742 = u32(134217728);
         }
         else
         {
-            _S682 = u32(0);
+            _S742 = u32(0);
         }
-        gAccum_0[r_27][i32(3)] = (bitcast<f32>(((((_S689 | (_S682))) | ((((bitcast<u32>((gAccum_0[r_27].w))) & (u32(268435456)))))))));
+        gAccum_0[r_27][i32(3)] = (bitcast<f32>(((((_S749 | (_S742))) | ((((bitcast<u32>((gAccum_0[r_27].w))) & (u32(268435456)))))))));
         gAccum_0[r_27 + u32(3)][i32(3)] = oct_5.x;
         gAccum_0[r_27 + u32(4)][i32(3)] = oct_5.y;
     }
     var throughput_40 : vec3<f32> = (*s_33).path_0.throughput_7 * weight_15;
-    if(_S681)
+    if(_S741)
     {
-        transmitted_5 = _S674;
+        transmitted_5 = _S734;
     }
     else
     {
@@ -17260,8 +17808,8 @@ fn ShadePath_7( base_24 : u32,  s_33 : ptr<function, WavefrontPath_0>,  hit_12 :
     }
     if((continuation_5 < 1.0f))
     {
-        var _S690 : f32 = RandomSequence_Next_1(&(rng_16));
-        if((_S690 >= continuation_5))
+        var _S750 : f32 = RandomSequence_Next_1(&(rng_16));
+        if((_S750 >= continuation_5))
         {
             return;
         }
@@ -17275,7 +17823,7 @@ fn ShadePath_7( base_24 : u32,  s_33 : ptr<function, WavefrontPath_0>,  hit_12 :
     (*s_33).path_0.direction_1 = bs_7.wi_26;
     (*s_33).path_0.scatterPdf_0 = bs_7.pdf_7;
     var crossesSurface_7 : bool = ((dot(bs_7.wi_26, si_14.faceNormal_0)) > 0.0f) != (si_14.frontFacing_0);
-    (*s_33).path_0.origin_3 = SurfaceInteraction_ComputeRayOrigin_0(si_14, !crossesSurface_7);
+    (*s_33).path_0.origin_5 = SurfaceInteraction_ComputeRayOrigin_0(si_14, !crossesSurface_7);
     if(crossesSurface_7)
     {
         transmitted_5 = !ms_10.thinWalled_0;
@@ -17300,29 +17848,29 @@ fn ShadePath_7( base_24 : u32,  s_33 : ptr<function, WavefrontPath_0>,  hit_12 :
     (*s_33).path_0.coneSpread_0 = (*s_33).path_0.coneSpread_0 + ScatterConeSpread_0(bs_7.type_0, ms_10.roughness_4);
     (*s_33).randomSeed_0 = rng_16.seed_0;
     (*s_33).active_0 = u32(1);
-    if(_S681)
+    if(_S741)
     {
-        var _S691 : u32 = Field_0(base_24, u32(6));
-        gAccum_0[_S691][i32(3)] = (bitcast<f32>(((bitcast<u32>((gAccum_0[_S691].w))) + u32(1))));
+        var _S751 : u32 = Field_0(base_24, u32(6));
+        gAccum_0[_S751][i32(3)] = (bitcast<f32>(((bitcast<u32>((gAccum_0[_S751].w))) + u32(1))));
     }
     return;
 }
 
-fn ShadePath_8( base_25 : u32,  s_34 : ptr<function, WavefrontPath_0>,  hit_13 : HitRecord_0,  bounce_10 : u32)
+fn ShadePath_8( base_25 : u32,  s_34 : ptr<function, WavefrontPath_0>,  hit_15 : HitRecord_0,  bounce_10 : u32)
 {
-    var _S692 : vec3<f32> = vec3<f32>(0.0f);
-    if((any(((((*s_34).path_0.absorption_0) > _S692)))))
+    var _S752 : vec3<f32> = vec3<f32>(0.0f);
+    if((any(((((*s_34).path_0.absorption_0) > _S752)))))
     {
-        (*s_34).path_0.throughput_7 = (*s_34).path_0.throughput_7 * exp((*s_34).path_0.absorption_0 * vec3<f32>(- hit_13.t_6));
+        (*s_34).path_0.throughput_7 = (*s_34).path_0.throughput_7 * exp((*s_34).path_0.absorption_0 * vec3<f32>(- hit_15.t_6));
     }
-    var hitConeWidth_8 : f32 = (*s_34).path_0.coneWidth_2 + (*s_34).path_0.coneSpread_0 * hit_13.t_6;
-    var si_15 : SurfaceInteraction_0 = GetSurfaceInteraction_0((*s_34).path_0.direction_1, hit_13, hitConeWidth_8);
+    var hitConeWidth_8 : f32 = (*s_34).path_0.coneWidth_2 + (*s_34).path_0.coneSpread_0 * hit_15.t_6;
+    var si_15 : SurfaceInteraction_0 = GetSurfaceInteraction_0((*s_34).path_0.direction_1, hit_15, hitConeWidth_8);
     var V_10 : vec3<f32> = (vec3<f32>(0) - (*s_34).path_0.direction_1);
     var ms_11 : MaterialSample_0 = EvalMaterial_0(si_15, V_10);
     var bsdf_13 : BSDF_0 = BSDF_x24init_0(ms_11.inputs_1, V_10, (*s_34).path_0.throughput_7, vec3<f32>(620.0f, 540.0f, 450.0f), 1.0f);
-    var _S693 : bool = bounce_10 == u32(0);
+    var _S753 : bool = bounce_10 == u32(0);
     var throughput_41 : vec3<f32>;
-    if(_S693)
+    if(_S753)
     {
         (*s_34).albedo_2 = ms_11.albedo_3;
         if(si_15.frontFacing_0)
@@ -17338,8 +17886,8 @@ fn ShadePath_8( base_25 : u32,  s_34 : ptr<function, WavefrontPath_0>,  hit_13 :
         {
             var pixel_8 : vec2<u32> = WorkPixel_0(base_25 - WorkBase_0(u32(0)));
             var output_6 : u32 = (pixel_8.y * gFrame_0.frame_0.x + pixel_8.x) * u32(3);
-            gAccum_0[output_6 + u32(1)][i32(3)] = hit_13.t_6;
-            gAccum_0[output_6 + u32(2)][i32(3)] = f32(hit_13.instanceIndex_2 + u32(1));
+            gAccum_0[output_6 + u32(1)][i32(3)] = hit_15.t_6;
+            gAccum_0[output_6 + u32(2)][i32(3)] = f32(hit_15.instanceIndex_2 + u32(1));
         }
         if(NrdEnabled_0())
         {
@@ -17371,12 +17919,12 @@ fn ShadePath_8( base_25 : u32,  s_34 : ptr<function, WavefrontPath_0>,  hit_13 :
     {
         return;
     }
-    var _S694 : bool = (any((((bsdf_13.emission_0) > _S692))));
+    var _S754 : bool = (any((((bsdf_13.emission_0) > _S752))));
     var continuation_6 : f32;
-    if(_S694)
+    if(_S754)
     {
-        var _S695 : bool = !_S693;
-        if(_S695)
+        var _S755 : bool = !_S753;
+        if(_S755)
         {
             transmitted_6 = (*s_34).path_0.lightsSampled_0;
         }
@@ -17386,7 +17934,7 @@ fn ShadePath_8( base_25 : u32,  s_34 : ptr<function, WavefrontPath_0>,  hit_13 :
         }
         if(transmitted_6)
         {
-            continuation_6 = EvalMISRobust_0((*s_34).path_0.scatterPdf_0, EmissiveHitPdf_0(si_15.instanceIndex_0, si_15.primitiveIndex_0, (*s_34).path_0.origin_3, si_15.position_0));
+            continuation_6 = EvalMISRobust_0((*s_34).path_0.scatterPdf_0, EmissiveHitPdf_0(si_15.instanceIndex_0, si_15.primitiveIndex_0, (*s_34).path_0.origin_5, si_15.position_0));
         }
         else
         {
@@ -17396,7 +17944,7 @@ fn ShadePath_8( base_25 : u32,  s_34 : ptr<function, WavefrontPath_0>,  hit_13 :
         var clampValue_14 : f32 = gFrame_0.envParams_0.w / gFrame_0.envParams_0.z;
         if((clampValue_14 > 0.0f))
         {
-            transmitted_6 = _S695;
+            transmitted_6 = _S755;
         }
         else
         {
@@ -17412,7 +17960,7 @@ fn ShadePath_8( base_25 : u32,  s_34 : ptr<function, WavefrontPath_0>,  hit_13 :
         }
         (*s_34).path_0.radiance_1 = (*s_34).path_0.radiance_1 + throughput_41;
     }
-    if(_S693)
+    if(_S753)
     {
         transmitted_6 = NrdEnabled_0();
     }
@@ -17423,11 +17971,11 @@ fn ShadePath_8( base_25 : u32,  s_34 : ptr<function, WavefrontPath_0>,  hit_13 :
     if(transmitted_6)
     {
         var r_29 : u32 = NrdBase_0(base_25);
-        var _S696 : vec3<f32> = (*s_34).path_0.radiance_1;
-        gAccum_0[r_29].x = _S696.x;
-        gAccum_0[r_29].y = _S696.y;
-        gAccum_0[r_29].z = _S696.z;
-        if((any(((((*s_34).path_0.radiance_1) > _S692)))))
+        var _S756 : vec3<f32> = (*s_34).path_0.radiance_1;
+        gAccum_0[r_29].x = _S756.x;
+        gAccum_0[r_29].y = _S756.y;
+        gAccum_0[r_29].z = _S756.z;
+        if((any(((((*s_34).path_0.radiance_1) > _S752)))))
         {
             gAccum_0[r_29][i32(3)] = (bitcast<f32>((((bitcast<u32>((gAccum_0[r_29].w))) | (u32(268435456))))));
         }
@@ -17438,8 +17986,8 @@ fn ShadePath_8( base_25 : u32,  s_34 : ptr<function, WavefrontPath_0>,  hit_13 :
     }
     var rng_17 : RandomSequence_0 = RandomSequence_x24init_0(u32(0), u32(0));
     rng_17.seed_0 = (*s_34).randomSeed_0;
-    var _S697 : bool = !_S693;
-    if(_S697)
+    var _S757 : bool = !_S753;
+    if(_S757)
     {
         transmitted_6 = ScreenCacheMode_0(u32(2));
     }
@@ -17465,7 +18013,7 @@ fn ShadePath_8( base_25 : u32,  s_34 : ptr<function, WavefrontPath_0>,  hit_13 :
     }
     if(transmitted_6)
     {
-        transmitted_6 = !_S694;
+        transmitted_6 = !_S754;
     }
     else
     {
@@ -17490,12 +18038,12 @@ fn ShadePath_8( base_25 : u32,  s_34 : ptr<function, WavefrontPath_0>,  hit_13 :
         {
             throughput_41 = (vec3<f32>(0) - ms_11.inputs_1.basis_1.n_1);
         }
-        var _S698 : vec2<u32> = WorkPixel_0(base_25 - WorkBase_0(u32(0)));
-        var confidence_8 : f32 = ScreenCacheLookup_0(si_15.position_0, throughput_41, _S698, &(cached_12));
+        var _S758 : vec2<u32> = WorkPixel_0(base_25 - WorkBase_0(u32(0)));
+        var confidence_8 : f32 = ScreenCacheLookup_0(si_15.position_0, throughput_41, _S758, &(cached_12));
         if((confidence_8 > 0.0f))
         {
-            var _S699 : f32 = RandomSequence_Next_1(&(rng_17));
-            transmitted_6 = (_S699 < confidence_8);
+            var _S759 : f32 = RandomSequence_Next_1(&(rng_17));
+            transmitted_6 = (_S759 < confidence_8);
         }
         else
         {
@@ -17518,10 +18066,10 @@ fn ShadePath_8( base_25 : u32,  s_34 : ptr<function, WavefrontPath_0>,  hit_13 :
             return;
         }
     }
-    var _S700 : bool = SharcEnabled_0();
-    if(_S700)
+    var _S760 : bool = SharcEnabled_0();
+    if(_S760)
     {
-        transmitted_6 = _S697;
+        transmitted_6 = _S757;
     }
     else
     {
@@ -17535,7 +18083,7 @@ fn ShadePath_8( base_25 : u32,  s_34 : ptr<function, WavefrontPath_0>,  hit_13 :
     {
         transmitted_6 = false;
     }
-    var _S701 : u32;
+    var _S761 : u32;
     if(transmitted_6)
     {
         var key_10 : SharcKey_0;
@@ -17549,8 +18097,8 @@ fn ShadePath_8( base_25 : u32,  s_34 : ptr<function, WavefrontPath_0>,  hit_13 :
             throughput_41 = (vec3<f32>(0) - si_15.faceNormal_0);
         }
         var index_25 : u32 = base_25 - WorkBase_0(u32(0));
-        var _S702 : bool = SharcMakeKey_0(si_15.position_0, throughput_41, V_10, si_15.materialIndex_1, si_15.instanceIndex_0, &(key_10), &(voxelSize_6));
-        if(_S702)
+        var _S762 : bool = SharcMakeKey_0(si_15.position_0, throughput_41, V_10, si_15.materialIndex_1, si_15.instanceIndex_0, &(key_10), &(voxelSize_6));
+        if(_S762)
         {
             if(SharcUpdatePath_0(index_25, gWavefront_0.tileStart_0))
             {
@@ -17558,7 +18106,7 @@ fn ShadePath_8( base_25 : u32,  s_34 : ptr<function, WavefrontPath_0>,  hit_13 :
             }
             else
             {
-                if(((hit_13.t_6) > (voxelSize_6 * sqrt(3.0f))))
+                if(((hit_15.t_6) > (voxelSize_6 * sqrt(3.0f))))
                 {
                     transmitted_6 = (hitConeWidth_8 > voxelSize_6);
                 }
@@ -17576,20 +18124,20 @@ fn ShadePath_8( base_25 : u32,  s_34 : ptr<function, WavefrontPath_0>,  hit_13 :
                 }
                 if(transmitted_6)
                 {
-                    var _S703 : u32 = Field_0(base_25, u32(6));
-                    var state_6 : u32 = (bitcast<u32>((gAccum_0[_S703].w))) + u32(65536);
+                    var _S763 : u32 = Field_0(base_25, u32(6));
+                    var state_6 : u32 = (bitcast<u32>((gAccum_0[_S763].w))) + u32(65536);
                     var cached_13 : vec3<f32>;
-                    var found_14 : bool = SharcQuery_0(key_10, &(cached_13));
-                    if(found_14)
+                    var found_8 : bool = SharcQuery_0(key_10, &(cached_13));
+                    if(found_8)
                     {
-                        _S701 = u32(256);
+                        _S761 = u32(256);
                     }
                     else
                     {
-                        _S701 = u32(0);
+                        _S761 = u32(0);
                     }
-                    gAccum_0[_S703][i32(3)] = (bitcast<f32>(((state_6 | (_S701)))));
-                    if(found_14)
+                    gAccum_0[_S763][i32(3)] = (bitcast<f32>(((state_6 | (_S761)))));
+                    if(found_8)
                     {
                         (*s_34).path_0.radiance_1 = (*s_34).path_0.radiance_1 + (*s_34).path_0.throughput_7 * cached_13;
                         return;
@@ -17598,12 +18146,12 @@ fn ShadePath_8( base_25 : u32,  s_34 : ptr<function, WavefrontPath_0>,  hit_13 :
             }
         }
     }
-    var diffuseOnly_10 : bool = DiffuseOnlyVertex_0(_S693, ms_11);
-    var _S704 : bool = ((BSDF_MaxActiveAlpha_0(bsdf_13)) >= 0.0010000000474974513f);
-    (*s_34).path_0.lightsSampled_0 = _S704;
-    if(_S704)
+    var diffuseOnly_10 : bool = DiffuseOnlyVertex_0(_S753, ms_11);
+    var _S764 : bool = ((BSDF_MaxActiveAlpha_0(bsdf_13)) >= 0.0010000000474974513f);
+    (*s_34).path_0.lightsSampled_0 = _S764;
+    if(_S764)
     {
-        QueueDirectLighting_0(base_25, si_15, bsdf_13, vec2<f32>(hitConeWidth_8, (*s_34).path_0.coneSpread_0), (*s_34).path_0.throughput_7, _S693, diffuseOnly_10, (*s_34).normal_11, &(rng_17));
+        QueueDirectLighting_0(base_25, si_15, bsdf_13, vec2<f32>(hitConeWidth_8, (*s_34).path_0.coneSpread_0), (*s_34).path_0.throughput_7, _S753, diffuseOnly_10, (*s_34).normal_11, &(rng_17));
     }
     var u_42 : vec2<f32> = RandomSequence_Next2D_0(&(rng_17));
     var bs_8 : LobeSample_0;
@@ -17613,10 +18161,10 @@ fn ShadePath_8( base_25 : u32,  s_34 : ptr<function, WavefrontPath_0>,  hit_13 :
     }
     else
     {
-        var _S705 : f32 = RandomSequence_Next_1(&(rng_17));
-        bs_8 = BSDF_Sample_0(bsdf_13, vec3<f32>(u_42, _S705));
+        var _S765 : f32 = RandomSequence_Next_1(&(rng_17));
+        bs_8 = BSDF_Sample_0(bsdf_13, vec3<f32>(u_42, _S765));
     }
-    var _S706 : LobeSample_0 = bs_8;
+    var _S766 : LobeSample_0 = bs_8;
     var weight_16 : vec3<f32> = bs_8.weight_1.diffuse_1 + bs_8.weight_1.specular_1;
     if(!bs_8.valid_1)
     {
@@ -17632,13 +18180,13 @@ fn ShadePath_8( base_25 : u32,  s_34 : ptr<function, WavefrontPath_0>,  hit_13 :
     }
     else
     {
-        transmitted_6 = (all(((weight_16 <= _S692))));
+        transmitted_6 = (all(((weight_16 <= _S752))));
     }
     if(transmitted_6)
     {
         return;
     }
-    if(_S693)
+    if(_S753)
     {
         transmitted_6 = NrdEnabled_0();
     }
@@ -17649,33 +18197,33 @@ fn ShadePath_8( base_25 : u32,  s_34 : ptr<function, WavefrontPath_0>,  hit_13 :
     if(transmitted_6)
     {
         var r_30 : u32 = NrdBase_0(base_25);
-        var _S707 : LobeSample_0 = bs_8;
+        var _S767 : LobeSample_0 = bs_8;
         var oct_6 : vec2<f32> = NrdOctEncode_0(bs_8.wi_26);
         if(DiffuseOnlyFrame_0())
         {
-            transmitted_6 = ((dot(_S707.wi_26, si_15.faceNormal_0)) > 0.0f) != (si_15.frontFacing_0);
+            transmitted_6 = ((dot(_S767.wi_26, si_15.faceNormal_0)) > 0.0f) != (si_15.frontFacing_0);
         }
         else
         {
             transmitted_6 = false;
         }
-        var _S708 : u32 = NrdPackFraction_0(NrdDiffuseFraction_0(_S706.weight_1));
+        var _S768 : u32 = NrdPackFraction_0(NrdDiffuseFraction_0(_S766.weight_1));
         if(transmitted_6)
         {
-            _S701 = u32(134217728);
+            _S761 = u32(134217728);
         }
         else
         {
-            _S701 = u32(0);
+            _S761 = u32(0);
         }
-        gAccum_0[r_30][i32(3)] = (bitcast<f32>(((((_S708 | (_S701))) | ((((bitcast<u32>((gAccum_0[r_30].w))) & (u32(268435456)))))))));
+        gAccum_0[r_30][i32(3)] = (bitcast<f32>(((((_S768 | (_S761))) | ((((bitcast<u32>((gAccum_0[r_30].w))) & (u32(268435456)))))))));
         gAccum_0[r_30 + u32(3)][i32(3)] = oct_6.x;
         gAccum_0[r_30 + u32(4)][i32(3)] = oct_6.y;
     }
     var throughput_42 : vec3<f32> = (*s_34).path_0.throughput_7 * weight_16;
-    if(_S700)
+    if(_S760)
     {
-        transmitted_6 = _S693;
+        transmitted_6 = _S753;
     }
     else
     {
@@ -17691,8 +18239,8 @@ fn ShadePath_8( base_25 : u32,  s_34 : ptr<function, WavefrontPath_0>,  hit_13 :
     }
     if((continuation_6 < 1.0f))
     {
-        var _S709 : f32 = RandomSequence_Next_1(&(rng_17));
-        if((_S709 >= continuation_6))
+        var _S769 : f32 = RandomSequence_Next_1(&(rng_17));
+        if((_S769 >= continuation_6))
         {
             return;
         }
@@ -17706,7 +18254,7 @@ fn ShadePath_8( base_25 : u32,  s_34 : ptr<function, WavefrontPath_0>,  hit_13 :
     (*s_34).path_0.direction_1 = bs_8.wi_26;
     (*s_34).path_0.scatterPdf_0 = bs_8.pdf_7;
     var crossesSurface_8 : bool = ((dot(bs_8.wi_26, si_15.faceNormal_0)) > 0.0f) != (si_15.frontFacing_0);
-    (*s_34).path_0.origin_3 = SurfaceInteraction_ComputeRayOrigin_0(si_15, !crossesSurface_8);
+    (*s_34).path_0.origin_5 = SurfaceInteraction_ComputeRayOrigin_0(si_15, !crossesSurface_8);
     if(crossesSurface_8)
     {
         transmitted_6 = !ms_11.thinWalled_0;
@@ -17731,136 +18279,479 @@ fn ShadePath_8( base_25 : u32,  s_34 : ptr<function, WavefrontPath_0>,  hit_13 :
     (*s_34).path_0.coneSpread_0 = (*s_34).path_0.coneSpread_0 + ScatterConeSpread_0(bs_8.type_0, ms_11.roughness_4);
     (*s_34).randomSeed_0 = rng_17.seed_0;
     (*s_34).active_0 = u32(1);
-    if(_S700)
+    if(_S760)
     {
-        var _S710 : u32 = Field_0(base_25, u32(6));
-        gAccum_0[_S710][i32(3)] = (bitcast<f32>(((bitcast<u32>((gAccum_0[_S710].w))) + u32(1))));
+        var _S770 : u32 = Field_0(base_25, u32(6));
+        gAccum_0[_S770][i32(3)] = (bitcast<f32>(((bitcast<u32>((gAccum_0[_S770].w))) + u32(1))));
     }
     return;
 }
 
-fn TraceScene_2( ray_4 : Ray_0,  anyHit_2 : bool,  hit_14 : ptr<function, HitRecord_0>) -> bool
+fn TraceScene_2( ray_4 : Ray_0,  anyHit_2 : bool,  hit_16 : ptr<function, HitRecord_0>) -> bool
 {
-    var found_15 : bool;
-    (*hit_14).t_6 = ray_4.tMax_0;
-    (*hit_14).barycentrics_0 = vec2<f32>(0.0f);
-    (*hit_14).instanceIndex_2 = u32(4294967295);
-    (*hit_14).primitiveIndex_1 = u32(4294967295);
+    (*hit_16).t_6 = ray_4.tMax_0;
+    (*hit_16).barycentrics_0 = vec2<f32>(0.0f);
+    (*hit_16).instanceIndex_2 = u32(4294967295);
+    (*hit_16).primitiveIndex_1 = u32(4294967295);
     if((gFrame_0.counts_0.x) == u32(0))
     {
         return false;
     }
-    var _S711 : u32 = gFrame_0.counts_0.z;
-    var _S712 : vec3<f32> = SafeRcp_0(ray_4.direction_0);
-    var stack_6 : array<u32, i32(32)>;
-    var nodeRef_4 : u32 = u32(0);
-    var found_16 : bool = false;
-    var stackPtr_16 : u32 = u32(0);
+    var _S771 : u32 = gFrame_0.counts_0.z;
+    var worldRD_2 : vec3<f32> = SafeRcp_0(ray_4.direction_0);
+    var _S772 : vec2<u32> = vec2<u32>(u32(0));
+    var nodeGroup_2 : vec2<u32> = _S772;
+    var triGroup_2 : vec2<u32> = _S772;
+    var inBlas_6 : bool = false;
+    var instanceIndex_11 : u32 = u32(0);
+    var blasTriOffset_7 : u32 = u32(0);
+    var merged_6 : bool = false;
+    var o_62 : vec3<f32> = ray_4.origin_0;
+    var d_18 : vec3<f32> = ray_4.direction_0;
+    var octinv_5 : u32 = u32(0);
+    var blasNodeOffset_5 : u32 = u32(0);
+    var rD_5 : vec3<f32> = worldRD_2;
+    var nodeRef_6 : u32 = u32(0);
+    var found_9 : bool = false;
+    var stackPtr_6 : u32 = u32(0);
     loop
     {
-        var i_11 : u32;
-        if(((nodeRef_4 & (u32(2147483648)))) != u32(0))
+        var pop_2 : bool;
+        var inBlas_7 : bool;
+        var merged_7 : bool;
+        var instanceIndex_12 : u32;
+        var blasTriOffset_8 : u32;
+        var octinv_6 : u32;
+        var blasNodeOffset_6 : u32;
+        var nodeRef_7 : u32;
+        var stackPtr_7 : u32;
+        var o_63 : vec3<f32>;
+        var d_19 : vec3<f32>;
+        var rD_6 : vec3<f32>;
+        var dist1_4 : f32;
+        var dist2_4 : f32;
+        if(inBlas_6)
         {
-            var _S713 : u32 = (((nodeRef_4 >> (u32(24)))) & (u32(127)));
-            var _S714 : u32 = (nodeRef_4 & (u32(16777215)));
-            found_15 = found_16;
-            i_11 = u32(0);
+            if(((nodeGroup_2.y) > u32(16777215)))
+            {
+                var hits_2 : u32 = nodeGroup_2.y;
+                var childBit_2 : u32 = firstbithigh_0(hits_2);
+                nodeGroup_2[i32(1)] = ((nodeGroup_2[i32(1)]) & ((~((u32(1) << (childBit_2))))));
+                if(((nodeGroup_2.y) > u32(16777215)))
+                {
+                    pop_2 = (stackPtr_6 < u32(32));
+                }
+                else
+                {
+                    pop_2 = false;
+                }
+                if(pop_2)
+                {
+                    var _S773 : u32 = stackPtr_6 + u32(1);
+                    gTraversalStack_0[stackPtr_6] = nodeGroup_2;
+                    octinv_6 = _S773;
+                }
+                else
+                {
+                    octinv_6 = stackPtr_6;
+                }
+                var node_4 : u32 = blasNodeOffset_5 + (nodeGroup_2.x + countOneBits((hits_2 & ((~((u32(4294967295) << ((((childBit_2 - u32(24)) ^ (((octinv_5 & (u32(255))))))))))))))) * u32(5);
+                gTraversalCost_0 = gTraversalCost_0 + u32(1);
+                var n0_2 : vec4<f32> = gNodes_0[node_4];
+                var n1_2 : vec4<f32> = gNodes_0[node_4 + u32(1)];
+                var n2_2 : vec4<f32> = gNodes_0[node_4 + u32(2)];
+                var n3_2 : vec4<f32> = gNodes_0[node_4 + u32(3)];
+                var n4_2 : vec4<f32> = gNodes_0[node_4 + u32(4)];
+                var e4_2 : u32 = (bitcast<u32>((n0_2.w)));
+                var scale_9 : vec3<f32> = vec3<f32>((bitcast<f32>(((((e4_2 & (u32(255)))) << (u32(23)))))), (bitcast<f32>(((((((e4_2 >> (u32(8)))) & (u32(255)))) << (u32(23)))))), (bitcast<f32>(((((((e4_2 >> (u32(16)))) & (u32(255)))) << (u32(23))))))) * rD_5;
+                var origin_13 : vec3<f32> = (n0_2.xyz - o_62) * rD_5;
+                var negative_2 : vec3<bool> = (rD_5 < vec3<f32>(0.0f));
+                var _S774 : bool = negative_2.x;
+                if(_S774)
+                {
+                    dist1_4 = n3_2.z;
+                }
+                else
+                {
+                    dist1_4 = n2_2.x;
+                }
+                var _S775 : u32 = (bitcast<u32>((dist1_4)));
+                var _S776 : bool = negative_2.y;
+                if(_S776)
+                {
+                    dist2_4 = n4_2.x;
+                }
+                else
+                {
+                    dist2_4 = n2_2.z;
+                }
+                var _S777 : u32 = (bitcast<u32>((dist2_4)));
+                var _S778 : bool = negative_2.z;
+                var _S779 : f32;
+                if(_S778)
+                {
+                    _S779 = n4_2.z;
+                }
+                else
+                {
+                    _S779 = n3_2.x;
+                }
+                var lo0_2 : vec3<u32> = vec3<u32>(_S775, _S777, (bitcast<u32>((_S779))));
+                var _S780 : f32;
+                if(_S774)
+                {
+                    _S780 = n2_2.x;
+                }
+                else
+                {
+                    _S780 = n3_2.z;
+                }
+                var _S781 : u32 = (bitcast<u32>((_S780)));
+                var _S782 : f32;
+                if(_S776)
+                {
+                    _S782 = n2_2.z;
+                }
+                else
+                {
+                    _S782 = n4_2.x;
+                }
+                var _S783 : u32 = (bitcast<u32>((_S782)));
+                var _S784 : f32;
+                if(_S778)
+                {
+                    _S784 = n3_2.x;
+                }
+                else
+                {
+                    _S784 = n4_2.z;
+                }
+                var hi0_2 : vec3<u32> = vec3<u32>(_S781, _S783, (bitcast<u32>((_S784))));
+                var _S785 : f32;
+                if(_S774)
+                {
+                    _S785 = n3_2.w;
+                }
+                else
+                {
+                    _S785 = n2_2.y;
+                }
+                var _S786 : u32 = (bitcast<u32>((_S785)));
+                var _S787 : f32;
+                if(_S776)
+                {
+                    _S787 = n4_2.y;
+                }
+                else
+                {
+                    _S787 = n2_2.w;
+                }
+                var _S788 : u32 = (bitcast<u32>((_S787)));
+                var _S789 : f32;
+                if(_S778)
+                {
+                    _S789 = n4_2.w;
+                }
+                else
+                {
+                    _S789 = n3_2.y;
+                }
+                var lo1_2 : vec3<u32> = vec3<u32>(_S786, _S788, (bitcast<u32>((_S789))));
+                var _S790 : f32;
+                if(_S774)
+                {
+                    _S790 = n2_2.y;
+                }
+                else
+                {
+                    _S790 = n3_2.w;
+                }
+                var _S791 : u32 = (bitcast<u32>((_S790)));
+                var _S792 : f32;
+                if(_S776)
+                {
+                    _S792 = n2_2.w;
+                }
+                else
+                {
+                    _S792 = n4_2.y;
+                }
+                var _S793 : u32 = (bitcast<u32>((_S792)));
+                var _S794 : f32;
+                if(_S778)
+                {
+                    _S794 = n3_2.y;
+                }
+                else
+                {
+                    _S794 = n4_2.w;
+                }
+                var hitmask_3 : u32 = ((CwbvhChildHits_0((bitcast<u32>((n1_2.z))), lo0_2, hi0_2, scale_9, origin_13, ray_4.tMin_0, (*hit_16).t_6, octinv_5)) | ((CwbvhChildHits_0((bitcast<u32>((n1_2.w))), lo1_2, vec3<u32>(_S791, _S793, (bitcast<u32>((_S794)))), scale_9, origin_13, ray_4.tMin_0, (*hit_16).t_6, octinv_5))));
+                nodeGroup_2 = vec2<u32>((bitcast<u32>((n1_2.x))), (((hitmask_3 & (u32(4278190080)))) | (((e4_2 >> (u32(24)))))));
+                triGroup_2 = vec2<u32>((bitcast<u32>((n1_2.y))), (hitmask_3 & (u32(16777215))));
+            }
+            else
+            {
+                triGroup_2 = nodeGroup_2;
+                nodeGroup_2 = _S772;
+                octinv_6 = stackPtr_6;
+            }
+            pop_2 = found_9;
             loop
             {
-                if((i_11 < _S713))
+                if((triGroup_2.y) != u32(0))
                 {
                 }
                 else
                 {
                     break;
                 }
-                var instanceIndex_5 : u32 = gIndices_0[_S711 + _S714 + i_11];
-                var _S715 : bool = TraverseBLAS_0(instanceIndex_5, instanceIndex_5, InverseTransformPoint_0(instanceIndex_5, ray_4.origin_0), InverseTransformVector_0(instanceIndex_5, ray_4.direction_0), ray_4.tMin_0, anyHit_2, &((*hit_14)));
-                if(_S715)
+                var triangleBit_2 : u32 = firstbithigh_0(triGroup_2.y);
+                triGroup_2[i32(1)] = ((triGroup_2[i32(1)]) & ((~((u32(1) << (triangleBit_2))))));
+                var _S795 : bool = IntersectSlot_0((((triGroup_2.x) >> (u32(2)))) + triangleBit_2, instanceIndex_11, blasTriOffset_7, merged_6, false, o_62, d_18, ray_4.tMin_0, &((*hit_16)));
+                if(_S795)
                 {
                     if(anyHit_2)
                     {
                         return true;
                     }
-                    found_15 = true;
+                    pop_2 = true;
                 }
-                i_11 = i_11 + u32(1);
             }
-            if(stackPtr_16 == u32(0))
+            if((triGroup_2.y) == u32(0))
             {
-                break;
-            }
-            var stackPtr_17 : u32 = stackPtr_16 - u32(1);
-            nodeRef_4 = stack_6[stackPtr_17];
-            found_16 = found_15;
-            stackPtr_16 = stackPtr_17;
-            continue;
-        }
-        gTraversalCost_0 = gTraversalCost_0 + u32(1);
-        var node_4 : BVHNode_std430_0 = gNodes_0[gFrame_0.envInfo_0.z + nodeRef_4];
-        var dist1_8 : f32 = IntersectBox_0(node_4.lmin_0, node_4.lmax_0, ray_4.origin_0, _S712, ray_4.tMin_0, (*hit_14).t_6);
-        var dist2_8 : f32 = IntersectBox_0(node_4.rmin_0, node_4.rmax_0, ray_4.origin_0, _S712, ray_4.tMin_0, (*hit_14).t_6);
-        var far_4 : u32;
-        var dist1_9 : f32;
-        var dist2_9 : f32;
-        if((dist1_8 > dist2_8))
-        {
-            dist1_9 = dist2_8;
-            i_11 = node_4.right_0;
-            dist2_9 = dist1_8;
-            far_4 = node_4.left_0;
-        }
-        else
-        {
-            dist1_9 = dist1_8;
-            i_11 = node_4.left_0;
-            dist2_9 = dist2_8;
-            far_4 = node_4.right_0;
-        }
-        if(dist1_9 == 1.00000001504746622e+30f)
-        {
-            if(stackPtr_16 == u32(0))
-            {
-                found_15 = found_16;
-                break;
-            }
-            var stackPtr_18 : u32 = stackPtr_16 - u32(1);
-            nodeRef_4 = stack_6[stackPtr_18];
-            stackPtr_16 = stackPtr_18;
-        }
-        else
-        {
-            if(dist2_9 != 1.00000001504746622e+30f)
-            {
-                found_15 = (stackPtr_16 < u32(32));
+                inBlas_7 = ((nodeGroup_2.y) <= u32(16777215));
             }
             else
             {
-                found_15 = false;
+                inBlas_7 = false;
             }
-            var stackPtr_19 : u32;
-            if(found_15)
+            var _S796 : u32 = octinv_6;
+            var _S797 : bool = pop_2;
+            pop_2 = inBlas_7;
+            inBlas_7 = inBlas_6;
+            instanceIndex_12 = instanceIndex_11;
+            blasTriOffset_8 = blasTriOffset_7;
+            merged_7 = merged_6;
+            o_63 = o_62;
+            d_19 = d_18;
+            octinv_6 = octinv_5;
+            blasNodeOffset_6 = blasNodeOffset_5;
+            rD_6 = rD_5;
+            nodeRef_7 = nodeRef_6;
+            found_9 = _S797;
+            stackPtr_7 = _S796;
+        }
+        else
+        {
+            if(((nodeRef_6 & (u32(2147483648)))) != u32(0))
             {
-                var _S716 : u32 = stackPtr_16 + u32(1);
-                stack_6[stackPtr_16] = far_4;
-                stackPtr_19 = _S716;
+                var count_3 : u32 = (((nodeRef_6 >> (u32(24)))) & (u32(127)));
+                var first_2 : u32 = (nodeRef_6 & (u32(16777215)));
+                if(count_3 == u32(0))
+                {
+                    pop_2 = true;
+                    inBlas_7 = inBlas_6;
+                    instanceIndex_12 = instanceIndex_11;
+                    blasTriOffset_8 = blasTriOffset_7;
+                    merged_7 = merged_6;
+                    o_63 = o_62;
+                    d_19 = d_18;
+                    octinv_6 = octinv_5;
+                    blasNodeOffset_6 = blasNodeOffset_5;
+                    rD_6 = rD_5;
+                    nodeRef_7 = stackPtr_6;
+                }
+                else
+                {
+                    if((count_3 > u32(1)))
+                    {
+                        pop_2 = (stackPtr_6 < u32(32));
+                    }
+                    else
+                    {
+                        pop_2 = false;
+                    }
+                    if(pop_2)
+                    {
+                        var _S798 : u32 = stackPtr_6 + u32(1);
+                        gTraversalStack_0[stackPtr_6] = vec2<u32>((((u32(2147483648) | ((((count_3 - u32(1)) << (u32(24))))))) | ((first_2 + u32(1)))), u32(0));
+                        octinv_6 = _S798;
+                    }
+                    else
+                    {
+                        octinv_6 = stackPtr_6;
+                    }
+                    var instanceIndex_13 : u32 = gIndices_0[_S771 + first_2];
+                    var _S799 : u32 = gInstances_0[instanceIndex_13].blasNodeOffset_0;
+                    var _S800 : u32 = gInstances_0[instanceIndex_13].blasTriOffset_0;
+                    var _S801 : vec3<f32> = InverseTransformPoint_0(instanceIndex_13, ray_4.origin_0);
+                    var _S802 : vec3<f32> = InverseTransformVector_0(instanceIndex_13, ray_4.direction_0);
+                    var _S803 : vec3<f32> = SafeRcp_0(_S802);
+                    var _S804 : bool = (((gInstances_0[instanceIndex_13].flags_0) & (u32(4)))) != u32(0);
+                    if(((_S802.x) < 0.0f))
+                    {
+                        instanceIndex_12 = u32(4);
+                    }
+                    else
+                    {
+                        instanceIndex_12 = u32(0);
+                    }
+                    if(((_S802.y) < 0.0f))
+                    {
+                        blasTriOffset_8 = u32(2);
+                    }
+                    else
+                    {
+                        blasTriOffset_8 = u32(0);
+                    }
+                    var _S805 : u32 = (instanceIndex_12 | (blasTriOffset_8));
+                    if(((_S802.z) < 0.0f))
+                    {
+                        blasNodeOffset_6 = u32(1);
+                    }
+                    else
+                    {
+                        blasNodeOffset_6 = u32(0);
+                    }
+                    var _S806 : u32 = (u32(7) - ((_S805 | (blasNodeOffset_6)))) * u32(16843009);
+                    nodeGroup_2 = vec2<u32>(u32(0), u32(2147483648));
+                    var _S807 : u32 = octinv_6;
+                    pop_2 = false;
+                    inBlas_7 = true;
+                    instanceIndex_12 = instanceIndex_13;
+                    blasTriOffset_8 = _S800;
+                    merged_7 = _S804;
+                    o_63 = _S801;
+                    d_19 = _S802;
+                    octinv_6 = _S806;
+                    blasNodeOffset_6 = _S799;
+                    rD_6 = _S803;
+                    nodeRef_7 = _S807;
+                }
+                var _S808 : u32 = nodeRef_7;
+                nodeRef_7 = nodeRef_6;
+                stackPtr_7 = _S808;
             }
             else
             {
-                stackPtr_19 = stackPtr_16;
+                gTraversalCost_0 = gTraversalCost_0 + u32(1);
+                var node_5 : u32 = gFrame_0.envInfo_0.z + nodeRef_6 * u32(4);
+                var left_2 : vec4<f32> = gNodes_0[node_5];
+                var leftMax_2 : vec4<f32> = gNodes_0[node_5 + u32(1)];
+                var dist1_5 : f32 = IntersectBox_0(left_2.xyz, leftMax_2.xyz, ray_4.origin_0, worldRD_2, ray_4.tMin_0, (*hit_16).t_6);
+                var dist2_5 : f32 = IntersectBox_0(gNodes_0[node_5 + u32(2)].xyz, gNodes_0[node_5 + u32(3)].xyz, ray_4.origin_0, worldRD_2, ray_4.tMin_0, (*hit_16).t_6);
+                var near_3 : u32 = (bitcast<u32>((left_2.w)));
+                var far_2 : u32 = (bitcast<u32>((leftMax_2.w)));
+                if((dist1_5 > dist2_5))
+                {
+                    dist1_4 = dist2_5;
+                    instanceIndex_12 = far_2;
+                    dist2_4 = dist1_5;
+                    blasTriOffset_8 = near_3;
+                }
+                else
+                {
+                    dist1_4 = dist1_5;
+                    instanceIndex_12 = near_3;
+                    dist2_4 = dist2_5;
+                    blasTriOffset_8 = far_2;
+                }
+                if(dist1_4 == 1.00000001504746622e+30f)
+                {
+                    pop_2 = true;
+                    octinv_6 = nodeRef_6;
+                    blasNodeOffset_6 = stackPtr_6;
+                }
+                else
+                {
+                    if(dist2_4 != 1.00000001504746622e+30f)
+                    {
+                        pop_2 = (stackPtr_6 < u32(32));
+                    }
+                    else
+                    {
+                        pop_2 = false;
+                    }
+                    if(pop_2)
+                    {
+                        var _S809 : u32 = stackPtr_6 + u32(1);
+                        gTraversalStack_0[stackPtr_6] = vec2<u32>(blasTriOffset_8, u32(0));
+                        octinv_6 = _S809;
+                    }
+                    else
+                    {
+                        octinv_6 = stackPtr_6;
+                    }
+                    var _S810 : u32 = octinv_6;
+                    pop_2 = false;
+                    octinv_6 = instanceIndex_12;
+                    blasNodeOffset_6 = _S810;
+                }
+                var _S811 : u32 = octinv_6;
+                var _S812 : u32 = blasNodeOffset_6;
+                inBlas_7 = inBlas_6;
+                instanceIndex_12 = instanceIndex_11;
+                blasTriOffset_8 = blasTriOffset_7;
+                merged_7 = merged_6;
+                o_63 = o_62;
+                d_19 = d_18;
+                octinv_6 = octinv_5;
+                blasNodeOffset_6 = blasNodeOffset_5;
+                rD_6 = rD_5;
+                nodeRef_7 = _S811;
+                stackPtr_7 = _S812;
             }
-            nodeRef_4 = i_11;
-            stackPtr_16 = stackPtr_19;
         }
+        if(pop_2)
+        {
+            if(stackPtr_7 == u32(0))
+            {
+                break;
+            }
+            var stackPtr_8 : u32 = stackPtr_7 - u32(1);
+            var entry_3 : vec2<u32> = gTraversalStack_0[stackPtr_8];
+            var inBlas_8 : bool;
+            var nodeRef_8 : u32;
+            if((gTraversalStack_0[stackPtr_8].y) == u32(0))
+            {
+                var _S813 : u32 = entry_3.x;
+                inBlas_8 = false;
+                nodeRef_8 = _S813;
+            }
+            else
+            {
+                nodeGroup_2 = entry_3;
+                inBlas_8 = inBlas_7;
+                nodeRef_8 = nodeRef_7;
+            }
+            inBlas_6 = inBlas_8;
+            nodeRef_6 = nodeRef_8;
+            stackPtr_6 = stackPtr_8;
+        }
+        else
+        {
+            inBlas_6 = inBlas_7;
+            nodeRef_6 = nodeRef_7;
+            stackPtr_6 = stackPtr_7;
+        }
+        instanceIndex_11 = instanceIndex_12;
+        blasTriOffset_7 = blasTriOffset_8;
+        merged_6 = merged_7;
+        o_62 = o_63;
+        d_18 = d_19;
+        octinv_5 = octinv_6;
+        blasNodeOffset_5 = blasNodeOffset_6;
+        rD_5 = rD_6;
     }
-    return found_15;
+    return found_9;
 }
 
 fn TraceClosest_0( ray_5 : Ray_0) -> HitRecord_0
 {
-    var hit_15 : HitRecord_0;
-    var _S717 : bool = TraceScene_2(ray_5, false, &(hit_15));
-    return hit_15;
+    var hit_17 : HitRecord_0;
+    var _S814 : bool = TraceScene_2(ray_5, false, &(hit_17));
+    return hit_17;
 }
 
 fn AnalyticLightCount_0() -> u32
@@ -17873,112 +18764,112 @@ fn HitRecord_IsHit_0( this_119 : HitRecord_0) -> bool
     return (this_119.instanceIndex_2) != u32(4294967295);
 }
 
-fn IntersectAnalyticLights_0( origin_10 : vec3<f32>,  dir_27 : vec3<f32>,  tMax_4 : f32,  cameraRay_0 : bool,  radiance_5 : ptr<function, vec3<f32>>,  pdf_20 : ptr<function, f32>) -> bool
+fn IntersectAnalyticLights_0( origin_14 : vec3<f32>,  dir_27 : vec3<f32>,  tMax_5 : f32,  cameraRay_0 : bool,  radiance_5 : ptr<function, vec3<f32>>,  pdf_20 : ptr<function, f32>) -> bool
 {
     (*radiance_5) = vec3<f32>(0.0f);
     (*pdf_20) = 0.0f;
-    var nearest_0 : f32 = tMax_4;
-    var found_17 : bool = false;
-    var i_12 : u32 = u32(0);
+    var nearest_0 : f32 = tMax_5;
+    var found_10 : bool = false;
+    var i_9 : u32 = u32(0);
     loop
     {
-        if((i_12 < (AnalyticLightCount_0())))
+        if((i_9 < (AnalyticLightCount_0())))
         {
         }
         else
         {
             break;
         }
-        var _S718 : EmissiveTriangle_std430_0 = gLights_0[i_12];
-        var _S719 : u32 = AnalyticFlags_0(&(_S718));
-        var _S720 : bool;
+        var _S815 : EmissiveTriangle_std430_0 = gLights_0[i_9];
+        var _S816 : u32 = AnalyticFlags_0(&(_S815));
+        var _S817 : bool;
         if(cameraRay_0)
         {
-            _S720 = ((_S719 & (u32(256)))) != u32(0);
+            _S817 = ((_S816 & (u32(256)))) != u32(0);
         }
         else
         {
-            _S720 = false;
+            _S817 = false;
         }
-        if(_S720)
+        if(_S817)
         {
-            i_12 = i_12 + u32(1);
+            i_9 = i_9 + u32(1);
             continue;
         }
         var nearest_1 : f32;
-        var _S721 : bool;
+        var _S818 : bool;
         var inside_4 : bool;
-        if(((_S719 & (u32(255)))) == u32(2))
+        if(((_S816 & (u32(255)))) == u32(2))
         {
-            var n_23 : vec3<f32> = _S718.p2_0.xyz;
+            var n_23 : vec3<f32> = _S815.p2_0.xyz;
             var cosTheta_14 : f32 = - dot(n_23, dir_27);
             if((cosTheta_14 <= 9.99999997475242708e-07f))
             {
-                i_12 = i_12 + u32(1);
+                i_9 = i_9 + u32(1);
                 continue;
             }
-            var _S722 : vec4<f32> = _S718.p0_0;
-            var _S723 : vec3<f32> = _S718.p0_0.xyz;
-            var t_14 : f32 = dot(_S723 - origin_10, n_23) / - cosTheta_14;
+            var _S819 : vec4<f32> = _S815.p0_0;
+            var _S820 : vec3<f32> = _S815.p0_0.xyz;
+            var t_14 : f32 = dot(_S820 - origin_14, n_23) / - cosTheta_14;
             if((t_14 <= 0.0f))
             {
-                _S721 = true;
+                _S818 = true;
             }
             else
             {
-                _S721 = (t_14 >= nearest_0);
+                _S818 = (t_14 >= nearest_0);
             }
-            if(_S721)
+            if(_S818)
             {
-                i_12 = i_12 + u32(1);
+                i_9 = i_9 + u32(1);
                 continue;
             }
-            var local_3 : vec3<f32> = origin_10 + dir_27 * vec3<f32>(t_14) - _S723;
-            var _S724 : vec3<f32> = _S718.n_0.xyz;
-            var _S725 : vec3<f32> = _S718.uvA_0.xyz;
-            var d_12 : vec2<f32> = vec2<f32>(dot(local_3, _S724) / dot(_S724, _S724), dot(local_3, _S725) / dot(_S725, _S725));
-            if(((_S719 & (u32(512)))) != u32(0))
+            var local_3 : vec3<f32> = origin_14 + dir_27 * vec3<f32>(t_14) - _S820;
+            var _S821 : vec3<f32> = _S815.n_0.xyz;
+            var _S822 : vec3<f32> = _S815.uvA_0.xyz;
+            var d_20 : vec2<f32> = vec2<f32>(dot(local_3, _S821) / dot(_S821, _S821), dot(local_3, _S822) / dot(_S822, _S822));
+            if(((_S816 & (u32(512)))) != u32(0))
             {
-                inside_4 = ((dot(d_12, d_12)) <= 0.25f);
+                inside_4 = ((dot(d_20, d_20)) <= 0.25f);
             }
             else
             {
-                inside_4 = (all((((abs(d_12)) <= vec2<f32>(0.5f)))));
+                inside_4 = (all((((abs(d_20)) <= vec2<f32>(0.5f)))));
             }
             if(!inside_4)
             {
-                i_12 = i_12 + u32(1);
+                i_9 = i_9 + u32(1);
                 continue;
             }
-            (*radiance_5) = _S718.p1_0.xyz;
-            (*pdf_20) = _S718.p1_0.w * t_14 * t_14 / (cosTheta_14 * _S722.w);
+            (*radiance_5) = _S815.p1_0.xyz;
+            (*pdf_20) = _S815.p1_0.w * t_14 * t_14 / (cosTheta_14 * _S819.w);
             nearest_1 = t_14;
         }
         else
         {
-            var _S726 : vec4<f32> = _S718.p0_0;
-            var radius_4 : f32 = _S718.p0_0.w;
+            var _S823 : vec4<f32> = _S815.p0_0;
+            var radius_4 : f32 = _S815.p0_0.w;
             if((radius_4 <= 0.0f))
             {
-                i_12 = i_12 + u32(1);
+                i_9 = i_9 + u32(1);
                 continue;
             }
-            var toCenter_1 : vec3<f32> = _S726.xyz - origin_10;
+            var toCenter_1 : vec3<f32> = _S823.xyz - origin_14;
             var distSq_4 : f32 = dot(toCenter_1, toCenter_1);
             var tc_9 : f32 = dot(toCenter_1, dir_27);
-            var _S727 : f32 = radius_4 * radius_4;
-            var h_17 : f32 = _S727 - (distSq_4 - tc_9 * tc_9);
+            var _S824 : f32 = radius_4 * radius_4;
+            var h_17 : f32 = _S824 - (distSq_4 - tc_9 * tc_9);
             if((h_17 < 0.0f))
             {
-                _S721 = true;
+                _S818 = true;
             }
             else
             {
-                _S721 = (distSq_4 <= _S727);
+                _S818 = (distSq_4 <= _S824);
             }
-            if(_S721)
+            if(_S818)
             {
-                i_12 = i_12 + u32(1);
+                i_9 = i_9 + u32(1);
                 continue;
             }
             var t_15 : f32 = tc_9 - sqrt(h_17);
@@ -17992,35 +18883,35 @@ fn IntersectAnalyticLights_0( origin_10 : vec3<f32>,  dir_27 : vec3<f32>,  tMax_
             }
             if(inside_4)
             {
-                i_12 = i_12 + u32(1);
+                i_9 = i_9 + u32(1);
                 continue;
             }
-            var _S728 : vec4<f32> = _S718.p1_0;
-            var _S729 : vec3<f32> = _S718.p1_0.xyz;
-            var _S730 : f32 = SpotAttenuation_0(&(_S718), (vec3<f32>(0) - toCenter_1) * vec3<f32>(rsqrt_0(distSq_4)));
-            (*radiance_5) = _S729 * vec3<f32>(_S730);
-            (*pdf_20) = _S728.w / (2.0f * float_getPi_0() * SphereOneMinusCos_0(radius_4, distSq_4));
+            var _S825 : vec4<f32> = _S815.p1_0;
+            var _S826 : vec3<f32> = _S815.p1_0.xyz;
+            var _S827 : f32 = SpotAttenuation_0(&(_S815), (vec3<f32>(0) - toCenter_1) * vec3<f32>(rsqrt_0(distSq_4)));
+            (*radiance_5) = _S826 * vec3<f32>(_S827);
+            (*pdf_20) = _S825.w / (2.0f * float_getPi_0() * SphereOneMinusCos_0(radius_4, distSq_4));
             nearest_1 = t_15;
         }
         nearest_0 = nearest_1;
-        found_17 = true;
-        i_12 = i_12 + u32(1);
+        found_10 = true;
+        i_9 = i_9 + u32(1);
     }
-    return found_17;
+    return found_10;
 }
 
 fn HitsSun_0( dir_28 : vec3<f32>) -> bool
 {
-    var _S731 : bool;
+    var _S828 : bool;
     if(SunEnabled_0())
     {
-        _S731 = ((dot(dir_28, gFrame_0.sunDirection_0.xyz)) >= (gFrame_0.sunDirection_0.w));
+        _S828 = ((dot(dir_28, gFrame_0.sunDirection_0.xyz)) >= (gFrame_0.sunDirection_0.w));
     }
     else
     {
-        _S731 = false;
+        _S828 = false;
     }
-    return _S731;
+    return _S828;
 }
 
 fn EnvironmentPdf_0( dir_29 : vec3<f32>) -> f32
@@ -18037,47 +18928,47 @@ fn EnvironmentPdf_0( dir_29 : vec3<f32>) -> f32
     var H_1 : u32 = gFrame_0.envInfo_0.y;
     var local_4 : vec3<f32> = RotateY_0(dir_29, - gFrame_0.envParams_0.y);
     var uv_5 : vec2<f32> = fract(DirectionToEquirectUV_0(local_4));
-    var _S732 : f32 = f32(W_1);
-    var _S733 : u32 = min(u32(uv_5.x * _S732), W_1 - u32(1));
-    var _S734 : f32 = f32(H_1);
-    var _S735 : u32 = min(u32(uv_5.y * _S734), H_1 - u32(1));
-    var _S736 : f32 = local_4.y;
+    var _S829 : f32 = f32(W_1);
+    var _S830 : u32 = min(u32(uv_5.x * _S829), W_1 - u32(1));
+    var _S831 : f32 = f32(H_1);
+    var _S832 : u32 = min(u32(uv_5.y * _S831), H_1 - u32(1));
+    var _S833 : f32 = local_4.y;
     var PI_6 : f32 = float_getPi_0();
-    return (EnvCdf_0(_S733 + u32(1), _S735) - EnvCdf_0(_S733, _S735)) * _S732 * ((EnvCdf_0(_S735 + u32(1), H_1) - EnvCdf_0(_S735, H_1)) * _S734) / (2.0f * PI_6 * PI_6 * sqrt(clamp(1.0f - _S736 * _S736, 9.99999997475242708e-07f, 1.0f)));
+    return (EnvCdf_0(_S830 + u32(1), _S832) - EnvCdf_0(_S830, _S832)) * _S829 * ((EnvCdf_0(_S832 + u32(1), H_1) - EnvCdf_0(_S832, H_1)) * _S831) / (2.0f * PI_6 * PI_6 * sqrt(clamp(1.0f - _S833 * _S833, 9.99999997475242708e-07f, 1.0f)));
 }
 
-fn CompleteIntersection_0( s_35 : ptr<function, WavefrontPath_0>,  bounce_11 : u32,  hit_16 : HitRecord_0) -> HitRecord_0
+fn CompleteIntersection_0( s_35 : ptr<function, WavefrontPath_0>,  bounce_11 : u32,  hit_18 : HitRecord_0) -> HitRecord_0
 {
-    var ray_6 : Ray_0 = Ray_x24init_0((*s_35).path_0.origin_3, (*s_35).path_0.direction_1, 1.00000001504746622e+30f);
+    var ray_6 : Ray_0 = Ray_x24init_0((*s_35).path_0.origin_5, (*s_35).path_0.direction_1, 1.00000001504746622e+30f);
     var clampValue_16 : f32 = gFrame_0.envParams_0.w / gFrame_0.envParams_0.z;
     var mis_6 : f32;
-    var _S737 : bool;
+    var _S834 : bool;
     var contribution_21 : vec3<f32>;
     if(((AnalyticLightCount_0()) > u32(0)))
     {
         var radiance_6 : vec3<f32>;
         var pdf_21 : f32;
-        if(HitRecord_IsHit_0(hit_16))
+        if(HitRecord_IsHit_0(hit_18))
         {
-            mis_6 = hit_16.t_6;
+            mis_6 = hit_18.t_6;
         }
         else
         {
             mis_6 = 1.00000001504746622e+30f;
         }
-        var _S738 : bool = IntersectAnalyticLights_0(ray_6.origin_0, ray_6.direction_0, mis_6, bounce_11 == u32(0), &(radiance_6), &(pdf_21));
-        if(_S738)
+        var _S835 : bool = IntersectAnalyticLights_0(ray_6.origin_0, ray_6.direction_0, mis_6, bounce_11 == u32(0), &(radiance_6), &(pdf_21));
+        if(_S835)
         {
-            var _S739 : bool = (bounce_11 > u32(0));
-            if(_S739)
+            var _S836 : bool = (bounce_11 > u32(0));
+            if(_S836)
             {
-                _S737 = (*s_35).path_0.lightsSampled_0;
+                _S834 = (*s_35).path_0.lightsSampled_0;
             }
             else
             {
-                _S737 = false;
+                _S834 = false;
             }
-            if(_S737)
+            if(_S834)
             {
                 mis_6 = EvalMISRobust_0((*s_35).path_0.scatterPdf_0, pdf_21);
             }
@@ -18088,13 +18979,13 @@ fn CompleteIntersection_0( s_35 : ptr<function, WavefrontPath_0>,  bounce_11 : u
             var contribution_22 : vec3<f32> = (*s_35).path_0.throughput_7 * vec3<f32>(mis_6) * radiance_6;
             if((clampValue_16 > 0.0f))
             {
-                _S737 = _S739;
+                _S834 = _S836;
             }
             else
             {
-                _S737 = false;
+                _S834 = false;
             }
-            if(_S737)
+            if(_S834)
             {
                 contribution_21 = min(contribution_22, vec3<f32>(clampValue_16));
             }
@@ -18105,7 +18996,7 @@ fn CompleteIntersection_0( s_35 : ptr<function, WavefrontPath_0>,  bounce_11 : u
             (*s_35).path_0.radiance_1 = (*s_35).path_0.radiance_1 + contribution_21;
         }
     }
-    if(!HitRecord_IsHit_0(hit_16))
+    if(!HitRecord_IsHit_0(hit_18))
     {
         if(bounce_11 == u32(0))
         {
@@ -18121,13 +19012,13 @@ fn CompleteIntersection_0( s_35 : ptr<function, WavefrontPath_0>,  bounce_11 : u
             (*s_35).path_0.radiance_1 = (*s_35).path_0.radiance_1 + contribution_21;
             if(visible_0)
             {
-                _S737 = HitsSun_0(ray_6.direction_0);
+                _S834 = HitsSun_0(ray_6.direction_0);
             }
             else
             {
-                _S737 = false;
+                _S834 = false;
             }
-            if(_S737)
+            if(_S834)
             {
                 (*s_35).path_0.radiance_1 = (*s_35).path_0.radiance_1 + gFrame_0.sunRadiance_0.xyz;
             }
@@ -18145,21 +19036,21 @@ fn CompleteIntersection_0( s_35 : ptr<function, WavefrontPath_0>,  bounce_11 : u
             var contribution_23 : vec3<f32> = (*s_35).path_0.throughput_7 * vec3<f32>(mis_6) * EvalEnvironment_0(ray_6.direction_0);
             if(!(*s_35).path_0.lightsSampled_0)
             {
-                _S737 = SunEnabled_0();
+                _S834 = SunEnabled_0();
             }
             else
             {
-                _S737 = false;
+                _S834 = false;
             }
-            if(_S737)
+            if(_S834)
             {
-                _S737 = HitsSun_0(ray_6.direction_0);
+                _S834 = HitsSun_0(ray_6.direction_0);
             }
             else
             {
-                _S737 = false;
+                _S834 = false;
             }
-            if(_S737)
+            if(_S834)
             {
                 contribution_21 = contribution_23 + (*s_35).path_0.throughput_7 * gFrame_0.sunRadiance_0.xyz;
             }
@@ -18175,315 +19066,579 @@ fn CompleteIntersection_0( s_35 : ptr<function, WavefrontPath_0>,  bounce_11 : u
         }
         (*s_35).active_0 = u32(0);
     }
-    return hit_16;
+    return hit_18;
 }
 
 fn IntersectPath_0( s_36 : ptr<function, WavefrontPath_0>,  bounce_12 : u32) -> HitRecord_0
 {
     gRayCone_0 = vec2<f32>((*s_36).path_0.coneWidth_2, (*s_36).path_0.coneSpread_0);
-    var _S740 : HitRecord_0 = TraceClosest_0(Ray_x24init_0((*s_36).path_0.origin_3, (*s_36).path_0.direction_1, 1.00000001504746622e+30f));
-    var _S741 : HitRecord_0 = CompleteIntersection_0(&((*s_36)), bounce_12, _S740);
-    return _S741;
+    var _S837 : HitRecord_0 = TraceClosest_0(Ray_x24init_0((*s_36).path_0.origin_5, (*s_36).path_0.direction_1, 1.00000001504746622e+30f));
+    var _S838 : HitRecord_0 = CompleteIntersection_0(&((*s_36)), bounce_12, _S837);
+    return _S838;
 }
 
-fn TraverseBLAS_2( _S742 : u32,  _S743 : u32,  _S744 : vec3<f32>,  _S745 : vec3<f32>,  _S746 : f32,  _S747 : bool,  _S748 : ptr<function, HitRecord_0>) -> bool
+fn IntersectSlot_2( slot_6 : u32,  instanceIndex_14 : u32,  blasTriOffset_9 : u32,  merged_8 : bool,  alphaTested_4 : bool,  o_64 : vec3<f32>,  d_21 : vec3<f32>,  tMin_7 : f32,  hit_19 : ptr<function, HitRecord_0>) -> bool
 {
-    var found_18 : bool;
-    var _S749 : vec3<f32> = SafeRcp_0(_S745);
-    var _S750 : bool = (((gInstances_0[_S743].flags_0) & (u32(1)))) != u32(0);
-    var stack_7 : array<u32, i32(48)>;
-    var nodeRef_5 : u32 = u32(0);
-    var found_19 : bool = false;
-    var stackPtr_20 : u32 = u32(0);
-    loop
+    gTraversalCost_0 = gTraversalCost_0 + u32(1);
+    var base_26 : u32 = (blasTriOffset_9 + slot_6) * u32(3);
+    var v0_4 : vec4<f32> = gTris_0[base_26];
+    var e1_4 : vec4<f32> = gTris_0[base_26 + u32(1)];
+    var e2_3 : vec4<f32> = gTris_0[base_26 + u32(2)];
+    var t_16 : f32;
+    var bary_7 : vec2<f32>;
+    var _S839 : bool = IntersectTriangle_0(o_64, d_21, v0_4.xyz, e1_4.xyz, e2_3.xyz, tMin_7, (*hit_19).t_6, &(t_16), &(bary_7));
+    if(!_S839)
     {
-        var i_13 : u32;
-        if(((nodeRef_5 & (u32(2147483648)))) != u32(0))
-        {
-            var _S751 : u32 = (((nodeRef_5 >> (u32(24)))) & (u32(127)));
-            var _S752 : u32 = (nodeRef_5 & (u32(16777215)));
-            found_18 = found_19;
-            i_13 = u32(0);
-            loop
-            {
-                if((i_13 < _S751))
-                {
-                }
-                else
-                {
-                    break;
-                }
-                gTraversalCost_0 = gTraversalCost_0 + u32(1);
-                var base_26 : u32 = (gInstances_0[_S743].blasTriOffset_0 + _S752 + i_13) * u32(3);
-                var v0_4 : vec4<f32> = gTris_0[base_26];
-                var t_16 : f32;
-                var bary_7 : vec2<f32>;
-                var _S753 : bool = IntersectTriangle_0(_S744, _S745, v0_4.xyz, gTris_0[base_26 + u32(1)].xyz, gTris_0[base_26 + u32(2)].xyz, _S746, (*_S748).t_6, &(t_16), &(bary_7));
-                if(!_S753)
-                {
-                    i_13 = i_13 + u32(1);
-                    continue;
-                }
-                var primitiveIndex_4 : u32 = (bitcast<u32>((v0_4.w)));
-                var _S754 : bool;
-                if(_S750)
-                {
-                    var _S755 : bool = AlphaTestRejects_0(_S743, primitiveIndex_4, bary_7, t_16);
-                    _S754 = _S755;
-                }
-                else
-                {
-                    _S754 = false;
-                }
-                if(_S754)
-                {
-                    i_13 = i_13 + u32(1);
-                    continue;
-                }
-                (*_S748).t_6 = t_16;
-                (*_S748).barycentrics_0 = bary_7;
-                (*_S748).instanceIndex_2 = _S742;
-                (*_S748).primitiveIndex_1 = primitiveIndex_4;
-                if(_S747)
-                {
-                    return true;
-                }
-                found_18 = true;
-                i_13 = i_13 + u32(1);
-            }
-            if(stackPtr_20 == u32(0))
-            {
-                break;
-            }
-            var stackPtr_21 : u32 = stackPtr_20 - u32(1);
-            nodeRef_5 = stack_7[stackPtr_21];
-            found_19 = found_18;
-            stackPtr_20 = stackPtr_21;
-            continue;
-        }
-        gTraversalCost_0 = gTraversalCost_0 + u32(1);
-        var node_5 : BVHNode_std430_0 = gNodes_0[gInstances_0[_S743].blasNodeOffset_0 + nodeRef_5];
-        var dist1_10 : f32 = IntersectBox_0(node_5.lmin_0, node_5.lmax_0, _S744, _S749, _S746, (*_S748).t_6);
-        var dist2_10 : f32 = IntersectBox_0(node_5.rmin_0, node_5.rmax_0, _S744, _S749, _S746, (*_S748).t_6);
-        var far_5 : u32;
-        var dist1_11 : f32;
-        var dist2_11 : f32;
-        if((dist1_10 > dist2_10))
-        {
-            dist1_11 = dist2_10;
-            i_13 = node_5.right_0;
-            dist2_11 = dist1_10;
-            far_5 = node_5.left_0;
-        }
-        else
-        {
-            dist1_11 = dist1_10;
-            i_13 = node_5.left_0;
-            dist2_11 = dist2_10;
-            far_5 = node_5.right_0;
-        }
-        if(dist1_11 == 1.00000001504746622e+30f)
-        {
-            if(stackPtr_20 == u32(0))
-            {
-                found_18 = found_19;
-                break;
-            }
-            var stackPtr_22 : u32 = stackPtr_20 - u32(1);
-            nodeRef_5 = stack_7[stackPtr_22];
-            stackPtr_20 = stackPtr_22;
-        }
-        else
-        {
-            if(dist2_11 != 1.00000001504746622e+30f)
-            {
-                found_18 = (stackPtr_20 < u32(48));
-            }
-            else
-            {
-                found_18 = false;
-            }
-            var stackPtr_23 : u32;
-            if(found_18)
-            {
-                var _S756 : u32 = stackPtr_20 + u32(1);
-                stack_7[stackPtr_20] = far_5;
-                stackPtr_23 = _S756;
-            }
-            else
-            {
-                stackPtr_23 = stackPtr_20;
-            }
-            nodeRef_5 = i_13;
-            stackPtr_20 = stackPtr_23;
-        }
+        return false;
     }
-    return found_18;
+    var primitiveIndex_4 : u32 = (bitcast<u32>((v0_4.w)));
+    var _S840 : bool;
+    var _S841 : u32;
+    if(merged_8)
+    {
+        var _S842 : u32 = (bitcast<u32>((e1_4.w)));
+        _S840 = (bitcast<u32>((e2_3.w))) != u32(0);
+        _S841 = _S842;
+    }
+    else
+    {
+        _S840 = alphaTested_4;
+        _S841 = instanceIndex_14;
+    }
+    if(_S840)
+    {
+        var _S843 : bool = AlphaTestRejects_0(_S841, primitiveIndex_4, bary_7, t_16);
+        _S840 = _S843;
+    }
+    else
+    {
+        _S840 = false;
+    }
+    if(_S840)
+    {
+        return false;
+    }
+    (*hit_19).t_6 = t_16;
+    (*hit_19).barycentrics_0 = bary_7;
+    (*hit_19).instanceIndex_2 = _S841;
+    (*hit_19).primitiveIndex_1 = primitiveIndex_4;
+    return true;
 }
 
-fn TraceScene_3( ray_7 : Ray_0,  anyHit_3 : bool,  hit_17 : ptr<function, HitRecord_0>) -> bool
+fn TraceScene_3( ray_7 : Ray_0,  anyHit_3 : bool,  hit_20 : ptr<function, HitRecord_0>) -> bool
 {
-    var found_20 : bool;
-    (*hit_17).t_6 = ray_7.tMax_0;
-    (*hit_17).barycentrics_0 = vec2<f32>(0.0f);
-    (*hit_17).instanceIndex_2 = u32(4294967295);
-    (*hit_17).primitiveIndex_1 = u32(4294967295);
+    (*hit_20).t_6 = ray_7.tMax_0;
+    (*hit_20).barycentrics_0 = vec2<f32>(0.0f);
+    (*hit_20).instanceIndex_2 = u32(4294967295);
+    (*hit_20).primitiveIndex_1 = u32(4294967295);
     if((gFrame_0.counts_0.x) == u32(0))
     {
         return false;
     }
-    var _S757 : u32 = gFrame_0.counts_0.z;
-    var _S758 : vec3<f32> = SafeRcp_0(ray_7.direction_0);
-    var stack_8 : array<u32, i32(32)>;
-    var nodeRef_6 : u32 = u32(0);
-    var found_21 : bool = false;
-    var stackPtr_24 : u32 = u32(0);
+    var _S844 : u32 = gFrame_0.counts_0.z;
+    var worldRD_3 : vec3<f32> = SafeRcp_0(ray_7.direction_0);
+    var _S845 : vec2<u32> = vec2<u32>(u32(0));
+    var nodeGroup_3 : vec2<u32> = _S845;
+    var triGroup_3 : vec2<u32> = _S845;
+    var inBlas_9 : bool = false;
+    var instanceIndex_15 : u32 = u32(0);
+    var blasTriOffset_10 : u32 = u32(0);
+    var merged_9 : bool = false;
+    var alphaTested_5 : bool = false;
+    var o_65 : vec3<f32> = ray_7.origin_0;
+    var d_22 : vec3<f32> = ray_7.direction_0;
+    var octinv_7 : u32 = u32(0);
+    var blasNodeOffset_7 : u32 = u32(0);
+    var rD_7 : vec3<f32> = worldRD_3;
+    var nodeRef_9 : u32 = u32(0);
+    var found_11 : bool = false;
+    var stackPtr_9 : u32 = u32(0);
     loop
     {
-        var i_14 : u32;
-        if(((nodeRef_6 & (u32(2147483648)))) != u32(0))
+        var pop_3 : bool;
+        var inBlas_10 : bool;
+        var merged_10 : bool;
+        var alphaTested_6 : bool;
+        var instanceIndex_16 : u32;
+        var blasTriOffset_11 : u32;
+        var octinv_8 : u32;
+        var blasNodeOffset_8 : u32;
+        var nodeRef_10 : u32;
+        var stackPtr_10 : u32;
+        var o_66 : vec3<f32>;
+        var d_23 : vec3<f32>;
+        var rD_8 : vec3<f32>;
+        var dist1_6 : f32;
+        var dist2_6 : f32;
+        if(inBlas_9)
         {
-            var _S759 : u32 = (((nodeRef_6 >> (u32(24)))) & (u32(127)));
-            var _S760 : u32 = (nodeRef_6 & (u32(16777215)));
-            found_20 = found_21;
-            i_14 = u32(0);
+            if(((nodeGroup_3.y) > u32(16777215)))
+            {
+                var hits_3 : u32 = nodeGroup_3.y;
+                var childBit_3 : u32 = firstbithigh_0(hits_3);
+                nodeGroup_3[i32(1)] = ((nodeGroup_3[i32(1)]) & ((~((u32(1) << (childBit_3))))));
+                if(((nodeGroup_3.y) > u32(16777215)))
+                {
+                    pop_3 = (stackPtr_9 < u32(32));
+                }
+                else
+                {
+                    pop_3 = false;
+                }
+                if(pop_3)
+                {
+                    var _S846 : u32 = stackPtr_9 + u32(1);
+                    gTraversalStack_0[stackPtr_9] = nodeGroup_3;
+                    octinv_8 = _S846;
+                }
+                else
+                {
+                    octinv_8 = stackPtr_9;
+                }
+                var node_6 : u32 = blasNodeOffset_7 + (nodeGroup_3.x + countOneBits((hits_3 & ((~((u32(4294967295) << ((((childBit_3 - u32(24)) ^ (((octinv_7 & (u32(255))))))))))))))) * u32(5);
+                gTraversalCost_0 = gTraversalCost_0 + u32(1);
+                var n0_3 : vec4<f32> = gNodes_0[node_6];
+                var n1_3 : vec4<f32> = gNodes_0[node_6 + u32(1)];
+                var n2_3 : vec4<f32> = gNodes_0[node_6 + u32(2)];
+                var n3_3 : vec4<f32> = gNodes_0[node_6 + u32(3)];
+                var n4_3 : vec4<f32> = gNodes_0[node_6 + u32(4)];
+                var e4_3 : u32 = (bitcast<u32>((n0_3.w)));
+                var scale_10 : vec3<f32> = vec3<f32>((bitcast<f32>(((((e4_3 & (u32(255)))) << (u32(23)))))), (bitcast<f32>(((((((e4_3 >> (u32(8)))) & (u32(255)))) << (u32(23)))))), (bitcast<f32>(((((((e4_3 >> (u32(16)))) & (u32(255)))) << (u32(23))))))) * rD_7;
+                var origin_15 : vec3<f32> = (n0_3.xyz - o_65) * rD_7;
+                var negative_3 : vec3<bool> = (rD_7 < vec3<f32>(0.0f));
+                var _S847 : bool = negative_3.x;
+                if(_S847)
+                {
+                    dist1_6 = n3_3.z;
+                }
+                else
+                {
+                    dist1_6 = n2_3.x;
+                }
+                var _S848 : u32 = (bitcast<u32>((dist1_6)));
+                var _S849 : bool = negative_3.y;
+                if(_S849)
+                {
+                    dist2_6 = n4_3.x;
+                }
+                else
+                {
+                    dist2_6 = n2_3.z;
+                }
+                var _S850 : u32 = (bitcast<u32>((dist2_6)));
+                var _S851 : bool = negative_3.z;
+                var _S852 : f32;
+                if(_S851)
+                {
+                    _S852 = n4_3.z;
+                }
+                else
+                {
+                    _S852 = n3_3.x;
+                }
+                var lo0_3 : vec3<u32> = vec3<u32>(_S848, _S850, (bitcast<u32>((_S852))));
+                var _S853 : f32;
+                if(_S847)
+                {
+                    _S853 = n2_3.x;
+                }
+                else
+                {
+                    _S853 = n3_3.z;
+                }
+                var _S854 : u32 = (bitcast<u32>((_S853)));
+                var _S855 : f32;
+                if(_S849)
+                {
+                    _S855 = n2_3.z;
+                }
+                else
+                {
+                    _S855 = n4_3.x;
+                }
+                var _S856 : u32 = (bitcast<u32>((_S855)));
+                var _S857 : f32;
+                if(_S851)
+                {
+                    _S857 = n3_3.x;
+                }
+                else
+                {
+                    _S857 = n4_3.z;
+                }
+                var hi0_3 : vec3<u32> = vec3<u32>(_S854, _S856, (bitcast<u32>((_S857))));
+                var _S858 : f32;
+                if(_S847)
+                {
+                    _S858 = n3_3.w;
+                }
+                else
+                {
+                    _S858 = n2_3.y;
+                }
+                var _S859 : u32 = (bitcast<u32>((_S858)));
+                var _S860 : f32;
+                if(_S849)
+                {
+                    _S860 = n4_3.y;
+                }
+                else
+                {
+                    _S860 = n2_3.w;
+                }
+                var _S861 : u32 = (bitcast<u32>((_S860)));
+                var _S862 : f32;
+                if(_S851)
+                {
+                    _S862 = n4_3.w;
+                }
+                else
+                {
+                    _S862 = n3_3.y;
+                }
+                var lo1_3 : vec3<u32> = vec3<u32>(_S859, _S861, (bitcast<u32>((_S862))));
+                var _S863 : f32;
+                if(_S847)
+                {
+                    _S863 = n2_3.y;
+                }
+                else
+                {
+                    _S863 = n3_3.w;
+                }
+                var _S864 : u32 = (bitcast<u32>((_S863)));
+                var _S865 : f32;
+                if(_S849)
+                {
+                    _S865 = n2_3.w;
+                }
+                else
+                {
+                    _S865 = n4_3.y;
+                }
+                var _S866 : u32 = (bitcast<u32>((_S865)));
+                var _S867 : f32;
+                if(_S851)
+                {
+                    _S867 = n3_3.y;
+                }
+                else
+                {
+                    _S867 = n4_3.w;
+                }
+                var hitmask_4 : u32 = ((CwbvhChildHits_0((bitcast<u32>((n1_3.z))), lo0_3, hi0_3, scale_10, origin_15, ray_7.tMin_0, (*hit_20).t_6, octinv_7)) | ((CwbvhChildHits_0((bitcast<u32>((n1_3.w))), lo1_3, vec3<u32>(_S864, _S866, (bitcast<u32>((_S867)))), scale_10, origin_15, ray_7.tMin_0, (*hit_20).t_6, octinv_7))));
+                nodeGroup_3 = vec2<u32>((bitcast<u32>((n1_3.x))), (((hitmask_4 & (u32(4278190080)))) | (((e4_3 >> (u32(24)))))));
+                triGroup_3 = vec2<u32>((bitcast<u32>((n1_3.y))), (hitmask_4 & (u32(16777215))));
+            }
+            else
+            {
+                triGroup_3 = nodeGroup_3;
+                nodeGroup_3 = _S845;
+                octinv_8 = stackPtr_9;
+            }
+            pop_3 = found_11;
             loop
             {
-                if((i_14 < _S759))
+                if((triGroup_3.y) != u32(0))
                 {
                 }
                 else
                 {
                     break;
                 }
-                var instanceIndex_6 : u32 = gIndices_0[_S757 + _S760 + i_14];
-                var _S761 : bool = TraverseBLAS_2(instanceIndex_6, instanceIndex_6, InverseTransformPoint_0(instanceIndex_6, ray_7.origin_0), InverseTransformVector_0(instanceIndex_6, ray_7.direction_0), ray_7.tMin_0, anyHit_3, &((*hit_17)));
-                if(_S761)
+                var triangleBit_3 : u32 = firstbithigh_0(triGroup_3.y);
+                triGroup_3[i32(1)] = ((triGroup_3[i32(1)]) & ((~((u32(1) << (triangleBit_3))))));
+                var _S868 : bool = IntersectSlot_2((((triGroup_3.x) >> (u32(2)))) + triangleBit_3, instanceIndex_15, blasTriOffset_10, merged_9, alphaTested_5, o_65, d_22, ray_7.tMin_0, &((*hit_20)));
+                if(_S868)
                 {
                     if(anyHit_3)
                     {
                         return true;
                     }
-                    found_20 = true;
+                    pop_3 = true;
                 }
-                i_14 = i_14 + u32(1);
             }
-            if(stackPtr_24 == u32(0))
+            if((triGroup_3.y) == u32(0))
             {
-                break;
-            }
-            var stackPtr_25 : u32 = stackPtr_24 - u32(1);
-            nodeRef_6 = stack_8[stackPtr_25];
-            found_21 = found_20;
-            stackPtr_24 = stackPtr_25;
-            continue;
-        }
-        gTraversalCost_0 = gTraversalCost_0 + u32(1);
-        var node_6 : BVHNode_std430_0 = gNodes_0[gFrame_0.envInfo_0.z + nodeRef_6];
-        var dist1_12 : f32 = IntersectBox_0(node_6.lmin_0, node_6.lmax_0, ray_7.origin_0, _S758, ray_7.tMin_0, (*hit_17).t_6);
-        var dist2_12 : f32 = IntersectBox_0(node_6.rmin_0, node_6.rmax_0, ray_7.origin_0, _S758, ray_7.tMin_0, (*hit_17).t_6);
-        var far_6 : u32;
-        var dist1_13 : f32;
-        var dist2_13 : f32;
-        if((dist1_12 > dist2_12))
-        {
-            dist1_13 = dist2_12;
-            i_14 = node_6.right_0;
-            dist2_13 = dist1_12;
-            far_6 = node_6.left_0;
-        }
-        else
-        {
-            dist1_13 = dist1_12;
-            i_14 = node_6.left_0;
-            dist2_13 = dist2_12;
-            far_6 = node_6.right_0;
-        }
-        if(dist1_13 == 1.00000001504746622e+30f)
-        {
-            if(stackPtr_24 == u32(0))
-            {
-                found_20 = found_21;
-                break;
-            }
-            var stackPtr_26 : u32 = stackPtr_24 - u32(1);
-            nodeRef_6 = stack_8[stackPtr_26];
-            stackPtr_24 = stackPtr_26;
-        }
-        else
-        {
-            if(dist2_13 != 1.00000001504746622e+30f)
-            {
-                found_20 = (stackPtr_24 < u32(32));
+                inBlas_10 = ((nodeGroup_3.y) <= u32(16777215));
             }
             else
             {
-                found_20 = false;
+                inBlas_10 = false;
             }
-            var stackPtr_27 : u32;
-            if(found_20)
+            var _S869 : u32 = octinv_8;
+            var _S870 : bool = pop_3;
+            pop_3 = inBlas_10;
+            inBlas_10 = inBlas_9;
+            instanceIndex_16 = instanceIndex_15;
+            blasTriOffset_11 = blasTriOffset_10;
+            merged_10 = merged_9;
+            alphaTested_6 = alphaTested_5;
+            o_66 = o_65;
+            d_23 = d_22;
+            octinv_8 = octinv_7;
+            blasNodeOffset_8 = blasNodeOffset_7;
+            rD_8 = rD_7;
+            nodeRef_10 = nodeRef_9;
+            found_11 = _S870;
+            stackPtr_10 = _S869;
+        }
+        else
+        {
+            if(((nodeRef_9 & (u32(2147483648)))) != u32(0))
             {
-                var _S762 : u32 = stackPtr_24 + u32(1);
-                stack_8[stackPtr_24] = far_6;
-                stackPtr_27 = _S762;
+                var count_4 : u32 = (((nodeRef_9 >> (u32(24)))) & (u32(127)));
+                var first_3 : u32 = (nodeRef_9 & (u32(16777215)));
+                if(count_4 == u32(0))
+                {
+                    pop_3 = true;
+                    inBlas_10 = inBlas_9;
+                    instanceIndex_16 = instanceIndex_15;
+                    blasTriOffset_11 = blasTriOffset_10;
+                    merged_10 = merged_9;
+                    alphaTested_6 = alphaTested_5;
+                    o_66 = o_65;
+                    d_23 = d_22;
+                    octinv_8 = octinv_7;
+                    blasNodeOffset_8 = blasNodeOffset_7;
+                    rD_8 = rD_7;
+                    nodeRef_10 = stackPtr_9;
+                }
+                else
+                {
+                    if((count_4 > u32(1)))
+                    {
+                        pop_3 = (stackPtr_9 < u32(32));
+                    }
+                    else
+                    {
+                        pop_3 = false;
+                    }
+                    if(pop_3)
+                    {
+                        var _S871 : u32 = stackPtr_9 + u32(1);
+                        gTraversalStack_0[stackPtr_9] = vec2<u32>((((u32(2147483648) | ((((count_4 - u32(1)) << (u32(24))))))) | ((first_3 + u32(1)))), u32(0));
+                        octinv_8 = _S871;
+                    }
+                    else
+                    {
+                        octinv_8 = stackPtr_9;
+                    }
+                    var instanceIndex_17 : u32 = gIndices_0[_S844 + first_3];
+                    var _S872 : u32 = gInstances_0[instanceIndex_17].blasNodeOffset_0;
+                    var _S873 : u32 = gInstances_0[instanceIndex_17].blasTriOffset_0;
+                    var _S874 : vec3<f32> = InverseTransformPoint_0(instanceIndex_17, ray_7.origin_0);
+                    var _S875 : vec3<f32> = InverseTransformVector_0(instanceIndex_17, ray_7.direction_0);
+                    var _S876 : vec3<f32> = SafeRcp_0(_S875);
+                    var _S877 : bool = (((gInstances_0[instanceIndex_17].flags_0) & (u32(1)))) != u32(0);
+                    var _S878 : bool = (((gInstances_0[instanceIndex_17].flags_0) & (u32(4)))) != u32(0);
+                    if(((_S875.x) < 0.0f))
+                    {
+                        instanceIndex_16 = u32(4);
+                    }
+                    else
+                    {
+                        instanceIndex_16 = u32(0);
+                    }
+                    if(((_S875.y) < 0.0f))
+                    {
+                        blasTriOffset_11 = u32(2);
+                    }
+                    else
+                    {
+                        blasTriOffset_11 = u32(0);
+                    }
+                    var _S879 : u32 = (instanceIndex_16 | (blasTriOffset_11));
+                    if(((_S875.z) < 0.0f))
+                    {
+                        blasNodeOffset_8 = u32(1);
+                    }
+                    else
+                    {
+                        blasNodeOffset_8 = u32(0);
+                    }
+                    var _S880 : u32 = (u32(7) - ((_S879 | (blasNodeOffset_8)))) * u32(16843009);
+                    nodeGroup_3 = vec2<u32>(u32(0), u32(2147483648));
+                    var _S881 : u32 = octinv_8;
+                    pop_3 = false;
+                    inBlas_10 = true;
+                    instanceIndex_16 = instanceIndex_17;
+                    blasTriOffset_11 = _S873;
+                    merged_10 = _S878;
+                    alphaTested_6 = _S877;
+                    o_66 = _S874;
+                    d_23 = _S875;
+                    octinv_8 = _S880;
+                    blasNodeOffset_8 = _S872;
+                    rD_8 = _S876;
+                    nodeRef_10 = _S881;
+                }
+                var _S882 : u32 = nodeRef_10;
+                nodeRef_10 = nodeRef_9;
+                stackPtr_10 = _S882;
             }
             else
             {
-                stackPtr_27 = stackPtr_24;
+                gTraversalCost_0 = gTraversalCost_0 + u32(1);
+                var node_7 : u32 = gFrame_0.envInfo_0.z + nodeRef_9 * u32(4);
+                var left_3 : vec4<f32> = gNodes_0[node_7];
+                var leftMax_3 : vec4<f32> = gNodes_0[node_7 + u32(1)];
+                var dist1_7 : f32 = IntersectBox_0(left_3.xyz, leftMax_3.xyz, ray_7.origin_0, worldRD_3, ray_7.tMin_0, (*hit_20).t_6);
+                var dist2_7 : f32 = IntersectBox_0(gNodes_0[node_7 + u32(2)].xyz, gNodes_0[node_7 + u32(3)].xyz, ray_7.origin_0, worldRD_3, ray_7.tMin_0, (*hit_20).t_6);
+                var near_4 : u32 = (bitcast<u32>((left_3.w)));
+                var far_3 : u32 = (bitcast<u32>((leftMax_3.w)));
+                if((dist1_7 > dist2_7))
+                {
+                    dist1_6 = dist2_7;
+                    instanceIndex_16 = far_3;
+                    dist2_6 = dist1_7;
+                    blasTriOffset_11 = near_4;
+                }
+                else
+                {
+                    dist1_6 = dist1_7;
+                    instanceIndex_16 = near_4;
+                    dist2_6 = dist2_7;
+                    blasTriOffset_11 = far_3;
+                }
+                if(dist1_6 == 1.00000001504746622e+30f)
+                {
+                    pop_3 = true;
+                    octinv_8 = nodeRef_9;
+                    blasNodeOffset_8 = stackPtr_9;
+                }
+                else
+                {
+                    if(dist2_6 != 1.00000001504746622e+30f)
+                    {
+                        pop_3 = (stackPtr_9 < u32(32));
+                    }
+                    else
+                    {
+                        pop_3 = false;
+                    }
+                    if(pop_3)
+                    {
+                        var _S883 : u32 = stackPtr_9 + u32(1);
+                        gTraversalStack_0[stackPtr_9] = vec2<u32>(blasTriOffset_11, u32(0));
+                        octinv_8 = _S883;
+                    }
+                    else
+                    {
+                        octinv_8 = stackPtr_9;
+                    }
+                    var _S884 : u32 = octinv_8;
+                    pop_3 = false;
+                    octinv_8 = instanceIndex_16;
+                    blasNodeOffset_8 = _S884;
+                }
+                var _S885 : u32 = octinv_8;
+                var _S886 : u32 = blasNodeOffset_8;
+                inBlas_10 = inBlas_9;
+                instanceIndex_16 = instanceIndex_15;
+                blasTriOffset_11 = blasTriOffset_10;
+                merged_10 = merged_9;
+                alphaTested_6 = alphaTested_5;
+                o_66 = o_65;
+                d_23 = d_22;
+                octinv_8 = octinv_7;
+                blasNodeOffset_8 = blasNodeOffset_7;
+                rD_8 = rD_7;
+                nodeRef_10 = _S885;
+                stackPtr_10 = _S886;
             }
-            nodeRef_6 = i_14;
-            stackPtr_24 = stackPtr_27;
         }
+        if(pop_3)
+        {
+            if(stackPtr_10 == u32(0))
+            {
+                break;
+            }
+            var stackPtr_11 : u32 = stackPtr_10 - u32(1);
+            var entry_4 : vec2<u32> = gTraversalStack_0[stackPtr_11];
+            var inBlas_11 : bool;
+            var nodeRef_11 : u32;
+            if((gTraversalStack_0[stackPtr_11].y) == u32(0))
+            {
+                var _S887 : u32 = entry_4.x;
+                inBlas_11 = false;
+                nodeRef_11 = _S887;
+            }
+            else
+            {
+                nodeGroup_3 = entry_4;
+                inBlas_11 = inBlas_10;
+                nodeRef_11 = nodeRef_10;
+            }
+            inBlas_9 = inBlas_11;
+            nodeRef_9 = nodeRef_11;
+            stackPtr_9 = stackPtr_11;
+        }
+        else
+        {
+            inBlas_9 = inBlas_10;
+            nodeRef_9 = nodeRef_10;
+            stackPtr_9 = stackPtr_10;
+        }
+        instanceIndex_15 = instanceIndex_16;
+        blasTriOffset_10 = blasTriOffset_11;
+        merged_9 = merged_10;
+        alphaTested_5 = alphaTested_6;
+        o_65 = o_66;
+        d_22 = d_23;
+        octinv_7 = octinv_8;
+        blasNodeOffset_7 = blasNodeOffset_8;
+        rD_7 = rD_8;
     }
-    return found_20;
+    return found_11;
 }
 
 fn TraceClosest_1( ray_8 : Ray_0) -> HitRecord_0
 {
-    var hit_18 : HitRecord_0;
-    var _S763 : bool = TraceScene_3(ray_8, false, &(hit_18));
-    return hit_18;
+    var hit_21 : HitRecord_0;
+    var _S888 : bool = TraceScene_3(ray_8, false, &(hit_21));
+    return hit_21;
 }
 
 fn IntersectPath_1( s_37 : ptr<function, WavefrontPath_0>,  bounce_13 : u32) -> HitRecord_0
 {
     gRayCone_0 = vec2<f32>((*s_37).path_0.coneWidth_2, (*s_37).path_0.coneSpread_0);
-    var _S764 : HitRecord_0 = TraceClosest_1(Ray_x24init_0((*s_37).path_0.origin_3, (*s_37).path_0.direction_1, 1.00000001504746622e+30f));
-    var _S765 : HitRecord_0 = CompleteIntersection_0(&((*s_37)), bounce_13, _S764);
-    return _S765;
+    var _S889 : HitRecord_0 = TraceClosest_1(Ray_x24init_0((*s_37).path_0.origin_5, (*s_37).path_0.direction_1, 1.00000001504746622e+30f));
+    var _S890 : HitRecord_0 = CompleteIntersection_0(&((*s_37)), bounce_13, _S889);
+    return _S890;
 }
 
-fn PathState_x24init_0( radiance_7 : vec3<f32>,  throughput_43 : vec3<f32>,  origin_11 : vec3<f32>,  direction_2 : vec3<f32>,  scatterPdf_1 : f32,  lobe_7 : u32,  coneWidth_4 : f32,  coneSpread_1 : f32,  absorption_4 : vec3<f32>,  lightsSampled_1 : bool) -> PathState_0
+fn PathState_x24init_0( radiance_7 : vec3<f32>,  throughput_43 : vec3<f32>,  origin_16 : vec3<f32>,  direction_2 : vec3<f32>,  scatterPdf_1 : f32,  lobe_7 : u32,  coneWidth_4 : f32,  coneSpread_1 : f32,  absorption_4 : vec3<f32>,  lightsSampled_1 : bool) -> PathState_0
 {
-    var _S766 : PathState_0;
-    _S766.radiance_1 = radiance_7;
-    _S766.throughput_7 = throughput_43;
-    _S766.origin_3 = origin_11;
-    _S766.direction_1 = direction_2;
-    _S766.scatterPdf_0 = scatterPdf_1;
-    _S766.lobe_2 = lobe_7;
-    _S766.coneWidth_2 = coneWidth_4;
-    _S766.coneSpread_0 = coneSpread_1;
-    _S766.absorption_0 = absorption_4;
-    _S766.lightsSampled_0 = lightsSampled_1;
-    return _S766;
+    var _S891 : PathState_0;
+    _S891.radiance_1 = radiance_7;
+    _S891.throughput_7 = throughput_43;
+    _S891.origin_5 = origin_16;
+    _S891.direction_1 = direction_2;
+    _S891.scatterPdf_0 = scatterPdf_1;
+    _S891.lobe_2 = lobe_7;
+    _S891.coneWidth_2 = coneWidth_4;
+    _S891.coneSpread_0 = coneSpread_1;
+    _S891.absorption_0 = absorption_4;
+    _S891.lightsSampled_0 = lightsSampled_1;
+    return _S891;
 }
 
 fn WavefrontPath_x24init_0( path_1 : PathState_0,  active_1 : u32,  randomSeed_1 : u32,  albedo_8 : vec3<f32>,  normal_26 : vec3<f32>) -> WavefrontPath_0
 {
-    var _S767 : WavefrontPath_0;
-    _S767.path_0 = path_1;
-    _S767.active_0 = active_1;
-    _S767.randomSeed_0 = randomSeed_1;
-    _S767.albedo_2 = albedo_8;
-    _S767.normal_11 = normal_26;
-    return _S767;
+    var _S892 : WavefrontPath_0;
+    _S892.path_0 = path_1;
+    _S892.active_0 = active_1;
+    _S892.randomSeed_0 = randomSeed_1;
+    _S892.albedo_2 = albedo_8;
+    _S892.normal_11 = normal_26;
+    return _S892;
 }
 
 fn LoadShadingPath_0( base_27 : u32) -> WavefrontPath_0
 {
-    var _S768 : vec3<f32> = vec3<f32>(0.0f);
-    var s_38 : WavefrontPath_0 = WavefrontPath_x24init_0(PathState_x24init_0(_S768, _S768, _S768, _S768, 0.0f, u32(0), 0.0f, 0.0f, _S768, false), u32(0), u32(0), _S768, _S768);
+    var _S893 : vec3<f32> = vec3<f32>(0.0f);
+    var s_38 : WavefrontPath_0 = WavefrontPath_x24init_0(PathState_x24init_0(_S893, _S893, _S893, _S893, 0.0f, u32(0), 0.0f, 0.0f, _S893, false), u32(0), u32(0), _S893, _S893);
     s_38.active_0 = (bitcast<u32>((gAccum_0[base_27].w)));
     s_38.path_0.direction_1 = gAccum_0[Field_0(base_27, u32(3))].xyz;
     s_38.path_0.coneWidth_2 = gAccum_0[Field_0(base_27, u32(4))].w;
@@ -18508,12 +19663,12 @@ fn StoreFeedbackState_0( base_29 : u32)
 
 fn ShadeImpl_0( tid_0 : vec3<u32>)
 {
-    var _S769 : u32 = tid_0.x;
-    if((_S769 >= (gWavefront_0.pathCount_0)))
+    var _S894 : u32 = tid_0.x;
+    if((_S894 >= (gWavefront_0.pathCount_0)))
     {
         return;
     }
-    var base_30 : u32 = WorkBase_0(_S769);
+    var base_30 : u32 = WorkBase_0(_S894);
     gAccum_0[Field_0(base_30, u32(11))] = vec4<f32>(0.0f);
     var s_39 : WavefrontPath_0 = LoadShadingPath_0(base_30);
     if((s_39.active_0) == u32(0))
@@ -18521,13 +19676,13 @@ fn ShadeImpl_0( tid_0 : vec3<u32>)
         return;
     }
     LoadFeedbackState_0(base_30);
-    var hit_19 : HitRecord_0;
-    hit_19.t_6 = gAccum_0[Field_0(base_30, u32(8))].x;
-    hit_19.barycentrics_0 = gAccum_0[Field_0(base_30, u32(8))].yz;
-    hit_19.instanceIndex_2 = (bitcast<u32>((gAccum_0[Field_0(base_30, u32(8))].w)));
-    hit_19.primitiveIndex_1 = (bitcast<u32>((gAccum_0[Field_0(base_30, u32(9))].x)));
-    var _S770 : HitRecord_0 = hit_19;
-    ShadePath_2(base_30, &(s_39), _S770, gWavefront_0.bounce_0);
+    var hit_22 : HitRecord_0;
+    hit_22.t_6 = gAccum_0[Field_0(base_30, u32(8))].x;
+    hit_22.barycentrics_0 = gAccum_0[Field_0(base_30, u32(8))].yz;
+    hit_22.instanceIndex_2 = (bitcast<u32>((gAccum_0[Field_0(base_30, u32(8))].w)));
+    hit_22.primitiveIndex_1 = (bitcast<u32>((gAccum_0[Field_0(base_30, u32(9))].x)));
+    var _S895 : HitRecord_0 = hit_22;
+    ShadePath_2(base_30, &(s_39), _S895, gWavefront_0.bounce_0);
     StorePath_0(base_30, s_39);
     StoreFeedbackState_0(base_30);
     return;
@@ -18537,23 +19692,23 @@ fn StorePath_1( base_31 : u32,  s_40 : WavefrontPath_0)
 {
     gAccum_0[base_31] = vec4<f32>(s_40.path_0.radiance_1, (bitcast<f32>((s_40.active_0))));
     gAccum_0[Field_0(base_31, u32(1))] = vec4<f32>(s_40.path_0.throughput_7, (bitcast<f32>((s_40.randomSeed_0))));
-    gAccum_0[Field_0(base_31, u32(2))] = vec4<f32>(s_40.path_0.origin_3, s_40.path_0.scatterPdf_0);
+    gAccum_0[Field_0(base_31, u32(2))] = vec4<f32>(s_40.path_0.origin_5, s_40.path_0.scatterPdf_0);
     gAccum_0[Field_0(base_31, u32(3))] = vec4<f32>(s_40.path_0.direction_1, (bitcast<f32>((select(u32(0), u32(1), s_40.path_0.lightsSampled_0)))));
     gAccum_0[Field_0(base_31, u32(4))] = vec4<f32>(s_40.path_0.absorption_0, s_40.path_0.coneWidth_2);
     gAccum_0[Field_0(base_31, u32(5))] = vec4<f32>(s_40.albedo_2, s_40.path_0.coneSpread_0);
-    var _S771 : u32 = Field_0(base_31, u32(6));
-    gAccum_0[_S771] = vec4<f32>(s_40.normal_11, gAccum_0[_S771].w);
+    var _S896 : u32 = Field_0(base_31, u32(6));
+    gAccum_0[_S896] = vec4<f32>(s_40.normal_11, gAccum_0[_S896].w);
     return;
 }
 
 fn ShadeImpl_1( tid_1 : vec3<u32>)
 {
-    var _S772 : u32 = tid_1.x;
-    if((_S772 >= (gWavefront_0.pathCount_0)))
+    var _S897 : u32 = tid_1.x;
+    if((_S897 >= (gWavefront_0.pathCount_0)))
     {
         return;
     }
-    var base_32 : u32 = WorkBase_0(_S772);
+    var base_32 : u32 = WorkBase_0(_S897);
     gAccum_0[Field_0(base_32, u32(11))] = vec4<f32>(0.0f);
     var s_41 : WavefrontPath_0 = LoadShadingPath_0(base_32);
     if((s_41.active_0) == u32(0))
@@ -18561,13 +19716,13 @@ fn ShadeImpl_1( tid_1 : vec3<u32>)
         return;
     }
     LoadFeedbackState_0(base_32);
-    var hit_20 : HitRecord_0;
-    hit_20.t_6 = gAccum_0[Field_0(base_32, u32(8))].x;
-    hit_20.barycentrics_0 = gAccum_0[Field_0(base_32, u32(8))].yz;
-    hit_20.instanceIndex_2 = (bitcast<u32>((gAccum_0[Field_0(base_32, u32(8))].w)));
-    hit_20.primitiveIndex_1 = (bitcast<u32>((gAccum_0[Field_0(base_32, u32(9))].x)));
-    var _S773 : HitRecord_0 = hit_20;
-    ShadePath_3(base_32, &(s_41), _S773, u32(0));
+    var hit_23 : HitRecord_0;
+    hit_23.t_6 = gAccum_0[Field_0(base_32, u32(8))].x;
+    hit_23.barycentrics_0 = gAccum_0[Field_0(base_32, u32(8))].yz;
+    hit_23.instanceIndex_2 = (bitcast<u32>((gAccum_0[Field_0(base_32, u32(8))].w)));
+    hit_23.primitiveIndex_1 = (bitcast<u32>((gAccum_0[Field_0(base_32, u32(9))].x)));
+    var _S898 : HitRecord_0 = hit_23;
+    ShadePath_3(base_32, &(s_41), _S898, u32(0));
     StorePath_1(base_32, s_41);
     StoreFeedbackState_0(base_32);
     return;
@@ -18575,12 +19730,12 @@ fn ShadeImpl_1( tid_1 : vec3<u32>)
 
 fn ShadeImpl_2( tid_2 : vec3<u32>)
 {
-    var _S774 : u32 = tid_2.x;
-    if((_S774 >= (gWavefront_0.pathCount_0)))
+    var _S899 : u32 = tid_2.x;
+    if((_S899 >= (gWavefront_0.pathCount_0)))
     {
         return;
     }
-    var base_33 : u32 = WorkBase_0(_S774);
+    var base_33 : u32 = WorkBase_0(_S899);
     gAccum_0[Field_0(base_33, u32(11))] = vec4<f32>(0.0f);
     var s_42 : WavefrontPath_0 = LoadShadingPath_0(base_33);
     if((s_42.active_0) == u32(0))
@@ -18588,13 +19743,13 @@ fn ShadeImpl_2( tid_2 : vec3<u32>)
         return;
     }
     LoadFeedbackState_0(base_33);
-    var hit_21 : HitRecord_0;
-    hit_21.t_6 = gAccum_0[Field_0(base_33, u32(8))].x;
-    hit_21.barycentrics_0 = gAccum_0[Field_0(base_33, u32(8))].yz;
-    hit_21.instanceIndex_2 = (bitcast<u32>((gAccum_0[Field_0(base_33, u32(8))].w)));
-    hit_21.primitiveIndex_1 = (bitcast<u32>((gAccum_0[Field_0(base_33, u32(9))].x)));
-    var _S775 : HitRecord_0 = hit_21;
-    ShadePath_4(base_33, &(s_42), _S775, gWavefront_0.bounce_0);
+    var hit_24 : HitRecord_0;
+    hit_24.t_6 = gAccum_0[Field_0(base_33, u32(8))].x;
+    hit_24.barycentrics_0 = gAccum_0[Field_0(base_33, u32(8))].yz;
+    hit_24.instanceIndex_2 = (bitcast<u32>((gAccum_0[Field_0(base_33, u32(8))].w)));
+    hit_24.primitiveIndex_1 = (bitcast<u32>((gAccum_0[Field_0(base_33, u32(9))].x)));
+    var _S900 : HitRecord_0 = hit_24;
+    ShadePath_4(base_33, &(s_42), _S900, gWavefront_0.bounce_0);
     StorePath_1(base_33, s_42);
     StoreFeedbackState_0(base_33);
     return;
@@ -18602,12 +19757,12 @@ fn ShadeImpl_2( tid_2 : vec3<u32>)
 
 fn ShadeImpl_3( tid_3 : vec3<u32>)
 {
-    var _S776 : u32 = tid_3.x;
-    if((_S776 >= (gWavefront_0.pathCount_0)))
+    var _S901 : u32 = tid_3.x;
+    if((_S901 >= (gWavefront_0.pathCount_0)))
     {
         return;
     }
-    var base_34 : u32 = WorkBase_0(_S776);
+    var base_34 : u32 = WorkBase_0(_S901);
     gAccum_0[Field_0(base_34, u32(11))] = vec4<f32>(0.0f);
     var s_43 : WavefrontPath_0 = LoadPath_0(base_34);
     if((s_43.active_0) == u32(0))
@@ -18615,13 +19770,13 @@ fn ShadeImpl_3( tid_3 : vec3<u32>)
         return;
     }
     LoadFeedbackState_0(base_34);
-    var hit_22 : HitRecord_0;
-    hit_22.t_6 = gAccum_0[Field_0(base_34, u32(8))].x;
-    hit_22.barycentrics_0 = gAccum_0[Field_0(base_34, u32(8))].yz;
-    hit_22.instanceIndex_2 = (bitcast<u32>((gAccum_0[Field_0(base_34, u32(8))].w)));
-    hit_22.primitiveIndex_1 = (bitcast<u32>((gAccum_0[Field_0(base_34, u32(9))].x)));
-    var _S777 : HitRecord_0 = hit_22;
-    ShadePath_5(base_34, &(s_43), _S777, gWavefront_0.bounce_0);
+    var hit_25 : HitRecord_0;
+    hit_25.t_6 = gAccum_0[Field_0(base_34, u32(8))].x;
+    hit_25.barycentrics_0 = gAccum_0[Field_0(base_34, u32(8))].yz;
+    hit_25.instanceIndex_2 = (bitcast<u32>((gAccum_0[Field_0(base_34, u32(8))].w)));
+    hit_25.primitiveIndex_1 = (bitcast<u32>((gAccum_0[Field_0(base_34, u32(9))].x)));
+    var _S902 : HitRecord_0 = hit_25;
+    ShadePath_5(base_34, &(s_43), _S902, gWavefront_0.bounce_0);
     StorePath_0(base_34, s_43);
     StoreFeedbackState_0(base_34);
     return;
@@ -18629,12 +19784,12 @@ fn ShadeImpl_3( tid_3 : vec3<u32>)
 
 fn ShadeImpl_4( tid_4 : vec3<u32>)
 {
-    var _S778 : u32 = tid_4.x;
-    if((_S778 >= (gWavefront_0.pathCount_0)))
+    var _S903 : u32 = tid_4.x;
+    if((_S903 >= (gWavefront_0.pathCount_0)))
     {
         return;
     }
-    var base_35 : u32 = WorkBase_0(_S778);
+    var base_35 : u32 = WorkBase_0(_S903);
     gAccum_0[Field_0(base_35, u32(11))] = vec4<f32>(0.0f);
     var s_44 : WavefrontPath_0 = LoadPath_1(base_35);
     if((s_44.active_0) == u32(0))
@@ -18642,13 +19797,13 @@ fn ShadeImpl_4( tid_4 : vec3<u32>)
         return;
     }
     LoadFeedbackState_0(base_35);
-    var hit_23 : HitRecord_0;
-    hit_23.t_6 = gAccum_0[Field_0(base_35, u32(8))].x;
-    hit_23.barycentrics_0 = gAccum_0[Field_0(base_35, u32(8))].yz;
-    hit_23.instanceIndex_2 = (bitcast<u32>((gAccum_0[Field_0(base_35, u32(8))].w)));
-    hit_23.primitiveIndex_1 = (bitcast<u32>((gAccum_0[Field_0(base_35, u32(9))].x)));
-    var _S779 : HitRecord_0 = hit_23;
-    ShadePath_6(base_35, &(s_44), _S779, u32(0));
+    var hit_26 : HitRecord_0;
+    hit_26.t_6 = gAccum_0[Field_0(base_35, u32(8))].x;
+    hit_26.barycentrics_0 = gAccum_0[Field_0(base_35, u32(8))].yz;
+    hit_26.instanceIndex_2 = (bitcast<u32>((gAccum_0[Field_0(base_35, u32(8))].w)));
+    hit_26.primitiveIndex_1 = (bitcast<u32>((gAccum_0[Field_0(base_35, u32(9))].x)));
+    var _S904 : HitRecord_0 = hit_26;
+    ShadePath_6(base_35, &(s_44), _S904, u32(0));
     StorePath_1(base_35, s_44);
     StoreFeedbackState_0(base_35);
     return;
@@ -18666,12 +19821,12 @@ fn QueueIndex_0( base_36 : u32,  index_26 : u32) -> u32
 
 fn ShadeImpl_5( tid_5 : vec3<u32>)
 {
-    var _S780 : u32 = tid_5.x;
-    if((_S780 >= (bitcast<u32>((gAccum_0[HeaderBase_0()].z)))))
+    var _S905 : u32 = tid_5.x;
+    if((_S905 >= (bitcast<u32>((gAccum_0[HeaderBase_0()].z)))))
     {
         return;
     }
-    var base_37 : u32 = WorkBase_0(QueueIndex_0(ShadeQueueBase_0(), _S780));
+    var base_37 : u32 = WorkBase_0(QueueIndex_0(ShadeQueueBase_0(), _S905));
     gAccum_0[Field_0(base_37, u32(11))] = vec4<f32>(0.0f);
     var s_45 : WavefrontPath_0 = LoadShadingPath_0(base_37);
     if((s_45.active_0) == u32(0))
@@ -18679,13 +19834,13 @@ fn ShadeImpl_5( tid_5 : vec3<u32>)
         return;
     }
     LoadFeedbackState_0(base_37);
-    var hit_24 : HitRecord_0;
-    hit_24.t_6 = gAccum_0[Field_0(base_37, u32(8))].x;
-    hit_24.barycentrics_0 = gAccum_0[Field_0(base_37, u32(8))].yz;
-    hit_24.instanceIndex_2 = (bitcast<u32>((gAccum_0[Field_0(base_37, u32(8))].w)));
-    hit_24.primitiveIndex_1 = (bitcast<u32>((gAccum_0[Field_0(base_37, u32(9))].x)));
-    var _S781 : HitRecord_0 = hit_24;
-    ShadePath_2(base_37, &(s_45), _S781, gWavefront_0.bounce_0);
+    var hit_27 : HitRecord_0;
+    hit_27.t_6 = gAccum_0[Field_0(base_37, u32(8))].x;
+    hit_27.barycentrics_0 = gAccum_0[Field_0(base_37, u32(8))].yz;
+    hit_27.instanceIndex_2 = (bitcast<u32>((gAccum_0[Field_0(base_37, u32(8))].w)));
+    hit_27.primitiveIndex_1 = (bitcast<u32>((gAccum_0[Field_0(base_37, u32(9))].x)));
+    var _S906 : HitRecord_0 = hit_27;
+    ShadePath_2(base_37, &(s_45), _S906, gWavefront_0.bounce_0);
     StorePath_0(base_37, s_45);
     StoreFeedbackState_0(base_37);
     return;
@@ -18693,12 +19848,12 @@ fn ShadeImpl_5( tid_5 : vec3<u32>)
 
 fn ShadeImpl_6( tid_6 : vec3<u32>)
 {
-    var _S782 : u32 = tid_6.x;
-    if((_S782 >= (bitcast<u32>((gAccum_0[HeaderBase_0()].z)))))
+    var _S907 : u32 = tid_6.x;
+    if((_S907 >= (bitcast<u32>((gAccum_0[HeaderBase_0()].z)))))
     {
         return;
     }
-    var base_38 : u32 = WorkBase_0(QueueIndex_0(ShadeQueueBase_0(), _S782));
+    var base_38 : u32 = WorkBase_0(QueueIndex_0(ShadeQueueBase_0(), _S907));
     gAccum_0[Field_0(base_38, u32(11))] = vec4<f32>(0.0f);
     var s_46 : WavefrontPath_0 = LoadShadingPath_0(base_38);
     if((s_46.active_0) == u32(0))
@@ -18706,13 +19861,13 @@ fn ShadeImpl_6( tid_6 : vec3<u32>)
         return;
     }
     LoadFeedbackState_0(base_38);
-    var hit_25 : HitRecord_0;
-    hit_25.t_6 = gAccum_0[Field_0(base_38, u32(8))].x;
-    hit_25.barycentrics_0 = gAccum_0[Field_0(base_38, u32(8))].yz;
-    hit_25.instanceIndex_2 = (bitcast<u32>((gAccum_0[Field_0(base_38, u32(8))].w)));
-    hit_25.primitiveIndex_1 = (bitcast<u32>((gAccum_0[Field_0(base_38, u32(9))].x)));
-    var _S783 : HitRecord_0 = hit_25;
-    ShadePath_3(base_38, &(s_46), _S783, u32(0));
+    var hit_28 : HitRecord_0;
+    hit_28.t_6 = gAccum_0[Field_0(base_38, u32(8))].x;
+    hit_28.barycentrics_0 = gAccum_0[Field_0(base_38, u32(8))].yz;
+    hit_28.instanceIndex_2 = (bitcast<u32>((gAccum_0[Field_0(base_38, u32(8))].w)));
+    hit_28.primitiveIndex_1 = (bitcast<u32>((gAccum_0[Field_0(base_38, u32(9))].x)));
+    var _S908 : HitRecord_0 = hit_28;
+    ShadePath_3(base_38, &(s_46), _S908, u32(0));
     StorePath_1(base_38, s_46);
     StoreFeedbackState_0(base_38);
     return;
@@ -18720,12 +19875,12 @@ fn ShadeImpl_6( tid_6 : vec3<u32>)
 
 fn ShadeImpl_7( tid_7 : vec3<u32>)
 {
-    var _S784 : u32 = tid_7.x;
-    if((_S784 >= (bitcast<u32>((gAccum_0[HeaderBase_0()].z)))))
+    var _S909 : u32 = tid_7.x;
+    if((_S909 >= (bitcast<u32>((gAccum_0[HeaderBase_0()].z)))))
     {
         return;
     }
-    var base_39 : u32 = WorkBase_0(QueueIndex_0(ShadeQueueBase_0(), _S784));
+    var base_39 : u32 = WorkBase_0(QueueIndex_0(ShadeQueueBase_0(), _S909));
     gAccum_0[Field_0(base_39, u32(11))] = vec4<f32>(0.0f);
     var s_47 : WavefrontPath_0 = LoadShadingPath_0(base_39);
     if((s_47.active_0) == u32(0))
@@ -18733,13 +19888,13 @@ fn ShadeImpl_7( tid_7 : vec3<u32>)
         return;
     }
     LoadFeedbackState_0(base_39);
-    var hit_26 : HitRecord_0;
-    hit_26.t_6 = gAccum_0[Field_0(base_39, u32(8))].x;
-    hit_26.barycentrics_0 = gAccum_0[Field_0(base_39, u32(8))].yz;
-    hit_26.instanceIndex_2 = (bitcast<u32>((gAccum_0[Field_0(base_39, u32(8))].w)));
-    hit_26.primitiveIndex_1 = (bitcast<u32>((gAccum_0[Field_0(base_39, u32(9))].x)));
-    var _S785 : HitRecord_0 = hit_26;
-    ShadePath_4(base_39, &(s_47), _S785, gWavefront_0.bounce_0);
+    var hit_29 : HitRecord_0;
+    hit_29.t_6 = gAccum_0[Field_0(base_39, u32(8))].x;
+    hit_29.barycentrics_0 = gAccum_0[Field_0(base_39, u32(8))].yz;
+    hit_29.instanceIndex_2 = (bitcast<u32>((gAccum_0[Field_0(base_39, u32(8))].w)));
+    hit_29.primitiveIndex_1 = (bitcast<u32>((gAccum_0[Field_0(base_39, u32(9))].x)));
+    var _S910 : HitRecord_0 = hit_29;
+    ShadePath_4(base_39, &(s_47), _S910, gWavefront_0.bounce_0);
     StorePath_1(base_39, s_47);
     StoreFeedbackState_0(base_39);
     return;
@@ -18747,12 +19902,12 @@ fn ShadeImpl_7( tid_7 : vec3<u32>)
 
 fn ShadeImpl_8( tid_8 : vec3<u32>)
 {
-    var _S786 : u32 = tid_8.x;
-    if((_S786 >= (bitcast<u32>((gAccum_0[HeaderBase_0()].z)))))
+    var _S911 : u32 = tid_8.x;
+    if((_S911 >= (bitcast<u32>((gAccum_0[HeaderBase_0()].z)))))
     {
         return;
     }
-    var base_40 : u32 = WorkBase_0(QueueIndex_0(ShadeQueueBase_0(), _S786));
+    var base_40 : u32 = WorkBase_0(QueueIndex_0(ShadeQueueBase_0(), _S911));
     gAccum_0[Field_0(base_40, u32(11))] = vec4<f32>(0.0f);
     var s_48 : WavefrontPath_0 = LoadPath_0(base_40);
     if((s_48.active_0) == u32(0))
@@ -18760,13 +19915,13 @@ fn ShadeImpl_8( tid_8 : vec3<u32>)
         return;
     }
     LoadFeedbackState_0(base_40);
-    var hit_27 : HitRecord_0;
-    hit_27.t_6 = gAccum_0[Field_0(base_40, u32(8))].x;
-    hit_27.barycentrics_0 = gAccum_0[Field_0(base_40, u32(8))].yz;
-    hit_27.instanceIndex_2 = (bitcast<u32>((gAccum_0[Field_0(base_40, u32(8))].w)));
-    hit_27.primitiveIndex_1 = (bitcast<u32>((gAccum_0[Field_0(base_40, u32(9))].x)));
-    var _S787 : HitRecord_0 = hit_27;
-    ShadePath_5(base_40, &(s_48), _S787, gWavefront_0.bounce_0);
+    var hit_30 : HitRecord_0;
+    hit_30.t_6 = gAccum_0[Field_0(base_40, u32(8))].x;
+    hit_30.barycentrics_0 = gAccum_0[Field_0(base_40, u32(8))].yz;
+    hit_30.instanceIndex_2 = (bitcast<u32>((gAccum_0[Field_0(base_40, u32(8))].w)));
+    hit_30.primitiveIndex_1 = (bitcast<u32>((gAccum_0[Field_0(base_40, u32(9))].x)));
+    var _S912 : HitRecord_0 = hit_30;
+    ShadePath_5(base_40, &(s_48), _S912, gWavefront_0.bounce_0);
     StorePath_0(base_40, s_48);
     StoreFeedbackState_0(base_40);
     return;
@@ -18774,12 +19929,12 @@ fn ShadeImpl_8( tid_8 : vec3<u32>)
 
 fn ShadeImpl_9( tid_9 : vec3<u32>)
 {
-    var _S788 : u32 = tid_9.x;
-    if((_S788 >= (bitcast<u32>((gAccum_0[HeaderBase_0()].z)))))
+    var _S913 : u32 = tid_9.x;
+    if((_S913 >= (bitcast<u32>((gAccum_0[HeaderBase_0()].z)))))
     {
         return;
     }
-    var base_41 : u32 = WorkBase_0(QueueIndex_0(ShadeQueueBase_0(), _S788));
+    var base_41 : u32 = WorkBase_0(QueueIndex_0(ShadeQueueBase_0(), _S913));
     gAccum_0[Field_0(base_41, u32(11))] = vec4<f32>(0.0f);
     var s_49 : WavefrontPath_0 = LoadPath_1(base_41);
     if((s_49.active_0) == u32(0))
@@ -18787,13 +19942,13 @@ fn ShadeImpl_9( tid_9 : vec3<u32>)
         return;
     }
     LoadFeedbackState_0(base_41);
-    var hit_28 : HitRecord_0;
-    hit_28.t_6 = gAccum_0[Field_0(base_41, u32(8))].x;
-    hit_28.barycentrics_0 = gAccum_0[Field_0(base_41, u32(8))].yz;
-    hit_28.instanceIndex_2 = (bitcast<u32>((gAccum_0[Field_0(base_41, u32(8))].w)));
-    hit_28.primitiveIndex_1 = (bitcast<u32>((gAccum_0[Field_0(base_41, u32(9))].x)));
-    var _S789 : HitRecord_0 = hit_28;
-    ShadePath_6(base_41, &(s_49), _S789, u32(0));
+    var hit_31 : HitRecord_0;
+    hit_31.t_6 = gAccum_0[Field_0(base_41, u32(8))].x;
+    hit_31.barycentrics_0 = gAccum_0[Field_0(base_41, u32(8))].yz;
+    hit_31.instanceIndex_2 = (bitcast<u32>((gAccum_0[Field_0(base_41, u32(8))].w)));
+    hit_31.primitiveIndex_1 = (bitcast<u32>((gAccum_0[Field_0(base_41, u32(9))].x)));
+    var _S914 : HitRecord_0 = hit_31;
+    ShadePath_6(base_41, &(s_49), _S914, u32(0));
     StorePath_1(base_41, s_49);
     StoreFeedbackState_0(base_41);
     return;
@@ -18802,72 +19957,72 @@ fn ShadeImpl_9( tid_9 : vec3<u32>)
 fn EvalSampledEmission_0( index_27 : u32,  bary_8 : vec3<f32>,  viewer_4 : vec3<f32>,  cone_5 : vec2<f32>) -> vec3<f32>
 {
     var light_5 : EmissiveTriangle_std430_0 = gLights_0[index_27];
-    var _S790 : vec3<f32> = light_5.p0_0.xyz;
-    var _S791 : f32 = bary_8.x;
-    var _S792 : vec3<f32> = light_5.p1_0.xyz;
-    var _S793 : f32 = bary_8.y;
-    var _S794 : vec3<f32> = light_5.p2_0.xyz;
-    var _S795 : f32 = bary_8.z;
-    var position_5 : vec3<f32> = _S790 * vec3<f32>(_S791) + _S792 * vec3<f32>(_S793) + _S794 * vec3<f32>(_S795);
+    var _S915 : vec3<f32> = light_5.p0_0.xyz;
+    var _S916 : f32 = bary_8.x;
+    var _S917 : vec3<f32> = light_5.p1_0.xyz;
+    var _S918 : f32 = bary_8.y;
+    var _S919 : vec3<f32> = light_5.p2_0.xyz;
+    var _S920 : f32 = bary_8.z;
+    var position_5 : vec3<f32> = _S915 * vec3<f32>(_S916) + _S917 * vec3<f32>(_S918) + _S919 * vec3<f32>(_S920);
     var toLight_3 : vec3<f32> = position_5 - viewer_4;
     var dist_1 : f32 = length(toLight_3);
     var tc_10 : TextureCoords_0;
-    var _S796 : vec2<f32> = light_5.uvA_0.xy;
-    var _S797 : vec2<f32> = vec2<f32>(_S791);
-    var _S798 : vec2<f32> = light_5.uvA_0.zw;
-    var _S799 : vec2<f32> = vec2<f32>(_S793);
-    var _S800 : vec2<f32> = light_5.uvB_0.xy;
-    var _S801 : vec2<f32> = vec2<f32>(_S795);
-    var _S802 : vec2<f32> = _S796 * _S797 + _S798 * _S799 + _S800 * _S801;
-    var _S803 : vec2<f32> = light_5.uvB_0.zw;
-    var _S804 : vec2<f32> = light_5.uvC_0.xy;
-    var _S805 : vec2<f32> = light_5.uvC_0.zw;
-    var _S806 : vec2<f32> = _S803 * _S797 + _S804 * _S799 + _S805 * _S801;
-    var _S807 : vec3<f32> = _S792 - _S790;
-    var _S808 : vec3<f32> = _S794 - _S790;
-    var _S809 : vec2<f32> = _S798 - _S796;
-    var _S810 : vec2<f32> = _S800 - _S796;
-    var _S811 : vec2<f32> = _S804 - _S803;
-    var _S812 : vec2<f32> = _S805 - _S803;
-    var _S813 : f32 = cone_5.x + cone_5.y * dist_1;
-    var _S814 : f32;
+    var _S921 : vec2<f32> = light_5.uvA_0.xy;
+    var _S922 : vec2<f32> = vec2<f32>(_S916);
+    var _S923 : vec2<f32> = light_5.uvA_0.zw;
+    var _S924 : vec2<f32> = vec2<f32>(_S918);
+    var _S925 : vec2<f32> = light_5.uvB_0.xy;
+    var _S926 : vec2<f32> = vec2<f32>(_S920);
+    var _S927 : vec2<f32> = _S921 * _S922 + _S923 * _S924 + _S925 * _S926;
+    var _S928 : vec2<f32> = light_5.uvB_0.zw;
+    var _S929 : vec2<f32> = light_5.uvC_0.xy;
+    var _S930 : vec2<f32> = light_5.uvC_0.zw;
+    var _S931 : vec2<f32> = _S928 * _S922 + _S929 * _S924 + _S930 * _S926;
+    var _S932 : vec3<f32> = _S917 - _S915;
+    var _S933 : vec3<f32> = _S919 - _S915;
+    var _S934 : vec2<f32> = _S923 - _S921;
+    var _S935 : vec2<f32> = _S925 - _S921;
+    var _S936 : vec2<f32> = _S929 - _S928;
+    var _S937 : vec2<f32> = _S930 - _S928;
+    var _S938 : f32 = cone_5.x + cone_5.y * dist_1;
+    var _S939 : f32;
     if((dist_1 > 0.0f))
     {
-        _S814 = dot(light_5.n_0.xyz, toLight_3) / dist_1;
+        _S939 = dot(light_5.n_0.xyz, toLight_3) / dist_1;
     }
     else
     {
-        _S814 = 1.0f;
+        _S939 = 1.0f;
     }
-    tc_10 = MakeTextureCoords_0(_S802, _S806, _S807, _S808, _S809, _S810, _S811, _S812, _S813, _S814);
+    tc_10 = MakeTextureCoords_0(_S927, _S931, _S932, _S933, _S934, _S935, _S936, _S937, _S938, _S939);
     tc_10.objectPosition_0 = InverseTransformPoint_0((bitcast<u32>((light_5.pad_0.x))), position_5);
-    var _S815 : vec3<f32> = EmissiveRadiance_0(LoadMaterialHeader_0((bitcast<u32>((light_5.n_0.w)))), tc_10);
-    return _S815;
+    var _S940 : vec3<f32> = EmissiveRadiance_0(LoadMaterialHeader_0((bitcast<u32>((light_5.n_0.w)))), tc_10);
+    return _S940;
 }
 
 fn ShadeLightImpl_0( tid_10 : vec3<u32>)
 {
-    var _S816 : u32 = tid_10.x;
-    if((_S816 >= (gWavefront_0.pathCount_0)))
+    var _S941 : u32 = tid_10.x;
+    if((_S941 >= (gWavefront_0.pathCount_0)))
     {
         return;
     }
-    var base_42 : u32 = WorkBase_0(_S816);
-    var _S817 : u32 = Field_0(base_42, u32(11));
-    var mask_5 : u32 = (bitcast<u32>((gAccum_0[_S817].z)));
+    var base_42 : u32 = WorkBase_0(_S941);
+    var _S942 : u32 = Field_0(base_42, u32(11));
+    var mask_5 : u32 = (bitcast<u32>((gAccum_0[_S942].z)));
     if(((mask_5 & (u32(8)))) == u32(0))
     {
         return;
     }
-    var lightBase_1 : u32 = LightWorkBase_0(_S816);
+    var lightBase_1 : u32 = LightWorkBase_0(_S941);
     var viewer_5 : vec4<f32> = gAccum_0[Field_0(lightBase_1, u32(1))];
     LoadFeedbackState_0(base_42);
-    var radiance_8 : vec3<f32> = EvalSampledEmission_0((bitcast<u32>((gAccum_0[lightBase_1].w))), gAccum_0[lightBase_1].xyz, gAccum_0[Field_0(lightBase_1, u32(1))].xyz, gAccum_0[_S817].xy);
+    var radiance_8 : vec3<f32> = EvalSampledEmission_0((bitcast<u32>((gAccum_0[lightBase_1].w))), gAccum_0[lightBase_1].xyz, gAccum_0[Field_0(lightBase_1, u32(1))].xyz, gAccum_0[_S942].xy);
     var mask_6 : u32;
     if(((mask_5 & (u32(2)))) != u32(0))
     {
-        var _S818 : u32 = Field_0(base_42, u32(17));
-        gAccum_0[_S818] = vec4<f32>(vec3<f32>(gAccum_0[_S818].w) * radiance_8 * gAccum_0[_S818].xyz / vec3<f32>(viewer_5.w), 0.0f);
+        var _S943 : u32 = Field_0(base_42, u32(17));
+        gAccum_0[_S943] = vec4<f32>(vec3<f32>(gAccum_0[_S943].w) * radiance_8 * gAccum_0[_S943].xyz / vec3<f32>(viewer_5.w), 0.0f);
         if(!(any(((radiance_8 > vec3<f32>(0.0f))))))
         {
             mask_6 = (mask_5 & (u32(4294967293)));
@@ -18881,35 +20036,35 @@ fn ShadeLightImpl_0( tid_10 : vec3<u32>)
     {
         mask_6 = mask_5;
     }
-    gAccum_0[_S817][i32(2)] = (bitcast<f32>(((mask_6 & (u32(4294967287))))));
+    gAccum_0[_S942][i32(2)] = (bitcast<f32>(((mask_6 & (u32(4294967287))))));
     StoreFeedbackState_0(base_42);
     return;
 }
 
 fn ShadeLightImpl_1( tid_11 : vec3<u32>)
 {
-    var _S819 : u32 = tid_11.x;
-    if((_S819 >= (bitcast<u32>((gAccum_0[HeaderBase_0()].y)))))
+    var _S944 : u32 = tid_11.x;
+    if((_S944 >= (bitcast<u32>((gAccum_0[HeaderBase_0()].y)))))
     {
         return;
     }
-    var _S820 : u32 = QueueIndex_0(ShadowQueueBase_0(), _S819);
-    var base_43 : u32 = WorkBase_0(_S820);
-    var _S821 : u32 = Field_0(base_43, u32(11));
-    var mask_7 : u32 = (bitcast<u32>((gAccum_0[_S821].z)));
+    var _S945 : u32 = QueueIndex_0(ShadowQueueBase_0(), _S944);
+    var base_43 : u32 = WorkBase_0(_S945);
+    var _S946 : u32 = Field_0(base_43, u32(11));
+    var mask_7 : u32 = (bitcast<u32>((gAccum_0[_S946].z)));
     if(((mask_7 & (u32(8)))) == u32(0))
     {
         return;
     }
-    var lightBase_2 : u32 = LightWorkBase_0(_S820);
+    var lightBase_2 : u32 = LightWorkBase_0(_S945);
     var viewer_6 : vec4<f32> = gAccum_0[Field_0(lightBase_2, u32(1))];
     LoadFeedbackState_0(base_43);
-    var radiance_9 : vec3<f32> = EvalSampledEmission_0((bitcast<u32>((gAccum_0[lightBase_2].w))), gAccum_0[lightBase_2].xyz, gAccum_0[Field_0(lightBase_2, u32(1))].xyz, gAccum_0[_S821].xy);
+    var radiance_9 : vec3<f32> = EvalSampledEmission_0((bitcast<u32>((gAccum_0[lightBase_2].w))), gAccum_0[lightBase_2].xyz, gAccum_0[Field_0(lightBase_2, u32(1))].xyz, gAccum_0[_S946].xy);
     var mask_8 : u32;
     if(((mask_7 & (u32(2)))) != u32(0))
     {
-        var _S822 : u32 = Field_0(base_43, u32(17));
-        gAccum_0[_S822] = vec4<f32>(vec3<f32>(gAccum_0[_S822].w) * radiance_9 * gAccum_0[_S822].xyz / vec3<f32>(viewer_6.w), 0.0f);
+        var _S947 : u32 = Field_0(base_43, u32(17));
+        gAccum_0[_S947] = vec4<f32>(vec3<f32>(gAccum_0[_S947].w) * radiance_9 * gAccum_0[_S947].xyz / vec3<f32>(viewer_6.w), 0.0f);
         if(!(any(((radiance_9 > vec3<f32>(0.0f))))))
         {
             mask_8 = (mask_7 & (u32(4294967293)));
@@ -18923,20 +20078,20 @@ fn ShadeLightImpl_1( tid_11 : vec3<u32>)
     {
         mask_8 = mask_7;
     }
-    gAccum_0[_S821][i32(2)] = (bitcast<f32>(((mask_8 & (u32(4294967287))))));
+    gAccum_0[_S946][i32(2)] = (bitcast<f32>(((mask_8 & (u32(4294967287))))));
     StoreFeedbackState_0(base_43);
     return;
 }
 
 fn ShadeImpl_10( tid_12 : vec3<u32>)
 {
-    var _S823 : u32 = BucketMetadataBase_0() + (countOneBits(u32(15)) + u32(1));
-    var _S824 : u32 = tid_12.x;
-    if((_S824 >= (bitcast<u32>((gAccum_0[_S823].x)))))
+    var _S948 : u32 = BucketMetadataBase_0() + (countOneBits(u32(15)) + u32(1));
+    var _S949 : u32 = tid_12.x;
+    if((_S949 >= (bitcast<u32>((gAccum_0[_S948].x)))))
     {
         return;
     }
-    var base_44 : u32 = WorkBase_0(QueueIndex_0(ShadowQueueBase_0(), (bitcast<u32>((gAccum_0[_S823].y))) + _S824));
+    var base_44 : u32 = WorkBase_0(QueueIndex_0(ShadowQueueBase_0(), (bitcast<u32>((gAccum_0[_S948].y))) + _S949));
     gAccum_0[Field_0(base_44, u32(11))] = vec4<f32>(0.0f);
     var s_50 : WavefrontPath_0 = LoadPath_1(base_44);
     if((s_50.active_0) == u32(0))
@@ -18944,13 +20099,13 @@ fn ShadeImpl_10( tid_12 : vec3<u32>)
         return;
     }
     LoadFeedbackState_0(base_44);
-    var hit_29 : HitRecord_0;
-    hit_29.t_6 = gAccum_0[Field_0(base_44, u32(8))].x;
-    hit_29.barycentrics_0 = gAccum_0[Field_0(base_44, u32(8))].yz;
-    hit_29.instanceIndex_2 = (bitcast<u32>((gAccum_0[Field_0(base_44, u32(8))].w)));
-    hit_29.primitiveIndex_1 = (bitcast<u32>((gAccum_0[Field_0(base_44, u32(9))].x)));
-    var _S825 : HitRecord_0 = hit_29;
-    ShadePath_7(base_44, &(s_50), _S825, gWavefront_0.bounce_0);
+    var hit_32 : HitRecord_0;
+    hit_32.t_6 = gAccum_0[Field_0(base_44, u32(8))].x;
+    hit_32.barycentrics_0 = gAccum_0[Field_0(base_44, u32(8))].yz;
+    hit_32.instanceIndex_2 = (bitcast<u32>((gAccum_0[Field_0(base_44, u32(8))].w)));
+    hit_32.primitiveIndex_1 = (bitcast<u32>((gAccum_0[Field_0(base_44, u32(9))].x)));
+    var _S950 : HitRecord_0 = hit_32;
+    ShadePath_7(base_44, &(s_50), _S950, gWavefront_0.bounce_0);
     StorePath_1(base_44, s_50);
     StoreFeedbackState_0(base_44);
     return;
@@ -18958,19 +20113,19 @@ fn ShadeImpl_10( tid_12 : vec3<u32>)
 
 fn ShadeImpl_11( tid_13 : vec3<u32>)
 {
-    var _S826 : u32 = tid_13.x;
-    if((_S826 >= (bitcast<u32>((gAccum_0[HeaderBase_0()].z)))))
+    var _S951 : u32 = tid_13.x;
+    if((_S951 >= (bitcast<u32>((gAccum_0[HeaderBase_0()].z)))))
     {
         return;
     }
-    var base_45 : u32 = WorkBase_0(QueueIndex_0(ShadeQueueBase_0(), _S826));
+    var base_45 : u32 = WorkBase_0(QueueIndex_0(ShadeQueueBase_0(), _S951));
     if((bitcast<u32>((gAccum_0[base_45].w))) == u32(0))
     {
         return;
     }
-    var _S827 : u32 = Field_0(base_45, u32(8));
-    var _S828 : u32 = gMaterialData_0[gInstances_0[(bitcast<u32>((gAccum_0[_S827].w)))].materialIndex_0 * u32(2)].w;
-    if(((((_S828 >> (u32(21)))) & (u32(31)))) != u32(16))
+    var _S952 : u32 = Field_0(base_45, u32(8));
+    var _S953 : u32 = gMaterialData_0[gInstances_0[(bitcast<u32>((gAccum_0[_S952].w)))].materialIndex_0 * u32(2)].w;
+    if(((((_S953 >> (u32(21)))) & (u32(31)))) != u32(16))
     {
         return;
     }
@@ -18981,13 +20136,13 @@ fn ShadeImpl_11( tid_13 : vec3<u32>)
         return;
     }
     LoadFeedbackState_0(base_45);
-    var hit_30 : HitRecord_0;
-    hit_30.t_6 = gAccum_0[_S827].x;
-    hit_30.barycentrics_0 = gAccum_0[_S827].yz;
-    hit_30.instanceIndex_2 = (bitcast<u32>((gAccum_0[_S827].w)));
-    hit_30.primitiveIndex_1 = (bitcast<u32>((gAccum_0[Field_0(base_45, u32(9))].x)));
-    var _S829 : HitRecord_0 = hit_30;
-    ShadePath_7(base_45, &(s_51), _S829, gWavefront_0.bounce_0);
+    var hit_33 : HitRecord_0;
+    hit_33.t_6 = gAccum_0[_S952].x;
+    hit_33.barycentrics_0 = gAccum_0[_S952].yz;
+    hit_33.instanceIndex_2 = (bitcast<u32>((gAccum_0[_S952].w)));
+    hit_33.primitiveIndex_1 = (bitcast<u32>((gAccum_0[Field_0(base_45, u32(9))].x)));
+    var _S954 : HitRecord_0 = hit_33;
+    ShadePath_7(base_45, &(s_51), _S954, gWavefront_0.bounce_0);
     StorePath_1(base_45, s_51);
     StoreFeedbackState_0(base_45);
     return;
@@ -18995,12 +20150,12 @@ fn ShadeImpl_11( tid_13 : vec3<u32>)
 
 fn ShadeImpl_12( tid_14 : vec3<u32>)
 {
-    var _S830 : u32 = tid_14.x;
-    if((_S830 >= (gWavefront_0.pathCount_0)))
+    var _S955 : u32 = tid_14.x;
+    if((_S955 >= (gWavefront_0.pathCount_0)))
     {
         return;
     }
-    var base_46 : u32 = WorkBase_0(_S830);
+    var base_46 : u32 = WorkBase_0(_S955);
     gAccum_0[Field_0(base_46, u32(11))] = vec4<f32>(0.0f);
     var s_52 : WavefrontPath_0 = LoadPath_1(base_46);
     if((s_52.active_0) == u32(0))
@@ -19008,13 +20163,13 @@ fn ShadeImpl_12( tid_14 : vec3<u32>)
         return;
     }
     LoadFeedbackState_0(base_46);
-    var hit_31 : HitRecord_0;
-    hit_31.t_6 = gAccum_0[Field_0(base_46, u32(8))].x;
-    hit_31.barycentrics_0 = gAccum_0[Field_0(base_46, u32(8))].yz;
-    hit_31.instanceIndex_2 = (bitcast<u32>((gAccum_0[Field_0(base_46, u32(8))].w)));
-    hit_31.primitiveIndex_1 = (bitcast<u32>((gAccum_0[Field_0(base_46, u32(9))].x)));
-    var _S831 : HitRecord_0 = hit_31;
-    ShadePath_7(base_46, &(s_52), _S831, gWavefront_0.bounce_0);
+    var hit_34 : HitRecord_0;
+    hit_34.t_6 = gAccum_0[Field_0(base_46, u32(8))].x;
+    hit_34.barycentrics_0 = gAccum_0[Field_0(base_46, u32(8))].yz;
+    hit_34.instanceIndex_2 = (bitcast<u32>((gAccum_0[Field_0(base_46, u32(8))].w)));
+    hit_34.primitiveIndex_1 = (bitcast<u32>((gAccum_0[Field_0(base_46, u32(9))].x)));
+    var _S956 : HitRecord_0 = hit_34;
+    ShadePath_7(base_46, &(s_52), _S956, gWavefront_0.bounce_0);
     StorePath_1(base_46, s_52);
     StoreFeedbackState_0(base_46);
     return;
@@ -19022,12 +20177,12 @@ fn ShadeImpl_12( tid_14 : vec3<u32>)
 
 fn ShadeImpl_13( tid_15 : vec3<u32>)
 {
-    var _S832 : u32 = tid_15.x;
-    if((_S832 >= (bitcast<u32>((gAccum_0[HeaderBase_0()].z)))))
+    var _S957 : u32 = tid_15.x;
+    if((_S957 >= (bitcast<u32>((gAccum_0[HeaderBase_0()].z)))))
     {
         return;
     }
-    var base_47 : u32 = WorkBase_0(QueueIndex_0(ShadeQueueBase_0(), _S832));
+    var base_47 : u32 = WorkBase_0(QueueIndex_0(ShadeQueueBase_0(), _S957));
     gAccum_0[Field_0(base_47, u32(11))] = vec4<f32>(0.0f);
     var s_53 : WavefrontPath_0 = LoadPath_1(base_47);
     if((s_53.active_0) == u32(0))
@@ -19035,133 +20190,476 @@ fn ShadeImpl_13( tid_15 : vec3<u32>)
         return;
     }
     LoadFeedbackState_0(base_47);
-    var hit_32 : HitRecord_0;
-    hit_32.t_6 = gAccum_0[Field_0(base_47, u32(8))].x;
-    hit_32.barycentrics_0 = gAccum_0[Field_0(base_47, u32(8))].yz;
-    hit_32.instanceIndex_2 = (bitcast<u32>((gAccum_0[Field_0(base_47, u32(8))].w)));
-    hit_32.primitiveIndex_1 = (bitcast<u32>((gAccum_0[Field_0(base_47, u32(9))].x)));
-    var _S833 : HitRecord_0 = hit_32;
-    ShadePath_7(base_47, &(s_53), _S833, gWavefront_0.bounce_0);
+    var hit_35 : HitRecord_0;
+    hit_35.t_6 = gAccum_0[Field_0(base_47, u32(8))].x;
+    hit_35.barycentrics_0 = gAccum_0[Field_0(base_47, u32(8))].yz;
+    hit_35.instanceIndex_2 = (bitcast<u32>((gAccum_0[Field_0(base_47, u32(8))].w)));
+    hit_35.primitiveIndex_1 = (bitcast<u32>((gAccum_0[Field_0(base_47, u32(9))].x)));
+    var _S958 : HitRecord_0 = hit_35;
+    ShadePath_7(base_47, &(s_53), _S958, gWavefront_0.bounce_0);
     StorePath_1(base_47, s_53);
     StoreFeedbackState_0(base_47);
     return;
 }
 
-fn TraceScene_4( ray_9 : Ray_0,  anyHit_4 : bool,  hit_33 : ptr<function, HitRecord_0>) -> bool
+fn TraceScene_4( ray_9 : Ray_0,  anyHit_4 : bool,  hit_36 : ptr<function, HitRecord_0>) -> bool
 {
-    var found_22 : bool;
-    (*hit_33).t_6 = ray_9.tMax_0;
-    (*hit_33).barycentrics_0 = vec2<f32>(0.0f);
-    (*hit_33).instanceIndex_2 = u32(4294967295);
-    (*hit_33).primitiveIndex_1 = u32(4294967295);
+    (*hit_36).t_6 = ray_9.tMax_0;
+    (*hit_36).barycentrics_0 = vec2<f32>(0.0f);
+    (*hit_36).instanceIndex_2 = u32(4294967295);
+    (*hit_36).primitiveIndex_1 = u32(4294967295);
     if((gFrame_0.counts_0.x) == u32(0))
     {
         return false;
     }
-    var _S834 : u32 = gFrame_0.counts_0.z;
-    var _S835 : vec3<f32> = SafeRcp_0(ray_9.direction_0);
-    var stack_9 : array<u32, i32(32)>;
-    var nodeRef_7 : u32 = u32(0);
-    var found_23 : bool = false;
-    var stackPtr_28 : u32 = u32(0);
+    var _S959 : u32 = gFrame_0.counts_0.z;
+    var worldRD_4 : vec3<f32> = SafeRcp_0(ray_9.direction_0);
+    var _S960 : vec2<u32> = vec2<u32>(u32(0));
+    var nodeGroup_4 : vec2<u32> = _S960;
+    var triGroup_4 : vec2<u32> = _S960;
+    var inBlas_12 : bool = false;
+    var instanceIndex_18 : u32 = u32(0);
+    var blasTriOffset_12 : u32 = u32(0);
+    var merged_11 : bool = false;
+    var o_67 : vec3<f32> = ray_9.origin_0;
+    var d_24 : vec3<f32> = ray_9.direction_0;
+    var octinv_9 : u32 = u32(0);
+    var blasNodeOffset_9 : u32 = u32(0);
+    var rD_9 : vec3<f32> = worldRD_4;
+    var nodeRef_12 : u32 = u32(0);
+    var found_12 : bool = false;
+    var stackPtr_12 : u32 = u32(0);
     loop
     {
-        var i_15 : u32;
-        if(((nodeRef_7 & (u32(2147483648)))) != u32(0))
+        var pop_4 : bool;
+        var inBlas_13 : bool;
+        var merged_12 : bool;
+        var instanceIndex_19 : u32;
+        var blasTriOffset_13 : u32;
+        var octinv_10 : u32;
+        var blasNodeOffset_10 : u32;
+        var nodeRef_13 : u32;
+        var stackPtr_13 : u32;
+        var o_68 : vec3<f32>;
+        var d_25 : vec3<f32>;
+        var rD_10 : vec3<f32>;
+        var dist1_8 : f32;
+        var dist2_8 : f32;
+        if(inBlas_12)
         {
-            var _S836 : u32 = (((nodeRef_7 >> (u32(24)))) & (u32(127)));
-            var _S837 : u32 = (nodeRef_7 & (u32(16777215)));
-            found_22 = found_23;
-            i_15 = u32(0);
+            if(((nodeGroup_4.y) > u32(16777215)))
+            {
+                var hits_4 : u32 = nodeGroup_4.y;
+                var childBit_4 : u32 = firstbithigh_0(hits_4);
+                nodeGroup_4[i32(1)] = ((nodeGroup_4[i32(1)]) & ((~((u32(1) << (childBit_4))))));
+                if(((nodeGroup_4.y) > u32(16777215)))
+                {
+                    pop_4 = (stackPtr_12 < u32(32));
+                }
+                else
+                {
+                    pop_4 = false;
+                }
+                if(pop_4)
+                {
+                    var _S961 : u32 = stackPtr_12 + u32(1);
+                    gTraversalStack_0[stackPtr_12] = nodeGroup_4;
+                    octinv_10 = _S961;
+                }
+                else
+                {
+                    octinv_10 = stackPtr_12;
+                }
+                var node_8 : u32 = blasNodeOffset_9 + (nodeGroup_4.x + countOneBits((hits_4 & ((~((u32(4294967295) << ((((childBit_4 - u32(24)) ^ (((octinv_9 & (u32(255))))))))))))))) * u32(5);
+                gTraversalCost_0 = gTraversalCost_0 + u32(1);
+                var n0_4 : vec4<f32> = gNodes_0[node_8];
+                var n1_4 : vec4<f32> = gNodes_0[node_8 + u32(1)];
+                var n2_4 : vec4<f32> = gNodes_0[node_8 + u32(2)];
+                var n3_4 : vec4<f32> = gNodes_0[node_8 + u32(3)];
+                var n4_4 : vec4<f32> = gNodes_0[node_8 + u32(4)];
+                var e4_4 : u32 = (bitcast<u32>((n0_4.w)));
+                var scale_11 : vec3<f32> = vec3<f32>((bitcast<f32>(((((e4_4 & (u32(255)))) << (u32(23)))))), (bitcast<f32>(((((((e4_4 >> (u32(8)))) & (u32(255)))) << (u32(23)))))), (bitcast<f32>(((((((e4_4 >> (u32(16)))) & (u32(255)))) << (u32(23))))))) * rD_9;
+                var origin_17 : vec3<f32> = (n0_4.xyz - o_67) * rD_9;
+                var negative_4 : vec3<bool> = (rD_9 < vec3<f32>(0.0f));
+                var _S962 : bool = negative_4.x;
+                if(_S962)
+                {
+                    dist1_8 = n3_4.z;
+                }
+                else
+                {
+                    dist1_8 = n2_4.x;
+                }
+                var _S963 : u32 = (bitcast<u32>((dist1_8)));
+                var _S964 : bool = negative_4.y;
+                if(_S964)
+                {
+                    dist2_8 = n4_4.x;
+                }
+                else
+                {
+                    dist2_8 = n2_4.z;
+                }
+                var _S965 : u32 = (bitcast<u32>((dist2_8)));
+                var _S966 : bool = negative_4.z;
+                var _S967 : f32;
+                if(_S966)
+                {
+                    _S967 = n4_4.z;
+                }
+                else
+                {
+                    _S967 = n3_4.x;
+                }
+                var lo0_4 : vec3<u32> = vec3<u32>(_S963, _S965, (bitcast<u32>((_S967))));
+                var _S968 : f32;
+                if(_S962)
+                {
+                    _S968 = n2_4.x;
+                }
+                else
+                {
+                    _S968 = n3_4.z;
+                }
+                var _S969 : u32 = (bitcast<u32>((_S968)));
+                var _S970 : f32;
+                if(_S964)
+                {
+                    _S970 = n2_4.z;
+                }
+                else
+                {
+                    _S970 = n4_4.x;
+                }
+                var _S971 : u32 = (bitcast<u32>((_S970)));
+                var _S972 : f32;
+                if(_S966)
+                {
+                    _S972 = n3_4.x;
+                }
+                else
+                {
+                    _S972 = n4_4.z;
+                }
+                var hi0_4 : vec3<u32> = vec3<u32>(_S969, _S971, (bitcast<u32>((_S972))));
+                var _S973 : f32;
+                if(_S962)
+                {
+                    _S973 = n3_4.w;
+                }
+                else
+                {
+                    _S973 = n2_4.y;
+                }
+                var _S974 : u32 = (bitcast<u32>((_S973)));
+                var _S975 : f32;
+                if(_S964)
+                {
+                    _S975 = n4_4.y;
+                }
+                else
+                {
+                    _S975 = n2_4.w;
+                }
+                var _S976 : u32 = (bitcast<u32>((_S975)));
+                var _S977 : f32;
+                if(_S966)
+                {
+                    _S977 = n4_4.w;
+                }
+                else
+                {
+                    _S977 = n3_4.y;
+                }
+                var lo1_4 : vec3<u32> = vec3<u32>(_S974, _S976, (bitcast<u32>((_S977))));
+                var _S978 : f32;
+                if(_S962)
+                {
+                    _S978 = n2_4.y;
+                }
+                else
+                {
+                    _S978 = n3_4.w;
+                }
+                var _S979 : u32 = (bitcast<u32>((_S978)));
+                var _S980 : f32;
+                if(_S964)
+                {
+                    _S980 = n2_4.w;
+                }
+                else
+                {
+                    _S980 = n4_4.y;
+                }
+                var _S981 : u32 = (bitcast<u32>((_S980)));
+                var _S982 : f32;
+                if(_S966)
+                {
+                    _S982 = n3_4.y;
+                }
+                else
+                {
+                    _S982 = n4_4.w;
+                }
+                var hitmask_5 : u32 = ((CwbvhChildHits_0((bitcast<u32>((n1_4.z))), lo0_4, hi0_4, scale_11, origin_17, ray_9.tMin_0, (*hit_36).t_6, octinv_9)) | ((CwbvhChildHits_0((bitcast<u32>((n1_4.w))), lo1_4, vec3<u32>(_S979, _S981, (bitcast<u32>((_S982)))), scale_11, origin_17, ray_9.tMin_0, (*hit_36).t_6, octinv_9))));
+                nodeGroup_4 = vec2<u32>((bitcast<u32>((n1_4.x))), (((hitmask_5 & (u32(4278190080)))) | (((e4_4 >> (u32(24)))))));
+                triGroup_4 = vec2<u32>((bitcast<u32>((n1_4.y))), (hitmask_5 & (u32(16777215))));
+            }
+            else
+            {
+                triGroup_4 = nodeGroup_4;
+                nodeGroup_4 = _S960;
+                octinv_10 = stackPtr_12;
+            }
+            pop_4 = found_12;
             loop
             {
-                if((i_15 < _S836))
+                if((triGroup_4.y) != u32(0))
                 {
                 }
                 else
                 {
                     break;
                 }
-                var instanceIndex_7 : u32 = gIndices_0[_S834 + _S837 + i_15];
-                var _S838 : bool = TraverseBLAS_0(instanceIndex_7, instanceIndex_7, InverseTransformPoint_0(instanceIndex_7, ray_9.origin_0), InverseTransformVector_0(instanceIndex_7, ray_9.direction_0), ray_9.tMin_0, anyHit_4, &((*hit_33)));
-                if(_S838)
+                var triangleBit_4 : u32 = firstbithigh_0(triGroup_4.y);
+                triGroup_4[i32(1)] = ((triGroup_4[i32(1)]) & ((~((u32(1) << (triangleBit_4))))));
+                var _S983 : bool = IntersectSlot_0((((triGroup_4.x) >> (u32(2)))) + triangleBit_4, instanceIndex_18, blasTriOffset_12, merged_11, false, o_67, d_24, ray_9.tMin_0, &((*hit_36)));
+                if(_S983)
                 {
                     if(anyHit_4)
                     {
                         return true;
                     }
-                    found_22 = true;
+                    pop_4 = true;
                 }
-                i_15 = i_15 + u32(1);
             }
-            if(stackPtr_28 == u32(0))
+            if((triGroup_4.y) == u32(0))
             {
-                break;
-            }
-            var stackPtr_29 : u32 = stackPtr_28 - u32(1);
-            nodeRef_7 = stack_9[stackPtr_29];
-            found_23 = found_22;
-            stackPtr_28 = stackPtr_29;
-            continue;
-        }
-        gTraversalCost_0 = gTraversalCost_0 + u32(1);
-        var node_7 : BVHNode_std430_0 = gNodes_0[gFrame_0.envInfo_0.z + nodeRef_7];
-        var dist1_14 : f32 = IntersectBox_0(node_7.lmin_0, node_7.lmax_0, ray_9.origin_0, _S835, ray_9.tMin_0, (*hit_33).t_6);
-        var dist2_14 : f32 = IntersectBox_0(node_7.rmin_0, node_7.rmax_0, ray_9.origin_0, _S835, ray_9.tMin_0, (*hit_33).t_6);
-        var far_7 : u32;
-        var dist1_15 : f32;
-        var dist2_15 : f32;
-        if((dist1_14 > dist2_14))
-        {
-            dist1_15 = dist2_14;
-            i_15 = node_7.right_0;
-            dist2_15 = dist1_14;
-            far_7 = node_7.left_0;
-        }
-        else
-        {
-            dist1_15 = dist1_14;
-            i_15 = node_7.left_0;
-            dist2_15 = dist2_14;
-            far_7 = node_7.right_0;
-        }
-        if(dist1_15 == 1.00000001504746622e+30f)
-        {
-            if(stackPtr_28 == u32(0))
-            {
-                found_22 = found_23;
-                break;
-            }
-            var stackPtr_30 : u32 = stackPtr_28 - u32(1);
-            nodeRef_7 = stack_9[stackPtr_30];
-            stackPtr_28 = stackPtr_30;
-        }
-        else
-        {
-            if(dist2_15 != 1.00000001504746622e+30f)
-            {
-                found_22 = (stackPtr_28 < u32(32));
+                inBlas_13 = ((nodeGroup_4.y) <= u32(16777215));
             }
             else
             {
-                found_22 = false;
+                inBlas_13 = false;
             }
-            var stackPtr_31 : u32;
-            if(found_22)
+            var _S984 : u32 = octinv_10;
+            var _S985 : bool = pop_4;
+            pop_4 = inBlas_13;
+            inBlas_13 = inBlas_12;
+            instanceIndex_19 = instanceIndex_18;
+            blasTriOffset_13 = blasTriOffset_12;
+            merged_12 = merged_11;
+            o_68 = o_67;
+            d_25 = d_24;
+            octinv_10 = octinv_9;
+            blasNodeOffset_10 = blasNodeOffset_9;
+            rD_10 = rD_9;
+            nodeRef_13 = nodeRef_12;
+            found_12 = _S985;
+            stackPtr_13 = _S984;
+        }
+        else
+        {
+            if(((nodeRef_12 & (u32(2147483648)))) != u32(0))
             {
-                var _S839 : u32 = stackPtr_28 + u32(1);
-                stack_9[stackPtr_28] = far_7;
-                stackPtr_31 = _S839;
+                var count_5 : u32 = (((nodeRef_12 >> (u32(24)))) & (u32(127)));
+                var first_4 : u32 = (nodeRef_12 & (u32(16777215)));
+                if(count_5 == u32(0))
+                {
+                    pop_4 = true;
+                    inBlas_13 = inBlas_12;
+                    instanceIndex_19 = instanceIndex_18;
+                    blasTriOffset_13 = blasTriOffset_12;
+                    merged_12 = merged_11;
+                    o_68 = o_67;
+                    d_25 = d_24;
+                    octinv_10 = octinv_9;
+                    blasNodeOffset_10 = blasNodeOffset_9;
+                    rD_10 = rD_9;
+                    nodeRef_13 = stackPtr_12;
+                }
+                else
+                {
+                    if((count_5 > u32(1)))
+                    {
+                        pop_4 = (stackPtr_12 < u32(32));
+                    }
+                    else
+                    {
+                        pop_4 = false;
+                    }
+                    if(pop_4)
+                    {
+                        var _S986 : u32 = stackPtr_12 + u32(1);
+                        gTraversalStack_0[stackPtr_12] = vec2<u32>((((u32(2147483648) | ((((count_5 - u32(1)) << (u32(24))))))) | ((first_4 + u32(1)))), u32(0));
+                        octinv_10 = _S986;
+                    }
+                    else
+                    {
+                        octinv_10 = stackPtr_12;
+                    }
+                    var instanceIndex_20 : u32 = gIndices_0[_S959 + first_4];
+                    var _S987 : u32 = gInstances_0[instanceIndex_20].blasNodeOffset_0;
+                    var _S988 : u32 = gInstances_0[instanceIndex_20].blasTriOffset_0;
+                    var _S989 : vec3<f32> = InverseTransformPoint_0(instanceIndex_20, ray_9.origin_0);
+                    var _S990 : vec3<f32> = InverseTransformVector_0(instanceIndex_20, ray_9.direction_0);
+                    var _S991 : vec3<f32> = SafeRcp_0(_S990);
+                    var _S992 : bool = (((gInstances_0[instanceIndex_20].flags_0) & (u32(4)))) != u32(0);
+                    if(((_S990.x) < 0.0f))
+                    {
+                        instanceIndex_19 = u32(4);
+                    }
+                    else
+                    {
+                        instanceIndex_19 = u32(0);
+                    }
+                    if(((_S990.y) < 0.0f))
+                    {
+                        blasTriOffset_13 = u32(2);
+                    }
+                    else
+                    {
+                        blasTriOffset_13 = u32(0);
+                    }
+                    var _S993 : u32 = (instanceIndex_19 | (blasTriOffset_13));
+                    if(((_S990.z) < 0.0f))
+                    {
+                        blasNodeOffset_10 = u32(1);
+                    }
+                    else
+                    {
+                        blasNodeOffset_10 = u32(0);
+                    }
+                    var _S994 : u32 = (u32(7) - ((_S993 | (blasNodeOffset_10)))) * u32(16843009);
+                    nodeGroup_4 = vec2<u32>(u32(0), u32(2147483648));
+                    var _S995 : u32 = octinv_10;
+                    pop_4 = false;
+                    inBlas_13 = true;
+                    instanceIndex_19 = instanceIndex_20;
+                    blasTriOffset_13 = _S988;
+                    merged_12 = _S992;
+                    o_68 = _S989;
+                    d_25 = _S990;
+                    octinv_10 = _S994;
+                    blasNodeOffset_10 = _S987;
+                    rD_10 = _S991;
+                    nodeRef_13 = _S995;
+                }
+                var _S996 : u32 = nodeRef_13;
+                nodeRef_13 = nodeRef_12;
+                stackPtr_13 = _S996;
             }
             else
             {
-                stackPtr_31 = stackPtr_28;
+                gTraversalCost_0 = gTraversalCost_0 + u32(1);
+                var node_9 : u32 = gFrame_0.envInfo_0.z + nodeRef_12 * u32(4);
+                var left_4 : vec4<f32> = gNodes_0[node_9];
+                var leftMax_4 : vec4<f32> = gNodes_0[node_9 + u32(1)];
+                var dist1_9 : f32 = IntersectBox_0(left_4.xyz, leftMax_4.xyz, ray_9.origin_0, worldRD_4, ray_9.tMin_0, (*hit_36).t_6);
+                var dist2_9 : f32 = IntersectBox_0(gNodes_0[node_9 + u32(2)].xyz, gNodes_0[node_9 + u32(3)].xyz, ray_9.origin_0, worldRD_4, ray_9.tMin_0, (*hit_36).t_6);
+                var near_5 : u32 = (bitcast<u32>((left_4.w)));
+                var far_4 : u32 = (bitcast<u32>((leftMax_4.w)));
+                if((dist1_9 > dist2_9))
+                {
+                    dist1_8 = dist2_9;
+                    instanceIndex_19 = far_4;
+                    dist2_8 = dist1_9;
+                    blasTriOffset_13 = near_5;
+                }
+                else
+                {
+                    dist1_8 = dist1_9;
+                    instanceIndex_19 = near_5;
+                    dist2_8 = dist2_9;
+                    blasTriOffset_13 = far_4;
+                }
+                if(dist1_8 == 1.00000001504746622e+30f)
+                {
+                    pop_4 = true;
+                    octinv_10 = nodeRef_12;
+                    blasNodeOffset_10 = stackPtr_12;
+                }
+                else
+                {
+                    if(dist2_8 != 1.00000001504746622e+30f)
+                    {
+                        pop_4 = (stackPtr_12 < u32(32));
+                    }
+                    else
+                    {
+                        pop_4 = false;
+                    }
+                    if(pop_4)
+                    {
+                        var _S997 : u32 = stackPtr_12 + u32(1);
+                        gTraversalStack_0[stackPtr_12] = vec2<u32>(blasTriOffset_13, u32(0));
+                        octinv_10 = _S997;
+                    }
+                    else
+                    {
+                        octinv_10 = stackPtr_12;
+                    }
+                    var _S998 : u32 = octinv_10;
+                    pop_4 = false;
+                    octinv_10 = instanceIndex_19;
+                    blasNodeOffset_10 = _S998;
+                }
+                var _S999 : u32 = octinv_10;
+                var _S1000 : u32 = blasNodeOffset_10;
+                inBlas_13 = inBlas_12;
+                instanceIndex_19 = instanceIndex_18;
+                blasTriOffset_13 = blasTriOffset_12;
+                merged_12 = merged_11;
+                o_68 = o_67;
+                d_25 = d_24;
+                octinv_10 = octinv_9;
+                blasNodeOffset_10 = blasNodeOffset_9;
+                rD_10 = rD_9;
+                nodeRef_13 = _S999;
+                stackPtr_13 = _S1000;
             }
-            nodeRef_7 = i_15;
-            stackPtr_28 = stackPtr_31;
         }
+        if(pop_4)
+        {
+            if(stackPtr_13 == u32(0))
+            {
+                break;
+            }
+            var stackPtr_14 : u32 = stackPtr_13 - u32(1);
+            var entry_5 : vec2<u32> = gTraversalStack_0[stackPtr_14];
+            var inBlas_14 : bool;
+            var nodeRef_14 : u32;
+            if((gTraversalStack_0[stackPtr_14].y) == u32(0))
+            {
+                var _S1001 : u32 = entry_5.x;
+                inBlas_14 = false;
+                nodeRef_14 = _S1001;
+            }
+            else
+            {
+                nodeGroup_4 = entry_5;
+                inBlas_14 = inBlas_13;
+                nodeRef_14 = nodeRef_13;
+            }
+            inBlas_12 = inBlas_14;
+            nodeRef_12 = nodeRef_14;
+            stackPtr_12 = stackPtr_14;
+        }
+        else
+        {
+            inBlas_12 = inBlas_13;
+            nodeRef_12 = nodeRef_13;
+            stackPtr_12 = stackPtr_13;
+        }
+        instanceIndex_18 = instanceIndex_19;
+        blasTriOffset_12 = blasTriOffset_13;
+        merged_11 = merged_12;
+        o_67 = o_68;
+        d_24 = d_25;
+        octinv_9 = octinv_10;
+        blasNodeOffset_9 = blasNodeOffset_10;
+        rD_9 = rD_10;
     }
-    return found_22;
+    return found_12;
 }
 
 fn NrdUnpackFraction_0( v_21 : u32) -> vec3<f32>
@@ -19172,44 +20670,44 @@ fn NrdUnpackFraction_0( v_21 : u32) -> vec3<f32>
 fn NrdSplitDirect_0( flags_3 : u32,  contribution_24 : vec3<f32>,  diffuse_3 : ptr<function, vec3<f32>>,  specular_4 : ptr<function, vec3<f32>>,  bypass_1 : ptr<function, vec3<f32>>)
 {
     var skip_0 : bool = ((flags_3 & (u32(4)))) != u32(0);
-    var _S840 : vec3<f32>;
+    var _S1002 : vec3<f32>;
     if(skip_0)
     {
-        _S840 = vec3<f32>(0.0f);
+        _S1002 = vec3<f32>(0.0f);
     }
     else
     {
-        _S840 = contribution_24 * NrdUnpackFraction_0((flags_3 >> (u32(3))));
+        _S1002 = contribution_24 * NrdUnpackFraction_0((flags_3 >> (u32(3))));
     }
-    (*diffuse_3) = _S840;
+    (*diffuse_3) = _S1002;
     if(skip_0)
     {
-        _S840 = vec3<f32>(0.0f);
+        _S1002 = vec3<f32>(0.0f);
     }
     else
     {
-        _S840 = contribution_24 - (*diffuse_3);
+        _S1002 = contribution_24 - (*diffuse_3);
     }
-    (*specular_4) = _S840;
+    (*specular_4) = _S1002;
     if(skip_0)
     {
-        _S840 = contribution_24;
+        _S1002 = contribution_24;
     }
     else
     {
-        _S840 = vec3<f32>(0.0f);
+        _S1002 = vec3<f32>(0.0f);
     }
-    (*bypass_1) = _S840;
-    var _S841 : bool;
+    (*bypass_1) = _S1002;
+    var _S1003 : bool;
     if(DiffuseOnlyFrame_0())
     {
-        _S841 = ((flags_3 & (u32(1073741824)))) != u32(0);
+        _S1003 = ((flags_3 & (u32(1073741824)))) != u32(0);
     }
     else
     {
-        _S841 = false;
+        _S1003 = false;
     }
-    if(_S841)
+    if(_S1003)
     {
         (*bypass_1) = (*bypass_1) + (*specular_4);
         (*specular_4) = vec3<f32>(0.0f);
@@ -19233,39 +20731,39 @@ fn NrdAddDirect_0( base_48 : u32,  flags_4 : u32,  contribution_25 : vec3<f32>, 
     var bypass_2 : vec3<f32>;
     NrdSplitDirect_0(flags_4, contribution_25, &(diffuse_4), &(specular_5), &(bypass_2));
     var r_31 : u32 = NrdBase_0(base_48);
-    var _S842 : vec3<f32> = gAccum_0[r_31].xyz + bypass_2;
-    gAccum_0[r_31].x = _S842.x;
-    gAccum_0[r_31].y = _S842.y;
-    gAccum_0[r_31].z = _S842.z;
-    var _S843 : u32 = r_31 + u32(1);
-    var _S844 : vec3<f32> = gAccum_0[_S843].xyz + diffuse_4;
-    gAccum_0[_S843].x = _S844.x;
-    gAccum_0[_S843].y = _S844.y;
-    gAccum_0[_S843].z = _S844.z;
-    var _S845 : u32 = r_31 + u32(2);
-    var _S846 : vec3<f32> = gAccum_0[_S845].xyz + specular_5;
-    gAccum_0[_S845].x = _S846.x;
-    gAccum_0[_S845].y = _S846.y;
-    gAccum_0[_S845].z = _S846.z;
-    var _S847 : u32 = r_31 + u32(3);
-    var _S848 : vec3<f32> = gAccum_0[_S847].xyz + vec3<f32>(Luminance_0(diffuse_4)) * direction_3;
-    gAccum_0[_S847].x = _S848.x;
-    gAccum_0[_S847].y = _S848.y;
-    gAccum_0[_S847].z = _S848.z;
-    var _S849 : u32 = r_31 + u32(4);
-    var _S850 : vec3<f32> = gAccum_0[_S849].xyz + vec3<f32>(Luminance_0(specular_5)) * direction_3;
-    gAccum_0[_S849].x = _S850.x;
-    gAccum_0[_S849].y = _S850.y;
-    gAccum_0[_S849].z = _S850.z;
+    var _S1004 : vec3<f32> = gAccum_0[r_31].xyz + bypass_2;
+    gAccum_0[r_31].x = _S1004.x;
+    gAccum_0[r_31].y = _S1004.y;
+    gAccum_0[r_31].z = _S1004.z;
+    var _S1005 : u32 = r_31 + u32(1);
+    var _S1006 : vec3<f32> = gAccum_0[_S1005].xyz + diffuse_4;
+    gAccum_0[_S1005].x = _S1006.x;
+    gAccum_0[_S1005].y = _S1006.y;
+    gAccum_0[_S1005].z = _S1006.z;
+    var _S1007 : u32 = r_31 + u32(2);
+    var _S1008 : vec3<f32> = gAccum_0[_S1007].xyz + specular_5;
+    gAccum_0[_S1007].x = _S1008.x;
+    gAccum_0[_S1007].y = _S1008.y;
+    gAccum_0[_S1007].z = _S1008.z;
+    var _S1009 : u32 = r_31 + u32(3);
+    var _S1010 : vec3<f32> = gAccum_0[_S1009].xyz + vec3<f32>(Luminance_0(diffuse_4)) * direction_3;
+    gAccum_0[_S1009].x = _S1010.x;
+    gAccum_0[_S1009].y = _S1010.y;
+    gAccum_0[_S1009].z = _S1010.z;
+    var _S1011 : u32 = r_31 + u32(4);
+    var _S1012 : vec3<f32> = gAccum_0[_S1011].xyz + vec3<f32>(Luminance_0(specular_5)) * direction_3;
+    gAccum_0[_S1011].x = _S1012.x;
+    gAccum_0[_S1011].y = _S1012.y;
+    gAccum_0[_S1011].z = _S1012.z;
     return;
 }
 
 fn ResolveShadowVisibility_0( base_49 : u32,  mask_9 : u32)
 {
-    var _S851 : vec3<f32> = vec3<f32>(0.0f);
+    var _S1013 : vec3<f32> = vec3<f32>(0.0f);
     var throughput_44 : vec4<f32> = gAccum_0[Field_0(base_49, u32(10))];
     var source_4 : u32 = u32(0);
-    var sum_5 : vec3<f32> = _S851;
+    var sum_5 : vec3<f32> = _S1013;
     loop
     {
         if((source_4 < u32(3)))
@@ -19280,29 +20778,29 @@ fn ResolveShadowVisibility_0( base_49 : u32,  mask_9 : u32)
             source_4 = source_4 + u32(1);
             continue;
         }
-        var _S852 : u32 = source_4 * u32(3);
-        var value_3 : vec3<f32> = gAccum_0[Field_0(base_49, u32(14) + _S852)].xyz;
-        var sum_6 : vec3<f32> = sum_5 + value_3;
-        NrdAddDirect_0(base_49, (bitcast<u32>((gAccum_0[Field_0(base_49, u32(13) + _S852)].w))), throughput_44.xyz * value_3, gAccum_0[Field_0(base_49, u32(13) + _S852)].xyz);
+        var _S1014 : u32 = source_4 * u32(3);
+        var value_4 : vec3<f32> = gAccum_0[Field_0(base_49, u32(14) + _S1014)].xyz;
+        var sum_6 : vec3<f32> = sum_5 + value_4;
+        NrdAddDirect_0(base_49, (bitcast<u32>((gAccum_0[Field_0(base_49, u32(13) + _S1014)].w))), throughput_44.xyz * value_4, gAccum_0[Field_0(base_49, u32(13) + _S1014)].xyz);
         sum_5 = sum_6;
         source_4 = source_4 + u32(1);
     }
     var contribution_26 : vec3<f32> = throughput_44.xyz * sum_5;
-    var _S853 : f32 = throughput_44.w;
+    var _S1015 : f32 = throughput_44.w;
     var contribution_27 : vec3<f32>;
-    if((_S853 > 0.0f))
+    if((_S1015 > 0.0f))
     {
-        contribution_27 = min(contribution_26, vec3<f32>(_S853));
+        contribution_27 = min(contribution_26, vec3<f32>(_S1015));
     }
     else
     {
         contribution_27 = contribution_26;
     }
     var path_2 : vec4<f32> = gAccum_0[base_49];
-    var _S854 : vec3<f32> = gAccum_0[base_49].xyz + contribution_27;
-    path_2.x = _S854.x;
-    path_2.y = _S854.y;
-    path_2.z = _S854.z;
+    var _S1016 : vec3<f32> = gAccum_0[base_49].xyz + contribution_27;
+    path_2.x = _S1016.x;
+    path_2.y = _S1016.y;
+    path_2.z = _S1016.z;
     gAccum_0[base_49] = path_2;
     gAccum_0[Field_0(base_49, u32(11))] = vec4<f32>(0.0f);
     return;
@@ -19310,15 +20808,15 @@ fn ResolveShadowVisibility_0( base_49 : u32,  mask_9 : u32)
 
 fn ShadowClassifyImpl_0( tid_16 : vec3<u32>)
 {
-    var _S855 : u32 = tid_16.x;
-    if((_S855 >= (gWavefront_0.pathCount_0)))
+    var _S1017 : u32 = tid_16.x;
+    if((_S1017 >= (gWavefront_0.pathCount_0)))
     {
         return;
     }
-    var base_50 : u32 = WorkBase_0(_S855);
-    var _S856 : u32 = Field_0(base_50, u32(11));
-    var info_1 : vec4<f32> = gAccum_0[_S856];
-    var mask_10 : u32 = (bitcast<u32>((gAccum_0[_S856].z)));
+    var base_50 : u32 = WorkBase_0(_S1017);
+    var _S1018 : u32 = Field_0(base_50, u32(11));
+    var info_1 : vec4<f32> = gAccum_0[_S1018];
+    var mask_10 : u32 = (bitcast<u32>((gAccum_0[_S1018].z)));
     if(mask_10 == u32(0))
     {
         return;
@@ -19348,22 +20846,22 @@ fn ShadowClassifyImpl_0( tid_16 : vec3<u32>)
             continue;
         }
         var offset_3 : u32 = u32(12) + source_5 * u32(3);
-        var origin_12 : vec4<f32> = gAccum_0[Field_0(base_50, offset_3)];
+        var origin_18 : vec4<f32> = gAccum_0[Field_0(base_50, offset_3)];
         var direction_4 : vec4<f32> = gAccum_0[Field_0(base_50, offset_3 + u32(1))];
-        var hit_34 : HitRecord_0;
-        var _S857 : bool;
+        var hit_37 : HitRecord_0;
+        var _S1019 : bool;
         if((((bitcast<u32>((gAccum_0[Field_0(base_50, offset_3 + u32(1))].w))) & (u32(1)))) != u32(0))
         {
-            var _S858 : bool = TraceScene_4(Ray_x24init_0(origin_12.xyz, direction_4.xyz, origin_12.w), true, &(hit_34));
-            _S857 = _S858;
+            var _S1020 : bool = TraceScene_4(Ray_x24init_0(origin_18.xyz, direction_4.xyz, origin_18.w), true, &(hit_37));
+            _S1019 = _S1020;
         }
         else
         {
-            _S857 = false;
+            _S1019 = false;
         }
-        if(_S857)
+        if(_S1019)
         {
-            if((((gInstances_0[hit_34.instanceIndex_2].flags_0) & (u32(1)))) != u32(0))
+            if((((gInstances_0[hit_37.instanceIndex_2].flags_0) & (u32(1)))) != u32(0))
             {
                 var pending_2 : u32 = (pending_0 | (bit_1));
                 mask_12 = mask_11;
@@ -19390,22 +20888,22 @@ fn ShadowClassifyImpl_0( tid_16 : vec3<u32>)
     }
     else
     {
-        gAccum_0[_S856] = vec4<f32>(info_1.xy, (bitcast<f32>((mask_11))), (bitcast<f32>((pending_0))));
+        gAccum_0[_S1018] = vec4<f32>(info_1.xy, (bitcast<f32>((mask_11))), (bitcast<f32>((pending_0))));
     }
     return;
 }
 
 fn ShadowClassifyImpl_1( tid_17 : vec3<u32>)
 {
-    var _S859 : u32 = tid_17.x;
-    if((_S859 >= (bitcast<u32>((gAccum_0[HeaderBase_0()].y)))))
+    var _S1021 : u32 = tid_17.x;
+    if((_S1021 >= (bitcast<u32>((gAccum_0[HeaderBase_0()].y)))))
     {
         return;
     }
-    var base_51 : u32 = WorkBase_0(QueueIndex_0(ShadowQueueBase_0(), _S859));
-    var _S860 : u32 = Field_0(base_51, u32(11));
-    var info_2 : vec4<f32> = gAccum_0[_S860];
-    var mask_13 : u32 = (bitcast<u32>((gAccum_0[_S860].z)));
+    var base_51 : u32 = WorkBase_0(QueueIndex_0(ShadowQueueBase_0(), _S1021));
+    var _S1022 : u32 = Field_0(base_51, u32(11));
+    var info_2 : vec4<f32> = gAccum_0[_S1022];
+    var mask_13 : u32 = (bitcast<u32>((gAccum_0[_S1022].z)));
     if(mask_13 == u32(0))
     {
         return;
@@ -19435,22 +20933,22 @@ fn ShadowClassifyImpl_1( tid_17 : vec3<u32>)
             continue;
         }
         var offset_4 : u32 = u32(12) + source_6 * u32(3);
-        var origin_13 : vec4<f32> = gAccum_0[Field_0(base_51, offset_4)];
+        var origin_19 : vec4<f32> = gAccum_0[Field_0(base_51, offset_4)];
         var direction_5 : vec4<f32> = gAccum_0[Field_0(base_51, offset_4 + u32(1))];
-        var hit_35 : HitRecord_0;
-        var _S861 : bool;
+        var hit_38 : HitRecord_0;
+        var _S1023 : bool;
         if((((bitcast<u32>((gAccum_0[Field_0(base_51, offset_4 + u32(1))].w))) & (u32(1)))) != u32(0))
         {
-            var _S862 : bool = TraceScene_4(Ray_x24init_0(origin_13.xyz, direction_5.xyz, origin_13.w), true, &(hit_35));
-            _S861 = _S862;
+            var _S1024 : bool = TraceScene_4(Ray_x24init_0(origin_19.xyz, direction_5.xyz, origin_19.w), true, &(hit_38));
+            _S1023 = _S1024;
         }
         else
         {
-            _S861 = false;
+            _S1023 = false;
         }
-        if(_S861)
+        if(_S1023)
         {
-            if((((gInstances_0[hit_35.instanceIndex_2].flags_0) & (u32(1)))) != u32(0))
+            if((((gInstances_0[hit_38.instanceIndex_2].flags_0) & (u32(1)))) != u32(0))
             {
                 var pending_5 : u32 = (pending_3 | (bit_2));
                 mask_15 = mask_14;
@@ -19477,7 +20975,7 @@ fn ShadowClassifyImpl_1( tid_17 : vec3<u32>)
     }
     else
     {
-        gAccum_0[_S860] = vec4<f32>(info_2.xy, (bitcast<f32>((mask_14))), (bitcast<f32>((pending_3))));
+        gAccum_0[_S1022] = vec4<f32>(info_2.xy, (bitcast<f32>((mask_14))), (bitcast<f32>((pending_3))));
     }
     return;
 }
@@ -19485,24 +20983,24 @@ fn ShadowClassifyImpl_1( tid_17 : vec3<u32>)
 fn ShadowImpl_0( tid_18 : vec3<u32>)
 {
     var sum_7 : vec3<f32>;
-    var _S863 : u32 = tid_18.x;
-    if((_S863 >= (gWavefront_0.pathCount_0)))
+    var _S1025 : u32 = tid_18.x;
+    if((_S1025 >= (gWavefront_0.pathCount_0)))
     {
         return;
     }
-    var base_52 : u32 = WorkBase_0(_S863);
-    var _S864 : u32 = Field_0(base_52, u32(11));
-    var info_3 : vec4<f32> = gAccum_0[_S864];
-    var mask_16 : u32 = (bitcast<u32>((gAccum_0[_S864].z)));
+    var base_52 : u32 = WorkBase_0(_S1025);
+    var _S1026 : u32 = Field_0(base_52, u32(11));
+    var info_3 : vec4<f32> = gAccum_0[_S1026];
+    var mask_16 : u32 = (bitcast<u32>((gAccum_0[_S1026].z)));
     if(mask_16 == u32(0))
     {
         return;
     }
     gRayCone_0 = info_3.xy;
-    var _S865 : vec3<f32> = vec3<f32>(0.0f);
+    var _S1027 : vec3<f32> = vec3<f32>(0.0f);
     var throughput_45 : vec4<f32> = gAccum_0[Field_0(base_52, u32(10))];
     var source_7 : u32 = u32(0);
-    var sum_8 : vec3<f32> = _S865;
+    var sum_8 : vec3<f32> = _S1027;
     loop
     {
         if((source_7 < u32(3)))
@@ -19518,24 +21016,24 @@ fn ShadowImpl_0( tid_18 : vec3<u32>)
             continue;
         }
         var offset_5 : u32 = u32(12) + source_7 * u32(3);
-        var origin_14 : vec4<f32> = gAccum_0[Field_0(base_52, offset_5)];
+        var origin_20 : vec4<f32> = gAccum_0[Field_0(base_52, offset_5)];
         var direction_6 : vec4<f32> = gAccum_0[Field_0(base_52, offset_5 + u32(1))];
         var flags_5 : u32 = (bitcast<u32>((gAccum_0[Field_0(base_52, offset_5 + u32(1))].w)));
-        var _S866 : bool;
+        var _S1028 : bool;
         if(((flags_5 & (u32(1)))) == u32(0))
         {
-            _S866 = true;
+            _S1028 = true;
         }
         else
         {
-            var _S867 : bool = TraceOcclusion_0(Ray_x24init_0(origin_14.xyz, direction_6.xyz, origin_14.w));
-            _S866 = !_S867;
+            var _S1029 : bool = TraceOcclusion_0(Ray_x24init_0(origin_20.xyz, direction_6.xyz, origin_20.w));
+            _S1028 = !_S1029;
         }
-        if(_S866)
+        if(_S1028)
         {
-            var value_4 : vec3<f32> = gAccum_0[Field_0(base_52, offset_5 + u32(2))].xyz;
-            var sum_9 : vec3<f32> = sum_8 + value_4;
-            NrdAddDirect_0(base_52, flags_5, throughput_45.xyz * value_4, direction_6.xyz);
+            var value_5 : vec3<f32> = gAccum_0[Field_0(base_52, offset_5 + u32(2))].xyz;
+            var sum_9 : vec3<f32> = sum_8 + value_5;
+            NrdAddDirect_0(base_52, flags_5, throughput_45.xyz * value_5, direction_6.xyz);
             sum_7 = sum_9;
         }
         else
@@ -19546,47 +21044,47 @@ fn ShadowImpl_0( tid_18 : vec3<u32>)
         source_7 = source_7 + u32(1);
     }
     var contribution_28 : vec3<f32> = throughput_45.xyz * sum_8;
-    var _S868 : f32 = throughput_45.w;
-    if((_S868 > 0.0f))
+    var _S1030 : f32 = throughput_45.w;
+    if((_S1030 > 0.0f))
     {
-        sum_7 = min(contribution_28, vec3<f32>(_S868));
+        sum_7 = min(contribution_28, vec3<f32>(_S1030));
     }
     else
     {
         sum_7 = contribution_28;
     }
     var path_3 : vec4<f32> = gAccum_0[base_52];
-    var _S869 : vec3<f32> = gAccum_0[base_52].xyz + sum_7;
-    path_3.x = _S869.x;
-    path_3.y = _S869.y;
-    path_3.z = _S869.z;
+    var _S1031 : vec3<f32> = gAccum_0[base_52].xyz + sum_7;
+    path_3.x = _S1031.x;
+    path_3.y = _S1031.y;
+    path_3.z = _S1031.z;
     gAccum_0[base_52] = path_3;
-    gAccum_0[_S864] = vec4<f32>(0.0f);
+    gAccum_0[_S1026] = vec4<f32>(0.0f);
     return;
 }
 
 fn ShadowImpl_1( tid_19 : vec3<u32>)
 {
     var sum_10 : vec3<f32>;
-    var _S870 : u32 = tid_19.x;
-    if((_S870 >= (gWavefront_0.pathCount_0)))
+    var _S1032 : u32 = tid_19.x;
+    if((_S1032 >= (gWavefront_0.pathCount_0)))
     {
         return;
     }
-    var base_53 : u32 = WorkBase_0(_S870);
-    var _S871 : u32 = Field_0(base_53, u32(11));
-    var info_4 : vec4<f32> = gAccum_0[_S871];
-    var mask_17 : u32 = (bitcast<u32>((gAccum_0[_S871].z)));
+    var base_53 : u32 = WorkBase_0(_S1032);
+    var _S1033 : u32 = Field_0(base_53, u32(11));
+    var info_4 : vec4<f32> = gAccum_0[_S1033];
+    var mask_17 : u32 = (bitcast<u32>((gAccum_0[_S1033].z)));
     if(mask_17 == u32(0))
     {
         return;
     }
     LoadFeedbackState_0(base_53);
     gRayCone_0 = info_4.xy;
-    var _S872 : vec3<f32> = vec3<f32>(0.0f);
+    var _S1034 : vec3<f32> = vec3<f32>(0.0f);
     var throughput_46 : vec4<f32> = gAccum_0[Field_0(base_53, u32(10))];
     var source_8 : u32 = u32(0);
-    var sum_11 : vec3<f32> = _S872;
+    var sum_11 : vec3<f32> = _S1034;
     loop
     {
         if((source_8 < u32(3)))
@@ -19602,24 +21100,24 @@ fn ShadowImpl_1( tid_19 : vec3<u32>)
             continue;
         }
         var offset_6 : u32 = u32(12) + source_8 * u32(3);
-        var origin_15 : vec4<f32> = gAccum_0[Field_0(base_53, offset_6)];
+        var origin_21 : vec4<f32> = gAccum_0[Field_0(base_53, offset_6)];
         var direction_7 : vec4<f32> = gAccum_0[Field_0(base_53, offset_6 + u32(1))];
         var flags_6 : u32 = (bitcast<u32>((gAccum_0[Field_0(base_53, offset_6 + u32(1))].w)));
-        var _S873 : bool;
+        var _S1035 : bool;
         if(((flags_6 & (u32(1)))) == u32(0))
         {
-            _S873 = true;
+            _S1035 = true;
         }
         else
         {
-            var _S874 : bool = TraceOcclusion_1(Ray_x24init_0(origin_15.xyz, direction_7.xyz, origin_15.w));
-            _S873 = !_S874;
+            var _S1036 : bool = TraceOcclusion_1(Ray_x24init_0(origin_21.xyz, direction_7.xyz, origin_21.w));
+            _S1035 = !_S1036;
         }
-        if(_S873)
+        if(_S1035)
         {
-            var value_5 : vec3<f32> = gAccum_0[Field_0(base_53, offset_6 + u32(2))].xyz;
-            var sum_12 : vec3<f32> = sum_11 + value_5;
-            NrdAddDirect_0(base_53, flags_6, throughput_46.xyz * value_5, direction_7.xyz);
+            var value_6 : vec3<f32> = gAccum_0[Field_0(base_53, offset_6 + u32(2))].xyz;
+            var sum_12 : vec3<f32> = sum_11 + value_6;
+            NrdAddDirect_0(base_53, flags_6, throughput_46.xyz * value_6, direction_7.xyz);
             sum_10 = sum_12;
         }
         else
@@ -19630,35 +21128,35 @@ fn ShadowImpl_1( tid_19 : vec3<u32>)
         source_8 = source_8 + u32(1);
     }
     var contribution_29 : vec3<f32> = throughput_46.xyz * sum_11;
-    var _S875 : f32 = throughput_46.w;
-    if((_S875 > 0.0f))
+    var _S1037 : f32 = throughput_46.w;
+    if((_S1037 > 0.0f))
     {
-        sum_10 = min(contribution_29, vec3<f32>(_S875));
+        sum_10 = min(contribution_29, vec3<f32>(_S1037));
     }
     else
     {
         sum_10 = contribution_29;
     }
     var path_4 : vec4<f32> = gAccum_0[base_53];
-    var _S876 : vec3<f32> = gAccum_0[base_53].xyz + sum_10;
-    path_4.x = _S876.x;
-    path_4.y = _S876.y;
-    path_4.z = _S876.z;
+    var _S1038 : vec3<f32> = gAccum_0[base_53].xyz + sum_10;
+    path_4.x = _S1038.x;
+    path_4.y = _S1038.y;
+    path_4.z = _S1038.z;
     gAccum_0[base_53] = path_4;
-    gAccum_0[_S871] = vec4<f32>(0.0f);
+    gAccum_0[_S1033] = vec4<f32>(0.0f);
     StoreFeedbackState_0(base_53);
     return;
 }
 
 fn ShadeImpl_14( tid_20 : vec3<u32>)
 {
-    var _S877 : u32 = BucketMetadataBase_0() + (countOneBits(u32(15)) + u32(1));
-    var _S878 : u32 = tid_20.x;
-    if((_S878 >= (bitcast<u32>((gAccum_0[_S877].x)))))
+    var _S1039 : u32 = BucketMetadataBase_0() + (countOneBits(u32(15)) + u32(1));
+    var _S1040 : u32 = tid_20.x;
+    if((_S1040 >= (bitcast<u32>((gAccum_0[_S1039].x)))))
     {
         return;
     }
-    var base_54 : u32 = WorkBase_0(QueueIndex_0(ShadowQueueBase_0(), (bitcast<u32>((gAccum_0[_S877].y))) + _S878));
+    var base_54 : u32 = WorkBase_0(QueueIndex_0(ShadowQueueBase_0(), (bitcast<u32>((gAccum_0[_S1039].y))) + _S1040));
     gAccum_0[Field_0(base_54, u32(11))] = vec4<f32>(0.0f);
     var s_54 : WavefrontPath_0 = LoadPath_1(base_54);
     if((s_54.active_0) == u32(0))
@@ -19666,13 +21164,13 @@ fn ShadeImpl_14( tid_20 : vec3<u32>)
         return;
     }
     LoadFeedbackState_0(base_54);
-    var hit_36 : HitRecord_0;
-    hit_36.t_6 = gAccum_0[Field_0(base_54, u32(8))].x;
-    hit_36.barycentrics_0 = gAccum_0[Field_0(base_54, u32(8))].yz;
-    hit_36.instanceIndex_2 = (bitcast<u32>((gAccum_0[Field_0(base_54, u32(8))].w)));
-    hit_36.primitiveIndex_1 = (bitcast<u32>((gAccum_0[Field_0(base_54, u32(9))].x)));
-    var _S879 : HitRecord_0 = hit_36;
-    ShadePath_8(base_54, &(s_54), _S879, gWavefront_0.bounce_0);
+    var hit_39 : HitRecord_0;
+    hit_39.t_6 = gAccum_0[Field_0(base_54, u32(8))].x;
+    hit_39.barycentrics_0 = gAccum_0[Field_0(base_54, u32(8))].yz;
+    hit_39.instanceIndex_2 = (bitcast<u32>((gAccum_0[Field_0(base_54, u32(8))].w)));
+    hit_39.primitiveIndex_1 = (bitcast<u32>((gAccum_0[Field_0(base_54, u32(9))].x)));
+    var _S1041 : HitRecord_0 = hit_39;
+    ShadePath_8(base_54, &(s_54), _S1041, gWavefront_0.bounce_0);
     StorePath_1(base_54, s_54);
     StoreFeedbackState_0(base_54);
     return;
@@ -19680,19 +21178,19 @@ fn ShadeImpl_14( tid_20 : vec3<u32>)
 
 fn ShadeImpl_15( tid_21 : vec3<u32>)
 {
-    var _S880 : u32 = tid_21.x;
-    if((_S880 >= (gWavefront_0.pathCount_0)))
+    var _S1042 : u32 = tid_21.x;
+    if((_S1042 >= (gWavefront_0.pathCount_0)))
     {
         return;
     }
-    var base_55 : u32 = WorkBase_0(_S880);
+    var base_55 : u32 = WorkBase_0(_S1042);
     if((bitcast<u32>((gAccum_0[base_55].w))) == u32(0))
     {
         return;
     }
-    var _S881 : u32 = Field_0(base_55, u32(8));
-    var _S882 : u32 = gMaterialData_0[gInstances_0[(bitcast<u32>((gAccum_0[_S881].w)))].materialIndex_0 * u32(2)].w;
-    if(((((_S882 >> (u32(16)))) & (u32(31)))) != u32(16))
+    var _S1043 : u32 = Field_0(base_55, u32(8));
+    var _S1044 : u32 = gMaterialData_0[gInstances_0[(bitcast<u32>((gAccum_0[_S1043].w)))].materialIndex_0 * u32(2)].w;
+    if(((((_S1044 >> (u32(16)))) & (u32(31)))) != u32(16))
     {
         return;
     }
@@ -19703,13 +21201,13 @@ fn ShadeImpl_15( tid_21 : vec3<u32>)
         return;
     }
     LoadFeedbackState_0(base_55);
-    var hit_37 : HitRecord_0;
-    hit_37.t_6 = gAccum_0[_S881].x;
-    hit_37.barycentrics_0 = gAccum_0[_S881].yz;
-    hit_37.instanceIndex_2 = (bitcast<u32>((gAccum_0[_S881].w)));
-    hit_37.primitiveIndex_1 = (bitcast<u32>((gAccum_0[Field_0(base_55, u32(9))].x)));
-    var _S883 : HitRecord_0 = hit_37;
-    ShadePath_8(base_55, &(s_55), _S883, gWavefront_0.bounce_0);
+    var hit_40 : HitRecord_0;
+    hit_40.t_6 = gAccum_0[_S1043].x;
+    hit_40.barycentrics_0 = gAccum_0[_S1043].yz;
+    hit_40.instanceIndex_2 = (bitcast<u32>((gAccum_0[_S1043].w)));
+    hit_40.primitiveIndex_1 = (bitcast<u32>((gAccum_0[Field_0(base_55, u32(9))].x)));
+    var _S1045 : HitRecord_0 = hit_40;
+    ShadePath_8(base_55, &(s_55), _S1045, gWavefront_0.bounce_0);
     StorePath_1(base_55, s_55);
     StoreFeedbackState_0(base_55);
     return;
@@ -19717,19 +21215,19 @@ fn ShadeImpl_15( tid_21 : vec3<u32>)
 
 fn ShadeImpl_16( tid_22 : vec3<u32>)
 {
-    var _S884 : u32 = tid_22.x;
-    if((_S884 >= (bitcast<u32>((gAccum_0[HeaderBase_0()].z)))))
+    var _S1046 : u32 = tid_22.x;
+    if((_S1046 >= (bitcast<u32>((gAccum_0[HeaderBase_0()].z)))))
     {
         return;
     }
-    var base_56 : u32 = WorkBase_0(QueueIndex_0(ShadeQueueBase_0(), _S884));
+    var base_56 : u32 = WorkBase_0(QueueIndex_0(ShadeQueueBase_0(), _S1046));
     if((bitcast<u32>((gAccum_0[base_56].w))) == u32(0))
     {
         return;
     }
-    var _S885 : u32 = Field_0(base_56, u32(8));
-    var _S886 : u32 = gMaterialData_0[gInstances_0[(bitcast<u32>((gAccum_0[_S885].w)))].materialIndex_0 * u32(2)].w;
-    if(((((_S886 >> (u32(16)))) & (u32(31)))) != u32(16))
+    var _S1047 : u32 = Field_0(base_56, u32(8));
+    var _S1048 : u32 = gMaterialData_0[gInstances_0[(bitcast<u32>((gAccum_0[_S1047].w)))].materialIndex_0 * u32(2)].w;
+    if(((((_S1048 >> (u32(16)))) & (u32(31)))) != u32(16))
     {
         return;
     }
@@ -19740,13 +21238,13 @@ fn ShadeImpl_16( tid_22 : vec3<u32>)
         return;
     }
     LoadFeedbackState_0(base_56);
-    var hit_38 : HitRecord_0;
-    hit_38.t_6 = gAccum_0[_S885].x;
-    hit_38.barycentrics_0 = gAccum_0[_S885].yz;
-    hit_38.instanceIndex_2 = (bitcast<u32>((gAccum_0[_S885].w)));
-    hit_38.primitiveIndex_1 = (bitcast<u32>((gAccum_0[Field_0(base_56, u32(9))].x)));
-    var _S887 : HitRecord_0 = hit_38;
-    ShadePath_8(base_56, &(s_56), _S887, gWavefront_0.bounce_0);
+    var hit_41 : HitRecord_0;
+    hit_41.t_6 = gAccum_0[_S1047].x;
+    hit_41.barycentrics_0 = gAccum_0[_S1047].yz;
+    hit_41.instanceIndex_2 = (bitcast<u32>((gAccum_0[_S1047].w)));
+    hit_41.primitiveIndex_1 = (bitcast<u32>((gAccum_0[Field_0(base_56, u32(9))].x)));
+    var _S1049 : HitRecord_0 = hit_41;
+    ShadePath_8(base_56, &(s_56), _S1049, gWavefront_0.bounce_0);
     StorePath_1(base_56, s_56);
     StoreFeedbackState_0(base_56);
     return;
@@ -19754,12 +21252,12 @@ fn ShadeImpl_16( tid_22 : vec3<u32>)
 
 fn ShadeImpl_17( tid_23 : vec3<u32>)
 {
-    var _S888 : u32 = tid_23.x;
-    if((_S888 >= (gWavefront_0.pathCount_0)))
+    var _S1050 : u32 = tid_23.x;
+    if((_S1050 >= (gWavefront_0.pathCount_0)))
     {
         return;
     }
-    var base_57 : u32 = WorkBase_0(_S888);
+    var base_57 : u32 = WorkBase_0(_S1050);
     gAccum_0[Field_0(base_57, u32(11))] = vec4<f32>(0.0f);
     var s_57 : WavefrontPath_0 = LoadPath_1(base_57);
     if((s_57.active_0) == u32(0))
@@ -19767,13 +21265,13 @@ fn ShadeImpl_17( tid_23 : vec3<u32>)
         return;
     }
     LoadFeedbackState_0(base_57);
-    var hit_39 : HitRecord_0;
-    hit_39.t_6 = gAccum_0[Field_0(base_57, u32(8))].x;
-    hit_39.barycentrics_0 = gAccum_0[Field_0(base_57, u32(8))].yz;
-    hit_39.instanceIndex_2 = (bitcast<u32>((gAccum_0[Field_0(base_57, u32(8))].w)));
-    hit_39.primitiveIndex_1 = (bitcast<u32>((gAccum_0[Field_0(base_57, u32(9))].x)));
-    var _S889 : HitRecord_0 = hit_39;
-    ShadePath_8(base_57, &(s_57), _S889, gWavefront_0.bounce_0);
+    var hit_42 : HitRecord_0;
+    hit_42.t_6 = gAccum_0[Field_0(base_57, u32(8))].x;
+    hit_42.barycentrics_0 = gAccum_0[Field_0(base_57, u32(8))].yz;
+    hit_42.instanceIndex_2 = (bitcast<u32>((gAccum_0[Field_0(base_57, u32(8))].w)));
+    hit_42.primitiveIndex_1 = (bitcast<u32>((gAccum_0[Field_0(base_57, u32(9))].x)));
+    var _S1051 : HitRecord_0 = hit_42;
+    ShadePath_8(base_57, &(s_57), _S1051, gWavefront_0.bounce_0);
     StorePath_1(base_57, s_57);
     StoreFeedbackState_0(base_57);
     return;
@@ -19781,45 +21279,45 @@ fn ShadeImpl_17( tid_23 : vec3<u32>)
 
 fn IntersectImpl_0( tid_24 : vec3<u32>)
 {
-    var _S890 : u32 = tid_24.x;
-    if((_S890 >= (gWavefront_0.pathCount_0)))
+    var _S1052 : u32 = tid_24.x;
+    if((_S1052 >= (gWavefront_0.pathCount_0)))
     {
         return;
     }
-    var base_58 : u32 = WorkBase_0(_S890);
+    var base_58 : u32 = WorkBase_0(_S1052);
     var s_58 : WavefrontPath_0 = LoadPath_1(base_58);
     if((s_58.active_0) == u32(0))
     {
         return;
     }
-    var hit_40 : HitRecord_0 = IntersectPath_0(&(s_58), gWavefront_0.bounce_0);
-    var _S891 : bool;
+    var hit_43 : HitRecord_0 = IntersectPath_0(&(s_58), gWavefront_0.bounce_0);
+    var _S1053 : bool;
     if((gWavefront_0.bounce_0) == u32(1))
     {
-        _S891 = NrdEnabled_0();
+        _S1053 = NrdEnabled_0();
     }
     else
     {
-        _S891 = false;
+        _S1053 = false;
     }
-    if(_S891)
+    if(_S1053)
     {
-        var _S892 : u32 = NrdBase_0(base_58);
-        var _S893 : f32;
-        if(HitRecord_IsHit_0(hit_40))
+        var _S1054 : u32 = NrdBase_0(base_58);
+        var _S1055 : f32;
+        if(HitRecord_IsHit_0(hit_43))
         {
-            _S893 = hit_40.t_6;
+            _S1055 = hit_43.t_6;
         }
         else
         {
-            _S893 = 65504.0f;
+            _S1055 = 65504.0f;
         }
-        gAccum_0[_S892 + u32(1)][i32(3)] = _S893;
+        gAccum_0[_S1054 + u32(1)][i32(3)] = _S1055;
     }
-    if(HitRecord_IsHit_0(hit_40))
+    if(HitRecord_IsHit_0(hit_43))
     {
-        gAccum_0[Field_0(base_58, u32(8))] = vec4<f32>(hit_40.t_6, hit_40.barycentrics_0, (bitcast<f32>((hit_40.instanceIndex_2))));
-        gAccum_0[Field_0(base_58, u32(9))] = (bitcast<vec4<f32>>((vec4<u32>(hit_40.primitiveIndex_1, u32(0), u32(0), u32(0)))));
+        gAccum_0[Field_0(base_58, u32(8))] = vec4<f32>(hit_43.t_6, hit_43.barycentrics_0, (bitcast<f32>((hit_43.instanceIndex_2))));
+        gAccum_0[Field_0(base_58, u32(9))] = (bitcast<vec4<f32>>((vec4<u32>(hit_43.primitiveIndex_1, u32(0), u32(0), u32(0)))));
     }
     gAccum_0[base_58] = vec4<f32>(s_58.path_0.radiance_1, (bitcast<f32>((s_58.active_0))));
     return;
@@ -19827,46 +21325,46 @@ fn IntersectImpl_0( tid_24 : vec3<u32>)
 
 fn IntersectImpl_1( tid_25 : vec3<u32>)
 {
-    var _S894 : u32 = tid_25.x;
-    if((_S894 >= (gWavefront_0.pathCount_0)))
+    var _S1056 : u32 = tid_25.x;
+    if((_S1056 >= (gWavefront_0.pathCount_0)))
     {
         return;
     }
-    var base_59 : u32 = WorkBase_0(_S894);
+    var base_59 : u32 = WorkBase_0(_S1056);
     var s_59 : WavefrontPath_0 = LoadPath_1(base_59);
     if((s_59.active_0) == u32(0))
     {
         return;
     }
     LoadFeedbackState_0(base_59);
-    var hit_41 : HitRecord_0 = IntersectPath_1(&(s_59), gWavefront_0.bounce_0);
-    var _S895 : bool;
+    var hit_44 : HitRecord_0 = IntersectPath_1(&(s_59), gWavefront_0.bounce_0);
+    var _S1057 : bool;
     if((gWavefront_0.bounce_0) == u32(1))
     {
-        _S895 = NrdEnabled_0();
+        _S1057 = NrdEnabled_0();
     }
     else
     {
-        _S895 = false;
+        _S1057 = false;
     }
-    if(_S895)
+    if(_S1057)
     {
-        var _S896 : u32 = NrdBase_0(base_59);
-        var _S897 : f32;
-        if(HitRecord_IsHit_0(hit_41))
+        var _S1058 : u32 = NrdBase_0(base_59);
+        var _S1059 : f32;
+        if(HitRecord_IsHit_0(hit_44))
         {
-            _S897 = hit_41.t_6;
+            _S1059 = hit_44.t_6;
         }
         else
         {
-            _S897 = 65504.0f;
+            _S1059 = 65504.0f;
         }
-        gAccum_0[_S896 + u32(1)][i32(3)] = _S897;
+        gAccum_0[_S1058 + u32(1)][i32(3)] = _S1059;
     }
-    if(HitRecord_IsHit_0(hit_41))
+    if(HitRecord_IsHit_0(hit_44))
     {
-        gAccum_0[Field_0(base_59, u32(8))] = vec4<f32>(hit_41.t_6, hit_41.barycentrics_0, (bitcast<f32>((hit_41.instanceIndex_2))));
-        gAccum_0[Field_0(base_59, u32(9))] = (bitcast<vec4<f32>>((vec4<u32>(hit_41.primitiveIndex_1, u32(0), u32(0), u32(0)))));
+        gAccum_0[Field_0(base_59, u32(8))] = vec4<f32>(hit_44.t_6, hit_44.barycentrics_0, (bitcast<f32>((hit_44.instanceIndex_2))));
+        gAccum_0[Field_0(base_59, u32(9))] = (bitcast<vec4<f32>>((vec4<u32>(hit_44.primitiveIndex_1, u32(0), u32(0), u32(0)))));
     }
     gAccum_0[base_59] = vec4<f32>(s_59.path_0.radiance_1, (bitcast<f32>((s_59.active_0))));
     StoreFeedbackState_0(base_59);
@@ -19875,29 +21373,29 @@ fn IntersectImpl_1( tid_25 : vec3<u32>)
 
 fn TailImpl_0( tid_26 : vec3<u32>)
 {
-    var count_1 : u32 = (bitcast<u32>((gAccum_0[HeaderBase_0()].x)));
-    var _S898 : u32 = tid_26.x;
-    var _S899 : bool;
-    if((_S898 >= count_1))
+    var count_6 : u32 = (bitcast<u32>((gAccum_0[HeaderBase_0()].x)));
+    var _S1060 : u32 = tid_26.x;
+    var _S1061 : bool;
+    if((_S1060 >= count_6))
     {
-        _S899 = true;
+        _S1061 = true;
     }
     else
     {
         if((gWavefront_0.tailThreshold_0) != u32(0))
         {
-            _S899 = (count_1 > (gWavefront_0.tailThreshold_0));
+            _S1061 = (count_6 > (gWavefront_0.tailThreshold_0));
         }
         else
         {
-            _S899 = false;
+            _S1061 = false;
         }
     }
-    if(_S899)
+    if(_S1061)
     {
         return;
     }
-    var base_60 : u32 = WorkBase_0(QueueIndex_0(MainQueueBase_0(), _S898));
+    var base_60 : u32 = WorkBase_0(QueueIndex_0(MainQueueBase_0(), _S1060));
     var s_60 : WavefrontPath_0 = LoadPath_1(base_60);
     if((s_60.active_0) == u32(0))
     {
@@ -19914,12 +21412,12 @@ fn TailImpl_0( tid_26 : vec3<u32>)
         {
             break;
         }
-        var hit_42 : HitRecord_0 = IntersectPath_0(&(s_60), bounce_14);
+        var hit_45 : HitRecord_0 = IntersectPath_0(&(s_60), bounce_14);
         if((s_60.active_0) == u32(0))
         {
             break;
         }
-        ShadePath_0(base_60, &(s_60), hit_42, bounce_14);
+        ShadePath_0(base_60, &(s_60), hit_45, bounce_14);
         if((s_60.active_0) == u32(0))
         {
             break;
@@ -19933,29 +21431,29 @@ fn TailImpl_0( tid_26 : vec3<u32>)
 
 fn TailImpl_1( tid_27 : vec3<u32>)
 {
-    var count_2 : u32 = (bitcast<u32>((gAccum_0[HeaderBase_0()].x)));
-    var _S900 : u32 = tid_27.x;
-    var _S901 : bool;
-    if((_S900 >= count_2))
+    var count_7 : u32 = (bitcast<u32>((gAccum_0[HeaderBase_0()].x)));
+    var _S1062 : u32 = tid_27.x;
+    var _S1063 : bool;
+    if((_S1062 >= count_7))
     {
-        _S901 = true;
+        _S1063 = true;
     }
     else
     {
         if((gWavefront_0.tailThreshold_0) != u32(0))
         {
-            _S901 = (count_2 > (gWavefront_0.tailThreshold_0));
+            _S1063 = (count_7 > (gWavefront_0.tailThreshold_0));
         }
         else
         {
-            _S901 = false;
+            _S1063 = false;
         }
     }
-    if(_S901)
+    if(_S1063)
     {
         return;
     }
-    var base_61 : u32 = WorkBase_0(QueueIndex_0(MainQueueBase_0(), _S900));
+    var base_61 : u32 = WorkBase_0(QueueIndex_0(MainQueueBase_0(), _S1062));
     var s_61 : WavefrontPath_0 = LoadPath_1(base_61);
     if((s_61.active_0) == u32(0))
     {
@@ -19972,12 +21470,12 @@ fn TailImpl_1( tid_27 : vec3<u32>)
         {
             break;
         }
-        var hit_43 : HitRecord_0 = IntersectPath_1(&(s_61), bounce_15);
+        var hit_46 : HitRecord_0 = IntersectPath_1(&(s_61), bounce_15);
         if((s_61.active_0) == u32(0))
         {
             break;
         }
-        ShadePath_1(base_61, &(s_61), hit_43, bounce_15);
+        ShadePath_1(base_61, &(s_61), hit_46, bounce_15);
         if((s_61.active_0) == u32(0))
         {
             break;
@@ -19992,24 +21490,24 @@ fn TailImpl_1( tid_27 : vec3<u32>)
 fn ShadowImpl_2( tid_28 : vec3<u32>)
 {
     var sum_13 : vec3<f32>;
-    var _S902 : u32 = tid_28.x;
-    if((_S902 >= (bitcast<u32>((gAccum_0[HeaderBase_0()].y)))))
+    var _S1064 : u32 = tid_28.x;
+    if((_S1064 >= (bitcast<u32>((gAccum_0[HeaderBase_0()].y)))))
     {
         return;
     }
-    var base_62 : u32 = WorkBase_0(QueueIndex_0(ShadowQueueBase_0(), _S902));
-    var _S903 : u32 = Field_0(base_62, u32(11));
-    var info_5 : vec4<f32> = gAccum_0[_S903];
-    var mask_18 : u32 = (bitcast<u32>((gAccum_0[_S903].z)));
+    var base_62 : u32 = WorkBase_0(QueueIndex_0(ShadowQueueBase_0(), _S1064));
+    var _S1065 : u32 = Field_0(base_62, u32(11));
+    var info_5 : vec4<f32> = gAccum_0[_S1065];
+    var mask_18 : u32 = (bitcast<u32>((gAccum_0[_S1065].z)));
     if(mask_18 == u32(0))
     {
         return;
     }
     gRayCone_0 = info_5.xy;
-    var _S904 : vec3<f32> = vec3<f32>(0.0f);
+    var _S1066 : vec3<f32> = vec3<f32>(0.0f);
     var throughput_47 : vec4<f32> = gAccum_0[Field_0(base_62, u32(10))];
     var source_9 : u32 = u32(0);
-    var sum_14 : vec3<f32> = _S904;
+    var sum_14 : vec3<f32> = _S1066;
     loop
     {
         if((source_9 < u32(3)))
@@ -20025,24 +21523,24 @@ fn ShadowImpl_2( tid_28 : vec3<u32>)
             continue;
         }
         var offset_7 : u32 = u32(12) + source_9 * u32(3);
-        var origin_16 : vec4<f32> = gAccum_0[Field_0(base_62, offset_7)];
+        var origin_22 : vec4<f32> = gAccum_0[Field_0(base_62, offset_7)];
         var direction_8 : vec4<f32> = gAccum_0[Field_0(base_62, offset_7 + u32(1))];
         var flags_7 : u32 = (bitcast<u32>((gAccum_0[Field_0(base_62, offset_7 + u32(1))].w)));
-        var _S905 : bool;
+        var _S1067 : bool;
         if(((flags_7 & (u32(1)))) == u32(0))
         {
-            _S905 = true;
+            _S1067 = true;
         }
         else
         {
-            var _S906 : bool = TraceOcclusion_0(Ray_x24init_0(origin_16.xyz, direction_8.xyz, origin_16.w));
-            _S905 = !_S906;
+            var _S1068 : bool = TraceOcclusion_0(Ray_x24init_0(origin_22.xyz, direction_8.xyz, origin_22.w));
+            _S1067 = !_S1068;
         }
-        if(_S905)
+        if(_S1067)
         {
-            var value_6 : vec3<f32> = gAccum_0[Field_0(base_62, offset_7 + u32(2))].xyz;
-            var sum_15 : vec3<f32> = sum_14 + value_6;
-            NrdAddDirect_0(base_62, flags_7, throughput_47.xyz * value_6, direction_8.xyz);
+            var value_7 : vec3<f32> = gAccum_0[Field_0(base_62, offset_7 + u32(2))].xyz;
+            var sum_15 : vec3<f32> = sum_14 + value_7;
+            NrdAddDirect_0(base_62, flags_7, throughput_47.xyz * value_7, direction_8.xyz);
             sum_13 = sum_15;
         }
         else
@@ -20053,47 +21551,47 @@ fn ShadowImpl_2( tid_28 : vec3<u32>)
         source_9 = source_9 + u32(1);
     }
     var contribution_30 : vec3<f32> = throughput_47.xyz * sum_14;
-    var _S907 : f32 = throughput_47.w;
-    if((_S907 > 0.0f))
+    var _S1069 : f32 = throughput_47.w;
+    if((_S1069 > 0.0f))
     {
-        sum_13 = min(contribution_30, vec3<f32>(_S907));
+        sum_13 = min(contribution_30, vec3<f32>(_S1069));
     }
     else
     {
         sum_13 = contribution_30;
     }
     var path_5 : vec4<f32> = gAccum_0[base_62];
-    var _S908 : vec3<f32> = gAccum_0[base_62].xyz + sum_13;
-    path_5.x = _S908.x;
-    path_5.y = _S908.y;
-    path_5.z = _S908.z;
+    var _S1070 : vec3<f32> = gAccum_0[base_62].xyz + sum_13;
+    path_5.x = _S1070.x;
+    path_5.y = _S1070.y;
+    path_5.z = _S1070.z;
     gAccum_0[base_62] = path_5;
-    gAccum_0[_S903] = vec4<f32>(0.0f);
+    gAccum_0[_S1065] = vec4<f32>(0.0f);
     return;
 }
 
 fn ShadowImpl_3( tid_29 : vec3<u32>)
 {
     var sum_16 : vec3<f32>;
-    var _S909 : u32 = tid_29.x;
-    if((_S909 >= (bitcast<u32>((gAccum_0[HeaderBase_0()].y)))))
+    var _S1071 : u32 = tid_29.x;
+    if((_S1071 >= (bitcast<u32>((gAccum_0[HeaderBase_0()].y)))))
     {
         return;
     }
-    var base_63 : u32 = WorkBase_0(QueueIndex_0(ShadowQueueBase_0(), _S909));
-    var _S910 : u32 = Field_0(base_63, u32(11));
-    var info_6 : vec4<f32> = gAccum_0[_S910];
-    var mask_19 : u32 = (bitcast<u32>((gAccum_0[_S910].z)));
+    var base_63 : u32 = WorkBase_0(QueueIndex_0(ShadowQueueBase_0(), _S1071));
+    var _S1072 : u32 = Field_0(base_63, u32(11));
+    var info_6 : vec4<f32> = gAccum_0[_S1072];
+    var mask_19 : u32 = (bitcast<u32>((gAccum_0[_S1072].z)));
     if(mask_19 == u32(0))
     {
         return;
     }
     LoadFeedbackState_0(base_63);
     gRayCone_0 = info_6.xy;
-    var _S911 : vec3<f32> = vec3<f32>(0.0f);
+    var _S1073 : vec3<f32> = vec3<f32>(0.0f);
     var throughput_48 : vec4<f32> = gAccum_0[Field_0(base_63, u32(10))];
     var source_10 : u32 = u32(0);
-    var sum_17 : vec3<f32> = _S911;
+    var sum_17 : vec3<f32> = _S1073;
     loop
     {
         if((source_10 < u32(3)))
@@ -20109,24 +21607,24 @@ fn ShadowImpl_3( tid_29 : vec3<u32>)
             continue;
         }
         var offset_8 : u32 = u32(12) + source_10 * u32(3);
-        var origin_17 : vec4<f32> = gAccum_0[Field_0(base_63, offset_8)];
+        var origin_23 : vec4<f32> = gAccum_0[Field_0(base_63, offset_8)];
         var direction_9 : vec4<f32> = gAccum_0[Field_0(base_63, offset_8 + u32(1))];
         var flags_8 : u32 = (bitcast<u32>((gAccum_0[Field_0(base_63, offset_8 + u32(1))].w)));
-        var _S912 : bool;
+        var _S1074 : bool;
         if(((flags_8 & (u32(1)))) == u32(0))
         {
-            _S912 = true;
+            _S1074 = true;
         }
         else
         {
-            var _S913 : bool = TraceOcclusion_1(Ray_x24init_0(origin_17.xyz, direction_9.xyz, origin_17.w));
-            _S912 = !_S913;
+            var _S1075 : bool = TraceOcclusion_1(Ray_x24init_0(origin_23.xyz, direction_9.xyz, origin_23.w));
+            _S1074 = !_S1075;
         }
-        if(_S912)
+        if(_S1074)
         {
-            var value_7 : vec3<f32> = gAccum_0[Field_0(base_63, offset_8 + u32(2))].xyz;
-            var sum_18 : vec3<f32> = sum_17 + value_7;
-            NrdAddDirect_0(base_63, flags_8, throughput_48.xyz * value_7, direction_9.xyz);
+            var value_8 : vec3<f32> = gAccum_0[Field_0(base_63, offset_8 + u32(2))].xyz;
+            var sum_18 : vec3<f32> = sum_17 + value_8;
+            NrdAddDirect_0(base_63, flags_8, throughput_48.xyz * value_8, direction_9.xyz);
             sum_16 = sum_18;
         }
         else
@@ -20137,34 +21635,34 @@ fn ShadowImpl_3( tid_29 : vec3<u32>)
         source_10 = source_10 + u32(1);
     }
     var contribution_31 : vec3<f32> = throughput_48.xyz * sum_17;
-    var _S914 : f32 = throughput_48.w;
-    if((_S914 > 0.0f))
+    var _S1076 : f32 = throughput_48.w;
+    if((_S1076 > 0.0f))
     {
-        sum_16 = min(contribution_31, vec3<f32>(_S914));
+        sum_16 = min(contribution_31, vec3<f32>(_S1076));
     }
     else
     {
         sum_16 = contribution_31;
     }
     var path_6 : vec4<f32> = gAccum_0[base_63];
-    var _S915 : vec3<f32> = gAccum_0[base_63].xyz + sum_16;
-    path_6.x = _S915.x;
-    path_6.y = _S915.y;
-    path_6.z = _S915.z;
+    var _S1077 : vec3<f32> = gAccum_0[base_63].xyz + sum_16;
+    path_6.x = _S1077.x;
+    path_6.y = _S1077.y;
+    path_6.z = _S1077.z;
     gAccum_0[base_63] = path_6;
-    gAccum_0[_S910] = vec4<f32>(0.0f);
+    gAccum_0[_S1072] = vec4<f32>(0.0f);
     StoreFeedbackState_0(base_63);
     return;
 }
 
 fn ShadeImpl_18( tid_30 : vec3<u32>)
 {
-    var _S916 : u32 = tid_30.x;
-    if((_S916 >= (bitcast<u32>((gAccum_0[HeaderBase_0()].z)))))
+    var _S1078 : u32 = tid_30.x;
+    if((_S1078 >= (bitcast<u32>((gAccum_0[HeaderBase_0()].z)))))
     {
         return;
     }
-    var base_64 : u32 = WorkBase_0(QueueIndex_0(ShadeQueueBase_0(), _S916));
+    var base_64 : u32 = WorkBase_0(QueueIndex_0(ShadeQueueBase_0(), _S1078));
     gAccum_0[Field_0(base_64, u32(11))] = vec4<f32>(0.0f);
     var s_62 : WavefrontPath_0 = LoadPath_1(base_64);
     if((s_62.active_0) == u32(0))
@@ -20172,13 +21670,13 @@ fn ShadeImpl_18( tid_30 : vec3<u32>)
         return;
     }
     LoadFeedbackState_0(base_64);
-    var hit_44 : HitRecord_0;
-    hit_44.t_6 = gAccum_0[Field_0(base_64, u32(8))].x;
-    hit_44.barycentrics_0 = gAccum_0[Field_0(base_64, u32(8))].yz;
-    hit_44.instanceIndex_2 = (bitcast<u32>((gAccum_0[Field_0(base_64, u32(8))].w)));
-    hit_44.primitiveIndex_1 = (bitcast<u32>((gAccum_0[Field_0(base_64, u32(9))].x)));
-    var _S917 : HitRecord_0 = hit_44;
-    ShadePath_8(base_64, &(s_62), _S917, gWavefront_0.bounce_0);
+    var hit_47 : HitRecord_0;
+    hit_47.t_6 = gAccum_0[Field_0(base_64, u32(8))].x;
+    hit_47.barycentrics_0 = gAccum_0[Field_0(base_64, u32(8))].yz;
+    hit_47.instanceIndex_2 = (bitcast<u32>((gAccum_0[Field_0(base_64, u32(8))].w)));
+    hit_47.primitiveIndex_1 = (bitcast<u32>((gAccum_0[Field_0(base_64, u32(9))].x)));
+    var _S1079 : HitRecord_0 = hit_47;
+    ShadePath_8(base_64, &(s_62), _S1079, gWavefront_0.bounce_0);
     StorePath_1(base_64, s_62);
     StoreFeedbackState_0(base_64);
     return;
@@ -20186,45 +21684,45 @@ fn ShadeImpl_18( tid_30 : vec3<u32>)
 
 fn IntersectImpl_2( tid_31 : vec3<u32>)
 {
-    var _S918 : u32 = tid_31.x;
-    if((_S918 >= (bitcast<u32>((gAccum_0[HeaderBase_0()][i32(2)])))))
+    var _S1080 : u32 = tid_31.x;
+    if((_S1080 >= (bitcast<u32>((gAccum_0[HeaderBase_0()][i32(2)])))))
     {
         return;
     }
-    var base_65 : u32 = WorkBase_0(QueueIndex_0(ShadeQueueBase_0(), _S918));
+    var base_65 : u32 = WorkBase_0(QueueIndex_0(ShadeQueueBase_0(), _S1080));
     var s_63 : WavefrontPath_0 = LoadPath_1(base_65);
     if((s_63.active_0) == u32(0))
     {
         return;
     }
-    var hit_45 : HitRecord_0 = IntersectPath_0(&(s_63), gWavefront_0.bounce_0);
-    var _S919 : bool;
+    var hit_48 : HitRecord_0 = IntersectPath_0(&(s_63), gWavefront_0.bounce_0);
+    var _S1081 : bool;
     if((gWavefront_0.bounce_0) == u32(1))
     {
-        _S919 = NrdEnabled_0();
+        _S1081 = NrdEnabled_0();
     }
     else
     {
-        _S919 = false;
+        _S1081 = false;
     }
-    if(_S919)
+    if(_S1081)
     {
-        var _S920 : u32 = NrdBase_0(base_65);
-        var _S921 : f32;
-        if(HitRecord_IsHit_0(hit_45))
+        var _S1082 : u32 = NrdBase_0(base_65);
+        var _S1083 : f32;
+        if(HitRecord_IsHit_0(hit_48))
         {
-            _S921 = hit_45.t_6;
+            _S1083 = hit_48.t_6;
         }
         else
         {
-            _S921 = 65504.0f;
+            _S1083 = 65504.0f;
         }
-        gAccum_0[_S920 + u32(1)][i32(3)] = _S921;
+        gAccum_0[_S1082 + u32(1)][i32(3)] = _S1083;
     }
-    if(HitRecord_IsHit_0(hit_45))
+    if(HitRecord_IsHit_0(hit_48))
     {
-        gAccum_0[Field_0(base_65, u32(8))] = vec4<f32>(hit_45.t_6, hit_45.barycentrics_0, (bitcast<f32>((hit_45.instanceIndex_2))));
-        gAccum_0[Field_0(base_65, u32(9))] = (bitcast<vec4<f32>>((vec4<u32>(hit_45.primitiveIndex_1, u32(0), u32(0), u32(0)))));
+        gAccum_0[Field_0(base_65, u32(8))] = vec4<f32>(hit_48.t_6, hit_48.barycentrics_0, (bitcast<f32>((hit_48.instanceIndex_2))));
+        gAccum_0[Field_0(base_65, u32(9))] = (bitcast<vec4<f32>>((vec4<u32>(hit_48.primitiveIndex_1, u32(0), u32(0), u32(0)))));
     }
     gAccum_0[base_65] = vec4<f32>(s_63.path_0.radiance_1, (bitcast<f32>((s_63.active_0))));
     return;
@@ -20232,46 +21730,46 @@ fn IntersectImpl_2( tid_31 : vec3<u32>)
 
 fn IntersectImpl_3( tid_32 : vec3<u32>)
 {
-    var _S922 : u32 = tid_32.x;
-    if((_S922 >= (bitcast<u32>((gAccum_0[HeaderBase_0()][i32(2)])))))
+    var _S1084 : u32 = tid_32.x;
+    if((_S1084 >= (bitcast<u32>((gAccum_0[HeaderBase_0()][i32(2)])))))
     {
         return;
     }
-    var base_66 : u32 = WorkBase_0(QueueIndex_0(ShadeQueueBase_0(), _S922));
+    var base_66 : u32 = WorkBase_0(QueueIndex_0(ShadeQueueBase_0(), _S1084));
     var s_64 : WavefrontPath_0 = LoadPath_1(base_66);
     if((s_64.active_0) == u32(0))
     {
         return;
     }
     LoadFeedbackState_0(base_66);
-    var hit_46 : HitRecord_0 = IntersectPath_1(&(s_64), gWavefront_0.bounce_0);
-    var _S923 : bool;
+    var hit_49 : HitRecord_0 = IntersectPath_1(&(s_64), gWavefront_0.bounce_0);
+    var _S1085 : bool;
     if((gWavefront_0.bounce_0) == u32(1))
     {
-        _S923 = NrdEnabled_0();
+        _S1085 = NrdEnabled_0();
     }
     else
     {
-        _S923 = false;
+        _S1085 = false;
     }
-    if(_S923)
+    if(_S1085)
     {
-        var _S924 : u32 = NrdBase_0(base_66);
-        var _S925 : f32;
-        if(HitRecord_IsHit_0(hit_46))
+        var _S1086 : u32 = NrdBase_0(base_66);
+        var _S1087 : f32;
+        if(HitRecord_IsHit_0(hit_49))
         {
-            _S925 = hit_46.t_6;
+            _S1087 = hit_49.t_6;
         }
         else
         {
-            _S925 = 65504.0f;
+            _S1087 = 65504.0f;
         }
-        gAccum_0[_S924 + u32(1)][i32(3)] = _S925;
+        gAccum_0[_S1086 + u32(1)][i32(3)] = _S1087;
     }
-    if(HitRecord_IsHit_0(hit_46))
+    if(HitRecord_IsHit_0(hit_49))
     {
-        gAccum_0[Field_0(base_66, u32(8))] = vec4<f32>(hit_46.t_6, hit_46.barycentrics_0, (bitcast<f32>((hit_46.instanceIndex_2))));
-        gAccum_0[Field_0(base_66, u32(9))] = (bitcast<vec4<f32>>((vec4<u32>(hit_46.primitiveIndex_1, u32(0), u32(0), u32(0)))));
+        gAccum_0[Field_0(base_66, u32(8))] = vec4<f32>(hit_49.t_6, hit_49.barycentrics_0, (bitcast<f32>((hit_49.instanceIndex_2))));
+        gAccum_0[Field_0(base_66, u32(9))] = (bitcast<vec4<f32>>((vec4<u32>(hit_49.primitiveIndex_1, u32(0), u32(0), u32(0)))));
     }
     gAccum_0[base_66] = vec4<f32>(s_64.path_0.radiance_1, (bitcast<f32>((s_64.active_0))));
     StoreFeedbackState_0(base_66);
@@ -20280,45 +21778,45 @@ fn IntersectImpl_3( tid_32 : vec3<u32>)
 
 fn IntersectImpl_4( tid_33 : vec3<u32>)
 {
-    var _S926 : u32 = tid_33.x;
-    if((_S926 >= (bitcast<u32>((gAccum_0[HeaderBase_0()][i32(0)])))))
+    var _S1088 : u32 = tid_33.x;
+    if((_S1088 >= (bitcast<u32>((gAccum_0[HeaderBase_0()][i32(0)])))))
     {
         return;
     }
-    var base_67 : u32 = WorkBase_0(QueueIndex_0(MainQueueBase_0(), _S926));
+    var base_67 : u32 = WorkBase_0(QueueIndex_0(MainQueueBase_0(), _S1088));
     var s_65 : WavefrontPath_0 = LoadPath_1(base_67);
     if((s_65.active_0) == u32(0))
     {
         return;
     }
-    var hit_47 : HitRecord_0 = IntersectPath_0(&(s_65), gWavefront_0.bounce_0);
-    var _S927 : bool;
+    var hit_50 : HitRecord_0 = IntersectPath_0(&(s_65), gWavefront_0.bounce_0);
+    var _S1089 : bool;
     if((gWavefront_0.bounce_0) == u32(1))
     {
-        _S927 = NrdEnabled_0();
+        _S1089 = NrdEnabled_0();
     }
     else
     {
-        _S927 = false;
+        _S1089 = false;
     }
-    if(_S927)
+    if(_S1089)
     {
-        var _S928 : u32 = NrdBase_0(base_67);
-        var _S929 : f32;
-        if(HitRecord_IsHit_0(hit_47))
+        var _S1090 : u32 = NrdBase_0(base_67);
+        var _S1091 : f32;
+        if(HitRecord_IsHit_0(hit_50))
         {
-            _S929 = hit_47.t_6;
+            _S1091 = hit_50.t_6;
         }
         else
         {
-            _S929 = 65504.0f;
+            _S1091 = 65504.0f;
         }
-        gAccum_0[_S928 + u32(1)][i32(3)] = _S929;
+        gAccum_0[_S1090 + u32(1)][i32(3)] = _S1091;
     }
-    if(HitRecord_IsHit_0(hit_47))
+    if(HitRecord_IsHit_0(hit_50))
     {
-        gAccum_0[Field_0(base_67, u32(8))] = vec4<f32>(hit_47.t_6, hit_47.barycentrics_0, (bitcast<f32>((hit_47.instanceIndex_2))));
-        gAccum_0[Field_0(base_67, u32(9))] = (bitcast<vec4<f32>>((vec4<u32>(hit_47.primitiveIndex_1, u32(0), u32(0), u32(0)))));
+        gAccum_0[Field_0(base_67, u32(8))] = vec4<f32>(hit_50.t_6, hit_50.barycentrics_0, (bitcast<f32>((hit_50.instanceIndex_2))));
+        gAccum_0[Field_0(base_67, u32(9))] = (bitcast<vec4<f32>>((vec4<u32>(hit_50.primitiveIndex_1, u32(0), u32(0), u32(0)))));
     }
     gAccum_0[base_67] = vec4<f32>(s_65.path_0.radiance_1, (bitcast<f32>((s_65.active_0))));
     return;
@@ -20326,46 +21824,46 @@ fn IntersectImpl_4( tid_33 : vec3<u32>)
 
 fn IntersectImpl_5( tid_34 : vec3<u32>)
 {
-    var _S930 : u32 = tid_34.x;
-    if((_S930 >= (bitcast<u32>((gAccum_0[HeaderBase_0()][i32(0)])))))
+    var _S1092 : u32 = tid_34.x;
+    if((_S1092 >= (bitcast<u32>((gAccum_0[HeaderBase_0()][i32(0)])))))
     {
         return;
     }
-    var base_68 : u32 = WorkBase_0(QueueIndex_0(MainQueueBase_0(), _S930));
+    var base_68 : u32 = WorkBase_0(QueueIndex_0(MainQueueBase_0(), _S1092));
     var s_66 : WavefrontPath_0 = LoadPath_1(base_68);
     if((s_66.active_0) == u32(0))
     {
         return;
     }
     LoadFeedbackState_0(base_68);
-    var hit_48 : HitRecord_0 = IntersectPath_1(&(s_66), gWavefront_0.bounce_0);
-    var _S931 : bool;
+    var hit_51 : HitRecord_0 = IntersectPath_1(&(s_66), gWavefront_0.bounce_0);
+    var _S1093 : bool;
     if((gWavefront_0.bounce_0) == u32(1))
     {
-        _S931 = NrdEnabled_0();
+        _S1093 = NrdEnabled_0();
     }
     else
     {
-        _S931 = false;
+        _S1093 = false;
     }
-    if(_S931)
+    if(_S1093)
     {
-        var _S932 : u32 = NrdBase_0(base_68);
-        var _S933 : f32;
-        if(HitRecord_IsHit_0(hit_48))
+        var _S1094 : u32 = NrdBase_0(base_68);
+        var _S1095 : f32;
+        if(HitRecord_IsHit_0(hit_51))
         {
-            _S933 = hit_48.t_6;
+            _S1095 = hit_51.t_6;
         }
         else
         {
-            _S933 = 65504.0f;
+            _S1095 = 65504.0f;
         }
-        gAccum_0[_S932 + u32(1)][i32(3)] = _S933;
+        gAccum_0[_S1094 + u32(1)][i32(3)] = _S1095;
     }
-    if(HitRecord_IsHit_0(hit_48))
+    if(HitRecord_IsHit_0(hit_51))
     {
-        gAccum_0[Field_0(base_68, u32(8))] = vec4<f32>(hit_48.t_6, hit_48.barycentrics_0, (bitcast<f32>((hit_48.instanceIndex_2))));
-        gAccum_0[Field_0(base_68, u32(9))] = (bitcast<vec4<f32>>((vec4<u32>(hit_48.primitiveIndex_1, u32(0), u32(0), u32(0)))));
+        gAccum_0[Field_0(base_68, u32(8))] = vec4<f32>(hit_51.t_6, hit_51.barycentrics_0, (bitcast<f32>((hit_51.instanceIndex_2))));
+        gAccum_0[Field_0(base_68, u32(9))] = (bitcast<vec4<f32>>((vec4<u32>(hit_51.primitiveIndex_1, u32(0), u32(0), u32(0)))));
     }
     gAccum_0[base_68] = vec4<f32>(s_66.path_0.radiance_1, (bitcast<f32>((s_66.active_0))));
     StoreFeedbackState_0(base_68);
@@ -20379,138 +21877,138 @@ fn AnalyticFlags_1( light_6 : ptr<function, EmissiveTriangle_std430_0>) -> u32
 
 fn SpotAttenuation_1( light_7 : ptr<function, EmissiveTriangle_std430_0>,  dir_30 : vec3<f32>) -> f32
 {
-    var _S934 : u32 = AnalyticFlags_1(&((*light_7)));
-    if(((_S934 & (u32(255)))) != u32(1))
+    var _S1096 : u32 = AnalyticFlags_1(&((*light_7)));
+    if(((_S1096 & (u32(255)))) != u32(1))
     {
         return 1.0f;
     }
     var x_32 : f32 = dot(dir_30, (*light_7).p2_0.xyz) - (*light_7).uvA_0.w;
-    var scale_6 : f32 = (*light_7).uvB_0.x;
-    var _S935 : f32;
-    if((scale_6 > 0.0f))
+    var scale_12 : f32 = (*light_7).uvB_0.x;
+    var _S1097 : f32;
+    if((scale_12 > 0.0f))
     {
-        _S935 = smoothstep(0.0f, 1.0f, x_32 * scale_6);
+        _S1097 = smoothstep(0.0f, 1.0f, x_32 * scale_12);
     }
     else
     {
         if((x_32 > 0.0f))
         {
-            _S935 = 1.0f;
+            _S1097 = 1.0f;
         }
         else
         {
-            _S935 = 0.0f;
+            _S1097 = 0.0f;
         }
     }
-    return _S935;
+    return _S1097;
 }
 
-fn IntersectAnalyticLights_1( origin_18 : vec3<f32>,  dir_31 : vec3<f32>,  tMax_5 : f32,  cameraRay_1 : bool,  radiance_10 : ptr<function, vec3<f32>>,  pdf_22 : ptr<function, f32>) -> bool
+fn IntersectAnalyticLights_1( origin_24 : vec3<f32>,  dir_31 : vec3<f32>,  tMax_6 : f32,  cameraRay_1 : bool,  radiance_10 : ptr<function, vec3<f32>>,  pdf_22 : ptr<function, f32>) -> bool
 {
     (*radiance_10) = vec3<f32>(0.0f);
     (*pdf_22) = 0.0f;
-    var nearest_2 : f32 = tMax_5;
-    var found_24 : bool = false;
-    var i_16 : u32 = u32(0);
+    var nearest_2 : f32 = tMax_6;
+    var found_13 : bool = false;
+    var i_10 : u32 = u32(0);
     loop
     {
-        if((i_16 < (AnalyticLightCount_0())))
+        if((i_10 < (AnalyticLightCount_0())))
         {
         }
         else
         {
             break;
         }
-        var _S936 : EmissiveTriangle_std430_0 = gLights_0[i_16];
-        var _S937 : u32 = AnalyticFlags_1(&(_S936));
-        var _S938 : bool;
+        var _S1098 : EmissiveTriangle_std430_0 = gLights_0[i_10];
+        var _S1099 : u32 = AnalyticFlags_1(&(_S1098));
+        var _S1100 : bool;
         if(cameraRay_1)
         {
-            _S938 = ((_S937 & (u32(256)))) != u32(0);
+            _S1100 = ((_S1099 & (u32(256)))) != u32(0);
         }
         else
         {
-            _S938 = false;
+            _S1100 = false;
         }
-        if(_S938)
+        if(_S1100)
         {
-            i_16 = i_16 + u32(1);
+            i_10 = i_10 + u32(1);
             continue;
         }
         var nearest_3 : f32;
-        var _S939 : bool;
+        var _S1101 : bool;
         var inside_5 : bool;
-        if(((_S937 & (u32(255)))) == u32(2))
+        if(((_S1099 & (u32(255)))) == u32(2))
         {
-            var n_24 : vec3<f32> = _S936.p2_0.xyz;
+            var n_24 : vec3<f32> = _S1098.p2_0.xyz;
             var cosTheta_15 : f32 = - dot(n_24, dir_31);
             if((cosTheta_15 <= 9.99999997475242708e-07f))
             {
-                i_16 = i_16 + u32(1);
+                i_10 = i_10 + u32(1);
                 continue;
             }
-            var _S940 : vec4<f32> = _S936.p0_0;
-            var _S941 : vec3<f32> = _S936.p0_0.xyz;
-            var t_17 : f32 = dot(_S941 - origin_18, n_24) / - cosTheta_15;
+            var _S1102 : vec4<f32> = _S1098.p0_0;
+            var _S1103 : vec3<f32> = _S1098.p0_0.xyz;
+            var t_17 : f32 = dot(_S1103 - origin_24, n_24) / - cosTheta_15;
             if((t_17 <= 0.0f))
             {
-                _S939 = true;
+                _S1101 = true;
             }
             else
             {
-                _S939 = (t_17 >= nearest_2);
+                _S1101 = (t_17 >= nearest_2);
             }
-            if(_S939)
+            if(_S1101)
             {
-                i_16 = i_16 + u32(1);
+                i_10 = i_10 + u32(1);
                 continue;
             }
-            var local_5 : vec3<f32> = origin_18 + dir_31 * vec3<f32>(t_17) - _S941;
-            var _S942 : vec3<f32> = _S936.n_0.xyz;
-            var _S943 : vec3<f32> = _S936.uvA_0.xyz;
-            var d_13 : vec2<f32> = vec2<f32>(dot(local_5, _S942) / dot(_S942, _S942), dot(local_5, _S943) / dot(_S943, _S943));
-            if(((_S937 & (u32(512)))) != u32(0))
+            var local_5 : vec3<f32> = origin_24 + dir_31 * vec3<f32>(t_17) - _S1103;
+            var _S1104 : vec3<f32> = _S1098.n_0.xyz;
+            var _S1105 : vec3<f32> = _S1098.uvA_0.xyz;
+            var d_26 : vec2<f32> = vec2<f32>(dot(local_5, _S1104) / dot(_S1104, _S1104), dot(local_5, _S1105) / dot(_S1105, _S1105));
+            if(((_S1099 & (u32(512)))) != u32(0))
             {
-                inside_5 = ((dot(d_13, d_13)) <= 0.25f);
+                inside_5 = ((dot(d_26, d_26)) <= 0.25f);
             }
             else
             {
-                inside_5 = (all((((abs(d_13)) <= vec2<f32>(0.5f)))));
+                inside_5 = (all((((abs(d_26)) <= vec2<f32>(0.5f)))));
             }
             if(!inside_5)
             {
-                i_16 = i_16 + u32(1);
+                i_10 = i_10 + u32(1);
                 continue;
             }
-            (*radiance_10) = _S936.p1_0.xyz;
-            (*pdf_22) = _S936.p1_0.w * t_17 * t_17 / (cosTheta_15 * _S940.w);
+            (*radiance_10) = _S1098.p1_0.xyz;
+            (*pdf_22) = _S1098.p1_0.w * t_17 * t_17 / (cosTheta_15 * _S1102.w);
             nearest_3 = t_17;
         }
         else
         {
-            var _S944 : vec4<f32> = _S936.p0_0;
-            var radius_5 : f32 = _S936.p0_0.w;
+            var _S1106 : vec4<f32> = _S1098.p0_0;
+            var radius_5 : f32 = _S1098.p0_0.w;
             if((radius_5 <= 0.0f))
             {
-                i_16 = i_16 + u32(1);
+                i_10 = i_10 + u32(1);
                 continue;
             }
-            var toCenter_2 : vec3<f32> = _S944.xyz - origin_18;
+            var toCenter_2 : vec3<f32> = _S1106.xyz - origin_24;
             var distSq_5 : f32 = dot(toCenter_2, toCenter_2);
             var tc_11 : f32 = dot(toCenter_2, dir_31);
-            var _S945 : f32 = radius_5 * radius_5;
-            var h_18 : f32 = _S945 - (distSq_5 - tc_11 * tc_11);
+            var _S1107 : f32 = radius_5 * radius_5;
+            var h_18 : f32 = _S1107 - (distSq_5 - tc_11 * tc_11);
             if((h_18 < 0.0f))
             {
-                _S939 = true;
+                _S1101 = true;
             }
             else
             {
-                _S939 = (distSq_5 <= _S945);
+                _S1101 = (distSq_5 <= _S1107);
             }
-            if(_S939)
+            if(_S1101)
             {
-                i_16 = i_16 + u32(1);
+                i_10 = i_10 + u32(1);
                 continue;
             }
             var t_18 : f32 = tc_11 - sqrt(h_18);
@@ -20524,55 +22022,55 @@ fn IntersectAnalyticLights_1( origin_18 : vec3<f32>,  dir_31 : vec3<f32>,  tMax_
             }
             if(inside_5)
             {
-                i_16 = i_16 + u32(1);
+                i_10 = i_10 + u32(1);
                 continue;
             }
-            var _S946 : vec4<f32> = _S936.p1_0;
-            var _S947 : vec3<f32> = _S936.p1_0.xyz;
-            var _S948 : f32 = SpotAttenuation_1(&(_S936), (vec3<f32>(0) - toCenter_2) * vec3<f32>(rsqrt_0(distSq_5)));
-            (*radiance_10) = _S947 * vec3<f32>(_S948);
-            (*pdf_22) = _S946.w / (2.0f * float_getPi_0() * SphereOneMinusCos_0(radius_5, distSq_5));
+            var _S1108 : vec4<f32> = _S1098.p1_0;
+            var _S1109 : vec3<f32> = _S1098.p1_0.xyz;
+            var _S1110 : f32 = SpotAttenuation_1(&(_S1098), (vec3<f32>(0) - toCenter_2) * vec3<f32>(rsqrt_0(distSq_5)));
+            (*radiance_10) = _S1109 * vec3<f32>(_S1110);
+            (*pdf_22) = _S1108.w / (2.0f * float_getPi_0() * SphereOneMinusCos_0(radius_5, distSq_5));
             nearest_3 = t_18;
         }
         nearest_2 = nearest_3;
-        found_24 = true;
-        i_16 = i_16 + u32(1);
+        found_13 = true;
+        i_10 = i_10 + u32(1);
     }
-    return found_24;
+    return found_13;
 }
 
-fn CompleteIntersection_1( s_67 : ptr<function, WavefrontPath_0>,  bounce_16 : u32,  hit_49 : HitRecord_0) -> HitRecord_0
+fn CompleteIntersection_1( s_67 : ptr<function, WavefrontPath_0>,  bounce_16 : u32,  hit_52 : HitRecord_0) -> HitRecord_0
 {
-    var ray_10 : Ray_0 = Ray_x24init_0((*s_67).path_0.origin_3, (*s_67).path_0.direction_1, 1.00000001504746622e+30f);
+    var ray_10 : Ray_0 = Ray_x24init_0((*s_67).path_0.origin_5, (*s_67).path_0.direction_1, 1.00000001504746622e+30f);
     var clampValue_17 : f32 = gFrame_0.envParams_0.w / gFrame_0.envParams_0.z;
     var mis_7 : f32;
-    var _S949 : bool;
+    var _S1111 : bool;
     var contribution_32 : vec3<f32>;
     if(((AnalyticLightCount_0()) > u32(0)))
     {
         var radiance_11 : vec3<f32>;
         var pdf_23 : f32;
-        if(HitRecord_IsHit_0(hit_49))
+        if(HitRecord_IsHit_0(hit_52))
         {
-            mis_7 = hit_49.t_6;
+            mis_7 = hit_52.t_6;
         }
         else
         {
             mis_7 = 1.00000001504746622e+30f;
         }
-        var _S950 : bool = IntersectAnalyticLights_1(ray_10.origin_0, ray_10.direction_0, mis_7, bounce_16 == u32(0), &(radiance_11), &(pdf_23));
-        if(_S950)
+        var _S1112 : bool = IntersectAnalyticLights_1(ray_10.origin_0, ray_10.direction_0, mis_7, bounce_16 == u32(0), &(radiance_11), &(pdf_23));
+        if(_S1112)
         {
-            var _S951 : bool = (bounce_16 > u32(0));
-            if(_S951)
+            var _S1113 : bool = (bounce_16 > u32(0));
+            if(_S1113)
             {
-                _S949 = (*s_67).path_0.lightsSampled_0;
+                _S1111 = (*s_67).path_0.lightsSampled_0;
             }
             else
             {
-                _S949 = false;
+                _S1111 = false;
             }
-            if(_S949)
+            if(_S1111)
             {
                 mis_7 = EvalMISRobust_0((*s_67).path_0.scatterPdf_0, pdf_23);
             }
@@ -20583,13 +22081,13 @@ fn CompleteIntersection_1( s_67 : ptr<function, WavefrontPath_0>,  bounce_16 : u
             var contribution_33 : vec3<f32> = (*s_67).path_0.throughput_7 * vec3<f32>(mis_7) * radiance_11;
             if((clampValue_17 > 0.0f))
             {
-                _S949 = _S951;
+                _S1111 = _S1113;
             }
             else
             {
-                _S949 = false;
+                _S1111 = false;
             }
-            if(_S949)
+            if(_S1111)
             {
                 contribution_32 = min(contribution_33, vec3<f32>(clampValue_17));
             }
@@ -20600,7 +22098,7 @@ fn CompleteIntersection_1( s_67 : ptr<function, WavefrontPath_0>,  bounce_16 : u
             (*s_67).path_0.radiance_1 = (*s_67).path_0.radiance_1 + contribution_32;
         }
     }
-    if(!HitRecord_IsHit_0(hit_49))
+    if(!HitRecord_IsHit_0(hit_52))
     {
         if(bounce_16 == u32(0))
         {
@@ -20616,13 +22114,13 @@ fn CompleteIntersection_1( s_67 : ptr<function, WavefrontPath_0>,  bounce_16 : u
             (*s_67).path_0.radiance_1 = (*s_67).path_0.radiance_1 + contribution_32;
             if(visible_1)
             {
-                _S949 = HitsSun_0(ray_10.direction_0);
+                _S1111 = HitsSun_0(ray_10.direction_0);
             }
             else
             {
-                _S949 = false;
+                _S1111 = false;
             }
-            if(_S949)
+            if(_S1111)
             {
                 (*s_67).path_0.radiance_1 = (*s_67).path_0.radiance_1 + gFrame_0.sunRadiance_0.xyz;
             }
@@ -20640,21 +22138,21 @@ fn CompleteIntersection_1( s_67 : ptr<function, WavefrontPath_0>,  bounce_16 : u
             var contribution_34 : vec3<f32> = (*s_67).path_0.throughput_7 * vec3<f32>(mis_7) * EvalEnvironment_0(ray_10.direction_0);
             if(!(*s_67).path_0.lightsSampled_0)
             {
-                _S949 = SunEnabled_0();
+                _S1111 = SunEnabled_0();
             }
             else
             {
-                _S949 = false;
+                _S1111 = false;
             }
-            if(_S949)
+            if(_S1111)
             {
-                _S949 = HitsSun_0(ray_10.direction_0);
+                _S1111 = HitsSun_0(ray_10.direction_0);
             }
             else
             {
-                _S949 = false;
+                _S1111 = false;
             }
-            if(_S949)
+            if(_S1111)
             {
                 contribution_32 = contribution_34 + (*s_67).path_0.throughput_7 * gFrame_0.sunRadiance_0.xyz;
             }
@@ -20670,46 +22168,46 @@ fn CompleteIntersection_1( s_67 : ptr<function, WavefrontPath_0>,  bounce_16 : u
         }
         (*s_67).active_0 = u32(0);
     }
-    return hit_49;
+    return hit_52;
 }
 
-fn StorePrimaryHit_0( base_69 : u32,  s_68 : ptr<function, WavefrontPath_0>,  hit_50 : HitRecord_0)
+fn StorePrimaryHit_0( base_69 : u32,  s_68 : ptr<function, WavefrontPath_0>,  hit_53 : HitRecord_0)
 {
-    var _S952 : HitRecord_0 = CompleteIntersection_1(&((*s_68)), u32(0), hit_50);
-    gAccum_0[Field_0(base_69, u32(8))] = vec4<f32>(_S952.t_6, _S952.barycentrics_0, (bitcast<f32>((_S952.instanceIndex_2))));
-    gAccum_0[Field_0(base_69, u32(9))] = (bitcast<vec4<f32>>((vec4<u32>(_S952.primitiveIndex_1, u32(0), u32(0), u32(0)))));
+    var _S1114 : HitRecord_0 = CompleteIntersection_1(&((*s_68)), u32(0), hit_53);
+    gAccum_0[Field_0(base_69, u32(8))] = vec4<f32>(_S1114.t_6, _S1114.barycentrics_0, (bitcast<f32>((_S1114.instanceIndex_2))));
+    gAccum_0[Field_0(base_69, u32(9))] = (bitcast<vec4<f32>>((vec4<u32>(_S1114.primitiveIndex_1, u32(0), u32(0), u32(0)))));
     gAccum_0[base_69] = vec4<f32>((*s_68).path_0.radiance_1, (bitcast<f32>(((*s_68).active_0))));
     return;
 }
 
 fn PrimaryTraceFallbackImpl_0( tid_35 : vec3<u32>)
 {
-    var _S953 : u32 = tid_35.x;
-    if((_S953 >= (bitcast<u32>((gAccum_0[HeaderBase_0()].y)))))
+    var _S1115 : u32 = tid_35.x;
+    if((_S1115 >= (bitcast<u32>((gAccum_0[HeaderBase_0()].y)))))
     {
         return;
     }
-    var base_70 : u32 = WorkBase_0(QueueIndex_0(ShadeQueueBase_0(), _S953));
+    var base_70 : u32 = WorkBase_0(QueueIndex_0(ShadeQueueBase_0(), _S1115));
     var s_69 : WavefrontPath_0 = LoadPath_1(base_70);
     gRayCone_0 = vec2<f32>(s_69.path_0.coneWidth_2, s_69.path_0.coneSpread_0);
-    var hit_51 : HitRecord_0 = TraceClosest_0(Ray_x24init_0(s_69.path_0.origin_3, s_69.path_0.direction_1, 1.00000001504746622e+30f));
-    StorePrimaryHit_0(base_70, &(s_69), hit_51);
+    var hit_54 : HitRecord_0 = TraceClosest_0(Ray_x24init_0(s_69.path_0.origin_5, s_69.path_0.direction_1, 1.00000001504746622e+30f));
+    StorePrimaryHit_0(base_70, &(s_69), hit_54);
     return;
 }
 
 fn PrimaryTraceFallbackImpl_1( tid_36 : vec3<u32>)
 {
-    var _S954 : u32 = tid_36.x;
-    if((_S954 >= (bitcast<u32>((gAccum_0[HeaderBase_0()].y)))))
+    var _S1116 : u32 = tid_36.x;
+    if((_S1116 >= (bitcast<u32>((gAccum_0[HeaderBase_0()].y)))))
     {
         return;
     }
-    var base_71 : u32 = WorkBase_0(QueueIndex_0(ShadeQueueBase_0(), _S954));
+    var base_71 : u32 = WorkBase_0(QueueIndex_0(ShadeQueueBase_0(), _S1116));
     var s_70 : WavefrontPath_0 = LoadPath_1(base_71);
     LoadFeedbackState_0(base_71);
     gRayCone_0 = vec2<f32>(s_70.path_0.coneWidth_2, s_70.path_0.coneSpread_0);
-    var hit_52 : HitRecord_0 = TraceClosest_1(Ray_x24init_0(s_70.path_0.origin_3, s_70.path_0.direction_1, 1.00000001504746622e+30f));
-    StorePrimaryHit_0(base_71, &(s_70), hit_52);
+    var hit_55 : HitRecord_0 = TraceClosest_1(Ray_x24init_0(s_70.path_0.origin_5, s_70.path_0.direction_1, 1.00000001504746622e+30f));
+    StorePrimaryHit_0(base_71, &(s_70), hit_55);
     StoreFeedbackState_0(base_71);
     return;
 }
@@ -20717,32 +22215,32 @@ fn PrimaryTraceFallbackImpl_1( tid_36 : vec3<u32>)
 fn isfinite_2( x_33 : vec2<f32>) -> vec2<bool>
 {
     var result_10 : vec2<bool>;
-    var i_17 : i32 = i32(0);
+    var i_11 : i32 = i32(0);
     loop
     {
-        if((i_17 < i32(2)))
+        if((i_11 < i32(2)))
         {
         }
         else
         {
             break;
         }
-        result_10[i_17] = isfinite_0(x_33[i_17]);
-        i_17 = i_17 + i32(1);
+        result_10[i_11] = isfinite_0(x_33[i_11]);
+        i_11 = i_11 + i32(1);
     }
     return result_10;
 }
 
-fn StorePrimaryHit_1( base_72 : u32,  s_71 : ptr<function, WavefrontPath_0>,  hit_53 : HitRecord_0)
+fn StorePrimaryHit_1( base_72 : u32,  s_71 : ptr<function, WavefrontPath_0>,  hit_56 : HitRecord_0)
 {
-    var _S955 : HitRecord_0 = CompleteIntersection_0(&((*s_71)), u32(0), hit_53);
-    gAccum_0[Field_0(base_72, u32(8))] = vec4<f32>(_S955.t_6, _S955.barycentrics_0, (bitcast<f32>((_S955.instanceIndex_2))));
-    gAccum_0[Field_0(base_72, u32(9))] = (bitcast<vec4<f32>>((vec4<u32>(_S955.primitiveIndex_1, u32(0), u32(0), u32(0)))));
+    var _S1117 : HitRecord_0 = CompleteIntersection_0(&((*s_71)), u32(0), hit_56);
+    gAccum_0[Field_0(base_72, u32(8))] = vec4<f32>(_S1117.t_6, _S1117.barycentrics_0, (bitcast<f32>((_S1117.instanceIndex_2))));
+    gAccum_0[Field_0(base_72, u32(9))] = (bitcast<vec4<f32>>((vec4<u32>(_S1117.primitiveIndex_1, u32(0), u32(0), u32(0)))));
     gAccum_0[base_72] = vec4<f32>((*s_71).path_0.radiance_1, (bitcast<f32>(((*s_71).active_0))));
     return;
 }
 
-fn _S956() -> vec2<f32>
+fn _S1118() -> vec2<f32>
 {
     return vec2<f32>(0.0f);
 }
@@ -20752,28 +22250,28 @@ fn _S956() -> vec2<f32>
 fn ResolvePrimaryVisibility(@builtin(global_invocation_id) tid_37 : vec3<u32>)
 {
     gTraversalCost_0 = u32(0);
-    gRayCone_0 = _S956();
+    gRayCone_0 = _S1118();
     gVTRandom_0 = u32(0);
     gVTRequestCount_0 = u32(0);
     gVTRequest_0 = u32(0);
     gVTLastMappedLevel_0 = u32(0);
     gVTLastRequestedLevel_0 = u32(0);
-    var _S957 : u32 = tid_37.x;
-    if((_S957 >= (gWavefront_0.pathCount_0)))
+    var _S1119 : u32 = tid_37.x;
+    if((_S1119 >= (gWavefront_0.pathCount_0)))
     {
         return;
     }
-    var base_73 : u32 = WorkBase_0(_S957);
-    var _S958 : u32 = Field_0(base_73, u32(9));
-    gAccum_0[_S958] = vec4<f32>(0.0f);
+    var base_73 : u32 = WorkBase_0(_S1119);
+    var _S1120 : u32 = Field_0(base_73, u32(9));
+    gAccum_0[_S1120] = vec4<f32>(0.0f);
     var s_72 : WavefrontPath_0 = LoadPath_1(base_73);
     if((s_72.active_0) == u32(0))
     {
         return;
     }
-    var _S959 : vec2<u32> = WorkPixel_0(_S957);
-    var _S960 : vec3<i32> = vec3<i32>(vec2<i32>(_S959), i32(0));
-    var ids_0 : vec2<u32> = (textureLoad((gPrimaryVisibility_0), ((_S960)).xy, ((_S960)).z).xy);
+    var _S1121 : vec2<u32> = WorkPixel_0(_S1119);
+    var _S1122 : vec3<i32> = vec3<i32>(vec2<i32>(_S1121), i32(0));
+    var ids_0 : vec2<u32> = (textureLoad((gPrimaryVisibility_0), ((_S1122)).xy, ((_S1122)).z).xy);
     var pending_6 : u32;
     if((bitcast<u32>((gAccum_0[gFrame_0.primaryVisibility_0.x / u32(4)].y))) != u32(0))
     {
@@ -20783,97 +22281,97 @@ fn ResolvePrimaryVisibility(@builtin(global_invocation_id) tid_37 : vec3<u32>)
     {
         pending_6 = u32(0);
     }
-    var hit_54 : HitRecord_0;
-    hit_54.t_6 = 1.00000001504746622e+30f;
-    hit_54.barycentrics_0 = vec2<f32>(0.0f);
-    hit_54.instanceIndex_2 = u32(4294967295);
-    hit_54.primitiveIndex_1 = u32(4294967295);
-    var _S961 : bool;
+    var hit_57 : HitRecord_0;
+    hit_57.t_6 = 1.00000001504746622e+30f;
+    hit_57.barycentrics_0 = vec2<f32>(0.0f);
+    hit_57.instanceIndex_2 = u32(4294967295);
+    hit_57.primitiveIndex_1 = u32(4294967295);
+    var _S1123 : bool;
     if(pending_6 == u32(0))
     {
-        _S961 = (ids_0.x) == u32(4294967295);
+        _S1123 = (ids_0.x) == u32(4294967295);
     }
     else
     {
-        _S961 = false;
+        _S1123 = false;
     }
-    if(_S961)
+    if(_S1123)
     {
-        _S961 = (ids_0.y) != u32(4294967295);
+        _S1123 = (ids_0.y) != u32(4294967295);
     }
     else
     {
-        _S961 = false;
+        _S1123 = false;
     }
-    if(_S961)
+    if(_S1123)
     {
         pending_6 = u32(2);
     }
     if(pending_6 == u32(0))
     {
-        _S961 = (ids_0.x) != u32(4294967295);
+        _S1123 = (ids_0.x) != u32(4294967295);
     }
     else
     {
-        _S961 = false;
+        _S1123 = false;
     }
-    if(_S961)
+    if(_S1123)
     {
-        var _S962 : u32 = ids_0.x;
-        if((_S962 >= (gFrame_0.primaryVisibility_0.w)))
+        var _S1124 : u32 = ids_0.x;
+        if((_S1124 >= (gFrame_0.primaryVisibility_0.w)))
         {
             pending_6 = u32(2);
         }
         else
         {
-            var _S963 : u32 = ids_0.y;
-            if((_S963 >= (gInstances_0[_S962].triCount_0)))
+            var _S1125 : u32 = ids_0.y;
+            if((_S1125 >= (gInstances_0[_S1124].triCount_0)))
             {
                 pending_6 = u32(2);
             }
             else
             {
-                if((((gInstances_0[_S962].flags_0) & (u32(1)))) != u32(0))
+                if((((gInstances_0[_S1124].flags_0) & (u32(1)))) != u32(0))
                 {
                     pending_6 = u32(1);
                 }
                 else
                 {
-                    var _S964 : vec3<u32> = LoadTriangleIndices_0(_S962, _S963);
-                    var p_10 : vec3<f32> = gVertices_0[_S964.x].positionU_0.xyz;
-                    var e1_2 : vec3<f32> = gVertices_0[_S964.y].positionU_0.xyz - p_10;
-                    var e2_2 : vec3<f32> = gVertices_0[_S964.z].positionU_0.xyz - p_10;
-                    var _S965 : vec3<f32> = InverseTransformPoint_0(_S962, s_72.path_0.origin_3);
-                    var _S966 : vec3<f32> = InverseTransformVector_0(_S962, s_72.path_0.direction_1);
-                    var _S967 : f32 = hit_54.t_6;
-                    var _S968 : vec2<f32> = hit_54.barycentrics_0;
-                    var valid_2 : bool = IntersectTriangle_0(_S965, _S966, p_10, e1_2, e2_2, 0.0f, 1.00000001504746622e+30f, &(_S967), &(_S968));
-                    hit_54.t_6 = _S967;
-                    hit_54.barycentrics_0 = _S968;
+                    var _S1126 : vec3<u32> = LoadTriangleIndices_0(_S1124, _S1125);
+                    var p_10 : vec3<f32> = gVertices_0[_S1126.x].positionU_0.xyz;
+                    var e1_5 : vec3<f32> = gVertices_0[_S1126.y].positionU_0.xyz - p_10;
+                    var e2_4 : vec3<f32> = gVertices_0[_S1126.z].positionU_0.xyz - p_10;
+                    var _S1127 : vec3<f32> = InverseTransformPoint_0(_S1124, s_72.path_0.origin_5);
+                    var _S1128 : vec3<f32> = InverseTransformVector_0(_S1124, s_72.path_0.direction_1);
+                    var _S1129 : f32 = hit_57.t_6;
+                    var _S1130 : vec2<f32> = hit_57.barycentrics_0;
+                    var valid_2 : bool = IntersectTriangle_0(_S1127, _S1128, p_10, e1_5, e2_4, 0.0f, 1.00000001504746622e+30f, &(_S1129), &(_S1130));
+                    hit_57.t_6 = _S1129;
+                    hit_57.barycentrics_0 = _S1130;
                     if(!valid_2)
                     {
-                        _S961 = true;
+                        _S1123 = true;
                     }
                     else
                     {
-                        _S961 = !isfinite_0(hit_54.t_6);
+                        _S1123 = !isfinite_0(hit_57.t_6);
                     }
-                    if(_S961)
+                    if(_S1123)
                     {
-                        _S961 = true;
+                        _S1123 = true;
                     }
                     else
                     {
-                        _S961 = !(all((isfinite_2(hit_54.barycentrics_0))));
+                        _S1123 = !(all((isfinite_2(hit_57.barycentrics_0))));
                     }
-                    if(_S961)
+                    if(_S1123)
                     {
                         pending_6 = u32(2);
                     }
                     else
                     {
-                        hit_54.instanceIndex_2 = _S962;
-                        hit_54.primitiveIndex_1 = _S963;
+                        hit_57.instanceIndex_2 = _S1124;
+                        hit_57.primitiveIndex_1 = _S1125;
                     }
                 }
             }
@@ -20881,11 +22379,11 @@ fn ResolvePrimaryVisibility(@builtin(global_invocation_id) tid_37 : vec3<u32>)
     }
     if(pending_6 != u32(0))
     {
-        gAccum_0[_S958] = (bitcast<vec4<f32>>((vec4<u32>(u32(0), pending_6, u32(0), u32(0)))));
+        gAccum_0[_S1120] = (bitcast<vec4<f32>>((vec4<u32>(u32(0), pending_6, u32(0), u32(0)))));
     }
     else
     {
-        StorePrimaryHit_1(base_73, &(s_72), hit_54);
+        StorePrimaryHit_1(base_73, &(s_72), hit_57);
     }
     return;
 }
@@ -20895,7 +22393,7 @@ fn ResolvePrimaryVisibility(@builtin(global_invocation_id) tid_37 : vec3<u32>)
 fn PrimaryTraceFallback(@builtin(global_invocation_id) tid_38 : vec3<u32>)
 {
     gTraversalCost_0 = u32(0);
-    gRayCone_0 = _S956();
+    gRayCone_0 = _S1118();
     gVTRandom_0 = u32(0);
     gVTRequestCount_0 = u32(0);
     gVTRequest_0 = u32(0);
@@ -20910,7 +22408,7 @@ fn PrimaryTraceFallback(@builtin(global_invocation_id) tid_38 : vec3<u32>)
 fn PrimaryTraceFallbackOpaque(@builtin(global_invocation_id) tid_39 : vec3<u32>)
 {
     gTraversalCost_0 = u32(0);
-    gRayCone_0 = _S956();
+    gRayCone_0 = _S1118();
     gVTRandom_0 = u32(0);
     gVTRequestCount_0 = u32(0);
     gVTRequest_0 = u32(0);
@@ -20925,7 +22423,7 @@ fn PrimaryTraceFallbackOpaque(@builtin(global_invocation_id) tid_39 : vec3<u32>)
 fn PrimaryTraceFallbackSparse(@builtin(global_invocation_id) tid_40 : vec3<u32>)
 {
     gTraversalCost_0 = u32(0);
-    gRayCone_0 = _S956();
+    gRayCone_0 = _S1118();
     gVTRandom_0 = u32(0);
     gVTRequestCount_0 = u32(0);
     gVTRequest_0 = u32(0);
@@ -20940,7 +22438,7 @@ fn PrimaryTraceFallbackSparse(@builtin(global_invocation_id) tid_40 : vec3<u32>)
 fn PrimaryTraceFallbackSparseOpaque(@builtin(global_invocation_id) tid_41 : vec3<u32>)
 {
     gTraversalCost_0 = u32(0);
-    gRayCone_0 = _S956();
+    gRayCone_0 = _S1118();
     gVTRandom_0 = u32(0);
     gVTRequestCount_0 = u32(0);
     gVTRequest_0 = u32(0);
@@ -20952,9 +22450,9 @@ fn PrimaryTraceFallbackSparseOpaque(@builtin(global_invocation_id) tid_41 : vec3
 
 fn RandomSequence_x24init_1( pixel_9 : vec2<u32>,  timeSeed_1 : u32) -> RandomSequence_0
 {
-    var _S969 : RandomSequence_0;
-    _S969.seed_0 = StrongIntegerHash_0(pixel_9.x + pixel_9.y * u32(65536) + StrongIntegerHash_0(timeSeed_1));
-    return _S969;
+    var _S1131 : RandomSequence_0;
+    _S1131.seed_0 = StrongIntegerHash_0(pixel_9.x + pixel_9.y * u32(65536) + StrongIntegerHash_0(timeSeed_1));
+    return _S1131;
 }
 
 fn RandomSequence_Next2D_1( this_120 : ptr<function, RandomSequence_0>) -> vec2<f32>
@@ -20971,14 +22469,14 @@ fn PrimaryCameraJitter_0() -> vec2<f32>
         return gFrame_0.temporal_0.xy;
     }
     var rng_18 : RandomSequence_0 = RandomSequence_x24init_0(u32(1447646018), gFrame_0.frame_0.w);
-    var _S970 : vec2<f32> = RandomSequence_Next2D_1(&(rng_18));
-    return _S970;
+    var _S1132 : vec2<f32> = RandomSequence_Next2D_1(&(rng_18));
+    return _S1132;
 }
 
 fn GenerateCameraRay_0( pixel_10 : vec2<u32>,  rng_19 : ptr<function, RandomSequence_0>) -> Ray_0
 {
-    var _S971 : vec2<f32> = vec2<f32>(gFrame_0.frame_0.xy);
-    var _S972 : vec2<f32> = RandomSequence_Next2D_0(&((*rng_19)));
+    var _S1133 : vec2<f32> = vec2<f32>(gFrame_0.frame_0.xy);
+    var _S1134 : vec2<f32> = RandomSequence_Next2D_0(&((*rng_19)));
     var jitter_0 : vec2<f32>;
     if((((gFrame_0.settings_0.z) & (u32(16)))) != u32(0))
     {
@@ -20986,30 +22484,30 @@ fn GenerateCameraRay_0( pixel_10 : vec2<u32>,  rng_19 : ptr<function, RandomSequ
     }
     else
     {
-        jitter_0 = _S972;
+        jitter_0 = _S1134;
     }
-    var film_2 : vec2<f32> = (vec2<f32>(pixel_10) + jitter_0) / _S971;
+    var film_2 : vec2<f32> = (vec2<f32>(pixel_10) + jitter_0) / _S1133;
     var forward_0 : vec3<f32> = gFrame_0.cameraForward_0.xyz;
     var dir_32 : vec3<f32> = normalize(forward_0 + gFrame_0.cameraRight_0.xyz * vec3<f32>((film_2.x * 2.0f - 1.0f)) + gFrame_0.cameraUp_0.xyz * vec3<f32>((1.0f - film_2.y * 2.0f)));
-    var origin_19 : vec3<f32> = gFrame_0.cameraPosition_0.xyz;
+    var origin_25 : vec3<f32> = gFrame_0.cameraPosition_0.xyz;
     var lensRadius_0 : f32 = gFrame_0.cameraPosition_0.w;
     var dir_33 : vec3<f32>;
-    var origin_20 : vec3<f32>;
+    var origin_26 : vec3<f32>;
     if((lensRadius_0 > 0.0f))
     {
-        var focusPoint_0 : vec3<f32> = origin_19 + dir_32 * vec3<f32>((gFrame_0.cameraRight_0.w / dot(dir_32, forward_0)));
-        var _S973 : vec2<f32> = RandomSequence_Next2D_0(&((*rng_19)));
-        var lens_0 : vec2<f32> = SampleDisk_0(_S973) * vec2<f32>(lensRadius_0);
-        var origin_21 : vec3<f32> = origin_19 + (normalize(gFrame_0.cameraRight_0.xyz) * vec3<f32>(lens_0.x) + normalize(gFrame_0.cameraUp_0.xyz) * vec3<f32>(lens_0.y));
-        dir_33 = normalize(focusPoint_0 - origin_21);
-        origin_20 = origin_21;
+        var focusPoint_0 : vec3<f32> = origin_25 + dir_32 * vec3<f32>((gFrame_0.cameraRight_0.w / dot(dir_32, forward_0)));
+        var _S1135 : vec2<f32> = RandomSequence_Next2D_0(&((*rng_19)));
+        var lens_0 : vec2<f32> = SampleDisk_0(_S1135) * vec2<f32>(lensRadius_0);
+        var origin_27 : vec3<f32> = origin_25 + (normalize(gFrame_0.cameraRight_0.xyz) * vec3<f32>(lens_0.x) + normalize(gFrame_0.cameraUp_0.xyz) * vec3<f32>(lens_0.y));
+        dir_33 = normalize(focusPoint_0 - origin_27);
+        origin_26 = origin_27;
     }
     else
     {
         dir_33 = dir_32;
-        origin_20 = origin_19;
+        origin_26 = origin_25;
     }
-    return Ray_x24init_0(origin_20, dir_33, 1.00000001504746622e+30f);
+    return Ray_x24init_0(origin_26, dir_33, 1.00000001504746622e+30f);
 }
 
 fn InitVirtualTextureFeedback_0( pixel_11 : vec2<u32>)
@@ -21025,7 +22523,7 @@ fn InitVirtualTextureFeedback_0( pixel_11 : vec2<u32>)
 fn Initialize(@builtin(global_invocation_id) tid_42 : vec3<u32>)
 {
     gTraversalCost_0 = u32(0);
-    gRayCone_0 = _S956();
+    gRayCone_0 = _S1118();
     gVTRandom_0 = u32(0);
     gVTRequestCount_0 = u32(0);
     gVTRequest_0 = u32(0);
@@ -21040,28 +22538,28 @@ fn Initialize(@builtin(global_invocation_id) tid_42 : vec3<u32>)
     var rng_20 : RandomSequence_0 = RandomSequence_x24init_1(pixel_12, gFrame_0.frame_0.w);
     var ray_11 : Ray_0 = GenerateCameraRay_0(pixel_12, &(rng_20));
     var s_73 : WavefrontPath_0;
-    var _S974 : vec3<f32> = vec3<f32>(0.0f);
-    s_73.path_0.radiance_1 = _S974;
+    var _S1136 : vec3<f32> = vec3<f32>(0.0f);
+    s_73.path_0.radiance_1 = _S1136;
     s_73.path_0.throughput_7 = vec3<f32>(1.0f);
-    s_73.path_0.origin_3 = ray_11.origin_0;
+    s_73.path_0.origin_5 = ray_11.origin_0;
     s_73.path_0.direction_1 = ray_11.direction_0;
     s_73.path_0.scatterPdf_0 = 1.0f;
     s_73.path_0.lobe_2 = u32(0);
     s_73.path_0.coneWidth_2 = 0.0f;
     s_73.path_0.coneSpread_0 = gFrame_0.vtParams_0.y;
-    s_73.path_0.absorption_0 = _S974;
+    s_73.path_0.absorption_0 = _S1136;
     s_73.path_0.lightsSampled_0 = false;
     s_73.active_0 = select(u32(0), u32(1), (all(((pixel_12 < (gFrame_0.frame_0.xy))))));
-    var _S975 : bool;
+    var _S1137 : bool;
     if((gFrame_0.temporal_0.z) != 0.0f)
     {
-        _S975 = (s_73.active_0) != u32(0);
+        _S1137 = (s_73.active_0) != u32(0);
     }
     else
     {
-        _S975 = false;
+        _S1137 = false;
     }
-    if(_S975)
+    if(_S1137)
     {
         var output_7 : u32 = (pixel_12.y * gFrame_0.frame_0.x + pixel_12.x) * u32(3);
         gAccum_0[output_7 + u32(1)][i32(3)] = 0.0f;
@@ -21069,37 +22567,37 @@ fn Initialize(@builtin(global_invocation_id) tid_42 : vec3<u32>)
     }
     if(NrdEnabled_0())
     {
-        _S975 = (s_73.active_0) != u32(0);
+        _S1137 = (s_73.active_0) != u32(0);
     }
     else
     {
-        _S975 = false;
+        _S1137 = false;
     }
-    if(_S975)
+    if(_S1137)
     {
         var r_32 : u32 = gFrame_0.envInfo_0.w + (pixel_12.y * gFrame_0.frame_0.x + pixel_12.x) * u32(5);
-        var _S976 : vec4<f32> = vec4<f32>(0.0f);
-        gAccum_0[r_32] = _S976;
-        gAccum_0[r_32 + u32(1)] = _S976;
+        var _S1138 : vec4<f32> = vec4<f32>(0.0f);
+        gAccum_0[r_32] = _S1138;
+        gAccum_0[r_32 + u32(1)] = _S1138;
         gAccum_0[r_32 + u32(2)] = vec4<f32>(0.0f, 0.0f, 0.0f, -1.0f);
-        gAccum_0[r_32 + u32(3)] = _S976;
-        gAccum_0[r_32 + u32(4)] = _S976;
+        gAccum_0[r_32 + u32(3)] = _S1138;
+        gAccum_0[r_32 + u32(4)] = _S1138;
     }
     s_73.randomSeed_0 = rng_20.seed_0;
-    s_73.albedo_2 = _S974;
-    s_73.normal_11 = _S974;
+    s_73.albedo_2 = _S1136;
+    s_73.normal_11 = _S1136;
     var base_74 : u32 = WorkBase_0(index_28);
     StorePath_1(base_74, s_73);
     if(SharcEnabled_0())
     {
-        _S975 = (s_73.active_0) != u32(0);
+        _S1137 = (s_73.active_0) != u32(0);
     }
     else
     {
-        _S975 = false;
+        _S1137 = false;
     }
     var sortGroups_0 : u32;
-    if(_S975)
+    if(_S1137)
     {
         if(SharcUpdatePath_0(index_28, gWavefront_0.tileStart_0))
         {
@@ -21131,10 +22629,10 @@ fn Initialize(@builtin(global_invocation_id) tid_42 : vec3<u32>)
         {
             sortGroups_0 = u32(0);
         }
-        var _S977 : u32 = HeaderBase_0();
-        gAccum_0[_S977] = (bitcast<vec4<f32>>((vec4<u32>(gWavefront_0.pathCount_0, u32(0), u32(0), sortGroups_0))));
-        gAccum_0[_S977 + u32(1)] = (bitcast<vec4<f32>>((vec4<u32>((gWavefront_0.pathCount_0 + u32(63)) / u32(64), u32(1), u32(1), u32(0)))));
-        gAccum_0[_S977 + u32(2)] = (bitcast<vec4<f32>>((vec4<u32>(u32(0), u32(1), u32(1), u32(0)))));
+        var _S1139 : u32 = HeaderBase_0();
+        gAccum_0[_S1139] = (bitcast<vec4<f32>>((vec4<u32>(gWavefront_0.pathCount_0, u32(0), u32(0), sortGroups_0))));
+        gAccum_0[_S1139 + u32(1)] = (bitcast<vec4<f32>>((vec4<u32>((gWavefront_0.pathCount_0 + u32(63)) / u32(64), u32(1), u32(1), u32(0)))));
+        gAccum_0[_S1139 + u32(2)] = (bitcast<vec4<f32>>((vec4<u32>(u32(0), u32(1), u32(1), u32(0)))));
     }
     InitVirtualTextureFeedback_0(pixel_12);
     StoreFeedbackState_0(base_74);
@@ -21146,7 +22644,7 @@ fn Initialize(@builtin(global_invocation_id) tid_42 : vec3<u32>)
 fn Intersect(@builtin(global_invocation_id) tid_43 : vec3<u32>)
 {
     gTraversalCost_0 = u32(0);
-    gRayCone_0 = _S956();
+    gRayCone_0 = _S1118();
     gVTRandom_0 = u32(0);
     gVTRequestCount_0 = u32(0);
     gVTRequest_0 = u32(0);
@@ -21161,7 +22659,7 @@ fn Intersect(@builtin(global_invocation_id) tid_43 : vec3<u32>)
 fn IntersectOpaque(@builtin(global_invocation_id) tid_44 : vec3<u32>)
 {
     gTraversalCost_0 = u32(0);
-    gRayCone_0 = _S956();
+    gRayCone_0 = _S1118();
     gVTRandom_0 = u32(0);
     gVTRequestCount_0 = u32(0);
     gVTRequest_0 = u32(0);
@@ -21171,136 +22669,136 @@ fn IntersectOpaque(@builtin(global_invocation_id) tid_44 : vec3<u32>)
     return;
 }
 
-fn ScreenCacheMarch_0( origin_22 : vec3<f32>,  direction_10 : vec3<f32>,  position_6 : ptr<function, vec3<f32>>) -> bool
+fn ScreenCacheMarch_0( origin_28 : vec3<f32>,  direction_10 : vec3<f32>,  position_6 : ptr<function, vec3<f32>>) -> bool
 {
     var size_2 : vec2<f32> = ScreenCacheSize_0();
-    var _S978 : i32 = i32(gScreenCache_0.info_0.w) - i32(1);
-    var _S979 : f32 = direction_10.x;
+    var _S1140 : i32 = i32(gScreenCache_0.info_0.w) - i32(1);
+    var _S1141 : f32 = direction_10.x;
     var t_19 : f32;
-    if(_S979 != 0.0f)
+    if(_S1141 != 0.0f)
     {
-        t_19 = 1.0f / _S979;
+        t_19 = 1.0f / _S1141;
     }
     else
     {
         t_19 = 1.00000001504746622e+30f;
     }
-    var _S980 : f32 = direction_10.y;
-    var _S981 : f32;
-    if(_S980 != 0.0f)
+    var _S1142 : f32 = direction_10.y;
+    var _S1143 : f32;
+    if(_S1142 != 0.0f)
     {
-        _S981 = 1.0f / _S980;
+        _S1143 = 1.0f / _S1142;
     }
     else
     {
-        _S981 = 1.00000001504746622e+30f;
+        _S1143 = 1.00000001504746622e+30f;
     }
-    var _S982 : f32 = direction_10.z;
-    var _S983 : f32;
-    if(_S982 != 0.0f)
+    var _S1144 : f32 = direction_10.z;
+    var _S1145 : f32;
+    if(_S1144 != 0.0f)
     {
-        _S983 = 1.0f / _S982;
+        _S1145 = 1.0f / _S1144;
     }
     else
     {
-        _S983 = 1.00000001504746622e+30f;
+        _S1145 = 1.00000001504746622e+30f;
     }
-    var invDirection_0 : vec3<f32> = vec3<f32>(t_19, _S981, _S983);
-    var _S984 : bool = (_S979 < 0.0f);
-    if(_S984)
+    var invDirection_0 : vec3<f32> = vec3<f32>(t_19, _S1143, _S1145);
+    var _S1146 : bool = (_S1141 < 0.0f);
+    if(_S1146)
     {
-        _S983 = 0.0f;
+        _S1145 = 0.0f;
     }
     else
     {
-        _S983 = 1.0f;
+        _S1145 = 1.0f;
     }
-    var _S985 : bool = (_S980 < 0.0f);
-    var _S986 : f32;
-    if(_S985)
+    var _S1147 : bool = (_S1142 < 0.0f);
+    var _S1148 : f32;
+    if(_S1147)
     {
-        _S986 = 0.0f;
+        _S1148 = 0.0f;
     }
     else
     {
-        _S986 = 1.0f;
+        _S1148 = 1.0f;
     }
-    var floorOffset_0 : vec2<f32> = vec2<f32>(_S983, _S986);
-    var _S987 : vec2<f32> = vec2<f32>(0.004999999888241291f) / size_2;
-    if(_S984)
+    var floorOffset_0 : vec2<f32> = vec2<f32>(_S1145, _S1148);
+    var _S1149 : vec2<f32> = vec2<f32>(0.004999999888241291f) / size_2;
+    if(_S1146)
     {
-        _S983 = -1.0f;
+        _S1145 = -1.0f;
     }
     else
     {
-        _S983 = 1.0f;
+        _S1145 = 1.0f;
     }
-    if(_S985)
+    if(_S1147)
     {
-        _S986 = -1.0f;
+        _S1148 = -1.0f;
     }
     else
     {
-        _S986 = 1.0f;
+        _S1148 = 1.0f;
     }
-    var uvOffset_0 : vec2<f32> = _S987 * vec2<f32>(_S983, _S986);
-    var _S988 : vec2<f32> = origin_22.xy;
-    var t2_1 : vec2<f32> = ((floor(size_2 * _S988) + floorOffset_0) / size_2 + uvOffset_0 - _S988) * vec2<f32>(t_19, _S981);
-    var _S989 : f32 = min(t2_1.x, t2_1.y);
-    (*position_6) = origin_22 + vec3<f32>(_S989) * direction_10;
-    var _S990 : u32 = u32(gScreenCache_0.params_0.z);
-    t_19 = _S989;
-    var i_18 : u32 = u32(0);
+    var uvOffset_0 : vec2<f32> = _S1149 * vec2<f32>(_S1145, _S1148);
+    var _S1150 : vec2<f32> = origin_28.xy;
+    var t2_1 : vec2<f32> = ((floor(size_2 * _S1150) + floorOffset_0) / size_2 + uvOffset_0 - _S1150) * vec2<f32>(t_19, _S1143);
+    var _S1151 : f32 = min(t2_1.x, t2_1.y);
+    (*position_6) = origin_28 + vec3<f32>(_S1151) * direction_10;
+    var _S1152 : u32 = u32(gScreenCache_0.params_0.z);
+    t_19 = _S1151;
+    var i_12 : u32 = u32(0);
     var mipSize_0 : vec2<f32> = size_2;
     var mip_0 : i32 = i32(0);
     loop
     {
-        if((i_18 < _S990))
+        if((i_12 < _S1152))
         {
         }
         else
         {
             break;
         }
-        var _S991 : bool;
+        var _S1153 : bool;
         if((any(((((*position_6).xy) < vec2<f32>(0.0f))))))
         {
-            _S991 = true;
+            _S1153 = true;
         }
         else
         {
-            _S991 = (any(((((*position_6).xy) > vec2<f32>(1.0f)))));
+            _S1153 = (any(((((*position_6).xy) > vec2<f32>(1.0f)))));
         }
-        var _S992 : bool;
-        if(_S991)
+        var _S1154 : bool;
+        if(_S1153)
         {
-            _S992 = true;
+            _S1154 = true;
         }
         else
         {
-            _S992 = (((*position_6).z) <= 0.0f);
+            _S1154 = (((*position_6).z) <= 0.0f);
         }
-        if(_S992)
+        if(_S1154)
         {
             return false;
         }
         var mipPosition_0 : vec2<f32> = mipSize_0 * (*position_6).xy;
-        var _S993 : vec3<i32> = vec3<i32>(vec2<i32>(mipPosition_0), mip_0);
-        var surface_2 : f32 = (textureLoad((gScreenCacheDepth_0), ((_S993)).xy, ((_S993)).z).x);
-        var bounds_0 : vec3<f32> = (vec3<f32>((floor(mipPosition_0) + floorOffset_0) / mipSize_0 + uvOffset_0, surface_2) - origin_22) * invDirection_0;
-        if((_S982 < 0.0f))
+        var _S1155 : vec3<i32> = vec3<i32>(vec2<i32>(mipPosition_0), mip_0);
+        var surface_2 : f32 = (textureLoad((gScreenCacheDepth_0), ((_S1155)).xy, ((_S1155)).z).x);
+        var bounds_0 : vec3<f32> = (vec3<f32>((floor(mipPosition_0) + floorOffset_0) / mipSize_0 + uvOffset_0, surface_2) - origin_28) * invDirection_0;
+        if((_S1144 < 0.0f))
         {
-            _S981 = bounds_0.z;
+            _S1143 = bounds_0.z;
         }
         else
         {
-            _S981 = 1.00000001504746622e+30f;
+            _S1143 = 1.00000001504746622e+30f;
         }
-        bounds_0[i32(2)] = _S981;
-        var _S994 : f32 = min(min(bounds_0.x, bounds_0.y), bounds_0.z);
+        bounds_0[i32(2)] = _S1143;
+        var _S1156 : f32 = min(min(bounds_0.x, bounds_0.y), bounds_0.z);
         var above_0 : bool = (surface_2 < ((*position_6).z));
         var skipped_0 : bool;
-        if((bitcast<u32>((_S994))) != (bitcast<u32>((bounds_0.z))))
+        if((bitcast<u32>((_S1156))) != (bitcast<u32>((bounds_0.z))))
         {
             skipped_0 = above_0;
         }
@@ -21310,23 +22808,23 @@ fn ScreenCacheMarch_0( origin_22 : vec3<f32>,  direction_10 : vec3<f32>,  positi
         }
         if(above_0)
         {
-            t_19 = _S994;
+            t_19 = _S1156;
         }
-        (*position_6) = origin_22 + vec3<f32>(t_19) * direction_10;
-        var _S995 : bool;
+        (*position_6) = origin_28 + vec3<f32>(t_19) * direction_10;
+        var _S1157 : bool;
         if(skipped_0)
         {
-            _S995 = (mip_0 < _S978);
+            _S1157 = (mip_0 < _S1140);
         }
         else
         {
-            _S995 = false;
+            _S1157 = false;
         }
-        if(_S995)
+        if(_S1157)
         {
-            var _S996 : i32 = mip_0 + i32(1);
+            var _S1158 : i32 = mip_0 + i32(1);
             mipSize_0 = mipSize_0 * vec2<f32>(0.5f);
-            mip_0 = _S996;
+            mip_0 = _S1158;
         }
         else
         {
@@ -21338,9 +22836,9 @@ fn ScreenCacheMarch_0( origin_22 : vec3<f32>,  direction_10 : vec3<f32>,  positi
                 {
                     return true;
                 }
-                var _S997 : i32 = mip_0 - i32(1);
+                var _S1159 : i32 = mip_0 - i32(1);
                 mipSize_1 = mipSize_0 * vec2<f32>(2.0f);
-                mip_1 = _S997;
+                mip_1 = _S1159;
             }
             else
             {
@@ -21350,19 +22848,19 @@ fn ScreenCacheMarch_0( origin_22 : vec3<f32>,  direction_10 : vec3<f32>,  positi
             mipSize_0 = mipSize_1;
             mip_0 = mip_1;
         }
-        i_18 = i_18 + u32(1);
+        i_12 = i_12 + u32(1);
     }
     return false;
 }
 
-fn ScreenCacheTrace_0( origin_23 : vec3<f32>,  direction_11 : vec3<f32>,  radiance_12 : ptr<function, vec3<f32>>,  hitDistance_0 : ptr<function, f32>) -> f32
+fn ScreenCacheTrace_0( origin_29 : vec3<f32>,  direction_11 : vec3<f32>,  radiance_12 : ptr<function, vec3<f32>>,  hitDistance_0 : ptr<function, f32>) -> f32
 {
     (*radiance_12) = vec3<f32>(0.0f);
     (*hitDistance_0) = 0.0f;
-    var near_1 : f32 = gScreenCache_0.params_0.x;
-    var o_56 : vec4<f32> = ScreenCacheClip_0(true, origin_23);
-    var _S998 : f32 = o_56.w;
-    if((_S998 <= near_1))
+    var near_6 : f32 = gScreenCache_0.params_0.x;
+    var o_69 : vec4<f32> = ScreenCacheClip_0(true, origin_29);
+    var _S1160 : f32 = o_69.w;
+    if((_S1160 <= near_6))
     {
         return 0.0f;
     }
@@ -21370,85 +22868,85 @@ fn ScreenCacheTrace_0( origin_23 : vec3<f32>,  direction_11 : vec3<f32>,  radian
     var rayLength_0 : f32;
     if((dz_0 < 0.0f))
     {
-        rayLength_0 = min(_S998, 0.5f * (_S998 - near_1) / - dz_0);
+        rayLength_0 = min(_S1160, 0.5f * (_S1160 - near_6) / - dz_0);
     }
     else
     {
-        rayLength_0 = _S998;
+        rayLength_0 = _S1160;
     }
-    var e_0 : vec4<f32> = ScreenCacheClip_0(true, origin_23 + direction_11 * vec3<f32>(rayLength_0));
-    var so_0 : vec3<f32> = ScreenCacheScreen_0(o_56);
+    var e_0 : vec4<f32> = ScreenCacheClip_0(true, origin_29 + direction_11 * vec3<f32>(rayLength_0));
+    var so_0 : vec3<f32> = ScreenCacheScreen_0(o_69);
     var se_0 : vec3<f32> = ScreenCacheScreen_0(e_0);
-    var _S999 : vec2<f32> = so_0.xy;
-    var _S1000 : bool;
-    if((any(((_S999 < vec2<f32>(0.0f))))))
+    var _S1161 : vec2<f32> = so_0.xy;
+    var _S1162 : bool;
+    if((any(((_S1161 < vec2<f32>(0.0f))))))
     {
-        _S1000 = true;
+        _S1162 = true;
     }
     else
     {
-        _S1000 = (any(((_S999 > vec2<f32>(1.0f)))));
+        _S1162 = (any(((_S1161 > vec2<f32>(1.0f)))));
     }
-    if(_S1000)
+    if(_S1162)
     {
         return 0.0f;
     }
-    var hit_55 : vec3<f32>;
-    var _S1001 : bool = ScreenCacheMarch_0(so_0, se_0 - so_0, &(hit_55));
-    if(!_S1001)
+    var hit_58 : vec3<f32>;
+    var _S1163 : bool = ScreenCacheMarch_0(so_0, se_0 - so_0, &(hit_58));
+    if(!_S1163)
     {
         return 0.0f;
     }
     var size_3 : vec2<f32> = ScreenCacheSize_0();
-    var _S1002 : vec3<i32> = vec3<i32>(ScreenCacheTexel_0(hit_55.xy), i32(0));
-    var surface_3 : f32 = (textureLoad((gScreenCacheDepth_0), ((_S1002)).xy, ((_S1002)).z).x);
+    var _S1164 : vec3<i32> = vec3<i32>(ScreenCacheTexel_0(hit_58.xy), i32(0));
+    var surface_3 : f32 = (textureLoad((gScreenCacheDepth_0), ((_S1164)).xy, ((_S1164)).z).x);
     if((surface_3 <= 0.0f))
     {
         return 0.0f;
     }
-    if((all((((abs(hit_55.xy - _S999) * size_3) < vec2<f32>(1.5f))))))
+    if((all((((abs(hit_58.xy - _S1161) * size_3) < vec2<f32>(1.5f))))))
     {
         return 0.0f;
     }
-    var normal_27 : vec4<f32> = (textureLoad((gScreenCacheNormal_0), ((_S1002)).xy, ((_S1002)).z));
-    var _S1003 : f32 = normal_27.w;
-    if((_S1003 < 0.0f))
+    var normal_27 : vec4<f32> = (textureLoad((gScreenCacheNormal_0), ((_S1164)).xy, ((_S1164)).z));
+    var _S1165 : f32 = normal_27.w;
+    if((_S1165 < 0.0f))
     {
-        _S1000 = true;
+        _S1162 = true;
     }
     else
     {
-        _S1000 = ((dot(normal_27.xyz, direction_11)) >= 0.0f);
+        _S1162 = ((dot(normal_27.xyz, direction_11)) >= 0.0f);
     }
-    if(_S1000)
+    if(_S1162)
     {
         return 0.0f;
     }
-    var surfaceZ_0 : f32 = near_1 / surface_3;
-    var rayZ_0 : f32 = near_1 / max(hit_55.z, 9.999999960041972e-13f);
+    var surfaceZ_0 : f32 = near_6 / surface_3;
+    var rayZ_0 : f32 = near_6 / max(hit_58.z, 9.999999960041972e-13f);
     var confidence_9 : f32 = 1.0f - smoothstep(0.0f, gScreenCache_0.params_0.y * surfaceZ_0, abs(rayZ_0 - surfaceZ_0));
-    var border_0 : vec2<f32> = smoothstep(vec2<f32>(0.0f), vec2<f32>(0.05000000074505806f), hit_55.xy) * (vec2<f32>(1.0f) - smoothstep(vec2<f32>(0.94999998807907104f), vec2<f32>(1.0f), hit_55.xy));
-    var confidence_10 : f32 = confidence_9 * confidence_9 * (border_0.x * border_0.y * ScreenCacheSurfaceConfidence_0(_S1003));
+    var border_0 : vec2<f32> = smoothstep(vec2<f32>(0.0f), vec2<f32>(0.05000000074505806f), hit_58.xy) * (vec2<f32>(1.0f) - smoothstep(vec2<f32>(0.94999998807907104f), vec2<f32>(1.0f), hit_58.xy));
+    var confidence_10 : f32 = confidence_9 * confidence_9 * (border_0.x * border_0.y * ScreenCacheSurfaceConfidence_0(_S1165));
     if((confidence_10 <= 0.0f))
     {
         return 0.0f;
     }
-    var d_14 : vec2<f32> = se_0.xy - _S999;
-    var _S1004 : f32 = dot(d_14, d_14);
+    var d_27 : vec2<f32> = se_0.xy - _S1161;
+    var _S1166 : f32 = dot(d_27, d_27);
     var t_20 : f32;
-    if((_S1004 > 9.999999960041972e-13f))
+    if((_S1166 > 9.999999960041972e-13f))
     {
-        t_20 = dot(hit_55.xy - _S999, d_14) / _S1004;
+        t_20 = dot(hit_58.xy - _S1161, d_27) / _S1166;
     }
     else
     {
-        var _S1005 : f32 = so_0.z;
-        t_20 = (hit_55.z - _S1005) / (se_0.z - _S1005);
+        var _S1167 : f32 = so_0.z;
+        t_20 = (hit_58.z - _S1167) / (se_0.z - _S1167);
     }
     (*hitDistance_0) = max(t_20 * rayLength_0 * rayZ_0 / e_0.w, 0.0f);
-    var _S1006 : vec3<f32> = (textureLoad((gScreenCacheColor_0), ((_S1002)).xy, ((_S1002)).z)).xyz;
-    (*radiance_12) = _S1006;
-    if((all((isfinite_1(_S1006)))))
+    var _S1168 : vec3<f32> = (textureLoad((gScreenCacheColor_0), ((_S1164)).xy, ((_S1164)).z)).xyz;
+    (*radiance_12) = _S1168;
+    if((all((isfinite_1(_S1168)))))
     {
         rayLength_0 = confidence_10;
     }
@@ -21464,49 +22962,49 @@ fn ScreenCacheTrace_0( origin_23 : vec3<f32>,  direction_11 : vec3<f32>,  radian
 fn ScreenTrace(@builtin(global_invocation_id) tid_45 : vec3<u32>)
 {
     gTraversalCost_0 = u32(0);
-    gRayCone_0 = _S956();
+    gRayCone_0 = _S1118();
     gVTRandom_0 = u32(0);
     gVTRequestCount_0 = u32(0);
     gVTRequest_0 = u32(0);
     gVTLastMappedLevel_0 = u32(0);
     gVTLastRequestedLevel_0 = u32(0);
-    var _S1007 : u32 = tid_45.x;
-    if((_S1007 >= (bitcast<u32>((gAccum_0[HeaderBase_0()].x)))))
+    var _S1169 : u32 = tid_45.x;
+    if((_S1169 >= (bitcast<u32>((gAccum_0[HeaderBase_0()].x)))))
     {
         return;
     }
-    var index_29 : u32 = QueueIndex_0(MainQueueBase_0(), _S1007);
+    var index_29 : u32 = QueueIndex_0(MainQueueBase_0(), _S1169);
     var base_75 : u32 = WorkBase_0(index_29);
-    var _S1008 : bool;
+    var _S1170 : bool;
     if((bitcast<u32>((gAccum_0[base_75].w))) == u32(0))
     {
-        _S1008 = true;
+        _S1170 = true;
     }
     else
     {
-        _S1008 = !ScreenCacheMode_0(u32(1));
+        _S1170 = !ScreenCacheMode_0(u32(1));
     }
-    if(_S1008)
+    if(_S1170)
     {
-        _S1008 = true;
+        _S1170 = true;
     }
     else
     {
-        _S1008 = !NrdEnabled_0();
+        _S1170 = !NrdEnabled_0();
     }
-    if(_S1008)
+    if(_S1170)
     {
         return;
     }
     if(SharcEnabled_0())
     {
-        _S1008 = SharcUpdatePath_0(index_29, gWavefront_0.tileStart_0);
+        _S1170 = SharcUpdatePath_0(index_29, gWavefront_0.tileStart_0);
     }
     else
     {
-        _S1008 = false;
+        _S1170 = false;
     }
-    if(_S1008)
+    if(_S1170)
     {
         return;
     }
@@ -21522,15 +23020,15 @@ fn ScreenTrace(@builtin(global_invocation_id) tid_45 : vec3<u32>)
     }
     var cached_14 : vec3<f32>;
     var hitDistance_1 : f32;
-    var confidence_11 : f32 = ScreenCacheTrace_0(s_74.path_0.origin_3, s_74.path_0.direction_1, &(cached_14), &(hitDistance_1));
+    var confidence_11 : f32 = ScreenCacheTrace_0(s_74.path_0.origin_5, s_74.path_0.direction_1, &(cached_14), &(hitDistance_1));
     if((confidence_11 <= 0.0f))
     {
         return;
     }
     var rng_21 : RandomSequence_0 = RandomSequence_x24init_0(u32(0), u32(0));
     rng_21.seed_0 = s_74.randomSeed_0;
-    var _S1009 : f32 = RandomSequence_Next_1(&(rng_21));
-    var resolved_0 : bool = (_S1009 < confidence_11);
+    var _S1171 : f32 = RandomSequence_Next_1(&(rng_21));
+    var resolved_0 : bool = (_S1171 < confidence_11);
     gAccum_0[Field_0(base_75, u32(1))][i32(3)] = (bitcast<f32>((rng_21.seed_0)));
     if(!resolved_0)
     {
@@ -21557,7 +23055,7 @@ fn ScreenTrace(@builtin(global_invocation_id) tid_45 : vec3<u32>)
 fn ScreenTraceIntersect(@builtin(global_invocation_id) tid_46 : vec3<u32>)
 {
     gTraversalCost_0 = u32(0);
-    gRayCone_0 = _S956();
+    gRayCone_0 = _S1118();
     gVTRandom_0 = u32(0);
     gVTRequestCount_0 = u32(0);
     gVTRequest_0 = u32(0);
@@ -21572,7 +23070,7 @@ fn ScreenTraceIntersect(@builtin(global_invocation_id) tid_46 : vec3<u32>)
 fn ScreenTraceIntersectOpaque(@builtin(global_invocation_id) tid_47 : vec3<u32>)
 {
     gTraversalCost_0 = u32(0);
-    gRayCone_0 = _S956();
+    gRayCone_0 = _S1118();
     gVTRandom_0 = u32(0);
     gVTRequestCount_0 = u32(0);
     gVTRequest_0 = u32(0);
@@ -21587,7 +23085,7 @@ fn ScreenTraceIntersectOpaque(@builtin(global_invocation_id) tid_47 : vec3<u32>)
 fn Shade(@builtin(global_invocation_id) tid_48 : vec3<u32>)
 {
     gTraversalCost_0 = u32(0);
-    gRayCone_0 = _S956();
+    gRayCone_0 = _S1118();
     gVTRandom_0 = u32(0);
     gVTRequestCount_0 = u32(0);
     gVTRequest_0 = u32(0);
@@ -21602,7 +23100,7 @@ fn Shade(@builtin(global_invocation_id) tid_48 : vec3<u32>)
 fn Shadow(@builtin(global_invocation_id) tid_49 : vec3<u32>)
 {
     gTraversalCost_0 = u32(0);
-    gRayCone_0 = _S956();
+    gRayCone_0 = _S1118();
     gVTRandom_0 = u32(0);
     gVTRequestCount_0 = u32(0);
     gVTRequest_0 = u32(0);
@@ -21617,7 +23115,7 @@ fn Shadow(@builtin(global_invocation_id) tid_49 : vec3<u32>)
 fn ShadowOpaque(@builtin(global_invocation_id) tid_50 : vec3<u32>)
 {
     gTraversalCost_0 = u32(0);
-    gRayCone_0 = _S956();
+    gRayCone_0 = _S1118();
     gVTRandom_0 = u32(0);
     gVTRequestCount_0 = u32(0);
     gVTRequest_0 = u32(0);
@@ -21632,7 +23130,7 @@ fn ShadowOpaque(@builtin(global_invocation_id) tid_50 : vec3<u32>)
 fn Tail(@builtin(global_invocation_id) tid_51 : vec3<u32>)
 {
     gTraversalCost_0 = u32(0);
-    gRayCone_0 = _S956();
+    gRayCone_0 = _S1118();
     gVTRandom_0 = u32(0);
     gVTRequestCount_0 = u32(0);
     gVTRequest_0 = u32(0);
@@ -21647,7 +23145,7 @@ fn Tail(@builtin(global_invocation_id) tid_51 : vec3<u32>)
 fn TailOpaque(@builtin(global_invocation_id) tid_52 : vec3<u32>)
 {
     gTraversalCost_0 = u32(0);
-    gRayCone_0 = _S956();
+    gRayCone_0 = _S1118();
     gVTRandom_0 = u32(0);
     gVTRequestCount_0 = u32(0);
     gVTRequest_0 = u32(0);
@@ -21670,19 +23168,19 @@ fn SharcFinishUpdate_0( index_30 : u32,  finalRadiance_0 : vec3<f32>)
             break;
         }
         var base_76 : u32 = SharcRecordWord_0(index_30 / u32(16) * u32(4) + vertex_0) / u32(4);
-        var _S1010 : u32 = base_76 + u32(1);
-        if((bitcast<u32>((gAccum_0[_S1010].z))) == u32(0))
+        var _S1172 : u32 = base_76 + u32(1);
+        if((bitcast<u32>((gAccum_0[_S1172].z))) == u32(0))
         {
             vertex_0 = vertex_0 + u32(1);
             continue;
         }
-        var _S1011 : u32 = base_76 + u32(2);
-        var target_0 : vec3<f32> = max(finalRadiance_0 - gAccum_0[_S1011].xyz, vec3<f32>(0.0f)) / gAccum_0[base_76 + u32(3)].xyz;
+        var _S1173 : u32 = base_76 + u32(2);
+        var target_0 : vec3<f32> = max(finalRadiance_0 - gAccum_0[_S1173].xyz, vec3<f32>(0.0f)) / gAccum_0[base_76 + u32(3)].xyz;
         if(!(all((isfinite_1(target_0)))))
         {
-            gAccum_0[_S1010][i32(2)] = (bitcast<f32>((u32(0))));
+            gAccum_0[_S1172][i32(2)] = (bitcast<f32>((u32(0))));
         }
-        gAccum_0[_S1011] = vec4<f32>(target_0, 0.0f);
+        gAccum_0[_S1173] = vec4<f32>(target_0, 0.0f);
         vertex_0 = vertex_0 + u32(1);
     }
     return;
@@ -21690,19 +23188,19 @@ fn SharcFinishUpdate_0( index_30 : u32,  finalRadiance_0 : vec3<f32>)
 
 fn IsFeedbackPixel_0( pixel_13 : vec2<u32>) -> bool
 {
-    var _S1012 : vec2<u32> = vec2<u32>(gFrame_0.vtInfo_0.w);
-    return (all((pixel_13 == (min(((((pixel_13 >> (_S1012))) << (_S1012))) + vec2<u32>(((gFrame_0.vtInfo_0.z) & (u32(65535))), ((gFrame_0.vtInfo_0.z) >> (u32(16)))), gFrame_0.frame_0.xy - vec2<u32>(u32(1)))))));
+    var _S1174 : vec2<u32> = vec2<u32>(gFrame_0.vtInfo_0.w);
+    return (all((pixel_13 == (min(((((pixel_13 >> (_S1174))) << (_S1174))) + vec2<u32>(((gFrame_0.vtInfo_0.z) & (u32(65535))), ((gFrame_0.vtInfo_0.z) >> (u32(16)))), gFrame_0.frame_0.xy - vec2<u32>(u32(1)))))));
 }
 
 fn NrdOctDecode_0( p_11 : vec2<f32>) -> vec3<f32>
 {
-    var _S1013 : vec3<f32> = vec3<f32>(p_11, 1.0f - abs(p_11.x) - abs(p_11.y));
-    var v_22 : vec3<f32> = _S1013;
-    if(((_S1013.z) < 0.0f))
+    var _S1175 : vec3<f32> = vec3<f32>(p_11, 1.0f - abs(p_11.x) - abs(p_11.y));
+    var v_22 : vec3<f32> = _S1175;
+    if(((_S1175.z) < 0.0f))
     {
-        var _S1014 : vec2<f32> = (vec2<f32>(1.0f) - abs(v_22.yx)) * select(vec2<f32>(-1.0f), vec2<f32>(1.0f), ((v_22.xy) >= vec2<f32>(0.0f)));
-        v_22.x = _S1014.x;
-        v_22.y = _S1014.y;
+        var _S1176 : vec2<f32> = (vec2<f32>(1.0f) - abs(v_22.yx)) * select(vec2<f32>(-1.0f), vec2<f32>(1.0f), ((v_22.xy) >= vec2<f32>(0.0f)));
+        v_22.x = _S1176.x;
+        v_22.y = _S1176.y;
     }
     return normalize(v_22);
 }
@@ -21712,7 +23210,7 @@ fn NrdOctDecode_0( p_11 : vec2<f32>) -> vec3<f32>
 fn Finalize(@builtin(global_invocation_id) tid_53 : vec3<u32>)
 {
     gTraversalCost_0 = u32(0);
-    gRayCone_0 = _S956();
+    gRayCone_0 = _S1118();
     gVTRandom_0 = u32(0);
     gVTRequestCount_0 = u32(0);
     gVTRequest_0 = u32(0);
@@ -21759,74 +23257,74 @@ fn Finalize(@builtin(global_invocation_id) tid_53 : vec3<u32>)
         radiance_14 = radiance_13;
     }
     var output_8 : u32 = (pixel_14.y * gFrame_0.frame_0.x + pixel_14.x) * u32(3);
-    var _S1015 : u32 = output_8 + u32(1);
-    var _S1016 : f32 = gAccum_0[_S1015].w;
-    var _S1017 : u32 = output_8 + u32(2);
-    var _S1018 : f32 = gAccum_0[_S1017].w;
+    var _S1177 : u32 = output_8 + u32(1);
+    var _S1178 : f32 = gAccum_0[_S1177].w;
+    var _S1179 : u32 = output_8 + u32(2);
+    var _S1180 : f32 = gAccum_0[_S1179].w;
     if((gFrame_0.frame_0.z) == u32(0))
     {
         gAccum_0[output_8] = vec4<f32>(radiance_14, 1.0f);
-        gAccum_0[_S1015] = vec4<f32>(s_75.albedo_2, 1.0f);
-        gAccum_0[_S1017] = vec4<f32>(s_75.normal_11, 1.0f);
+        gAccum_0[_S1177] = vec4<f32>(s_75.albedo_2, 1.0f);
+        gAccum_0[_S1179] = vec4<f32>(s_75.normal_11, 1.0f);
     }
     else
     {
-        var _S1019 : vec3<f32> = vec3<f32>((1.0f / f32(gFrame_0.frame_0.z + u32(1))));
-        gAccum_0[output_8] = vec4<f32>(mix(gAccum_0[output_8].xyz, radiance_14, _S1019), 1.0f);
-        gAccum_0[_S1015] = vec4<f32>(mix(gAccum_0[_S1015].xyz, s_75.albedo_2, _S1019), 1.0f);
-        gAccum_0[_S1017] = vec4<f32>(mix(gAccum_0[_S1017].xyz, s_75.normal_11, _S1019), 1.0f);
+        var _S1181 : vec3<f32> = vec3<f32>((1.0f / f32(gFrame_0.frame_0.z + u32(1))));
+        gAccum_0[output_8] = vec4<f32>(mix(gAccum_0[output_8].xyz, radiance_14, _S1181), 1.0f);
+        gAccum_0[_S1177] = vec4<f32>(mix(gAccum_0[_S1177].xyz, s_75.albedo_2, _S1181), 1.0f);
+        gAccum_0[_S1179] = vec4<f32>(mix(gAccum_0[_S1179].xyz, s_75.normal_11, _S1181), 1.0f);
     }
     if((gFrame_0.temporal_0.z) != 0.0f)
     {
-        gAccum_0[_S1015][i32(3)] = _S1016;
-        gAccum_0[_S1017][i32(3)] = _S1018;
+        gAccum_0[_S1177][i32(3)] = _S1178;
+        gAccum_0[_S1179][i32(3)] = _S1180;
     }
     if(NrdEnabled_0())
     {
         var r_34 : u32 = NrdBase_0(base_77);
-        var _S1020 : u32 = r_34 + u32(1);
-        var diffuse_5 : vec4<f32> = gAccum_0[_S1020];
-        var _S1021 : u32 = r_34 + u32(2);
-        var _S1022 : u32 = r_34 + u32(3);
-        var diffuseDirection_0 : vec4<f32> = gAccum_0[_S1022];
-        var _S1023 : u32 = r_34 + u32(4);
-        var specularDirection_0 : vec4<f32> = gAccum_0[_S1023];
-        var _S1024 : f32 = gAccum_0[_S1021].w;
-        var surface_4 : bool = (_S1024 >= 0.0f);
-        var _S1025 : vec3<f32> = gAccum_0[_S1020].xyz;
-        var _S1026 : vec3<f32> = gAccum_0[_S1021].xyz;
-        var _S1027 : vec3<f32> = vec3<f32>(0.0f);
-        var _S1028 : vec3<f32> = max(s_75.path_0.radiance_1 - gAccum_0[r_34].xyz - _S1025 - _S1026, _S1027);
-        var _S1029 : u32 = (bitcast<u32>((gAccum_0[r_34].w)));
-        var indirectDiffuse_0 : vec3<f32> = _S1028 * NrdUnpackFraction_0(_S1029);
-        var _S1030 : vec3<f32> = _S1028 - indirectDiffuse_0;
+        var _S1182 : u32 = r_34 + u32(1);
+        var diffuse_5 : vec4<f32> = gAccum_0[_S1182];
+        var _S1183 : u32 = r_34 + u32(2);
+        var _S1184 : u32 = r_34 + u32(3);
+        var diffuseDirection_0 : vec4<f32> = gAccum_0[_S1184];
+        var _S1185 : u32 = r_34 + u32(4);
+        var specularDirection_0 : vec4<f32> = gAccum_0[_S1185];
+        var _S1186 : f32 = gAccum_0[_S1183].w;
+        var surface_4 : bool = (_S1186 >= 0.0f);
+        var _S1187 : vec3<f32> = gAccum_0[_S1182].xyz;
+        var _S1188 : vec3<f32> = gAccum_0[_S1183].xyz;
+        var _S1189 : vec3<f32> = vec3<f32>(0.0f);
+        var _S1190 : vec3<f32> = max(s_75.path_0.radiance_1 - gAccum_0[r_34].xyz - _S1187 - _S1188, _S1189);
+        var _S1191 : u32 = (bitcast<u32>((gAccum_0[r_34].w)));
+        var indirectDiffuse_0 : vec3<f32> = _S1190 * NrdUnpackFraction_0(_S1191);
+        var _S1192 : vec3<f32> = _S1190 - indirectDiffuse_0;
         var indirectSpecular_0 : vec3<f32>;
-        if(((_S1029 & (u32(134217728)))) != u32(0))
+        if(((_S1191 & (u32(134217728)))) != u32(0))
         {
-            indirectSpecular_0 = _S1027;
+            indirectSpecular_0 = _S1189;
         }
         else
         {
-            indirectSpecular_0 = _S1030;
+            indirectSpecular_0 = _S1192;
         }
         var wi_47 : vec3<f32>;
-        if((any(((_S1028 > vec3<f32>(0.0f))))))
+        if((any(((_S1190 > vec3<f32>(0.0f))))))
         {
             wi_47 = NrdOctDecode_0(vec2<f32>(diffuseDirection_0.w, specularDirection_0.w));
         }
         else
         {
-            wi_47 = _S1027;
+            wi_47 = _S1189;
         }
-        var _S1031 : vec3<f32> = _S1025 + indirectDiffuse_0;
-        var dDirection_0 : vec3<f32> = (diffuseDirection_0.xyz + vec3<f32>(Luminance_0(indirectDiffuse_0)) * wi_47) / vec3<f32>(max(Luminance_0(_S1031), 9.999999960041972e-13f));
-        var _S1032 : vec3<f32> = _S1026 + indirectSpecular_0;
-        var sDirection_0 : vec3<f32> = (specularDirection_0.xyz + vec3<f32>(Luminance_0(indirectSpecular_0)) * wi_47) / vec3<f32>(max(Luminance_0(_S1032), 9.999999960041972e-13f));
-        var d_15 : vec3<f32> = _S1031 * vec3<f32>(gFrame_0.envParams_0.z);
-        var sp_0 : vec3<f32> = _S1032 * vec3<f32>(gFrame_0.envParams_0.z);
+        var _S1193 : vec3<f32> = _S1187 + indirectDiffuse_0;
+        var dDirection_0 : vec3<f32> = (diffuseDirection_0.xyz + vec3<f32>(Luminance_0(indirectDiffuse_0)) * wi_47) / vec3<f32>(max(Luminance_0(_S1193), 9.999999960041972e-13f));
+        var _S1194 : vec3<f32> = _S1188 + indirectSpecular_0;
+        var sDirection_0 : vec3<f32> = (specularDirection_0.xyz + vec3<f32>(Luminance_0(indirectSpecular_0)) * wi_47) / vec3<f32>(max(Luminance_0(_S1194), 9.999999960041972e-13f));
+        var d_28 : vec3<f32> = _S1193 * vec3<f32>(gFrame_0.envParams_0.z);
+        var sp_0 : vec3<f32> = _S1194 * vec3<f32>(gFrame_0.envParams_0.z);
         if(surface_4)
         {
-            valid_3 = (all((isfinite_1(d_15))));
+            valid_3 = (all((isfinite_1(d_28))));
         }
         else
         {
@@ -21842,11 +23340,11 @@ fn Finalize(@builtin(global_invocation_id) tid_53 : vec3<u32>)
         }
         if(valid_3)
         {
-            indirectSpecular_0 = d_15;
+            indirectSpecular_0 = d_28;
         }
         else
         {
-            indirectSpecular_0 = _S1027;
+            indirectSpecular_0 = _S1189;
         }
         gAccum_0[r_34] = vec4<f32>(indirectSpecular_0, diffuse_5.w);
         if(valid_3)
@@ -21855,49 +23353,49 @@ fn Finalize(@builtin(global_invocation_id) tid_53 : vec3<u32>)
         }
         else
         {
-            indirectSpecular_0 = _S1027;
+            indirectSpecular_0 = _S1189;
         }
-        gAccum_0[_S1020] = vec4<f32>(indirectSpecular_0, _S1024);
+        gAccum_0[_S1182] = vec4<f32>(indirectSpecular_0, _S1186);
         if(valid_3)
         {
-            radiance_14 = max(radiance_14 - d_15 - sp_0, _S1027);
+            radiance_14 = max(radiance_14 - d_28 - sp_0, _S1189);
         }
-        var _S1033 : f32;
+        var _S1195 : f32;
         if(valid_3)
         {
-            _S1033 = 1.0f;
+            _S1195 = 1.0f;
         }
         else
         {
-            _S1033 = 0.0f;
+            _S1195 = 0.0f;
         }
-        gAccum_0[_S1021] = vec4<f32>(radiance_14, _S1033);
-        var _S1034 : bool;
+        gAccum_0[_S1183] = vec4<f32>(radiance_14, _S1195);
+        var _S1196 : bool;
         if(valid_3)
         {
-            _S1034 = (all((isfinite_1(dDirection_0))));
+            _S1196 = (all((isfinite_1(dDirection_0))));
         }
         else
         {
-            _S1034 = false;
+            _S1196 = false;
         }
-        if(_S1034)
+        if(_S1196)
         {
             radiance_14 = dDirection_0;
         }
         else
         {
-            radiance_14 = _S1027;
+            radiance_14 = _S1189;
         }
-        if(((_S1029 & (u32(268435456)))) != u32(0))
+        if(((_S1191 & (u32(268435456)))) != u32(0))
         {
-            _S1033 = 1.0f;
+            _S1195 = 1.0f;
         }
         else
         {
-            _S1033 = 0.0f;
+            _S1195 = 0.0f;
         }
-        gAccum_0[_S1022] = vec4<f32>(radiance_14, _S1033);
+        gAccum_0[_S1184] = vec4<f32>(radiance_14, _S1195);
         if(valid_3)
         {
             valid_3 = (all((isfinite_1(sDirection_0))));
@@ -21912,9 +23410,9 @@ fn Finalize(@builtin(global_invocation_id) tid_53 : vec3<u32>)
         }
         else
         {
-            radiance_14 = _S1027;
+            radiance_14 = _S1189;
         }
-        gAccum_0[_S1023] = vec4<f32>(radiance_14, 0.0f);
+        gAccum_0[_S1185] = vec4<f32>(radiance_14, 0.0f);
     }
     return;
 }
@@ -21924,7 +23422,7 @@ fn Finalize(@builtin(global_invocation_id) tid_53 : vec3<u32>)
 fn IntersectDirect(@builtin(global_invocation_id) tid_54 : vec3<u32>)
 {
     gTraversalCost_0 = u32(0);
-    gRayCone_0 = _S956();
+    gRayCone_0 = _S1118();
     gVTRandom_0 = u32(0);
     gVTRequestCount_0 = u32(0);
     gVTRequest_0 = u32(0);
@@ -21939,7 +23437,7 @@ fn IntersectDirect(@builtin(global_invocation_id) tid_54 : vec3<u32>)
 fn IntersectOpaqueDirect(@builtin(global_invocation_id) tid_55 : vec3<u32>)
 {
     gTraversalCost_0 = u32(0);
-    gRayCone_0 = _S956();
+    gRayCone_0 = _S1118();
     gVTRandom_0 = u32(0);
     gVTRequestCount_0 = u32(0);
     gVTRequest_0 = u32(0);
@@ -21954,7 +23452,7 @@ fn IntersectOpaqueDirect(@builtin(global_invocation_id) tid_55 : vec3<u32>)
 fn ShadeDirect(@builtin(global_invocation_id) tid_56 : vec3<u32>)
 {
     gTraversalCost_0 = u32(0);
-    gRayCone_0 = _S956();
+    gRayCone_0 = _S1118();
     gVTRandom_0 = u32(0);
     gVTRequestCount_0 = u32(0);
     gVTRequest_0 = u32(0);
@@ -21969,7 +23467,7 @@ fn ShadeDirect(@builtin(global_invocation_id) tid_56 : vec3<u32>)
 fn ShadeBucket(@builtin(global_invocation_id) tid_57 : vec3<u32>)
 {
     gTraversalCost_0 = u32(0);
-    gRayCone_0 = _S956();
+    gRayCone_0 = _S1118();
     gVTRandom_0 = u32(0);
     gVTRequestCount_0 = u32(0);
     gVTRequest_0 = u32(0);
@@ -21984,7 +23482,7 @@ fn ShadeBucket(@builtin(global_invocation_id) tid_57 : vec3<u32>)
 fn ShadeBucketDirect(@builtin(global_invocation_id) tid_58 : vec3<u32>)
 {
     gTraversalCost_0 = u32(0);
-    gRayCone_0 = _S956();
+    gRayCone_0 = _S1118();
     gVTRandom_0 = u32(0);
     gVTRequestCount_0 = u32(0);
     gVTRequest_0 = u32(0);
@@ -21999,7 +23497,7 @@ fn ShadeBucketDirect(@builtin(global_invocation_id) tid_58 : vec3<u32>)
 fn ShadeBucketCompact(@builtin(global_invocation_id) tid_59 : vec3<u32>)
 {
     gTraversalCost_0 = u32(0);
-    gRayCone_0 = _S956();
+    gRayCone_0 = _S1118();
     gVTRandom_0 = u32(0);
     gVTRequestCount_0 = u32(0);
     gVTRequest_0 = u32(0);
@@ -22014,7 +23512,7 @@ fn ShadeBucketCompact(@builtin(global_invocation_id) tid_59 : vec3<u32>)
 fn ShadowDirect(@builtin(global_invocation_id) tid_60 : vec3<u32>)
 {
     gTraversalCost_0 = u32(0);
-    gRayCone_0 = _S956();
+    gRayCone_0 = _S1118();
     gVTRandom_0 = u32(0);
     gVTRequestCount_0 = u32(0);
     gVTRequest_0 = u32(0);
@@ -22029,7 +23527,7 @@ fn ShadowDirect(@builtin(global_invocation_id) tid_60 : vec3<u32>)
 fn ShadowOpaqueDirect(@builtin(global_invocation_id) tid_61 : vec3<u32>)
 {
     gTraversalCost_0 = u32(0);
-    gRayCone_0 = _S956();
+    gRayCone_0 = _S1118();
     gVTRandom_0 = u32(0);
     gVTRequestCount_0 = u32(0);
     gVTRequest_0 = u32(0);
@@ -22044,7 +23542,7 @@ fn ShadowOpaqueDirect(@builtin(global_invocation_id) tid_61 : vec3<u32>)
 fn ShadowClassify(@builtin(global_invocation_id) tid_62 : vec3<u32>)
 {
     gTraversalCost_0 = u32(0);
-    gRayCone_0 = _S956();
+    gRayCone_0 = _S1118();
     gVTRandom_0 = u32(0);
     gVTRequestCount_0 = u32(0);
     gVTRequest_0 = u32(0);
@@ -22059,7 +23557,7 @@ fn ShadowClassify(@builtin(global_invocation_id) tid_62 : vec3<u32>)
 fn ShadowClassifyDirect(@builtin(global_invocation_id) tid_63 : vec3<u32>)
 {
     gTraversalCost_0 = u32(0);
-    gRayCone_0 = _S956();
+    gRayCone_0 = _S1118();
     gVTRandom_0 = u32(0);
     gVTRequestCount_0 = u32(0);
     gVTRequest_0 = u32(0);
@@ -22074,24 +23572,24 @@ fn ShadowClassifyDirect(@builtin(global_invocation_id) tid_63 : vec3<u32>)
 fn ShadowAlpha(@builtin(global_invocation_id) tid_64 : vec3<u32>)
 {
     gTraversalCost_0 = u32(0);
-    gRayCone_0 = _S956();
+    gRayCone_0 = _S1118();
     gVTRandom_0 = u32(0);
     gVTRequestCount_0 = u32(0);
     gVTRequest_0 = u32(0);
     gVTLastMappedLevel_0 = u32(0);
     gVTLastRequestedLevel_0 = u32(0);
-    var _S1035 : u32 = tid_64.x;
-    if((_S1035 >= (bitcast<u32>((gAccum_0[HeaderBase_0()].z)))))
+    var _S1197 : u32 = tid_64.x;
+    if((_S1197 >= (bitcast<u32>((gAccum_0[HeaderBase_0()].z)))))
     {
         return;
     }
-    var base_78 : u32 = WorkBase_0(QueueIndex_0(ShadeQueueBase_0(), _S1035));
-    var _S1036 : u32 = (bitcast<u32>((gAccum_0[Field_0(base_78, u32(11))].z)));
-    var _S1037 : u32 = (bitcast<u32>((gAccum_0[Field_0(base_78, u32(11))].w)));
+    var base_78 : u32 = WorkBase_0(QueueIndex_0(ShadeQueueBase_0(), _S1197));
+    var _S1198 : u32 = (bitcast<u32>((gAccum_0[Field_0(base_78, u32(11))].z)));
+    var _S1199 : u32 = (bitcast<u32>((gAccum_0[Field_0(base_78, u32(11))].w)));
     LoadFeedbackState_0(base_78);
     gRayCone_0 = gAccum_0[Field_0(base_78, u32(11))].xy;
     var source_11 : u32 = u32(0);
-    var mask_20 : u32 = _S1036;
+    var mask_20 : u32 = _S1198;
     loop
     {
         if((source_11 < u32(3)))
@@ -22102,15 +23600,15 @@ fn ShadowAlpha(@builtin(global_invocation_id) tid_64 : vec3<u32>)
             break;
         }
         var bit_3 : u32 = (u32(1) << (source_11));
-        if(((_S1037 & (bit_3))) == u32(0))
+        if(((_S1199 & (bit_3))) == u32(0))
         {
             source_11 = source_11 + u32(1);
             continue;
         }
         var offset_9 : u32 = u32(12) + source_11 * u32(3);
-        var _S1038 : bool = TraceOcclusion_1(Ray_x24init_0(gAccum_0[Field_0(base_78, offset_9)].xyz, gAccum_0[Field_0(base_78, offset_9 + u32(1))].xyz, gAccum_0[Field_0(base_78, offset_9)].w));
+        var _S1200 : bool = TraceOcclusion_1(Ray_x24init_0(gAccum_0[Field_0(base_78, offset_9)].xyz, gAccum_0[Field_0(base_78, offset_9 + u32(1))].xyz, gAccum_0[Field_0(base_78, offset_9)].w));
         var mask_21 : u32;
-        if(_S1038)
+        if(_S1200)
         {
             mask_21 = (mask_20 & ((~bit_3)));
         }
@@ -22131,7 +23629,7 @@ fn ShadowAlpha(@builtin(global_invocation_id) tid_64 : vec3<u32>)
 fn ShadeSurface(@builtin(global_invocation_id) tid_65 : vec3<u32>)
 {
     gTraversalCost_0 = u32(0);
-    gRayCone_0 = _S956();
+    gRayCone_0 = _S1118();
     gVTRandom_0 = u32(0);
     gVTRequestCount_0 = u32(0);
     gVTRequest_0 = u32(0);
@@ -22146,7 +23644,7 @@ fn ShadeSurface(@builtin(global_invocation_id) tid_65 : vec3<u32>)
 fn ShadeSurfaceDirect(@builtin(global_invocation_id) tid_66 : vec3<u32>)
 {
     gTraversalCost_0 = u32(0);
-    gRayCone_0 = _S956();
+    gRayCone_0 = _S1118();
     gVTRandom_0 = u32(0);
     gVTRequestCount_0 = u32(0);
     gVTRequest_0 = u32(0);
@@ -22161,7 +23659,7 @@ fn ShadeSurfaceDirect(@builtin(global_invocation_id) tid_66 : vec3<u32>)
 fn ShadeSurfaceBucket(@builtin(global_invocation_id) tid_67 : vec3<u32>)
 {
     gTraversalCost_0 = u32(0);
-    gRayCone_0 = _S956();
+    gRayCone_0 = _S1118();
     gVTRandom_0 = u32(0);
     gVTRequestCount_0 = u32(0);
     gVTRequest_0 = u32(0);
@@ -22176,7 +23674,7 @@ fn ShadeSurfaceBucket(@builtin(global_invocation_id) tid_67 : vec3<u32>)
 fn ShadeSurfaceCompact(@builtin(global_invocation_id) tid_68 : vec3<u32>)
 {
     gTraversalCost_0 = u32(0);
-    gRayCone_0 = _S956();
+    gRayCone_0 = _S1118();
     gVTRandom_0 = u32(0);
     gVTRequestCount_0 = u32(0);
     gVTRequest_0 = u32(0);
@@ -22191,7 +23689,7 @@ fn ShadeSurfaceCompact(@builtin(global_invocation_id) tid_68 : vec3<u32>)
 fn ShadeLight(@builtin(global_invocation_id) tid_69 : vec3<u32>)
 {
     gTraversalCost_0 = u32(0);
-    gRayCone_0 = _S956();
+    gRayCone_0 = _S1118();
     gVTRandom_0 = u32(0);
     gVTRequestCount_0 = u32(0);
     gVTRequest_0 = u32(0);
@@ -22206,7 +23704,7 @@ fn ShadeLight(@builtin(global_invocation_id) tid_69 : vec3<u32>)
 fn ShadeLightDirect(@builtin(global_invocation_id) tid_70 : vec3<u32>)
 {
     gTraversalCost_0 = u32(0);
-    gRayCone_0 = _S956();
+    gRayCone_0 = _S1118();
     gVTRandom_0 = u32(0);
     gVTRequestCount_0 = u32(0);
     gVTRequest_0 = u32(0);
@@ -22221,7 +23719,7 @@ fn ShadeLightDirect(@builtin(global_invocation_id) tid_70 : vec3<u32>)
 fn ShadePrimary(@builtin(global_invocation_id) tid_71 : vec3<u32>)
 {
     gTraversalCost_0 = u32(0);
-    gRayCone_0 = _S956();
+    gRayCone_0 = _S1118();
     gVTRandom_0 = u32(0);
     gVTRequestCount_0 = u32(0);
     gVTRequest_0 = u32(0);
@@ -22236,7 +23734,7 @@ fn ShadePrimary(@builtin(global_invocation_id) tid_71 : vec3<u32>)
 fn ShadeSecondary(@builtin(global_invocation_id) tid_72 : vec3<u32>)
 {
     gTraversalCost_0 = u32(0);
-    gRayCone_0 = _S956();
+    gRayCone_0 = _S1118();
     gVTRandom_0 = u32(0);
     gVTRequestCount_0 = u32(0);
     gVTRequest_0 = u32(0);
@@ -22251,7 +23749,7 @@ fn ShadeSecondary(@builtin(global_invocation_id) tid_72 : vec3<u32>)
 fn ShadeLate(@builtin(global_invocation_id) tid_73 : vec3<u32>)
 {
     gTraversalCost_0 = u32(0);
-    gRayCone_0 = _S956();
+    gRayCone_0 = _S1118();
     gVTRandom_0 = u32(0);
     gVTRequestCount_0 = u32(0);
     gVTRequest_0 = u32(0);
@@ -22266,7 +23764,7 @@ fn ShadeLate(@builtin(global_invocation_id) tid_73 : vec3<u32>)
 fn ShadePrimaryLate(@builtin(global_invocation_id) tid_74 : vec3<u32>)
 {
     gTraversalCost_0 = u32(0);
-    gRayCone_0 = _S956();
+    gRayCone_0 = _S1118();
     gVTRandom_0 = u32(0);
     gVTRequestCount_0 = u32(0);
     gVTRequest_0 = u32(0);
@@ -22281,7 +23779,7 @@ fn ShadePrimaryLate(@builtin(global_invocation_id) tid_74 : vec3<u32>)
 fn ShadeSecondaryLate(@builtin(global_invocation_id) tid_75 : vec3<u32>)
 {
     gTraversalCost_0 = u32(0);
-    gRayCone_0 = _S956();
+    gRayCone_0 = _S1118();
     gVTRandom_0 = u32(0);
     gVTRequestCount_0 = u32(0);
     gVTRequest_0 = u32(0);
@@ -22296,7 +23794,7 @@ fn ShadeSecondaryLate(@builtin(global_invocation_id) tid_75 : vec3<u32>)
 fn ShadePrimaryDirect(@builtin(global_invocation_id) tid_76 : vec3<u32>)
 {
     gTraversalCost_0 = u32(0);
-    gRayCone_0 = _S956();
+    gRayCone_0 = _S1118();
     gVTRandom_0 = u32(0);
     gVTRequestCount_0 = u32(0);
     gVTRequest_0 = u32(0);
@@ -22311,7 +23809,7 @@ fn ShadePrimaryDirect(@builtin(global_invocation_id) tid_76 : vec3<u32>)
 fn ShadeSecondaryDirect(@builtin(global_invocation_id) tid_77 : vec3<u32>)
 {
     gTraversalCost_0 = u32(0);
-    gRayCone_0 = _S956();
+    gRayCone_0 = _S1118();
     gVTRandom_0 = u32(0);
     gVTRequestCount_0 = u32(0);
     gVTRequest_0 = u32(0);
@@ -22326,7 +23824,7 @@ fn ShadeSecondaryDirect(@builtin(global_invocation_id) tid_77 : vec3<u32>)
 fn ShadeLateDirect(@builtin(global_invocation_id) tid_78 : vec3<u32>)
 {
     gTraversalCost_0 = u32(0);
-    gRayCone_0 = _S956();
+    gRayCone_0 = _S1118();
     gVTRandom_0 = u32(0);
     gVTRequestCount_0 = u32(0);
     gVTRequest_0 = u32(0);
@@ -22341,7 +23839,7 @@ fn ShadeLateDirect(@builtin(global_invocation_id) tid_78 : vec3<u32>)
 fn ShadePrimaryLateDirect(@builtin(global_invocation_id) tid_79 : vec3<u32>)
 {
     gTraversalCost_0 = u32(0);
-    gRayCone_0 = _S956();
+    gRayCone_0 = _S1118();
     gVTRandom_0 = u32(0);
     gVTRequestCount_0 = u32(0);
     gVTRequest_0 = u32(0);
@@ -22356,7 +23854,7 @@ fn ShadePrimaryLateDirect(@builtin(global_invocation_id) tid_79 : vec3<u32>)
 fn ShadeSecondaryLateDirect(@builtin(global_invocation_id) tid_80 : vec3<u32>)
 {
     gTraversalCost_0 = u32(0);
-    gRayCone_0 = _S956();
+    gRayCone_0 = _S1118();
     gVTRandom_0 = u32(0);
     gVTRequestCount_0 = u32(0);
     gVTRequest_0 = u32(0);

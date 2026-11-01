@@ -2,22 +2,11 @@
 // Every struct is a sequence of 16-byte groups so the std430 (storage) and std140 (uniform)
 // layouts are identical.
 
-// tinybvh BVH_GPU node (Aila & Laine): child bounds are stored in the parent. A child reference
-// with the top bit set is a leaf: bits 24..30 hold the primitive count, bits 0..23 the offset.
-struct BVHNode
-{
-	float3 lmin;
-	uint left;
-	float3 lmax;
-	uint right;
-	float3 rmin;
-	uint triCount;
-	float3 rmax;
-	uint firstTri;
-};
-
 static const uint INSTANCE_FLAG_ALPHA_TESTED = 1u;
 static const uint INSTANCE_FLAG_EMISSIVE = 2u;
+// TLAS-only entry over the merged world-space BLAS of single-use meshes: triangles carry their own instance (e1.w)
+// and alpha test flag (e2.w). Never a hit's instance.
+static const uint INSTANCE_FLAG_MERGED = 4u;
 
 // One TLAS entry: a mesh primitive (one material) placed in the world.
 struct Instance

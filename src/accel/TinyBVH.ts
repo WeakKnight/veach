@@ -1,9 +1,12 @@
-// tinybvh compiled to WebAssembly (wasm/tinybvh_wasm.cpp). Builds BVH_GPU trees and copies them
+// tinybvh compiled to WebAssembly (wasm/tinybvh_wasm.cpp). Builds CWBVH BLASes and a BVH_GPU TLAS and copies them
 // out of the WASM heap in the exact layout consumed by shaders/RayTracing/Traversal.slang.
 import createTinyBVHModule, { type TinyBVHModule } from '../generated/tinybvh/tinybvh.mjs';
 import type { Vec3 } from '../math/Math';
 
-export const BVH_NODE_BYTES = 64;
+// Node buffers are addressed in float4 blocks: 4 per BVH_GPU node (TLAS), 5 per CWBVH node (BLAS).
+export const BVH_NODE_BYTES = 16;
+export const TLAS_NODE_BLOCKS = 4;
+export const BLAS_NODE_BLOCKS = 5;
 export const BVH_TRI_FLOATS = 12; // 3 x float4: v0 | asfloat(primIdx), e1, e2
 
 export enum BuildQuality {
@@ -12,16 +15,18 @@ export enum BuildQuality {
 }
 
 export interface BLASData {
-	nodes: ArrayBuffer; // nodeCount * 64 bytes
+	nodes: ArrayBuffer; // nodeBlocks * 16 bytes: CWBVH nodes (Ylitie et al. 2017), 80 bytes each, root first
+	nodeBlocks: number;
 	nodeCount: number;
-	tris: Float32Array; // primRefCount * 12 floats
+	tris: Float32Array; // primRefCount * 12 floats, in CWBVH triangle slot order
 	primRefCount: number;
 	boundsMin: Vec3;
 	boundsMax: Vec3;
 }
 
 export interface TLASData {
-	nodes: ArrayBuffer;
+	nodes: ArrayBuffer; // nodeBlocks * 16 bytes: BVH_GPU nodes, 64 bytes each
+	nodeBlocks: number;
 	nodeCount: number;
 	primIndices: Uint32Array; // leaf offset -> instance index
 }
@@ -62,15 +67,15 @@ export class TinyBVH {
 				throw new Error('tinybvh: BLAS build failed');
 			}
 			try {
-				const nodeCount = m._tb_node_count(handle);
+				const nodeBlocks = m._tb_node_blocks(handle);
 				const primRefCount = m._tb_prim_ref_count(handle);
 				// heap views may have been replaced by memory growth during the build
-				const nodes = m.HEAPU8.slice(m._tb_nodes(handle), m._tb_nodes(handle) + nodeCount * BVH_NODE_BYTES).buffer;
+				const nodes = m.HEAPU8.slice(m._tb_nodes(handle), m._tb_nodes(handle) + nodeBlocks * BVH_NODE_BYTES).buffer;
 				const trisPtr = m._tb_ordered_tris(handle) >> 2;
 				const tris = m.HEAPF32.slice(trisPtr, trisPtr + primRefCount * BVH_TRI_FLOATS);
 				m._tb_bounds(handle, boundsPtr);
 				const b = m.HEAPF32.subarray(boundsPtr >> 2, (boundsPtr >> 2) + 6);
-				return { nodes, nodeCount, tris, primRefCount, boundsMin: [b[0], b[1], b[2]], boundsMax: [b[3], b[4], b[5]] };
+				return { nodes, nodeBlocks, nodeCount: nodeBlocks / BLAS_NODE_BLOCKS, tris, primRefCount, boundsMin: [b[0], b[1], b[2]], boundsMax: [b[3], b[4], b[5]] };
 			} finally {
 				m._tb_destroy(handle);
 			}
@@ -93,12 +98,12 @@ export class TinyBVH {
 				throw new Error('tinybvh: TLAS build failed');
 			}
 			try {
-				const nodeCount = m._tb_node_count(handle);
+				const nodeBlocks = m._tb_node_blocks(handle);
 				const nodesPtr = m._tb_nodes(handle);
-				const nodes = m.HEAPU8.slice(nodesPtr, nodesPtr + nodeCount * BVH_NODE_BYTES).buffer;
+				const nodes = m.HEAPU8.slice(nodesPtr, nodesPtr + nodeBlocks * BVH_NODE_BYTES).buffer;
 				const primPtr = m._tb_prim_indices(handle) >> 2;
 				const primIndices = m.HEAPU32.slice(primPtr, primPtr + m._tb_prim_ref_count(handle));
-				return { nodes, nodeCount, primIndices };
+				return { nodes, nodeBlocks, nodeCount: nodeBlocks / TLAS_NODE_BLOCKS, primIndices };
 			} finally {
 				m._tb_destroy(handle);
 			}

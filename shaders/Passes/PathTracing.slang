@@ -71,7 +71,8 @@ float3 ShadowOrigin(SurfaceInteraction si, float3 dir)
 // cone: ray cone (width, spread) at the shading point.
 // One sample per light source (environment, emissive, sun) in a loop, sharing one BSDF evaluation
 // and one shadow ray, so their code (and the traversal with alpha testing) is instantiated once.
-float3 NextEventEstimation<let ALPHA : bool = true>(SurfaceInteraction si, BSDF bsdf, float2 cone, inout RandomSequence rng)
+// TRIANGLE_STEPS: Traversal.slang TraceScene; the megakernels pass true.
+float3 NextEventEstimation<let ALPHA : bool = true, let TRIANGLE_STEPS : bool = false>(SurfaceInteraction si, BSDF bsdf, float2 cone, inout RandomSequence rng)
 {
 	float3 result = float3(0.0);
 	gRayCone = cone;
@@ -134,7 +135,7 @@ float3 NextEventEstimation<let ALPHA : bool = true>(SurfaceInteraction si, BSDF 
 		float bsdfPdf;
 		bsdf.EvalPdf(dir, eval, bsdfPdf);
 		float3 f = eval.diffuse + eval.specular;
-		if (any(f > 0.0) && (!shadow || !TraceOcclusion<ALPHA>(Ray(origin, dir, maxDistance))))
+		if (any(f > 0.0) && (!shadow || !TraceOcclusion<ALPHA, TRIANGLE_STEPS>(Ray(origin, dir, maxDistance))))
 		{
 			float weight = mis ? EvalMISRobust(ls.solidAnglePdf, bsdfPdf) : 1.0;
 			result += weight * ls.radiance * f / ls.solidAnglePdf;
@@ -230,7 +231,7 @@ void main(uint3 tid: SV_DispatchThreadID)
 		hit.instanceIndex = INVALID_INDEX;
 		hit.primitiveIndex = INVALID_INDEX;
 #else
-		HitRecord hit = TraceClosest<VEACH_TRAVERSAL_ALPHA>(ray);
+		HitRecord hit = TraceClosest<VEACH_TRAVERSAL_ALPHA, true>(ray);
 #endif
 
 		if (bounce == 0u && debugMode == DEBUG_TRAVERSAL)
@@ -394,7 +395,7 @@ void main(uint3 tid: SV_DispatchThreadID)
 		path.lightsSampled = bsdf.MaxActiveAlpha() >= NEAR_SPECULAR_ALPHA;
 		if (path.lightsSampled)
 		{
-			float3 direct = path.throughput * NextEventEstimation<VEACH_TRAVERSAL_ALPHA>(si, bsdf, float2(hitConeWidth, path.coneSpread), rng);
+			float3 direct = path.throughput * NextEventEstimation<VEACH_TRAVERSAL_ALPHA, true>(si, bsdf, float2(hitConeWidth, path.coneSpread), rng);
 			if (fireflyClamp > 0.0 && bounce > 0u)
 			{
 				direct = min(direct, float3(fireflyClamp));

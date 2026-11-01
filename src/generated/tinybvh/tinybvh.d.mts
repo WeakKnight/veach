@@ -9,12 +9,11 @@ export interface TinyBVHModule {
 	_tb_build_blas(vertices: number, vertexCount: number, indices: number, triCount: number, quality: number): number;
 	_tb_build_tlas(aabbs: number, count: number): number;
 	_tb_destroy(handle: number): void;
-	_tb_node_count(handle: number): number;
+	_tb_node_blocks(handle: number): number;
 	_tb_nodes(handle: number): number;
 	_tb_prim_ref_count(handle: number): number;
 	_tb_ordered_tris(handle: number): number;
 	_tb_prim_indices(handle: number): number;
-	_tb_sah_cost(handle: number): number;
 	_tb_bounds(handle: number, out: number): void;
 }
 
