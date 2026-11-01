@@ -174,7 +174,8 @@ async function applyDenoiser() {
 	} catch (error) { denoiser.value = 'taa'; toast(`NRD UNAVAILABLE: ${String(error).replace(/^Error: /, '')}`); }
 }
 denoiser.onchange = () => { void applyDenoiser(); };
-$<HTMLSelectElement>('quality').onchange = event => { if (renderer) renderer.settings.resolutionScale = Number((event.target as HTMLSelectElement).value); };
+// Quality presets choose FSR 3's render resolution; the presentation stays at full resolution (1 = native AA).
+$<HTMLSelectElement>('quality').onchange = event => { if (renderer) renderer.settings.upscaleRenderScale = Number((event.target as HTMLSelectElement).value); };
 window.addEventListener('keydown', e => {
 	if (debugConsole?.isOpen || gpuProfilerPanel?.isOpen || consoleBusy || (e.target instanceof HTMLElement && e.target.matches('input,textarea,select,[contenteditable]'))) return;
 	if (['Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.code)) e.preventDefault();
@@ -269,7 +270,7 @@ async function init() {
 		onSceneProgress: p => { $('card-copy').textContent = p.message; $('load-progress').style.width = `${25 + p.progress * 75}%`; },
 	});
 	if (closed) { renderer.destroy(); return; }
-	renderer.settings.maxBounces = 3; renderer.settings.resolutionScale = 0.5; renderer.settings.localExposureMethod = LocalExposureMethod.None;
+	renderer.settings.maxBounces = 3; renderer.settings.upscaleRenderScale = 0.5; renderer.settings.localExposureMethod = LocalExposureMethod.None;
 	renderer.settings.renderMode = 'realtime';
 	renderer.sun.elevation = 55; renderer.sun.azimuth = 20;
 	adapter = new ThreeAdapter(renderer); await adapter.sync(scene, camera);

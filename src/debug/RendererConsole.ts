@@ -17,6 +17,9 @@ interface SettingDescriptor { name: string; help: string; type: ConsoleValueType
 export const renderConsoleSettings = {
 	renderMode: { name: 'r.RenderMode', help: 'offline: progressive accumulation; realtime: 1 spp per frame with TAA and NRD. Host game frames are always realtime.', type: consoleEnum({ offline: 'offline', realtime: 'realtime' } as const) },
 	taaEnabled: { name: 'r.TAA.Enabled', help: 'TAA in realtime mode; enabled by default.', type: consoleBoolean },
+	upscaler: { name: 'r.Upscaler.Mode', help: 'Realtime upscaler: fsr3 (AMD FidelityFX FSR 3.1, replaces the TAA resolve) or none (TAA at full resolution). Loads on the first realtime frame; r.FSR3.Stats reports fallbacks.', type: consoleEnum({ fsr3: 'fsr3', none: 'none' } as const) },
+	upscaleRenderScale: { name: 'r.Upscaler.RenderScale', help: 'Render resolution relative to the presentation resolution while upscaling (default 0.7).', type: consoleNumber(0.25, 1) },
+	fsrSharpness: { name: 'r.FSR3.Sharpness', help: 'FSR 3 RCAS sharpening, 0 off .. 1.', type: consoleNumber(0, 1) },
 	taaNewFrameWeight: { name: 'r.TAA.NewFrameWeight', help: 'Current-frame weight (higher is more responsive).', type: consoleNumber(0.001, 1) },
 	taaColorClampingFactor: { name: 'r.TAA.ColorClampingFactor', help: 'PQ neighborhood standard-deviation multiplier; lower rejects history more strongly.', type: consoleNumber(0.01, 10) },
 	taaMaximumRadiance: { name: 'r.TAA.MaximumRadiance', help: 'Scene-linear PQ range, independent of presentation exposure.', type: consoleNumber(1, 1e8) },
@@ -116,6 +119,7 @@ export function createRendererConsole(renderer: Renderer, options: RendererConso
 	command('r.Accumulation.Reset', 'Restart image sampling.', () => { renderer.resetAccumulation(); return 'Accumulation reset'; });
 	command('r.TAA.Reset', 'Discard temporal history, for example after a camera cut.', () => { renderer.resetTaa(); return 'TAA history reset'; });
 	command('r.NRD.Stats', 'Actual NRD state, fallback reason, dispatches per frame and texture memory.', () => renderer.nrdStats);
+	command('r.FSR3.Stats', 'Actual FSR 3 state, fallback reason, render and upscale sizes and memory.', () => renderer.fsrStats);
 	command('r.SSSR.Stats', 'Actual SSSR state, fallback reason, frames and memory (excluding its NRD instance).', () => renderer.sssrStats);
 	command('r.TAA.Stats', 'Actual TAA mode, history frames, reset reason and memory.', () => renderer.taaStats);
 	command('r.ProfileGPU.Capture', 'Capture GPU pass timings on the next rendered frame. Ctrl+Shift+, opens the panel.', () => {

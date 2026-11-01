@@ -4,6 +4,8 @@ import { TemporalAA, type TaaStats } from './TemporalAA';
 import { GpuProfiler } from './GpuProfiler';
 import type { NrdDenoiser, NrdMode, NrdStats } from './denoise/NrdDenoiser';
 import type { SssrReflections, SssrStats } from './sssr/SssrReflections';
+import type { Fsr3Pass, Fsr3Stats } from './fsr3/Fsr3Pass';
+import { fsr3JitterOffset, fsr3JitterPhaseCount } from './fsr3/Fsr3Config';
 import { SSSR_DEFAULTS } from './sssr/SssrConfig';
 // Public entry point: owns the WebGPU device, the scene and the progressive render loop.
 import { BuildQuality, TinyBVH } from '../accel/TinyBVH';
@@ -69,6 +71,15 @@ export interface RenderSettings {
 	taaColorClampingFactor: number;
 	taaMaximumRadiance: number;
 	taaMotionVectorDebug: boolean;
+	/**
+	 * Realtime frames: 'fsr3' upscales with AMD FidelityFX FSR 3.1 (replacing TAA's resolve) from upscaleRenderScale of
+	 * the presentation resolution; 'none' keeps TAA at full resolution. Loads on the first realtime frame.
+	 */
+	upscaler: 'fsr3' | 'none';
+	/** Render resolution relative to the presentation resolution while upscaling (FSR 3 quality 0.67, native AA 1). */
+	upscaleRenderScale: number;
+	/** FSR 3 RCAS sharpening, 0 (off) .. 1. Presentation only. */
+	fsrSharpness: number;
 	/** NVIDIA NRD REBLUR before TAA in real-time (non-progressive) wavefront frames; see setNrd(). */
 	nrdEnabled: boolean;
 	/** 'sh': REBLUR diffuse + specular SH with SG resolve and re-jittering; 'radiance': REBLUR_DIFFUSE_SPECULAR. Select with setNrd(). */
@@ -137,6 +148,9 @@ export function defaultRenderSettings(): RenderSettings {
 		taaColorClampingFactor: 2,
 		taaMaximumRadiance: 100,
 		taaMotionVectorDebug: false,
+		upscaler: 'fsr3',
+		upscaleRenderScale: 0.7,
+		fsrSharpness: 0.8,
 		nrdEnabled: false,
 		nrdMode: 'sh',
 		nrdReJitter: true,
@@ -181,7 +195,7 @@ export function defaultRenderSettings(): RenderSettings {
 
 // Applied when presenting (the accumulation is pre-exposed), so changing them keeps the samples.
 export function isPresentationSetting(key: keyof RenderSettings): boolean {
-	return key === 'tonemapper' || key.startsWith('autoExposure') || key.startsWith('histogramLog') || key.startsWith('localExposure') || key === 'visualizeLocalExposure' || key === 'taaMotionVectorDebug' || key === 'nrdDebug' || key === 'nrdReJitter' || key === 'sssrDebug';
+	return key === 'tonemapper' || key.startsWith('autoExposure') || key.startsWith('histogramLog') || key.startsWith('localExposure') || key === 'visualizeLocalExposure' || key === 'taaMotionVectorDebug' || key === 'nrdDebug' || key === 'nrdReJitter' || key === 'sssrDebug' || key === 'fsrSharpness';
 }
 
 // Renderer.create progress. Without a browser pipeline cache (first visit, new shaders) compiling
@@ -301,6 +315,14 @@ export class Renderer {
 	private sssrActive = false;
 	private sssrError: string | null = null;
 	private sssrLoading: Promise<unknown> | null = null;
+	private fsr: Fsr3Pass | null = null;
+	private fsrLoading: Promise<unknown> | null = null;
+	private fsrError: string | null = null;
+	// Whether the current render size was chosen for upscaling (resize), and FSR's jitter sequence index.
+	private upscaling = false;
+	private upscaleJitterIndex = 0;
+	private lastUpscaleTime = 0;
+	private fsrJitter: [number, number] = [0, 0];
 	private temporalCamera: { position: Vec3; right: Vec3; up: Vec3; forward: Vec3 } | null = null;
 	private temporalFrame = 0;
 	private progressiveMode: boolean | null = null;
@@ -430,6 +452,24 @@ export class Renderer {
 	resetTaa(): void { this.taa.reset(); }
 	get nrdStats(): NrdStats {
 		return this.nrd ? { ...this.nrd.stats } : { active: false, reason: this.nrdError ?? (this.settings.nrdEnabled ? 'loading' : 'disabled'), mode: this.settings.nrdMode, dispatches: 0, frames: 0, bytes: 0 };
+	}
+
+	get fsrStats(): Fsr3Stats {
+		return this.fsr ? { ...this.fsr.stats } : { active: false, reason: this.fsrError ?? (this.settings.upscaler === 'fsr3' ? 'loading' : 'disabled'), frames: 0, renderSize: [0, 0], upscaleSize: [0, 0], bytes: 0 };
+	}
+
+	private loadFsr(): void {
+		if (this.fsr || this.fsrLoading || this.fsrError) return;
+		this.fsrLoading = import('./fsr3/Fsr3Pass').then(({ Fsr3Pass }) => Fsr3Pass.create(this.device)).then(fsr => {
+			if (this.destroyed) fsr.destroy(); else this.fsr = fsr;
+		}, error => { this.fsrError = String(error); }).finally(() => { this.fsrLoading = null; });
+	}
+
+	// FSR runs for realtime frames that TAA resolves (no debug view, motion view or depth of field).
+	private upscaleWanted(): boolean {
+		const s = this.settings;
+		return (!!this.activeHost || s.renderMode === 'realtime') && s.upscaler === 'fsr3' && !!this.fsr && s.taaEnabled && s.debugMode === DebugMode.None
+			&& !s.taaMotionVectorDebug && (!!this.activeHost || this.camera.lensRadius <= 0);
 	}
 
 	get sssrStats(): SssrStats {
@@ -673,7 +713,7 @@ export class Renderer {
 	// top, for comparisons against offline references.
 	async readRadiance(options: { denoised?: boolean } = {}): Promise<{ width: number; height: number; samples: number; data: Float32Array }> {
 		const accum = options.denoised ? this.tracer.presentation : this.tracer.accumulation;
-		const { width, height } = this.tracer;
+		const [width, height] = options.denoised ? [this.tracer.presentWidth, this.tracer.presentHeight] : [this.tracer.width, this.tracer.height];
 		const samples = this.frameIndex;
 		const preExposure = this.preExposure;
 		if (!accum) {
@@ -871,10 +911,14 @@ export class Renderer {
 		const scale = this.settings.resolutionScale;
 		const width = Math.max(1, Math.round((this.canvas.clientWidth || this.canvas.width) * dpr * scale));
 		const height = Math.max(1, Math.round((this.canvas.clientHeight || this.canvas.height) * dpr * scale));
-		if (this.canvas.width !== width || this.canvas.height !== height || this.tracer.width !== width || this.tracer.height !== height) {
+		// While upscaling the canvas keeps the presentation size and the path tracer renders a fraction of it.
+		this.upscaling = this.upscaleWanted();
+		const renderScale = this.upscaling ? Math.min(1, Math.max(0.25, this.settings.upscaleRenderScale)) : 1;
+		const renderWidth = Math.max(1, Math.round(width * renderScale)), renderHeight = Math.max(1, Math.round(height * renderScale));
+		if (this.canvas.width !== width || this.canvas.height !== height || this.tracer.width !== renderWidth || this.tracer.height !== renderHeight) {
 			this.canvas.width = width;
 			this.canvas.height = height;
-			this.tracer.resize(width, height);
+			this.tracer.resize(renderWidth, renderHeight);
 			this.resetAccumulation();
 		}
 	}
@@ -939,6 +983,13 @@ export class Renderer {
 		this.device.queue.writeBuffer(this.tracer.uniformBuffer, 0, this.uniformData);
 	}
 
+	// The presentation passes' frame uniforms: the frame uniforms at the presentation size.
+	private writePresentUniforms(): void {
+		const data = this.uniformData.slice(0);
+		new Uint32Array(data, 64, 2).set([this.tracer.presentWidth, this.tracer.presentHeight]);
+		this.device.queue.writeBuffer(this.tracer.presentUniformBuffer, 0, data);
+	}
+
 	get converged(): boolean {
 		if (this.activeHost || this.settings.renderMode === 'realtime') return false;
 		return this.settings.maxSamples > 0 && this.frameIndex >= this.settings.maxSamples;
@@ -971,13 +1022,22 @@ export class Renderer {
 		if (!progressive && s.sssrEnabled && !this.sssr && !this.sssrLoading && !this.sssrError) {
 			this.sssrLoading = this.setSssr(true).catch(() => undefined).finally(() => { this.sssrLoading = null; });
 		}
+		// FSR 3 is the realtime default as well; frames render at full resolution with TAA until it is ready.
+		if (!progressive && s.upscaler === 'fsr3') this.loadFsr();
 		const taaReason = !s.taaEnabled ? 'disabled' : progressive ? 'offline' : s.debugMode !== DebugMode.None ? 'debug-view' : !frame && this.camera.lensRadius > 0 ? 'depth-of-field' : null;
 		this.taaActive = false;
 		if (taaReason) { this.taa.suspend(taaReason); if (!progressive || !this.denoisedBuffer) this.tracer.setPresentationBuffer(null); }
 		else {
 			const basis = this.hostView ?? this.camera.basis(this.tracer.width / this.tracer.height);
 			this.temporalCamera = { ...basis, position: this.hostView?.position ?? this.camera.position };
-			this.taaActive = this.taa.begin(this.temporalCamera, this.tracer.width, this.tracer.height, this.scene, this.activeHost ?? this.scene, s.taaMaximumRadiance, frame?.cameraCut ?? false);
+			// FSR samples pixel p at p + 0.5 - jitter (unjittered pixel space); the path tracer traces p + film jitter.
+			let jitter: [number, number] | undefined;
+			if (this.upscaling) {
+				const offset = fsr3JitterOffset(this.upscaleJitterIndex++, fsr3JitterPhaseCount(this.tracer.width, this.canvas.width));
+				jitter = [0.5 - offset[0], 0.5 - offset[1]];
+				this.fsrJitter = offset;
+			}
+			this.taaActive = this.taa.begin(this.temporalCamera, this.tracer.width, this.tracer.height, this.scene, this.activeHost ?? this.scene, s.taaMaximumRadiance, frame?.cameraCut ?? false, jitter);
 			if (!this.taaActive) this.tracer.setPresentationBuffer(null);
 		}
 		const realtimeReason = !this.taaActive ? `taa-${this.taa.stats.reason ?? 'inactive'}` : this.tracer.integrator !== 'wavefront' ? 'integrator' : !this.tracer.nrdRegion ? 'storage-budget' : null;
@@ -1025,7 +1085,22 @@ export class Renderer {
 				parameters: { ...SSSR_DEFAULTS, roughnessThreshold: s.sssrRoughnessThreshold }, debug: s.sssrDebug,
 			}));
 		} : this.nrdActive ? (enc: GPUCommandEncoder, motion: GPUBuffer) => this.gpuProfiler.scope('NRD', () => this.nrd!.encode(enc, nrdInput(motion, s.nrdDebug)) ?? this.tracer.accumulation!) : undefined;
-		if (this.taaActive) this.gpuProfiler.scope('Temporal AA', () => this.tracer.setPresentationBuffer(this.taa.encode(encoder, this.tracer.uniformBuffer, this.tracer.accumulation!, this.scene!, s.taaNewFrameWeight, s.taaColorClampingFactor, s.taaMaximumRadiance, nrd)));
+		const fsr = this.taaActive && this.upscaling ? this.fsr! : null;
+		const upscaleTime = performance.now();
+		const frameTimeDelta = this.lastUpscaleTime ? Math.min(upscaleTime - this.lastUpscaleTime, 1000) : 0;
+		this.lastUpscaleTime = upscaleTime;
+		const upscale = fsr ? (enc: GPUCommandEncoder, input: GPUBuffer, motion: GPUBuffer) => this.gpuProfiler.scope('FSR 3', () => fsr.encode(enc, {
+			frame: this.tracer.uniformBuffer, color: input, motion, renderSize: [this.tracer.width, this.tracer.height], upscaleSize: [this.canvas.width, this.canvas.height],
+			jitter: this.fsrJitter, camera: this.temporalCamera!, reset: this.taa.stats.historyFrames === 0, frameTimeDelta, preExposure: this.preExposure,
+			sharpness: Math.max(0, Math.min(1, s.fsrSharpness)),
+		})) : undefined;
+		if (!fsr) this.fsr?.suspend(!this.taaActive ? `taa-${this.taa.stats.reason ?? 'inactive'}` : s.upscaler !== 'fsr3' ? 'disabled' : 'not-upscaling');
+		if (this.taaActive) this.gpuProfiler.scope(fsr ? 'Temporal upscaling' : 'Temporal AA', () => this.tracer.setPresentationBuffer(
+			this.taa.encode(encoder, this.tracer.uniformBuffer, this.tracer.accumulation!, this.scene!, s.taaNewFrameWeight, s.taaColorClampingFactor, s.taaMaximumRadiance, nrd, upscale),
+			fsr ? [this.canvas.width, this.canvas.height] : null));
+		// A render size chosen for upscaling must not be presented directly (e.g. TAA lost its storage budget).
+		if (this.upscaling && !fsr) this.upscaling = false;
+		this.writePresentUniforms();
 		const now = performance.now();
 		const deltaTime = this.lastExposureTime ? Math.min((now - this.lastExposureTime) / 1000, 1) : 0;
 		this.lastExposureTime = now;
@@ -1167,8 +1242,8 @@ export class Renderer {
 				forceTarget: this.forceExposureTarget,
 				luminanceMethod: s.autoExposureLuminanceMethod,
 			},
-			this.tracer.width,
-			this.tracer.height,
+			this.tracer.presentWidth,
+			this.tracer.presentHeight,
 		);
 		this.forceExposureTarget = false;
 	}
@@ -1214,6 +1289,7 @@ export class Renderer {
 		this.taa.destroy();
 		for (const nrd of this.nrds.values()) nrd.destroy();
 		this.sssr?.reflections.destroy(); this.sssr?.nrd.destroy();
+		this.fsr?.destroy();
 		this.gpuProfiler.destroy();
 		this.tracer.destroy();
 		this.device.destroy();

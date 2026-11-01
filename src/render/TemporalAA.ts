@@ -55,7 +55,8 @@ export class TemporalAA {
 	get motionVectorBuffer(): GPUBuffer | null { return this.stats.active ? this.motion : null; }
 	reset(reason = 'explicit'): void { this.stats.historyFrames = 0; this.stats.resetReason = reason; }
 	suspend(reason: string): void { this.reset(reason); this.stats.active = false; this.stats.reason = reason; }
-	begin(camera: TemporalCamera, width: number, height: number, scene: GpuScene, identity: object, maximumRadiance: number, cut: boolean): boolean {
+	/** jitter: this frame's film jitter in [0, 1] when an upscaler owns the sequence (default: TAA's Halton 2, 3 of length 32). */
+	begin(camera: TemporalCamera, width: number, height: number, scene: GpuScene, identity: object, maximumRadiance: number, cut: boolean, jitter?: [number, number]): boolean {
 		// Previous frame commands have been submitted before the next begin().
 		for (const buffer of this.retiredInstances) buffer.destroy();
 		this.retiredInstances = [];
@@ -74,13 +75,18 @@ export class TemporalAA {
 		if (this.maximumRadiance !== maximumRadiance) { this.reset('history-encoding'); this.maximumRadiance = maximumRadiance; }
 		if (cut) this.reset('camera-cut');
 		this.currentCamera = { position: [...camera.position], right: [...camera.right], up: [...camera.up], forward: [...camera.forward] };
-		this.jitter = temporalJitter(this.sequence++);
+		this.jitter = jitter ?? temporalJitter(this.sequence);
+		this.sequence++;
 		this.stats.active = true; this.stats.reason = null; this.stats.bytes = bytes * 3 + this.motion!.size + Math.max(this.instances.size, scene.instances.size) + 112;
 		return true;
 	}
-	/** filter runs between motion generation and resolve (NRD) and may replace the resolve input, same layout. */
+	/**
+	 * filter runs between motion generation and resolve (NRD) and may replace the resolve input, same layout.
+	 * resolve, when given, replaces TAA's resolve (an upscaler) and returns the presentation buffer.
+	 */
 	encode(encoder: GPUCommandEncoder, frame: GPUBuffer, source: GPUBuffer, scene: GpuScene, weight: number, clamp: number, maximum: number,
-		filter?: (encoder: GPUCommandEncoder, motion: GPUBuffer) => GPUBuffer): GPUBuffer {
+		filter?: (encoder: GPUCommandEncoder, motion: GPUBuffer) => GPUBuffer,
+		resolve?: (encoder: GPUCommandEncoder, input: GPUBuffer, motion: GPUBuffer) => GPUBuffer): GPUBuffer {
 		const old = this.previousCamera ?? this.currentCamera!, data = new ArrayBuffer(112), f = new Float32Array(data), u = new Uint32Array(data);
 		f.set(old.position, 0);
 		temporalInverse(old).forEach((row, i) => f.set(row, 4 + i * 4));
@@ -96,9 +102,13 @@ export class TemporalAA {
 		const motion = encoder.beginComputePass({ label: 'taa.motion' });
 		motion.setPipeline(this.motionPipeline); motion.setBindGroup(0, group); motion.dispatchWorkgroups(Math.ceil(this.width / 8), Math.ceil(this.height / 8)); motion.end();
 		const filtered = filter?.(encoder, this.motion!) ?? source;
-		if (filtered !== source) group = createGroup(filtered);
-		const pass = encoder.beginComputePass({ label: 'taa.resolve' });
-		pass.setPipeline(this.pipeline); pass.setBindGroup(0, group); pass.dispatchWorkgroups(Math.ceil(this.width / 8), Math.ceil(this.height / 8)); pass.end();
+		let output = this.output!;
+		if (resolve) output = resolve(encoder, filtered, this.motion!);
+		else {
+			if (filtered !== source) group = createGroup(filtered);
+			const pass = encoder.beginComputePass({ label: 'taa.resolve' });
+			pass.setPipeline(this.pipeline); pass.setBindGroup(0, group); pass.dispatchWorkgroups(Math.ceil(this.width / 8), Math.ceil(this.height / 8)); pass.end();
+		}
 		// Resolve reads the last rendered pose even when this frame grows the scene arena.
 		// Only the next-frame snapshot needs the larger allocation; history remains intact.
 		if (this.instances!.size < scene.instances.size) {
@@ -108,7 +118,7 @@ export class TemporalAA {
 		encoder.copyBufferToBuffer(scene.instances, 0, this.instances!, 0, scene.instances.size);
 		this.ping ^= 1; this.previousSlots = scene.instanceSlots; this.previousCamera = this.currentCamera; this.previousJitter = [...this.jitter];
 		this.stats.historyFrames++;
-		return this.output!;
+		return output;
 	}
 	destroy(): void { for (const buffer of [...this.history, ...this.retiredInstances, this.output, this.motion, this.instances, this.uniform]) buffer?.destroy(); }
 }

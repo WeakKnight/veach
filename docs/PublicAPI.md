@@ -58,6 +58,14 @@ dispatches per frame and texture memory. `settings.nrdDebug` (presentation only)
 0 denoised, 1 noisy, 2 diffuse, 3 specular, 4 guides or 5 the re-jitter scale. NRD is NVIDIA-licensed, not MIT;
 see [Nrd.md](Nrd.md).
 
+## Realtime upscaling: FSR 3 (default)
+
+Realtime frames render `settings.upscaleRenderScale` (0.7) of the presentation resolution and upscale with AMD
+FidelityFX FSR 3.1, which replaces TAA's resolve; the first realtime frame loads it (a lazy chunk), and until then
+or without `float32-filterable` frames use TAA at full resolution. `settings.upscaler = 'none'` keeps TAA;
+`settings.fsrSharpness` (0.8, presentation only) controls RCAS. `renderer.fsrStats` reports activity, render and
+upscale sizes. While upscaling, `readRadiance({ denoised: true })` returns the upscaled image. See [Fsr3.md](Fsr3.md).
+
 ## Realtime reflections: SSSR (default)
 
 `settings.sssrEnabled` (default true) makes realtime wavefront frames trace diffuse lighting and

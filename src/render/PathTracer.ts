@@ -25,10 +25,14 @@ const WORKGROUP_SIZE = 8;
 
 export class PathTracer {
 	readonly uniformBuffer: GPUBuffer;
+	// FrameUniforms of the presentation passes (exposure, local exposure, present): the frame uniforms with the
+	// presentation size, which differs from the render size while an upscaler writes the presentation buffer.
+	readonly presentUniformBuffer: GPUBuffer;
 	readonly autoExposure: AutoExposure;
 	readonly localExposure: LocalExposure;
 	readonly oidnGuides: OIDNGuides;
 	private presentationBuffer: GPUBuffer | null = null;
+	private presentationSize: [number, number] | null = null;
 	private readonly sceneLayout: GPUBindGroupLayout;
 	private readonly accumLayout: GPUBindGroupLayout;
 	private readonly presentLayout: GPUBindGroupLayout;
@@ -105,6 +109,11 @@ export class PathTracer {
 		this.bsdfTables = createBSDFTablesTexture(device, bsdfTables);
 		this.uniformBuffer = device.createBuffer({
 			label: 'frameUniforms',
+			size: FRAME_UNIFORM_BYTES,
+			usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+		});
+		this.presentUniformBuffer = device.createBuffer({
+			label: 'presentFrameUniforms',
 			size: FRAME_UNIFORM_BYTES,
 			usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
 		});
@@ -339,6 +348,7 @@ export class PathTracer {
 		this.width = width;
 		this.height = height;
 		this.presentationBuffer = null;
+		this.presentationSize = null;
 		this.accumBuffer?.destroy();
 		this.accumBuffer = this.device.createBuffer({
 			label: 'accumulation',
@@ -362,9 +372,9 @@ export class PathTracer {
 		});
 		this.wavefront?.bind(this.accumBuffer, this.feedbackTexture);
 		this.bindPrimaryVisibility();
-		this.localExposure.resize(this.uniformBuffer, this.accumBuffer, this.autoExposure.exposureBuffer, width, height);
+		this.localExposure.resize(this.presentUniformBuffer, this.accumBuffer, this.autoExposure.exposureBuffer, width, height);
 		this.rebuildPresentBindGroup();
-		this.autoExposure.bind(this.uniformBuffer, this.accumBuffer);
+		this.autoExposure.bind(this.presentUniformBuffer, this.accumBuffer);
 	}
 
 	setDisplayTransform(resources: DisplayTransformGPU): void {
@@ -374,18 +384,26 @@ export class PathTracer {
 		previous.destroy();
 	}
 
-	/** Switch every presentation pass together; the progressive accumulation remains untouched. */
-	setPresentationBuffer(buffer: GPUBuffer | null): void {
-		if (this.presentationBuffer === buffer) return;
+	/**
+	 * Switch every presentation pass together; the progressive accumulation remains untouched. `size` is the
+	 * buffer's image size when it differs from the render size (an upscaler's output).
+	 */
+	setPresentationBuffer(buffer: GPUBuffer | null, size: [number, number] | null = null): void {
+		const presentSize = buffer ? size : null;
+		if (this.presentationBuffer === buffer && this.presentationSize?.[0] === presentSize?.[0] && this.presentationSize?.[1] === presentSize?.[1]) return;
 		this.presentationBuffer = buffer;
+		this.presentationSize = presentSize;
 		const source = buffer ?? this.accumBuffer;
 		if (!source) return;
-		this.localExposure.resize(this.uniformBuffer, source, this.autoExposure.exposureBuffer, this.width, this.height);
-		this.autoExposure.bind(this.uniformBuffer, source);
+		this.localExposure.resize(this.presentUniformBuffer, source, this.autoExposure.exposureBuffer, this.presentWidth, this.presentHeight);
+		this.autoExposure.bind(this.presentUniformBuffer, source);
 		this.rebuildPresentBindGroup();
 	}
 
 	get presentation(): GPUBuffer | null { return this.presentationBuffer ?? this.accumBuffer; }
+	/** Image size of the presentation buffer (the render size unless an upscaler writes it). */
+	get presentWidth(): number { return this.presentationSize?.[0] ?? this.width; }
+	get presentHeight(): number { return this.presentationSize?.[1] ?? this.height; }
 
 	private rebuildPresentBindGroup(): void {
 		if (!this.accumBuffer) return;
@@ -394,7 +412,7 @@ export class PathTracer {
 			label: 'present',
 			layout: this.presentLayout,
 			entries: [
-				{ binding: 0, resource: { buffer: this.uniformBuffer } },
+				{ binding: 0, resource: { buffer: this.presentUniformBuffer } },
 				{ binding: 1, resource: { buffer: this.presentation! } },
 				{ binding: 2, resource: this.toneLUT.createView() },
 				{ binding: 3, resource: this.toneLUTSampler },
@@ -670,6 +688,7 @@ export class PathTracer {
 		this.visibility?.destroy();
 		this.sharc?.release();
 		this.uniformBuffer.destroy();
+		this.presentUniformBuffer.destroy();
 		this.accumBuffer?.destroy();
 		this.feedbackTexture?.destroy();
 		this.toneLUT.destroy();

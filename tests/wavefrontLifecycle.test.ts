@@ -30,7 +30,7 @@ function tracer(): PathTracer {
 		materialOpcodes: [0xffffffff, 0xffffffff],
 		opaqueMegakernel: false, boundOpaqueMegakernel: false,
 		resize: vi.fn(),
-		uniformBuffer: { destroy: vi.fn() }, toneLUT: { destroy: vi.fn() },
+		uniformBuffer: { destroy: vi.fn() }, presentUniformBuffer: { destroy: vi.fn() }, toneLUT: { destroy: vi.fn() },
 		displayTransform: { destroy: vi.fn() }, bsdfTables: { destroy: vi.fn() },
 		autoExposure: { destroy: vi.fn() }, localExposure: { destroy: vi.fn() },
 	});

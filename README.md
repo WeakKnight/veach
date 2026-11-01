@@ -54,9 +54,9 @@ Press `~` for the [rendering console](docs/Console.md): `r.SHARC.Enabled 0`,
 The console pauses game time while leaving the rendered view live.
 Press **Ctrl + Shift + ,** for a single-frame [GPU timing breakdown](docs/GPUProfiling.md),
 including per-bounce costs and a hotspot list (requires optional WebGPU timestamp queries).
-Performance/Balanced/Quality select resolution only; real-time rendering is always 1 spp. The games
-default to TAA without progressive cross-frame accumulation; OIDN is disabled. Use
-`r.TAA.Enabled 0` / `1` to compare, or `r.TAA.Stats` for history status.
+Performance/Balanced/Quality select FSR 3's render resolution (50/75/100%, upscaled to full resolution); real-time rendering is always 1 spp. The games
+default to FSR 3 temporal upscaling without progressive cross-frame accumulation; OIDN is disabled. Use
+`r.Upscaler.Mode none` / `fsr3` to compare with TAA, or `r.FSR3.Stats` / `r.TAA.Stats` for history status.
 `npm run smoke:games` verifies GPU updates and
 game interactions. See [host integration](docs/HostIntegration.md) for the supported subset.
 

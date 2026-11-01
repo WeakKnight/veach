@@ -1,5 +1,9 @@
 # Temporal anti-aliasing without progressive accumulation
 
+Realtime frames upscale with FidelityFX FSR 3 by default, which replaces TAA's resolve and jitter sequence
+([Fsr3.md](Fsr3.md)); TAA still generates the motion vectors. This document describes TAA's own resolve, used with
+`settings.upscaler = 'none'` or while FSR 3 is unavailable.
+
 TAA defaults on for realtime frames: host frames, including the aim/racing examples, and the
 viewer when `settings.renderMode = 'realtime'`. It is bypassed in offline mode (progressive
 cross-frame accumulation, the viewer default). Real-time rendering always traces exactly 1 spp; the raw current-frame HDR and

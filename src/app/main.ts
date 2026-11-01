@@ -88,6 +88,9 @@ async function main(): Promise<void> {
 	// Realtime frames default to diffuse ray traced lighting plus FidelityFX SSSR reflections; sssr=0 keeps path-traced reflections.
 	if (params.get('sssr') === '0') renderer.settings.sssrEnabled = false;
 	if (params.get('sssr') === '1') { renderer.settings.renderMode = 'realtime'; await renderer.setSssr(true); }
+	// Realtime frames upscale with FSR 3 from 70% of the presentation resolution; upscaler=none keeps TAA at full resolution.
+	if (params.get('upscaler') === 'none') renderer.settings.upscaler = 'none';
+	if (params.has('renderScale')) renderer.settings.upscaleRenderScale = Number(params.get('renderScale'));
 	if (params.has('sssrDebug')) renderer.settings.sssrDebug = Number(params.get('sssrDebug'));
 	if (params.has('nrdDebug')) renderer.settings.nrdDebug = Number(params.get('nrdDebug'));
 	new OrbitController(renderer.camera, canvas, () => renderer.resetAccumulation());
